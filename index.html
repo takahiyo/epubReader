@@ -61,6 +61,13 @@
               <option value="pcloud">pCloud</option>
             </select>
           </div>
+          <div class="actions">
+            <button id="sourceLogin" class="primary secondary">選択したソースでログイン / 接続</button>
+          </div>
+          <div id="syncStatus" class="status-box">
+            <strong>同期状態</strong>
+            <p id="syncStatusText" class="hint">利用するソースを選ぶと、ここに状態や次のアクションが表示されます。</p>
+          </div>
           <div class="field">
             <label for="endpointInput">クラウド同期エンドポイント (Cloudflare Workers / Apps Script)</label>
             <input id="endpointInput" type="url" placeholder="https://..." />

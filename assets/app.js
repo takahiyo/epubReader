@@ -46,6 +46,8 @@ const elements = {
   modalImage: document.getElementById("modalImage"),
   closeModal: document.getElementById("closeModal"),
   sourceSelect: document.getElementById("sourceSelect"),
+  sourceLogin: document.getElementById("sourceLogin"),
+  syncStatusText: document.getElementById("syncStatusText"),
 };
 
 const reader = new ReaderController({
@@ -65,6 +67,11 @@ reader.applyTheme(theme);
 
 function setStatus(message) {
   elements.bookMeta.textContent = message;
+}
+
+function setSyncStatus(message) {
+  if (!elements.syncStatusText) return;
+  elements.syncStatusText.textContent = message;
 }
 
 function updateHeader(info) {
@@ -301,6 +308,59 @@ function closeModal() {
   elements.modalImage.src = "";
 }
 
+function toggleFields(nodes, disabled) {
+  nodes.forEach((el) => {
+    if (!el) return;
+    el.disabled = disabled;
+  });
+}
+
+function updateSourceControls(source) {
+  const current = cloudSync.resolveSource(source, storage.getSettings());
+  const loginButton = elements.sourceLogin;
+  const driveFields = [
+    elements.driveClientIdInput,
+    elements.driveFileIdInput,
+    elements.driveFolderIdInput,
+    elements.driveFileNameInput,
+    elements.authorizeDrive,
+  ];
+  const onedriveFields = [elements.onedriveClientIdInput, elements.onedriveFilePathInput, elements.authorizeOneDrive];
+  const endpointFields = [elements.endpointInput, elements.apiKeyInput];
+
+  switch (current) {
+    case "drive":
+      toggleFields(driveFields, false);
+      toggleFields(onedriveFields, true);
+      toggleFields(endpointFields, true);
+      if (loginButton) loginButton.disabled = false;
+      setSyncStatus("Google Drive モードです。クライアント ID を設定して認証してください。");
+      break;
+    case "onedrive":
+      toggleFields(driveFields, true);
+      toggleFields(onedriveFields, false);
+      toggleFields(endpointFields, true);
+      if (loginButton) loginButton.disabled = false;
+      setSyncStatus("OneDrive モードです。クライアント ID を設定して認証してください。");
+      break;
+    case "pcloud":
+      toggleFields(driveFields, true);
+      toggleFields(onedriveFields, true);
+      toggleFields(endpointFields, false);
+      if (loginButton) loginButton.disabled = false;
+      setSyncStatus("pCloud モードです。エンドポイントと API Key を設定してください。");
+      break;
+    case "local":
+    default:
+      toggleFields(driveFields, true);
+      toggleFields(onedriveFields, true);
+      toggleFields(endpointFields, true);
+      if (loginButton) loginButton.disabled = true;
+      setSyncStatus("ローカルモードです。クラウド同期はスキップされます。");
+      break;
+  }
+}
+
 function setupEvents() {
   elements.epubInput.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
@@ -395,7 +455,38 @@ function setupEvents() {
   });
 
   elements.sourceSelect.addEventListener("change", (e) => {
-    storage.setSettings({ source: e.target.value });
+    const source = e.target.value;
+    storage.setSettings({ source });
+    updateSourceControls(source);
+  });
+
+  elements.sourceLogin.addEventListener("click", () => {
+    const source = storage.getSettings().source || "local";
+    if (source === "drive") {
+      const settings = storage.getSettings();
+      if (!settings.driveClientId) {
+        alert("Google Drive のクライアント ID を入力してください");
+        return;
+      }
+      startDriveOAuth(settings.driveClientId, window.location.origin + window.location.pathname);
+      setSyncStatus("Google Drive の認可を別ウィンドウで進めてください。完了後に戻って同期を実行できます。");
+      return;
+    }
+    if (source === "onedrive") {
+      const settings = storage.getSettings();
+      if (!settings.onedriveClientId) {
+        alert("OneDrive のクライアント ID を入力してください");
+        return;
+      }
+      startOneDriveOAuth(settings.onedriveClientId, window.location.origin + window.location.pathname);
+      setSyncStatus("OneDrive の認可を別ウィンドウで進めてください。完了後に戻って同期を実行できます。");
+      return;
+    }
+    if (source === "pcloud") {
+      setSyncStatus("pCloud モードです。エンドポイントと API Key を確認して「今すぐクラウド同期」を押してください。");
+      return;
+    }
+    setSyncStatus("ローカルモードです。同期はスキップされます。");
   });
 
   elements.driveClientIdInput.addEventListener("change", (e) => {
@@ -466,23 +557,26 @@ function loadSettings() {
     theme = settings.theme;
     reader.applyTheme(theme);
   }
+  updateSourceControls(settings.source);
 }
 
 function init() {
+  loadSettings();
   const capturedDrive = captureDriveAccessTokenFromHash("drive");
   if (capturedDrive) {
     storage.setSettings({ driveToken: capturedDrive });
+    setSyncStatus("Google Drive の認証が完了しました。同期を再度実行してください。");
     setStatus("Google Drive の認証が完了しました。同期を再度実行してください。");
   }
   const capturedOneDrive = captureOneDriveAccessTokenFromHash("onedrive");
   if (capturedOneDrive) {
     storage.setSettings({ onedriveToken: capturedOneDrive });
+    setSyncStatus("OneDrive の認証が完了しました。同期を再度実行してください。");
     setStatus("OneDrive の認証が完了しました。同期を再度実行してください。");
   }
   setupEvents();
   renderHistory();
   renderLibrary();
-  loadSettings();
 }
 
 init();
