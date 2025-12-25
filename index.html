@@ -53,6 +53,13 @@
         <div class="card">
           <h2>同期・バックアップ</h2>
           <div class="field">
+            <label for="sourceSelect">データソース</label>
+            <select id="sourceSelect">
+              <option value="local">ローカル</option>
+              <option value="cloud">クラウド</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="endpointInput">クラウド同期エンドポイント (Cloudflare Workers / Apps Script)</label>
             <input id="endpointInput" type="url" placeholder="https://..." />
           </div>
