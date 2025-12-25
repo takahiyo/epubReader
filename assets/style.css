@@ -201,6 +201,26 @@ label.file-label {
   margin-top: 0.5rem;
 }
 
+.status-box {
+  margin: 0.75rem 0;
+  padding: 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.status-box strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+input:disabled,
+select:disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .field {
   display: flex;
   flex-direction: column;
