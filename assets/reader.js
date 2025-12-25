@@ -23,6 +23,14 @@ export class ReaderController {
     this.theme = "dark";
   }
 
+  async ensureJSZip() {
+    if (typeof JSZip !== "undefined") {
+      return JSZip;
+    }
+    const module = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
+    return module.default ?? module;
+  }
+
   async openEpub(file, startLocation) {
     this.type = "epub";
     const arrayBuffer = await file.arrayBuffer();
@@ -57,7 +65,8 @@ export class ReaderController {
 
   async openImageBook(file, startPage = 0) {
     this.type = "image";
-    const zip = await JSZip.loadAsync(file);
+    const JSZipLib = await this.ensureJSZip();
+    const zip = await JSZipLib.loadAsync(file);
     const images = [];
     zip.forEach((path, entry) => {
       if (entry.dir) return;

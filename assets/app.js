@@ -74,6 +74,9 @@ const elements = {
   openOneDriveSelected: document.getElementById("openOneDriveSelected"),
   pcloudFileUrlInput: document.getElementById("pcloudFileUrlInput"),
   openPcloudUrl: document.getElementById("openPcloudUrl"),
+  openSettings: document.getElementById("openSettings"),
+  settingsModal: document.getElementById("settingsModal"),
+  closeSettingsModal: document.getElementById("closeSettingsModal"),
 };
 
 const reader = new ReaderController({
@@ -443,6 +446,16 @@ function hideOpenFileModal() {
   elements.openFileModal.classList.add("hidden");
 }
 
+function showSettingsModal() {
+  if (!elements.settingsModal) return;
+  elements.settingsModal.classList.remove("hidden");
+}
+
+function hideSettingsModal() {
+  if (!elements.settingsModal) return;
+  elements.settingsModal.classList.add("hidden");
+}
+
 function buildDriveQuery() {
   const epub = "mimeType='application/epub+zip'";
   const zip = "mimeType='application/zip' or mimeType contains 'zip'";
@@ -638,6 +651,17 @@ async function openPcloudFromUrl() {
 }
 
 function setupEvents() {
+  elements.openSettings?.addEventListener("click", () => {
+    showSettingsModal();
+    updateSourceControls(storage.getSettings().source);
+  });
+  elements.closeSettingsModal?.addEventListener("click", () => hideSettingsModal());
+  elements.settingsModal?.addEventListener("click", (e) => {
+    if (e.target === elements.settingsModal || e.target.classList.contains("modal-backdrop")) {
+      hideSettingsModal();
+    }
+  });
+
   elements.openFileModalButton?.addEventListener("click", () => showOpenFileModal());
   elements.closeOpenFileModal?.addEventListener("click", () => hideOpenFileModal());
   elements.openFileModal?.addEventListener("click", (e) => {

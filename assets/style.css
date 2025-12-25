@@ -429,6 +429,16 @@ input[type="text"] {
   gap: 0.75rem;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.settings-grid .actions {
+  grid-column: 1 / -1;
+}
+
 .source-switch {
   display: flex;
   gap: 0.75rem;
