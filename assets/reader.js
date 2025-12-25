@@ -25,14 +25,22 @@ export class ReaderController {
 
   async ensureJSZip() {
     if (typeof JSZip !== "undefined") {
+      if (typeof window !== "undefined" && !window.JSZip) {
+        window.JSZip = JSZip;
+      }
       return JSZip;
     }
     const module = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
-    return module.default ?? module;
+    const jszip = module.default ?? module;
+    if (typeof window !== "undefined") {
+      window.JSZip = jszip;
+    }
+    return jszip;
   }
 
   async openEpub(file, startLocation) {
     this.type = "epub";
+    await this.ensureJSZip();
     const arrayBuffer = await file.arrayBuffer();
     this.book = ePub(arrayBuffer);
     this.rendition = this.book.renderTo(this.viewer, {
