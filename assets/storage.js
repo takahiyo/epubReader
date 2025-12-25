@@ -9,6 +9,11 @@ const defaultData = {
     endpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
     apiKey: "<必要ならキー>",
     source: "local",
+    driveClientId: "",
+    driveFileId: "",
+    driveFolderId: "",
+    driveFileName: "epub-reader-data.json",
+    driveToken: null,
   },
 };
 
@@ -39,6 +44,11 @@ export class StorageService {
           endpoint: settings.endpoint || defaultData.settings.endpoint,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
           source: settings.source || defaultData.settings.source,
+          driveClientId: settings.driveClientId || defaultData.settings.driveClientId,
+          driveFileId: settings.driveFileId || defaultData.settings.driveFileId,
+          driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
+          driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
+          driveToken: settings.driveToken || defaultData.settings.driveToken,
         },
       };
     } catch (error) {
@@ -130,6 +140,11 @@ export class StorageService {
           endpoint: settings.endpoint || defaultData.settings.endpoint,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
           source: settings.source || defaultData.settings.source,
+          driveClientId: settings.driveClientId || defaultData.settings.driveClientId,
+          driveFileId: settings.driveFileId || defaultData.settings.driveFileId,
+          driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
+          driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
+          driveToken: settings.driveToken || defaultData.settings.driveToken,
         },
       };
       this.save();
