@@ -27,6 +27,11 @@ export class CloudSync {
     return headers;
   }
 
+  buildAuthHeader(apiKey) {
+    if (!apiKey) return {};
+    return { Authorization: `Bearer ${apiKey}` };
+  }
+
   async push() {
     const settings = this.getSettings();
     if (settings.source === "drive") {
@@ -34,6 +39,9 @@ export class CloudSync {
     }
     if (settings.source === "onedrive") {
       return this.pushToOneDrive(settings);
+    }
+    if (settings.source === "pcloud") {
+      return this.pushToPCloud(settings);
     }
     const { endpoint, apiKey } = settings;
     const payload = {
@@ -61,6 +69,9 @@ export class CloudSync {
     }
     if (settings.source === "onedrive") {
       return this.pullFromOneDrive(settings);
+    }
+    if (settings.source === "pcloud") {
+      return this.pullFromPCloud(settings);
     }
     const { endpoint, apiKey } = settings;
     const response = await fetch(endpoint, {
@@ -293,5 +304,44 @@ export class CloudSync {
     }
     const meta = await response.json().catch(() => null);
     return meta?.id ?? null;
+  }
+
+  async pushToPCloud(settings) {
+    const { endpoint, apiKey } = settings;
+    const payload = {
+      updatedAt: Date.now(),
+      data: this.storage.snapshot(),
+    };
+    const response = await fetch(endpoint, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.buildAuthHeader(apiKey),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(`pCloud への保存に失敗しました (${response.status})`);
+    }
+    return response.json().catch(() => ({ source: "pcloud" }));
+  }
+
+  async pullFromPCloud(settings) {
+    const { endpoint, apiKey } = settings;
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: this.buildAuthHeader(apiKey),
+    });
+    if (response.status === 404) {
+      return { source: "pcloud", status: "not_found" };
+    }
+    if (!response.ok) {
+      throw new Error(`pCloud からの取得に失敗しました (${response.status})`);
+    }
+    const json = await response.json();
+    if (json?.data) {
+      this.storage.importData(JSON.stringify(json.data));
+    }
+    return json;
   }
 }
