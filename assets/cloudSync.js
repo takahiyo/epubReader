@@ -6,15 +6,27 @@ export class CloudSync {
     this.storage = storage;
   }
 
-  getSettings() {
+  resolveSource(source, settings = this.storage.getSettings()) {
+    const selected = source || settings.source || "local";
+    if (["local", "drive", "onedrive", "pcloud"].includes(selected)) {
+      return selected;
+    }
+    return "local";
+  }
+
+  getSettings(source) {
     const settings = this.storage.getSettings();
-    if (settings.source === "drive" || settings.source === "onedrive") {
-      return settings;
+    const resolvedSource = this.resolveSource(source, settings);
+    if (resolvedSource === "local") {
+      return { settings, resolvedSource };
+    }
+    if (resolvedSource === "drive" || resolvedSource === "onedrive") {
+      return { settings, resolvedSource };
     }
     if (!settings.endpoint) {
       throw new Error("エンドポイントが設定されていません");
     }
-    return settings;
+    return { settings, resolvedSource };
   }
 
   buildHeaders(apiKey) {
@@ -32,17 +44,41 @@ export class CloudSync {
     return { Authorization: `Bearer ${apiKey}` };
   }
 
-  async push() {
-    const settings = this.getSettings();
-    if (settings.source === "drive") {
+  async push(source) {
+    const { settings, resolvedSource } = this.getSettings(source);
+    if (resolvedSource === "local") {
+      return { source: "local", status: "skipped" };
+    }
+    if (resolvedSource === "drive") {
       return this.pushToDrive(settings);
     }
-    if (settings.source === "onedrive") {
+    if (resolvedSource === "onedrive") {
       return this.pushToOneDrive(settings);
     }
-    if (settings.source === "pcloud") {
+    if (resolvedSource === "pcloud") {
       return this.pushToPCloud(settings);
     }
+    return this.pushToEndpoint(settings);
+  }
+
+  async pull(source) {
+    const { settings, resolvedSource } = this.getSettings(source);
+    if (resolvedSource === "local") {
+      return { source: "local", status: "skipped" };
+    }
+    if (resolvedSource === "drive") {
+      return this.pullFromDrive(settings);
+    }
+    if (resolvedSource === "onedrive") {
+      return this.pullFromOneDrive(settings);
+    }
+    if (resolvedSource === "pcloud") {
+      return this.pullFromPCloud(settings);
+    }
+    return this.pullFromEndpoint(settings);
+  }
+
+  async pushToEndpoint(settings) {
     const { endpoint, apiKey } = settings;
     const payload = {
       updatedAt: Date.now(),
@@ -62,17 +98,7 @@ export class CloudSync {
     return response.json().catch(() => ({}));
   }
 
-  async pull() {
-    const settings = this.getSettings();
-    if (settings.source === "drive") {
-      return this.pullFromDrive(settings);
-    }
-    if (settings.source === "onedrive") {
-      return this.pullFromOneDrive(settings);
-    }
-    if (settings.source === "pcloud") {
-      return this.pullFromPCloud(settings);
-    }
+  async pullFromEndpoint(settings) {
     const { endpoint, apiKey } = settings;
     const response = await fetch(endpoint, {
       method: "POST",
