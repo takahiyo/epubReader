@@ -1,4 +1,4 @@
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder offline_access";
 const EXPIRY_BUFFER_MS = 60 * 1000;
 
 function parseHashParams(hash) {
@@ -21,7 +21,7 @@ function clearAuthFragment() {
   }
 }
 
-export function captureAccessTokenFromHash(expectedState) {
+export function captureAccessTokenFromHash(expectedState = "onedrive") {
   const parsed = parseHashParams(window.location.hash);
   if (!parsed) return null;
   if (expectedState && parsed.state && parsed.state !== expectedState) {
@@ -42,33 +42,32 @@ export function isTokenValid(token) {
   return token.expiresAt - EXPIRY_BUFFER_MS > Date.now();
 }
 
-export function startDriveOAuth(clientId, redirectUri) {
+export function startOneDriveOAuth(clientId, redirectUri) {
   if (!clientId) {
-    throw new Error("Drive クライアント ID を設定してください");
+    throw new Error("OneDrive クライアント ID を設定してください");
   }
   const target = redirectUri || window.location.origin + window.location.pathname;
-  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  const url = new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
   url.searchParams.set("response_type", "token");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", target);
-  url.searchParams.set("scope", DRIVE_SCOPE);
-  url.searchParams.set("state", "drive");
+  url.searchParams.set("scope", ONEDRIVE_SCOPE);
   url.searchParams.set("prompt", "consent");
-  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("state", "onedrive");
   window.open(url.toString(), "_blank", "width=500,height=700");
 }
 
-export function ensureDriveAccessToken(settings, onTokenUpdate) {
-  if (isTokenValid(settings?.driveToken)) {
-    return settings.driveToken.accessToken;
+export function ensureOneDriveAccessToken(settings, onTokenUpdate) {
+  if (isTokenValid(settings?.onedriveToken)) {
+    return settings.onedriveToken.accessToken;
   }
 
-  const captured = captureAccessTokenFromHash("drive");
+  const captured = captureAccessTokenFromHash("onedrive");
   if (captured) {
     onTokenUpdate?.(captured);
     return captured.accessToken;
   }
 
-  startDriveOAuth(settings?.driveClientId, settings?.driveRedirectUri);
-  throw new Error("Google Drive の認証を完了してください。別ウィンドウで許可後、この画面に戻って再度実行してください。");
+  startOneDriveOAuth(settings?.onedriveClientId, settings?.onedriveRedirectUri);
+  throw new Error("OneDrive の認証を完了してください。別ウィンドウで許可後、この画面に戻って再度実行してください。");
 }

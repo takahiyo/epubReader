@@ -14,6 +14,11 @@ const defaultData = {
     driveFolderId: "",
     driveFileName: "epub-reader-data.json",
     driveToken: null,
+    onedriveClientId: "",
+    onedriveRedirectUri: "",
+    onedriveFilePath: "epub-reader-data.json",
+    onedriveFileId: "",
+    onedriveToken: null,
   },
 };
 
@@ -49,6 +54,11 @@ export class StorageService {
           driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
           driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
           driveToken: settings.driveToken || defaultData.settings.driveToken,
+          onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
+          onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
+          onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
+          onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
+          onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
         },
       };
     } catch (error) {
@@ -145,6 +155,11 @@ export class StorageService {
           driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
           driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
           driveToken: settings.driveToken || defaultData.settings.driveToken,
+          onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
+          onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
+          onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
+          onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
+          onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
         },
       };
       this.save();

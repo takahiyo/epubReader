@@ -85,8 +85,17 @@
             <label for="driveFileIdInput">既存ファイル ID (任意)</label>
             <input id="driveFileIdInput" type="text" placeholder="既存の JSON ファイル ID" />
           </div>
+          <div class="field">
+            <label for="onedriveClientIdInput">OneDrive クライアント ID (OAuth 用)</label>
+            <input id="onedriveClientIdInput" type="text" placeholder="アプリ登録のクライアント ID" />
+          </div>
+          <div class="field">
+            <label for="onedriveFilePathInput">OneDrive 内の保存パス</label>
+            <input id="onedriveFilePathInput" type="text" placeholder="epub-reader-data.json またはフォルダ/ファイル名" />
+          </div>
           <div class="actions">
             <button id="authorizeDrive" class="primary secondary">Google Drive と認証</button>
+            <button id="authorizeOneDrive" class="primary secondary">OneDrive と認証</button>
           </div>
           <div class="actions">
             <button id="exportData" class="secondary">設定・閲覧データを書き出す</button>
