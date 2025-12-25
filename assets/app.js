@@ -1,8 +1,16 @@
 import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
-import { captureAccessTokenFromHash as captureDriveAccessTokenFromHash, startDriveOAuth } from "./driveAuth.js";
-import { captureAccessTokenFromHash as captureOneDriveAccessTokenFromHash, startOneDriveOAuth } from "./onedriveAuth.js";
+import {
+  captureAccessTokenFromHash as captureDriveAccessTokenFromHash,
+  ensureDriveAccessToken,
+  startDriveOAuth,
+} from "./driveAuth.js";
+import {
+  captureAccessTokenFromHash as captureOneDriveAccessTokenFromHash,
+  ensureOneDriveAccessToken,
+  startOneDriveOAuth,
+} from "./onedriveAuth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 const storage = new StorageService();
@@ -48,6 +56,24 @@ const elements = {
   sourceSelect: document.getElementById("sourceSelect"),
   sourceLogin: document.getElementById("sourceLogin"),
   syncStatusText: document.getElementById("syncStatusText"),
+  openFileModalButton: document.getElementById("openFileModalButton"),
+  openFileModal: document.getElementById("openFileModal"),
+  closeOpenFileModal: document.getElementById("closeOpenFileModal"),
+  openSourceRadios: Array.from(document.querySelectorAll("input[name='openSource']")),
+  openLocalSection: document.getElementById("openLocalSection"),
+  openDriveSection: document.getElementById("openDriveSection"),
+  openOneDriveSection: document.getElementById("openOneDriveSection"),
+  openPCloudSection: document.getElementById("openPCloudSection"),
+  openDriveAuth: document.getElementById("openDriveAuth"),
+  refreshDriveFiles: document.getElementById("refreshDriveFiles"),
+  drivePickerSelect: document.getElementById("drivePickerSelect"),
+  openDriveSelected: document.getElementById("openDriveSelected"),
+  openOneDriveAuth: document.getElementById("openOneDriveAuth"),
+  refreshOneDriveFiles: document.getElementById("refreshOneDriveFiles"),
+  oneDrivePickerSelect: document.getElementById("oneDrivePickerSelect"),
+  openOneDriveSelected: document.getElementById("openOneDriveSelected"),
+  pcloudFileUrlInput: document.getElementById("pcloudFileUrlInput"),
+  openPcloudUrl: document.getElementById("openPcloudUrl"),
 };
 
 const reader = new ReaderController({
@@ -63,6 +89,7 @@ const reader = new ReaderController({
 let currentBookId = null;
 let currentBookInfo = null;
 let theme = storage.getSettings().theme ?? "dark";
+let openSource = storage.getSettings().source ?? "local";
 reader.applyTheme(theme);
 
 function setStatus(message) {
@@ -107,6 +134,21 @@ function guessMime(type, file) {
   return file.type || "application/octet-stream";
 }
 
+function detectTypeByName(fileName = "") {
+  if (/\.epub$/i.test(fileName)) return "epub";
+  return "image";
+}
+
+function ensureDriveTokenInteractive() {
+  const settings = storage.getSettings();
+  return ensureDriveAccessToken(settings, (driveToken) => storage.setSettings({ driveToken }));
+}
+
+function ensureOneDriveTokenInteractive() {
+  const settings = storage.getSettings();
+  return ensureOneDriveAccessToken(settings, (onedriveToken) => storage.setSettings({ onedriveToken }));
+}
+
 async function handleFile(file, type) {
   try {
     const buffer = await file.arrayBuffer();
@@ -142,6 +184,9 @@ async function handleFile(file, type) {
     renderHistory();
     renderLibrary();
     setStatus("読み込みが完了しました。しおりや履歴は自動で保存されます。");
+    if (elements.openFileModal && !elements.openFileModal.classList.contains("hidden")) {
+      hideOpenFileModal();
+    }
   } catch (error) {
     console.error(error);
     setStatus(error.message || "読み込みに失敗しました");
@@ -361,7 +406,252 @@ function updateSourceControls(source) {
   }
 }
 
+function setOpenSource(source, { persist = true } = {}) {
+  openSource = source;
+  const sectionMap = {
+    local: elements.openLocalSection,
+    drive: elements.openDriveSection,
+    onedrive: elements.openOneDriveSection,
+    pcloud: elements.openPCloudSection,
+  };
+  if (elements.openSourceRadios?.length) {
+    elements.openSourceRadios.forEach((radio) => {
+      if (radio) radio.checked = radio.value === source;
+    });
+  }
+  Object.entries(sectionMap).forEach(([key, node]) => {
+    if (!node) return;
+    node.classList.toggle("hidden", key !== source);
+  });
+  if (persist) {
+    storage.setSettings({ source });
+    if (elements.sourceSelect) {
+      elements.sourceSelect.value = source;
+    }
+    updateSourceControls(source);
+  }
+}
+
+function showOpenFileModal() {
+  if (!elements.openFileModal) return;
+  setOpenSource(openSource, { persist: false });
+  elements.openFileModal.classList.remove("hidden");
+}
+
+function hideOpenFileModal() {
+  if (!elements.openFileModal) return;
+  elements.openFileModal.classList.add("hidden");
+}
+
+function buildDriveQuery() {
+  const epub = "mimeType='application/epub+zip'";
+  const zip = "mimeType='application/zip' or mimeType contains 'zip'";
+  return encodeURIComponent(`(${epub} or ${zip}) and trashed=false`);
+}
+
+async function fetchDriveFiles() {
+  const accessToken = ensureDriveTokenInteractive();
+  const url = `https://www.googleapis.com/drive/v3/files?q=${buildDriveQuery()}&orderBy=modifiedTime desc&fields=files(id,name,mimeType,modifiedTime,size)`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!response.ok) {
+    throw new Error(`Drive のファイル一覧取得に失敗しました (${response.status})`);
+  }
+  const json = await response.json();
+  return json?.files ?? [];
+}
+
+async function downloadDriveFile(fileId) {
+  const accessToken = ensureDriveTokenInteractive();
+  const metaResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!metaResponse.ok) {
+    throw new Error(`Drive のファイル情報取得に失敗しました (${metaResponse.status})`);
+  }
+  const meta = await metaResponse.json();
+  const dataResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!dataResponse.ok) {
+    throw new Error(`Drive ファイルのダウンロードに失敗しました (${dataResponse.status})`);
+  }
+  const blob = await dataResponse.blob();
+  const buffer = await blob.arrayBuffer();
+  const name = meta?.name || `drive-file-${fileId}`;
+  return new File([buffer], name, { type: meta?.mimeType || blob.type || "application/octet-stream" });
+}
+
+async function fetchOneDriveFiles() {
+  const accessToken = ensureOneDriveTokenInteractive();
+  const url =
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot/children?$top=200&$select=id,name,size,lastModifiedDateTime,file,@microsoft.graph.downloadUrl";
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!response.ok) {
+    throw new Error(`OneDrive のファイル一覧取得に失敗しました (${response.status})`);
+  }
+  const json = await response.json();
+  return (json?.value ?? []).filter((item) => {
+    const name = item?.name ?? "";
+    return /\.epub$/i.test(name) || /\.zip$/i.test(name) || /\.cbz$/i.test(name);
+  });
+}
+
+async function downloadOneDriveFile(fileId) {
+  const accessToken = ensureOneDriveTokenInteractive();
+  const metaResponse = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}?select=id,name,file,@microsoft.graph.downloadUrl`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!metaResponse.ok) {
+    throw new Error(`OneDrive のファイル情報取得に失敗しました (${metaResponse.status})`);
+  }
+  const meta = await metaResponse.json();
+  const downloadUrl = meta["@microsoft.graph.downloadUrl"];
+  const dataResponse = await fetch(downloadUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!dataResponse.ok) {
+    throw new Error(`OneDrive ファイルのダウンロードに失敗しました (${dataResponse.status})`);
+  }
+  const blob = await dataResponse.blob();
+  const buffer = await blob.arrayBuffer();
+  const name = meta?.name || `onedrive-file-${fileId}`;
+  const mime = meta?.file?.mimeType || blob.type || "application/octet-stream";
+  return new File([buffer], name, { type: mime });
+}
+
+async function refreshDrivePicker() {
+  if (!elements.drivePickerSelect) return;
+  elements.drivePickerSelect.innerHTML = '<option value="">Drive のファイルを読み込み中...</option>';
+  try {
+    const files = await fetchDriveFiles();
+    elements.drivePickerSelect.innerHTML = "";
+    if (!files.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "EPUB / ZIP ファイルが見つかりません";
+      elements.drivePickerSelect.appendChild(opt);
+      return;
+    }
+    files.forEach((file) => {
+      const opt = document.createElement("option");
+      const updated = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : "-";
+      opt.value = file.id;
+      opt.textContent = `${file.name} (${updated})`;
+      elements.drivePickerSelect.appendChild(opt);
+    });
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  }
+}
+
+async function refreshOneDrivePicker() {
+  if (!elements.oneDrivePickerSelect) return;
+  elements.oneDrivePickerSelect.innerHTML = '<option value="">OneDrive のファイルを読み込み中...</option>';
+  try {
+    const files = await fetchOneDriveFiles();
+    elements.oneDrivePickerSelect.innerHTML = "";
+    if (!files.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "EPUB / ZIP ファイルが見つかりません";
+      elements.oneDrivePickerSelect.appendChild(opt);
+      return;
+    }
+    files.forEach((file) => {
+      const opt = document.createElement("option");
+      const updated = file.lastModifiedDateTime ? new Date(file.lastModifiedDateTime).toLocaleString() : "-";
+      opt.value = file.id;
+      opt.textContent = `${file.name} (${updated})`;
+      elements.oneDrivePickerSelect.appendChild(opt);
+    });
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  }
+}
+
+async function openDriveSelectedFile() {
+  const fileId = elements.drivePickerSelect?.value;
+  if (!fileId) {
+    alert("Drive のファイルを選択してください");
+    return;
+  }
+  try {
+    const file = await downloadDriveFile(fileId);
+    await handleFile(file, detectTypeByName(file.name));
+    hideOpenFileModal();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || "Drive からの読み込みに失敗しました");
+  }
+}
+
+async function openOneDriveSelectedFile() {
+  const fileId = elements.oneDrivePickerSelect?.value;
+  if (!fileId) {
+    alert("OneDrive のファイルを選択してください");
+    return;
+  }
+  try {
+    const file = await downloadOneDriveFile(fileId);
+    await handleFile(file, detectTypeByName(file.name));
+    hideOpenFileModal();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || "OneDrive からの読み込みに失敗しました");
+  }
+}
+
+async function openPcloudFromUrl() {
+  const url = elements.pcloudFileUrlInput?.value?.trim();
+  if (!url) {
+    alert("pCloud / カスタム URL を入力してください");
+    return;
+  }
+  try {
+    const settings = storage.getSettings();
+    const headers = {};
+    if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      throw new Error(`ファイルの取得に失敗しました (${response.status})`);
+    }
+    const blob = await response.blob();
+    const buffer = await blob.arrayBuffer();
+    const name =
+      (() => {
+        try {
+          const parsed = new URL(url);
+          const base = parsed.pathname.split("/").filter(Boolean).pop();
+          return base || "pcloud-file";
+        } catch {
+          return "pcloud-file";
+        }
+      })() || "pcloud-file";
+    const file = new File([buffer], name, { type: blob.type || "application/octet-stream" });
+    await handleFile(file, detectTypeByName(file.name));
+    hideOpenFileModal();
+  } catch (error) {
+    console.error(error);
+    alert(error.message || "URL からの読み込みに失敗しました");
+  }
+}
+
 function setupEvents() {
+  elements.openFileModalButton?.addEventListener("click", () => showOpenFileModal());
+  elements.closeOpenFileModal?.addEventListener("click", () => hideOpenFileModal());
+  elements.openFileModal?.addEventListener("click", (e) => {
+    if (e.target === elements.openFileModal || e.target.classList.contains("modal-backdrop")) {
+      hideOpenFileModal();
+    }
+  });
+  elements.openSourceRadios?.forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      const value = e.target.value;
+      setOpenSource(value);
+    });
+  });
+
   elements.epubInput.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (file) handleFile(file, "epub");
@@ -456,8 +746,7 @@ function setupEvents() {
 
   elements.sourceSelect.addEventListener("change", (e) => {
     const source = e.target.value;
-    storage.setSettings({ source });
-    updateSourceControls(source);
+    setOpenSource(source);
   });
 
   elements.sourceLogin.addEventListener("click", () => {
@@ -540,6 +829,28 @@ function setupEvents() {
     }
   });
   elements.closeModal.onclick = closeModal;
+
+  elements.openDriveAuth?.addEventListener("click", () => {
+    const settings = storage.getSettings();
+    if (!settings.driveClientId) {
+      alert("Google Drive のクライアント ID を同期設定に入力してください");
+      return;
+    }
+    startDriveOAuth(settings.driveClientId, window.location.origin + window.location.pathname);
+  });
+  elements.openOneDriveAuth?.addEventListener("click", () => {
+    const settings = storage.getSettings();
+    if (!settings.onedriveClientId) {
+      alert("OneDrive のクライアント ID を同期設定に入力してください");
+      return;
+    }
+    startOneDriveOAuth(settings.onedriveClientId, window.location.origin + window.location.pathname);
+  });
+  elements.refreshDriveFiles?.addEventListener("click", refreshDrivePicker);
+  elements.refreshOneDriveFiles?.addEventListener("click", refreshOneDrivePicker);
+  elements.openDriveSelected?.addEventListener("click", openDriveSelectedFile);
+  elements.openOneDriveSelected?.addEventListener("click", openOneDriveSelectedFile);
+  elements.openPcloudUrl?.addEventListener("click", openPcloudFromUrl);
 }
 
 function loadSettings() {
@@ -557,6 +868,7 @@ function loadSettings() {
     theme = settings.theme;
     reader.applyTheme(theme);
   }
+  setOpenSource(settings.source ?? "local", { persist: false });
   updateSourceControls(settings.source);
 }
 
