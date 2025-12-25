@@ -6,8 +6,8 @@ const defaultData = {
   progress: {},
   history: [],
   settings: {
-    endpoint: "",
-    apiKey: "",
+    endpoint: "<あなたの/exec URL>",
+    apiKey: "<必要ならキー>",
   },
 };
 
@@ -22,6 +22,10 @@ export class StorageService {
       const raw = localStorage.getItem(this.key);
       if (!raw) return { ...defaultData };
       const parsed = JSON.parse(raw);
+      const settings = {
+        ...defaultData.settings,
+        ...(parsed.settings ?? {}),
+      };
       return {
         ...defaultData,
         ...parsed,
@@ -29,7 +33,11 @@ export class StorageService {
         bookmarks: parsed.bookmarks ?? {},
         progress: parsed.progress ?? {},
         history: parsed.history ?? [],
-        settings: { ...defaultData.settings, ...(parsed.settings ?? {}) },
+        settings: {
+          ...settings,
+          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          apiKey: settings.apiKey || defaultData.settings.apiKey,
+        },
       };
     } catch (error) {
       console.error("ストレージの読み込みに失敗しました", error);
@@ -104,6 +112,10 @@ export class StorageService {
   importData(json) {
     try {
       const parsed = JSON.parse(json);
+      const settings = {
+        ...defaultData.settings,
+        ...(parsed.settings ?? {}),
+      };
       this.data = {
         ...defaultData,
         ...parsed,
@@ -111,7 +123,11 @@ export class StorageService {
         bookmarks: parsed.bookmarks ?? {},
         progress: parsed.progress ?? {},
         history: parsed.history ?? [],
-        settings: { ...defaultData.settings, ...(parsed.settings ?? {}) },
+        settings: {
+          ...settings,
+          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          apiKey: settings.apiKey || defaultData.settings.apiKey,
+        },
       };
       this.save();
     } catch (error) {
