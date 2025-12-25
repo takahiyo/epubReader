@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Epub Reader</title>
     <link rel="stylesheet" href="./assets/style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
   </head>
   <body>
     <header class="top-bar">
@@ -19,6 +19,8 @@
       </div>
       <div class="quick-actions">
         <button id="openBookmarkFromLibrary" class="secondary">しおりから開く</button>
+        <button id="openSettings" class="secondary">設定・同期</button>
+        <button id="syncNow" class="primary">今すぐクラウド同期</button>
       </div>
     </header>
 
@@ -41,69 +43,6 @@
         <div class="card">
           <h2>履歴</h2>
           <ul id="historyList" class="list"></ul>
-        </div>
-
-        <div class="card">
-          <h2>同期設定</h2>
-          <p class="hint">開く動線とは独立した同期設定です。接続先を選んで認証すると、ライブラリや設定のバックアップが有効になります。</p>
-          <div class="field">
-            <label for="sourceSelect">同期に使うデータソース</label>
-            <select id="sourceSelect">
-              <option value="local">ローカルのみ</option>
-              <option value="drive">Google Drive</option>
-              <option value="onedrive">OneDrive</option>
-              <option value="pcloud">pCloud / カスタムエンドポイント</option>
-            </select>
-          </div>
-          <div class="actions">
-            <button id="sourceLogin" class="primary secondary">選択したソースでログイン / 接続</button>
-            <button id="syncNow" class="primary">今すぐクラウド同期</button>
-          </div>
-          <div id="syncStatus" class="status-box">
-            <strong>同期状態</strong>
-            <p id="syncStatusText" class="hint">利用するソースを選ぶと、ここに状態や次のアクションが表示されます。</p>
-          </div>
-          <div class="field">
-            <label for="driveClientIdInput">Google Drive クライアント ID (OAuth 用)</label>
-            <input id="driveClientIdInput" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com" />
-          </div>
-          <div class="field">
-            <label for="driveFolderIdInput">同期保存先フォルダ ID (任意)</label>
-            <input id="driveFolderIdInput" type="text" placeholder="Drive フォルダ ID" />
-          </div>
-          <div class="field">
-            <label for="driveFileNameInput">同期用ファイル名</label>
-            <input id="driveFileNameInput" type="text" placeholder="epub-reader-data.json" />
-          </div>
-          <div class="field">
-            <label for="driveFileIdInput">既存の同期ファイル ID (任意)</label>
-            <input id="driveFileIdInput" type="text" placeholder="既存の JSON ファイル ID" />
-          </div>
-          <div class="field">
-            <label for="onedriveClientIdInput">OneDrive クライアント ID (OAuth 用)</label>
-            <input id="onedriveClientIdInput" type="text" placeholder="アプリ登録のクライアント ID" />
-          </div>
-          <div class="field">
-            <label for="onedriveFilePathInput">OneDrive 内の同期パス</label>
-            <input id="onedriveFilePathInput" type="text" placeholder="epub-reader-data.json またはフォルダ/ファイル名" />
-          </div>
-          <div class="field">
-            <label for="endpointInput">pCloud / カスタム同期エンドポイント</label>
-            <input id="endpointInput" type="url" placeholder="https://..." />
-          </div>
-          <div class="field">
-            <label for="apiKeyInput">API Key / トークン (必要な場合)</label>
-            <input id="apiKeyInput" type="text" />
-          </div>
-          <div class="actions">
-            <button id="authorizeDrive" class="primary secondary">Google Drive と認証</button>
-            <button id="authorizeOneDrive" class="primary secondary">OneDrive と認証</button>
-          </div>
-          <div class="actions">
-            <button id="exportData" class="secondary">設定・閲覧データを書き出す</button>
-            <label for="importData" class="secondary file-label">設定を読み込む<input id="importData" type="file" accept="application/json" /></label>
-          </div>
-          <p class="hint">pCloud はエンドポイント型として扱います。ファイルを直接開きたい場合は、下部の「pCloud / URL から開く」を使用してください。</p>
         </div>
       </section>
 
@@ -230,6 +169,73 @@
               <button id="openPcloudUrl" class="primary">URL から開く</button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3>同期・設定</h3>
+          <button id="closeSettingsModal" aria-label="閉じる">✕</button>
+        </div>
+        <div class="modal-body settings-grid">
+          <div class="field">
+            <label for="sourceSelect">同期に使うデータソース</label>
+            <select id="sourceSelect">
+              <option value="local">ローカルのみ</option>
+              <option value="drive">Google Drive</option>
+              <option value="onedrive">OneDrive</option>
+              <option value="pcloud">pCloud / カスタムエンドポイント</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="endpointInput">pCloud / カスタム同期エンドポイント</label>
+            <input id="endpointInput" type="url" placeholder="https://..." />
+          </div>
+          <div class="field">
+            <label for="apiKeyInput">API Key / トークン (必要な場合)</label>
+            <input id="apiKeyInput" type="text" />
+          </div>
+          <div class="field">
+            <label for="driveClientIdInput">Google Drive クライアント ID (OAuth 用)</label>
+            <input id="driveClientIdInput" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com" />
+          </div>
+          <div class="field">
+            <label for="driveFolderIdInput">同期保存先フォルダ ID (任意)</label>
+            <input id="driveFolderIdInput" type="text" placeholder="Drive フォルダ ID" />
+          </div>
+          <div class="field">
+            <label for="driveFileNameInput">同期用ファイル名</label>
+            <input id="driveFileNameInput" type="text" placeholder="epub-reader-data.json" />
+          </div>
+          <div class="field">
+            <label for="driveFileIdInput">既存の同期ファイル ID (任意)</label>
+            <input id="driveFileIdInput" type="text" placeholder="既存の JSON ファイル ID" />
+          </div>
+          <div class="field">
+            <label for="onedriveClientIdInput">OneDrive クライアント ID (OAuth 用)</label>
+            <input id="onedriveClientIdInput" type="text" placeholder="アプリ登録のクライアント ID" />
+          </div>
+          <div class="field">
+            <label for="onedriveFilePathInput">OneDrive 内の同期パス</label>
+            <input id="onedriveFilePathInput" type="text" placeholder="epub-reader-data.json またはフォルダ/ファイル名" />
+          </div>
+          <div class="actions">
+            <button id="sourceLogin" class="primary secondary">選択したソースでログイン / 接続</button>
+            <button id="authorizeDrive" class="secondary">Google Drive と認証</button>
+            <button id="authorizeOneDrive" class="secondary">OneDrive と認証</button>
+          </div>
+          <div id="syncStatus" class="status-box">
+            <strong>同期状態</strong>
+            <p id="syncStatusText" class="hint">利用するソースを選ぶと、ここに状態や次のアクションが表示されます。</p>
+          </div>
+          <div class="actions">
+            <button id="exportData" class="secondary">設定・閲覧データを書き出す</button>
+            <label for="importData" class="secondary file-label">設定を読み込む<input id="importData" type="file" accept="application/json" /></label>
+          </div>
+          <p class="hint">「今すぐクラウド同期」は画面右上から実行できます。クラウドに保存されるのはライブラリ/履歴/設定の JSON データです。</p>
         </div>
       </div>
     </div>
