@@ -6,7 +6,7 @@ const defaultData = {
   progress: {},
   history: [],
   settings: {
-    endpoint: "<あなたの/exec URL>",
+    endpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
     apiKey: "<必要ならキー>",
   },
 };
