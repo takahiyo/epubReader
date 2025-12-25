@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Epub Reader</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  </head>
+  <body>
+    <header class="top-bar">
+      <div class="brand">
+        <div class="logo">📖</div>
+        <div>
+          <h1>Epub Reader</h1>
+          <p>EPUB と画像スキャン書籍を横断して読めるウェブアプリ</p>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <button id="openBookmarkFromLibrary" class="secondary">しおりから開く</button>
+        <button id="syncNow" class="primary">今すぐクラウド同期</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="left-column">
+        <div class="card">
+          <h2>ファイルを読み込む</h2>
+          <label class="file-input">
+            <span>EPUB を選択 (.epub)</span>
+            <input type="file" id="epubInput" accept=".epub" />
+          </label>
+          <label class="file-input">
+            <span>画像スキャン書籍 (.cbz / .zip)</span>
+            <input type="file" id="zipInput" accept=".cbz,.zip" />
+          </label>
+          <p class="hint">
+            ファイルはブラウザ内で処理されます。履歴やしおりはローカル保存され、必要に応じてクラウドへ同期できます。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>ライブラリ</h2>
+          <div id="libraryGrid" class="library-grid"></div>
+        </div>
+
+        <div class="card">
+          <h2>履歴</h2>
+          <ul id="historyList" class="list"></ul>
+        </div>
+
+        <div class="card">
+          <h2>同期・バックアップ</h2>
+          <div class="field">
+            <label for="endpointInput">クラウド同期エンドポイント (Cloudflare Workers / Apps Script)</label>
+            <input id="endpointInput" type="url" placeholder="https://..." />
+          </div>
+          <div class="field">
+            <label for="apiKeyInput">API Key / トークン (必要な場合)</label>
+            <input id="apiKeyInput" type="text" />
+          </div>
+          <div class="actions">
+            <button id="exportData" class="secondary">設定・閲覧データを書き出す</button>
+            <label for="importData" class="secondary file-label">設定を読み込む<input id="importData" type="file" accept="application/json" /></label>
+          </div>
+          <p class="hint">複数端末で同じエンドポイントを設定すると、しおり・履歴・ブックマークが共有されます。</p>
+        </div>
+      </section>
+
+      <section class="reader-column">
+        <div class="card reader-card">
+          <div class="reader-header">
+            <div>
+              <h2 id="bookTitle">本が未選択です</h2>
+              <p id="bookMeta" class="muted">EPUB / CBZ を読み込むとここに表示されます</p>
+            </div>
+            <div class="progress-group">
+              <div id="progressText" class="muted">進捗 0%</div>
+              <div class="progress">
+                <div id="progressBar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="viewer" class="viewer"></div>
+          <div id="imageViewer" class="image-viewer hidden">
+            <img id="pageImage" alt="ページ画像" />
+            <div class="page-controls">
+              <button id="prevPage">前へ</button>
+              <span id="pageIndicator"></span>
+              <button id="nextPage">次へ</button>
+            </div>
+          </div>
+
+          <div class="reader-actions">
+            <div class="action-group">
+              <button id="bookmarkBtn" class="primary">ここにしおりを追加</button>
+              <button id="goToBookmark" class="secondary">最後のしおりへ移動</button>
+              <button id="toggleTheme" class="secondary">背景/文字色を切替</button>
+            </div>
+            <div class="action-group">
+              <button id="prevSection">◀ 前の位置</button>
+              <button id="nextSection">次の位置 ▶</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>しおり &amp; ブックマーク</h2>
+          <ul id="bookmarkList" class="list"></ul>
+        </div>
+      </section>
+    </main>
+
+    <div id="imageModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <button id="closeModal" aria-label="閉じる">✕</button>
+        <img id="modalImage" alt="拡大画像" />
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p>Windows / Android / iPad / Quest 3 ブラウザ対応。クラウド同期とローカル保存で安心して読書を続けられます。</p>
+    </footer>
+
+    <script type="module" src="./assets/app.js"></script>
+  </body>
+</html>
