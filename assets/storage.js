@@ -8,6 +8,7 @@ const defaultData = {
   settings: {
     endpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
     apiKey: "<必要ならキー>",
+    source: "local",
   },
 };
 
@@ -37,6 +38,7 @@ export class StorageService {
           ...settings,
           endpoint: settings.endpoint || defaultData.settings.endpoint,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
+          source: settings.source || defaultData.settings.source,
         },
       };
     } catch (error) {
@@ -127,6 +129,7 @@ export class StorageService {
           ...settings,
           endpoint: settings.endpoint || defaultData.settings.endpoint,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
+          source: settings.source || defaultData.settings.source,
         },
       };
       this.save();

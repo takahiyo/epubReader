@@ -35,6 +35,7 @@ const elements = {
   modal: document.getElementById("imageModal"),
   modalImage: document.getElementById("modalImage"),
   closeModal: document.getElementById("closeModal"),
+  sourceSelect: document.getElementById("sourceSelect"),
 };
 
 const reader = new ReaderController({
@@ -381,6 +382,10 @@ function setupEvents() {
     storage.setSettings({ apiKey: e.target.value.trim() });
   });
 
+  elements.sourceSelect.addEventListener("change", (e) => {
+    storage.setSettings({ source: e.target.value });
+  });
+
   elements.modal.addEventListener("click", (e) => {
     if (e.target === elements.modal || e.target.classList.contains("modal-backdrop")) {
       closeModal();
@@ -393,6 +398,7 @@ function loadSettings() {
   const settings = storage.getSettings();
   elements.endpointInput.value = settings.endpoint ?? "";
   elements.apiKeyInput.value = settings.apiKey ?? "";
+  elements.sourceSelect.value = settings.source ?? "local";
   if (settings.theme) {
     theme = settings.theme;
     reader.applyTheme(theme);
