@@ -69,6 +69,25 @@
             <label for="apiKeyInput">API Key / トークン (必要な場合)</label>
             <input id="apiKeyInput" type="text" />
           </div>
+          <div class="field">
+            <label for="driveClientIdInput">Google Drive クライアント ID (OAuth 用)</label>
+            <input id="driveClientIdInput" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com" />
+          </div>
+          <div class="field">
+            <label for="driveFileNameInput">保存ファイル名</label>
+            <input id="driveFileNameInput" type="text" placeholder="epub-reader-data.json" />
+          </div>
+          <div class="field">
+            <label for="driveFolderIdInput">保存先フォルダ ID (任意)</label>
+            <input id="driveFolderIdInput" type="text" placeholder="Drive フォルダ ID" />
+          </div>
+          <div class="field">
+            <label for="driveFileIdInput">既存ファイル ID (任意)</label>
+            <input id="driveFileIdInput" type="text" placeholder="既存の JSON ファイル ID" />
+          </div>
+          <div class="actions">
+            <button id="authorizeDrive" class="primary secondary">Google Drive と認証</button>
+          </div>
           <div class="actions">
             <button id="exportData" class="secondary">設定・閲覧データを書き出す</button>
             <label for="importData" class="secondary file-label">設定を読み込む<input id="importData" type="file" accept="application/json" /></label>

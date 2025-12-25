@@ -1,6 +1,7 @@
 import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
+import { captureAccessTokenFromHash, startDriveOAuth } from "./driveAuth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 const storage = new StorageService();
@@ -30,6 +31,11 @@ const elements = {
   syncNow: document.getElementById("syncNow"),
   endpointInput: document.getElementById("endpointInput"),
   apiKeyInput: document.getElementById("apiKeyInput"),
+  driveClientIdInput: document.getElementById("driveClientIdInput"),
+  driveFileIdInput: document.getElementById("driveFileIdInput"),
+  driveFolderIdInput: document.getElementById("driveFolderIdInput"),
+  driveFileNameInput: document.getElementById("driveFileNameInput"),
+  authorizeDrive: document.getElementById("authorizeDrive"),
   exportData: document.getElementById("exportData"),
   importData: document.getElementById("importData"),
   modal: document.getElementById("imageModal"),
@@ -388,6 +394,32 @@ function setupEvents() {
     storage.setSettings({ source: e.target.value });
   });
 
+  elements.driveClientIdInput.addEventListener("change", (e) => {
+    storage.setSettings({ driveClientId: e.target.value.trim() });
+  });
+
+  elements.driveFileIdInput.addEventListener("change", (e) => {
+    storage.setSettings({ driveFileId: e.target.value.trim() });
+  });
+
+  elements.driveFolderIdInput.addEventListener("change", (e) => {
+    storage.setSettings({ driveFolderId: e.target.value.trim() });
+  });
+
+  elements.driveFileNameInput.addEventListener("change", (e) => {
+    storage.setSettings({ driveFileName: e.target.value.trim() || "epub-reader-data.json" });
+    elements.driveFileNameInput.value = storage.getSettings().driveFileName;
+  });
+
+  elements.authorizeDrive.addEventListener("click", () => {
+    const settings = storage.getSettings();
+    if (!settings.driveClientId) {
+      alert("Google Drive のクライアント ID を入力してください");
+      return;
+    }
+    startDriveOAuth(settings.driveClientId, window.location.origin + window.location.pathname);
+  });
+
   elements.modal.addEventListener("click", (e) => {
     if (e.target === elements.modal || e.target.classList.contains("modal-backdrop")) {
       closeModal();
@@ -401,6 +433,10 @@ function loadSettings() {
   elements.endpointInput.value = settings.endpoint ?? "";
   elements.apiKeyInput.value = settings.apiKey ?? "";
   elements.sourceSelect.value = settings.source ?? "local";
+  elements.driveClientIdInput.value = settings.driveClientId ?? "";
+  elements.driveFileIdInput.value = settings.driveFileId ?? "";
+  elements.driveFolderIdInput.value = settings.driveFolderId ?? "";
+  elements.driveFileNameInput.value = settings.driveFileName ?? "epub-reader-data.json";
   if (settings.theme) {
     theme = settings.theme;
     reader.applyTheme(theme);
@@ -408,6 +444,11 @@ function loadSettings() {
 }
 
 function init() {
+  const captured = captureAccessTokenFromHash();
+  if (captured) {
+    storage.setSettings({ driveToken: captured });
+    setStatus("Google Drive の認証が完了しました。同期を再度実行してください。");
+  }
   setupEvents();
   renderHistory();
   renderLibrary();
