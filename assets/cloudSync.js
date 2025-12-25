@@ -1,4 +1,5 @@
 import { ensureDriveAccessToken } from "./driveAuth.js";
+import { ensureOneDriveAccessToken } from "./onedriveAuth.js";
 
 export class CloudSync {
   constructor(storage) {
@@ -7,7 +8,7 @@ export class CloudSync {
 
   getSettings() {
     const settings = this.storage.getSettings();
-    if (settings.source === "drive") {
+    if (settings.source === "drive" || settings.source === "onedrive") {
       return settings;
     }
     if (!settings.endpoint) {
@@ -30,6 +31,9 @@ export class CloudSync {
     const settings = this.getSettings();
     if (settings.source === "drive") {
       return this.pushToDrive(settings);
+    }
+    if (settings.source === "onedrive") {
+      return this.pushToOneDrive(settings);
     }
     const { endpoint, apiKey } = settings;
     const payload = {
@@ -54,6 +58,9 @@ export class CloudSync {
     const settings = this.getSettings();
     if (settings.source === "drive") {
       return this.pullFromDrive(settings);
+    }
+    if (settings.source === "onedrive") {
+      return this.pullFromOneDrive(settings);
     }
     const { endpoint, apiKey } = settings;
     const response = await fetch(endpoint, {
@@ -174,5 +181,117 @@ export class CloudSync {
     }
     const json = await response.json();
     return json.id;
+  }
+
+  async pushToOneDrive(settings) {
+    const accessToken = this.ensureOneDriveToken(settings);
+    const payload = {
+      updatedAt: Date.now(),
+      data: this.storage.snapshot(),
+    };
+    const fileId = await this.uploadToOneDrive(accessToken, payload, settings);
+    if (fileId && fileId !== settings.onedriveFileId) {
+      this.storage.setSettings({ onedriveFileId: fileId });
+    }
+    return { source: "onedrive", fileId };
+  }
+
+  async pullFromOneDrive(settings) {
+    const accessToken = this.ensureOneDriveToken(settings);
+    const item = await this.resolveOneDriveItem(accessToken, settings);
+    if (!item?.id) {
+      throw new Error("OneDrive 上に同期ファイルが見つかりませんでした");
+    }
+    const response = await fetch(this.buildOneDriveContentUrl({ ...settings, onedriveFileId: item.id }), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(`OneDrive からの取得に失敗しました (${response.status})`);
+    }
+    const json = await response.json();
+    if (json?.data) {
+      this.storage.importData(JSON.stringify(json.data));
+    }
+    if (item.id && item.id !== settings.onedriveFileId) {
+      this.storage.setSettings({ onedriveFileId: item.id });
+    }
+    return json;
+  }
+
+  ensureOneDriveToken(settings) {
+    const token = ensureOneDriveAccessToken(settings, (onedriveToken) => {
+      this.storage.setSettings({ onedriveToken });
+    });
+    return token;
+  }
+
+  encodeOneDrivePath(path) {
+    return path
+      .split("/")
+      .filter(Boolean)
+      .map(encodeURIComponent)
+      .join("/");
+  }
+
+  buildOneDrivePath(settings) {
+    const fallback = settings.driveFileName || "epub-reader-data.json";
+    const rawPath = settings.onedriveFilePath || fallback;
+    const normalized = rawPath.replace(/^\/+/, "");
+    return normalized || fallback;
+  }
+
+  buildOneDriveContentUrl(settings) {
+    if (settings.onedriveFileId) {
+      return `https://graph.microsoft.com/v1.0/me/drive/items/${settings.onedriveFileId}/content`;
+    }
+    const path = this.buildOneDrivePath(settings);
+    const encodedPath = this.encodeOneDrivePath(path);
+    return `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodedPath}:/content`;
+  }
+
+  async resolveOneDriveItem(accessToken, settings) {
+    if (settings.onedriveFileId) {
+      const byId = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${settings.onedriveFileId}?select=id,name,lastModifiedDateTime`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (byId.ok) {
+        return byId.json();
+      }
+      if (byId.status !== 404) {
+        throw new Error(`OneDrive のファイル確認に失敗しました (${byId.status})`);
+      }
+    }
+
+    const path = this.buildOneDrivePath(settings);
+    const encodedPath = this.encodeOneDrivePath(path);
+    const url = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encodedPath}`;
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`OneDrive のファイル検索に失敗しました (${response.status})`);
+    }
+    const result = await response.json();
+    return result ?? null;
+  }
+
+  async uploadToOneDrive(accessToken, payload, settings) {
+    const url = this.buildOneDriveContentUrl(settings);
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(`OneDrive への保存に失敗しました (${response.status})`);
+    }
+    const meta = await response.json().catch(() => null);
+    return meta?.id ?? null;
   }
 }

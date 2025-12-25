@@ -1,7 +1,8 @@
 import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
-import { captureAccessTokenFromHash, startDriveOAuth } from "./driveAuth.js";
+import { captureAccessTokenFromHash as captureDriveAccessTokenFromHash, startDriveOAuth } from "./driveAuth.js";
+import { captureAccessTokenFromHash as captureOneDriveAccessTokenFromHash, startOneDriveOAuth } from "./onedriveAuth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 const storage = new StorageService();
@@ -36,6 +37,9 @@ const elements = {
   driveFolderIdInput: document.getElementById("driveFolderIdInput"),
   driveFileNameInput: document.getElementById("driveFileNameInput"),
   authorizeDrive: document.getElementById("authorizeDrive"),
+  onedriveClientIdInput: document.getElementById("onedriveClientIdInput"),
+  onedriveFilePathInput: document.getElementById("onedriveFilePathInput"),
+  authorizeOneDrive: document.getElementById("authorizeOneDrive"),
   exportData: document.getElementById("exportData"),
   importData: document.getElementById("importData"),
   modal: document.getElementById("imageModal"),
@@ -411,6 +415,16 @@ function setupEvents() {
     elements.driveFileNameInput.value = storage.getSettings().driveFileName;
   });
 
+  elements.onedriveClientIdInput.addEventListener("change", (e) => {
+    storage.setSettings({ onedriveClientId: e.target.value.trim() });
+  });
+
+  elements.onedriveFilePathInput.addEventListener("change", (e) => {
+    const value = e.target.value.trim() || "epub-reader-data.json";
+    storage.setSettings({ onedriveFilePath: value });
+    elements.onedriveFilePathInput.value = storage.getSettings().onedriveFilePath;
+  });
+
   elements.authorizeDrive.addEventListener("click", () => {
     const settings = storage.getSettings();
     if (!settings.driveClientId) {
@@ -418,6 +432,15 @@ function setupEvents() {
       return;
     }
     startDriveOAuth(settings.driveClientId, window.location.origin + window.location.pathname);
+  });
+
+  elements.authorizeOneDrive.addEventListener("click", () => {
+    const settings = storage.getSettings();
+    if (!settings.onedriveClientId) {
+      alert("OneDrive のクライアント ID を入力してください");
+      return;
+    }
+    startOneDriveOAuth(settings.onedriveClientId, window.location.origin + window.location.pathname);
   });
 
   elements.modal.addEventListener("click", (e) => {
@@ -437,6 +460,8 @@ function loadSettings() {
   elements.driveFileIdInput.value = settings.driveFileId ?? "";
   elements.driveFolderIdInput.value = settings.driveFolderId ?? "";
   elements.driveFileNameInput.value = settings.driveFileName ?? "epub-reader-data.json";
+  elements.onedriveClientIdInput.value = settings.onedriveClientId ?? "";
+  elements.onedriveFilePathInput.value = settings.onedriveFilePath ?? "epub-reader-data.json";
   if (settings.theme) {
     theme = settings.theme;
     reader.applyTheme(theme);
@@ -444,10 +469,15 @@ function loadSettings() {
 }
 
 function init() {
-  const captured = captureAccessTokenFromHash();
-  if (captured) {
-    storage.setSettings({ driveToken: captured });
+  const capturedDrive = captureDriveAccessTokenFromHash("drive");
+  if (capturedDrive) {
+    storage.setSettings({ driveToken: capturedDrive });
     setStatus("Google Drive の認証が完了しました。同期を再度実行してください。");
+  }
+  const capturedOneDrive = captureOneDriveAccessTokenFromHash("onedrive");
+  if (capturedOneDrive) {
+    storage.setSettings({ onedriveToken: capturedOneDrive });
+    setStatus("OneDrive の認証が完了しました。同期を再度実行してください。");
   }
   setupEvents();
   renderHistory();
