@@ -95,7 +95,8 @@ async function handleFile(file, type) {
     const buffer = await file.arrayBuffer();
     const id = await hashBuffer(buffer, file.name);
     const mime = guessMime(type, file);
-    await saveFile(id, buffer, { fileName: file.name, mime });
+    const source = storage.getSettings().source;
+    await saveFile(id, buffer, { fileName: file.name, mime }, source);
 
     const info = {
       id,
@@ -132,7 +133,8 @@ async function handleFile(file, type) {
 
 async function openFromLibrary(bookId, options = {}) {
   try {
-    const record = await loadFile(bookId);
+    const source = storage.getSettings().source;
+    const record = await loadFile(bookId, source);
     if (!record) {
       alert("保存済みファイルが見つかりません。再度アップロードしてください。");
       return;
