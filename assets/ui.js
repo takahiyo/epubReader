@@ -239,6 +239,7 @@ export class UIController {
     this.onProgressBar?.('show');
     
     const bar = document.getElementById('progressBarPanel');
+    const backdrop = document.getElementById('progressBarBackdrop');
     const overlay = document.getElementById('clickOverlay');
     
     console.log('progressBarPanel element:', bar);
@@ -247,6 +248,14 @@ export class UIController {
       console.log('Added visible class to progressBarPanel');
     } else {
       console.error('progressBarPanel element not found!');
+    }
+    
+    // バックドロップを表示
+    if (backdrop) {
+      backdrop.classList.add('visible');
+      // バックドロップクリックで進捗バーを閉じる
+      backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
+      console.log('Showed progress bar backdrop');
     }
     
     // オーバーレイを無効化
@@ -291,14 +300,16 @@ export class UIController {
     this.bookmarkMenuVisible = false;
     
     const leftMenu = document.getElementById('leftMenu');
-    const backdrop = document.getElementById('leftMenuBackdrop');
+    const leftMenuBackdrop = document.getElementById('leftMenuBackdrop');
     const progressBar = document.getElementById('progressBarPanel');
+    const progressBarBackdrop = document.getElementById('progressBarBackdrop');
     const bookmarkMenu = document.getElementById('bookmarkMenu');
     const overlay = document.getElementById('clickOverlay');
     
     if (leftMenu) leftMenu.classList.remove('visible');
-    if (backdrop) backdrop.classList.remove('visible');
+    if (leftMenuBackdrop) leftMenuBackdrop.classList.remove('visible');
     if (progressBar) progressBar.classList.remove('visible');
+    if (progressBarBackdrop) progressBarBackdrop.classList.remove('visible');
     if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
     
     // オーバーレイを再度有効化
