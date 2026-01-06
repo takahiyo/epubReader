@@ -62,19 +62,31 @@ export class ReaderController {
     
     console.log("ePub instance created:", this.book);
     console.log("Rendering to viewer element...");
+    console.log("Viewer element:", this.viewer);
+    console.log("Viewer dimensions:", {
+      width: this.viewer.offsetWidth,
+      height: this.viewer.offsetHeight,
+      clientWidth: this.viewer.clientWidth,
+      clientHeight: this.viewer.clientHeight
+    });
+    
+    // ビューアのサイズを明示的に設定
+    const viewerWidth = this.viewer.clientWidth || 800;
+    const viewerHeight = this.viewer.clientHeight || 600;
     
     this.rendition = this.book.renderTo(this.viewer, {
-      width: "100%",
-      height: "100%",
+      width: viewerWidth,
+      height: viewerHeight,
       flow: "paginated",
       allowScriptedContent: true,
+      spread: "auto",
     });
     
     if (!this.rendition) {
       throw new Error("EPUBレンダラーの初期化に失敗しました。");
     }
     
-    console.log("Rendition created successfully");
+    console.log("Rendition created successfully:", this.rendition);
 
     await this.book.ready;
     
@@ -99,12 +111,32 @@ export class ReaderController {
     });
 
     try {
-      await this.rendition.display(startLocation || undefined);
+      console.log("Calling rendition.display with location:", startLocation);
+      const displayed = await this.rendition.display(startLocation || undefined);
+      console.log("Display result:", displayed);
+      console.log("Rendition current location:", this.rendition.currentLocation());
+      
       this.viewer.classList.remove("hidden");
       this.imageViewer.classList.add("hidden");
+      
+      console.log("Viewer visibility set, checking iframe...");
+      setTimeout(() => {
+        const iframe = this.viewer.querySelector("iframe");
+        console.log("Iframe element:", iframe);
+        if (iframe) {
+          console.log("Iframe dimensions:", {
+            width: iframe.offsetWidth,
+            height: iframe.offsetHeight,
+            src: iframe.src
+          });
+        }
+      }, 100);
+      
       this.onReady?.(this.book.package?.metadata);
+      console.log("EPUB opened successfully");
     } catch (err) {
       console.error("EPUBの表示に失敗しました:", err);
+      console.error("Error stack:", err.stack);
       throw new Error(`EPUBの表示に失敗しました: ${err.message}`);
     }
   }
