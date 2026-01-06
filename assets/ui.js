@@ -399,24 +399,42 @@ export class ProgressBarHandler {
   setupDragHandlers() {
     if (!this.thumb || !this.container) return;
     
+    // ツマミのドラッグ
     this.thumb.addEventListener('mousedown', this.handleDragStart.bind(this));
     document.addEventListener('mousemove', this.handleDragMove.bind(this));
     document.addEventListener('mouseup', this.handleDragEnd.bind(this));
     
     // タッチ対応
     this.thumb.addEventListener('touchstart', this.handleDragStart.bind(this));
-    document.addEventListener('touchmove', this.handleDragMove.bind(this));
+    document.addEventListener('touchmove', this.handleDragMove.bind(this), { passive: false });
     document.addEventListener('touchend', this.handleDragEnd.bind(this));
+    
+    // 進捗トラックをクリックでジャンプ
+    this.container.addEventListener('click', (e) => {
+      // ツマミをクリックした場合は無視
+      if (e.target === this.thumb) return;
+      
+      const rect = this.container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = (x / rect.width) * 100;
+      
+      console.log('Track clicked at', percentage.toFixed(2) + '%');
+      this.updatePosition(percentage);
+      this.onSeek?.(percentage);
+    });
   }
   
   handleDragStart(e) {
     e.preventDefault();
     this.isDragging = true;
     this.thumb.classList.add('dragging');
+    console.log('Drag started');
   }
   
   handleDragMove(e) {
     if (!this.isDragging) return;
+    
+    e.preventDefault(); // スクロールを防ぐ
     
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const rect = this.container.getBoundingClientRect();
@@ -424,11 +442,23 @@ export class ProgressBarHandler {
     const percentage = (x / rect.width) * 100;
     
     this.updatePosition(percentage);
-    this.onSeek?.(percentage);
+    // ドラッグ中はシークしない（updatePositionのみ）
   }
   
-  handleDragEnd() {
+  handleDragEnd(e) {
     if (!this.isDragging) return;
+    
+    e.preventDefault();
+    
+    // ドラッグ終了時に最終位置でシーク
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const rect = this.container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    
+    console.log('Drag ended at', percentage.toFixed(2) + '%');
+    this.onSeek?.(percentage);
+    
     this.isDragging = false;
     this.thumb.classList.remove('dragging');
   }
