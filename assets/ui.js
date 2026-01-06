@@ -171,12 +171,20 @@ export class UIController {
     this.onLeftMenu?.('show');
     
     const menu = document.getElementById('leftMenu');
+    const overlay = document.getElementById('clickOverlay');
+    
     console.log('leftMenu element:', menu);
     if (menu) {
       menu.classList.add('visible');
       console.log('Added visible class to leftMenu');
     } else {
       console.error('leftMenu element not found!');
+    }
+    
+    // オーバーレイを無効化
+    if (overlay) {
+      overlay.style.pointerEvents = 'none';
+      console.log('Disabled overlay pointer events');
     }
   }
   
@@ -189,12 +197,20 @@ export class UIController {
     this.onProgressBar?.('show');
     
     const bar = document.getElementById('progressBarPanel');
+    const overlay = document.getElementById('clickOverlay');
+    
     console.log('progressBarPanel element:', bar);
     if (bar) {
       bar.classList.add('visible');
       console.log('Added visible class to progressBarPanel');
     } else {
       console.error('progressBarPanel element not found!');
+    }
+    
+    // オーバーレイを無効化
+    if (overlay) {
+      overlay.style.pointerEvents = 'none';
+      console.log('Disabled overlay pointer events');
     }
   }
   
@@ -207,12 +223,20 @@ export class UIController {
     this.onBookmarkMenu?.('show');
     
     const menu = document.getElementById('bookmarkMenu');
+    const overlay = document.getElementById('clickOverlay');
+    
     console.log('bookmarkMenu element:', menu);
     if (menu) {
       menu.classList.add('visible');
       console.log('Added visible class to bookmarkMenu');
     } else {
       console.error('bookmarkMenu element not found!');
+    }
+    
+    // オーバーレイを無効化
+    if (overlay) {
+      overlay.style.pointerEvents = 'none';
+      console.log('Disabled overlay pointer events');
     }
   }
   
@@ -227,10 +251,17 @@ export class UIController {
     const leftMenu = document.getElementById('leftMenu');
     const progressBar = document.getElementById('progressBarPanel');
     const bookmarkMenu = document.getElementById('bookmarkMenu');
+    const overlay = document.getElementById('clickOverlay');
     
     if (leftMenu) leftMenu.classList.remove('visible');
     if (progressBar) progressBar.classList.remove('visible');
     if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
+    
+    // オーバーレイを再度有効化
+    if (overlay) {
+      overlay.style.pointerEvents = 'all';
+      console.log('Re-enabled overlay pointer events');
+    }
     
     this.onLeftMenu?.('hide');
     this.onProgressBar?.('hide');

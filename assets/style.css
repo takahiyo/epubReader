@@ -75,6 +75,13 @@ body {
   display: block;
 }
 
+/* メニューが開いている時はオーバーレイを非表示 */
+.left-menu.visible ~ .fullscreen-reader .click-overlay,
+.progress-bar-panel.visible ~ .fullscreen-reader .click-overlay,
+.bookmark-menu.visible ~ .fullscreen-reader .click-overlay {
+  pointer-events: none;
+}
+
 .image-viewer {
   position: absolute;
   inset: 0;
