@@ -80,10 +80,19 @@ export class UIController {
    * クリックハンドラーをセットアップ
    */
   setupClickHandler() {
-    // クリックオーバーレイとドキュメント全体でリスニング
+    // 統一されたクリックハンドラー
     const clickHandler = (e) => {
       // メニュー内のクリックは無視
       if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu')) {
+        return;
+      }
+      
+      // オーバーレイがクリックされた場合のみ処理（重複を防ぐ）
+      const overlay = document.getElementById('clickOverlay');
+      const isOverlayActive = overlay && overlay.style.pointerEvents !== 'none';
+      
+      // オーバーレイが有効で、クリックがオーバーレイ上でない場合はスキップ
+      if (isOverlayActive && e.target !== overlay && !overlay.contains(e.target)) {
         return;
       }
       
@@ -93,14 +102,14 @@ export class UIController {
       this.handleAreaClick(area, e);
     };
     
-    // オーバーレイにイベントリスナーを追加
-    const overlay = document.getElementById('clickOverlay');
-    if (overlay) {
-      overlay.addEventListener('click', clickHandler);
+    // fullscreenReader全体にイベントリスナーを追加
+    const reader = document.getElementById('fullscreenReader');
+    if (reader) {
+      reader.addEventListener('click', clickHandler);
+    } else {
+      // フォールバック: ドキュメント全体
+      document.addEventListener('click', clickHandler);
     }
-    
-    // ドキュメント全体にも追加（空状態や画像ビューア時用）
-    document.addEventListener('click', clickHandler);
   }
   
   /**
