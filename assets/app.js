@@ -178,19 +178,26 @@ async function handleFile(file) {
     currentBookId = id;
     currentBookInfo = info;
     
-    // 空の状態を非表示
-    if (elements.emptyState) {
-      elements.emptyState.classList.add('hidden');
-    }
-    
     const savedProgress = storage.getProgress(id);
     const startLocation = savedProgress?.location;
     
     if (info.type === "epub") {
       console.log("Opening EPUB...");
+      
+      // 空の状態を非表示、ビューアを表示
+      if (elements.emptyState) elements.emptyState.classList.add('hidden');
+      if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
+      if (elements.viewer) elements.viewer.classList.remove('hidden');
+      
       await reader.openEpub(new File([buffer], file.name, { type: mime }), startLocation);
     } else {
       console.log("Opening image book...");
+      
+      // 空の状態を非表示、画像ビューアを表示
+      if (elements.emptyState) elements.emptyState.classList.add('hidden');
+      if (elements.viewer) elements.viewer.classList.add('hidden');
+      if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
+      
       await reader.openImageBook(
         new File([buffer], file.name, { type: mime }),
         typeof startLocation === "number" ? startLocation : 0
@@ -229,19 +236,24 @@ async function openFromLibrary(bookId, options = {}) {
     currentBookId = bookId;
     currentBookInfo = info;
     
-    // 空の状態を非表示
-    if (elements.emptyState) {
-      elements.emptyState.classList.add('hidden');
-    }
-    
     const bookmarks = storage.getBookmarks(bookId);
     const progress = storage.getProgress(bookId);
     const startFromBookmark = options.useBookmark ? bookmarks[0]?.location : undefined;
     const start = startFromBookmark ?? progress?.location;
     
     if (info.type === "epub") {
+      // 空の状態を非表示、ビューアを表示
+      if (elements.emptyState) elements.emptyState.classList.add('hidden');
+      if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
+      if (elements.viewer) elements.viewer.classList.remove('hidden');
+      
       await reader.openEpub(file, start);
     } else {
+      // 空の状態を非表示、画像ビューアを表示
+      if (elements.emptyState) elements.emptyState.classList.add('hidden');
+      if (elements.viewer) elements.viewer.classList.add('hidden');
+      if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
+      
       await reader.openImageBook(file, typeof start === "number" ? start : 0);
     }
     

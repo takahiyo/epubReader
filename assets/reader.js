@@ -116,9 +116,6 @@ export class ReaderController {
       console.log("Display result:", displayed);
       console.log("Rendition current location:", this.rendition.currentLocation());
       
-      this.viewer.classList.remove("hidden");
-      this.imageViewer.classList.add("hidden");
-      
       console.log("Viewer visibility set, checking iframe...");
       setTimeout(() => {
         const iframe = this.viewer.querySelector("iframe");
@@ -169,8 +166,6 @@ export class ReaderController {
       throw new Error("画像が見つかりませんでした");
     }
 
-    this.viewer.classList.add("hidden");
-    this.imageViewer.classList.remove("hidden");
     this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
     this.renderImagePage();
     this.onReady?.({ title: file.name, creator: "画像書籍" });
