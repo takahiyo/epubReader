@@ -80,7 +80,8 @@ export class UIController {
    * クリックハンドラーをセットアップ
    */
   setupClickHandler() {
-    document.addEventListener('click', (e) => {
+    // クリックオーバーレイとドキュメント全体でリスニング
+    const clickHandler = (e) => {
       // メニュー内のクリックは無視
       if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu')) {
         return;
@@ -90,7 +91,16 @@ export class UIController {
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
       
       this.handleAreaClick(area, e);
-    });
+    };
+    
+    // オーバーレイにイベントリスナーを追加
+    const overlay = document.getElementById('clickOverlay');
+    if (overlay) {
+      overlay.addEventListener('click', clickHandler);
+    }
+    
+    // ドキュメント全体にも追加（空状態や画像ビューア時用）
+    document.addEventListener('click', clickHandler);
   }
   
   /**

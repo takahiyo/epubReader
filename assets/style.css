@@ -61,6 +61,20 @@ body {
   border: none;
 }
 
+/* クリック検知用オーバーレイ */
+.click-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: all;
+  background: transparent;
+  display: none;
+}
+
+.viewer.visible ~ .click-overlay {
+  display: block;
+}
+
 .image-viewer {
   position: absolute;
   inset: 0;

@@ -187,7 +187,10 @@ async function handleFile(file) {
       // 空の状態を非表示、ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
       if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
-      if (elements.viewer) elements.viewer.classList.remove('hidden');
+      if (elements.viewer) {
+        elements.viewer.classList.remove('hidden');
+        elements.viewer.classList.add('visible');
+      }
       
       await reader.openEpub(new File([buffer], file.name, { type: mime }), startLocation);
     } else {
@@ -195,7 +198,10 @@ async function handleFile(file) {
       
       // 空の状態を非表示、画像ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
-      if (elements.viewer) elements.viewer.classList.add('hidden');
+      if (elements.viewer) {
+        elements.viewer.classList.add('hidden');
+        elements.viewer.classList.remove('visible');
+      }
       if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
       
       await reader.openImageBook(
@@ -245,13 +251,19 @@ async function openFromLibrary(bookId, options = {}) {
       // 空の状態を非表示、ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
       if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
-      if (elements.viewer) elements.viewer.classList.remove('hidden');
+      if (elements.viewer) {
+        elements.viewer.classList.remove('hidden');
+        elements.viewer.classList.add('visible');
+      }
       
       await reader.openEpub(file, start);
     } else {
       // 空の状態を非表示、画像ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
-      if (elements.viewer) elements.viewer.classList.add('hidden');
+      if (elements.viewer) {
+        elements.viewer.classList.add('hidden');
+        elements.viewer.classList.remove('visible');
+      }
       if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
       
       await reader.openImageBook(file, typeof start === "number" ? start : 0);
