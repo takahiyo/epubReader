@@ -328,13 +328,25 @@ function updateProgressBarDisplay() {
     elements.progressThumb.style.left = `${percentage}%`;
   }
   
-  // ページ数の更新
-  if (elements.currentPageInput) {
-    elements.currentPageInput.value = Math.round(percentage);
-  }
-  
-  if (elements.totalPages) {
-    elements.totalPages.textContent = '100'; // パーセンテージ表示
+  // ページ数の更新（入力中でない場合のみ）
+  if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
+    if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
+      // EPUBの場合はlocationインデックスを表示
+      const totalLocations = reader.rendition.book.locations.total;
+      const currentLocation = Math.round((percentage / 100) * totalLocations);
+      elements.currentPageInput.value = currentLocation;
+      
+      if (elements.totalPages) {
+        elements.totalPages.textContent = totalLocations.toString();
+      }
+    } else {
+      // 画像書籍またはlocations未生成の場合はパーセンテージ
+      elements.currentPageInput.value = Math.round(percentage);
+      
+      if (elements.totalPages) {
+        elements.totalPages.textContent = '100';
+      }
+    }
   }
 }
 
@@ -688,10 +700,32 @@ function setupEvents() {
   elements.addBookmarkBtn?.addEventListener('click', addBookmark);
   
   // 進捗バーのページ入力
-  elements.currentPageInput?.addEventListener('change', (e) => {
-    const percentage = parseInt(e.target.value, 10);
-    if (!isNaN(percentage)) {
-      seekToPercentage(Math.max(0, Math.min(percentage, 100)));
+  let isEditingProgress = false;
+  
+  elements.currentPageInput?.addEventListener('focus', () => {
+    isEditingProgress = true;
+  });
+  
+  elements.currentPageInput?.addEventListener('blur', () => {
+    isEditingProgress = false;
+  });
+  
+  elements.currentPageInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur(); // フォーカスを外してblurイベントをトリガー
+      
+      const value = parseInt(e.target.value, 10);
+      if (!isNaN(value)) {
+        if (currentBookInfo?.type === 'epub') {
+          // EPUBの場合はlocationインデックスとして扱う
+          const totalLocations = reader.rendition?.book?.locations?.total || 100;
+          const percentage = (value / totalLocations) * 100;
+          seekToPercentage(Math.max(0, Math.min(percentage, 100)));
+        } else {
+          // 画像書籍の場合はパーセンテージとして扱う
+          seekToPercentage(Math.max(0, Math.min(value, 100)));
+        }
+      }
     }
   });
   
