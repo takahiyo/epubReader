@@ -338,13 +338,37 @@ function updateProgressBarDisplay() {
   }
 }
 
-function seekToPercentage(percentage) {
+async function seekToPercentage(percentage) {
   if (!currentBookId || !currentBookInfo) return;
   
   if (currentBookInfo.type === "epub") {
-    // EPUBの場合はCFIベースでシーク（実装要）
-    // 現状はパーセンテージのみ記録
+    // EPUBの場合はlocation（CFI）ベースでシーク
     console.log(`Seeking to ${percentage}%`);
+    
+    try {
+      // EPUB.jsのrendition.locationsを使用
+      if (reader.rendition && reader.rendition.book && reader.rendition.book.locations) {
+        const locations = reader.rendition.book.locations;
+        
+        // パーセンテージからlocationインデックスを計算
+        const totalLocations = locations.total;
+        const targetIndex = Math.floor((percentage / 100) * totalLocations);
+        
+        // locationインデックスからCFIを取得
+        const cfi = locations.cfiFromPercentage(percentage / 100);
+        
+        if (cfi) {
+          console.log(`Jumping to CFI: ${cfi}`);
+          await reader.rendition.display(cfi);
+        } else {
+          console.warn('Could not get CFI for percentage:', percentage);
+        }
+      } else {
+        console.warn('Locations not generated yet');
+      }
+    } catch (error) {
+      console.error('Error seeking to percentage:', error);
+    }
   } else {
     // 画像書籍の場合はページ数でシーク
     const totalPages = reader.imagePages?.length || 1;
