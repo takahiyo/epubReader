@@ -107,8 +107,16 @@ export class UIController {
    * エリアクリックを処理
    */
   handleAreaClick(area, event) {
+    console.log('handleAreaClick called:', area);
+    console.log('Menu states:', {
+      leftMenuVisible: this.leftMenuVisible,
+      progressBarVisible: this.progressBarVisible,
+      bookmarkMenuVisible: this.bookmarkMenuVisible
+    });
+    
     // メニューが開いている場合は閉じる
     if (this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible) {
+      console.log('Closing menus...');
       this.closeAllMenus();
       return;
     }
@@ -119,31 +127,37 @@ export class UIController {
       case 'M1':
       case 'B1':
         // 左端 → 左メニュー表示
+        console.log('Showing left menu...');
         this.showLeftMenu();
         break;
         
       case 'M2':
         // 中央左 → 前ページ
+        console.log('Previous page...');
         this.onPagePrev?.();
         break;
         
       case 'M3':
         // 中央 → しおりメニュー表示
+        console.log('Showing bookmark menu...');
         this.showBookmarkMenu();
         break;
         
       case 'M4':
         // 中央右 → 次ページ
+        console.log('Next page...');
         this.onPageNext?.();
         break;
         
       case 'B2':
         // 下端 → 進捗バー表示
+        console.log('Showing progress bar...');
         this.showProgressBar();
         break;
         
       default:
         // その他のエリアは何もしない
+        console.log('Area ignored:', area);
         break;
     }
   }
@@ -152,12 +166,17 @@ export class UIController {
    * 左メニューを表示
    */
   showLeftMenu() {
+    console.log('showLeftMenu called');
     this.leftMenuVisible = true;
     this.onLeftMenu?.('show');
     
     const menu = document.getElementById('leftMenu');
+    console.log('leftMenu element:', menu);
     if (menu) {
       menu.classList.add('visible');
+      console.log('Added visible class to leftMenu');
+    } else {
+      console.error('leftMenu element not found!');
     }
   }
   
@@ -165,12 +184,17 @@ export class UIController {
    * 進捗バーを表示
    */
   showProgressBar() {
+    console.log('showProgressBar called');
     this.progressBarVisible = true;
     this.onProgressBar?.('show');
     
     const bar = document.getElementById('progressBarPanel');
+    console.log('progressBarPanel element:', bar);
     if (bar) {
       bar.classList.add('visible');
+      console.log('Added visible class to progressBarPanel');
+    } else {
+      console.error('progressBarPanel element not found!');
     }
   }
   
@@ -178,12 +202,17 @@ export class UIController {
    * しおりメニューを表示
    */
   showBookmarkMenu() {
+    console.log('showBookmarkMenu called');
     this.bookmarkMenuVisible = true;
     this.onBookmarkMenu?.('show');
     
     const menu = document.getElementById('bookmarkMenu');
+    console.log('bookmarkMenu element:', menu);
     if (menu) {
       menu.classList.add('visible');
+      console.log('Added visible class to bookmarkMenu');
+    } else {
+      console.error('bookmarkMenu element not found!');
     }
   }
   
