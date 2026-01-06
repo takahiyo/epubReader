@@ -141,7 +141,6 @@ body {
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
-  z-index: 99;
   display: none;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -150,6 +149,16 @@ body {
 .menu-backdrop.visible {
   display: block;
   opacity: 1;
+}
+
+/* 左メニュー用バックドロップ（左メニューの下） */
+#leftMenuBackdrop {
+  z-index: 99;
+}
+
+/* 進捗バー用バックドロップ（進捗バーの下） */
+#progressBarBackdrop {
+  z-index: 85;
 }
 
 .left-menu {

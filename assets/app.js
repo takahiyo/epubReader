@@ -715,6 +715,16 @@ function setupEvents() {
     }
   });
   
+  // 進捗バーパネルのクリックイベント伝播を止める（バックドロップに届かないように）
+  elements.progressBarPanel?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
+  // 左メニューのクリックイベント伝播を止める
+  elements.leftMenu?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
   // キーボード操作
   document.addEventListener('keydown', (e) => {
     // モーダルが開いている場合は無視
