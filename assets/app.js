@@ -52,6 +52,7 @@ const elements = {
   bookmarkMenu: document.getElementById("bookmarkMenu"),
   bookmarkList: document.getElementById("bookmarkList"),
   addBookmarkBtn: document.getElementById("addBookmarkBtn"),
+  closeBookmarkMenu: document.getElementById("closeBookmarkMenu"),
   
   // モーダル
   openFileModal: document.getElementById("openFileModal"),
@@ -671,6 +672,7 @@ function setupEvents() {
   elements.closeHistoryModal?.addEventListener('click', () => closeModal(elements.historyModal));
   elements.closeSettingsModal?.addEventListener('click', () => closeModal(elements.settingsModal));
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
+  elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
   
   // モーダルバックドロップクリック
   [elements.openFileModal, elements.historyModal, elements.settingsModal, elements.imageModal].forEach(modal => {
@@ -679,6 +681,14 @@ function setupEvents() {
         closeModal(modal);
       }
     });
+  });
+  
+  // しおりメニューのバックドロップクリック
+  elements.bookmarkMenu?.addEventListener('click', (e) => {
+    // bookmarkMenuの直接クリック（背景部分）の場合は閉じる
+    if (e.target === elements.bookmarkMenu) {
+      ui.closeAllMenus();
+    }
   });
   
   // キーボード操作
