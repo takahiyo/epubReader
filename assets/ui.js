@@ -204,6 +204,7 @@ export class UIController {
     this.onLeftMenu?.('show');
     
     const menu = document.getElementById('leftMenu');
+    const backdrop = document.getElementById('leftMenuBackdrop');
     const overlay = document.getElementById('clickOverlay');
     
     console.log('leftMenu element:', menu);
@@ -212,6 +213,14 @@ export class UIController {
       console.log('Added visible class to leftMenu');
     } else {
       console.error('leftMenu element not found!');
+    }
+    
+    // バックドロップを表示
+    if (backdrop) {
+      backdrop.classList.add('visible');
+      // バックドロップクリックでメニューを閉じる
+      backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
+      console.log('Showed menu backdrop');
     }
     
     // オーバーレイを無効化
@@ -282,11 +291,13 @@ export class UIController {
     this.bookmarkMenuVisible = false;
     
     const leftMenu = document.getElementById('leftMenu');
+    const backdrop = document.getElementById('leftMenuBackdrop');
     const progressBar = document.getElementById('progressBarPanel');
     const bookmarkMenu = document.getElementById('bookmarkMenu');
     const overlay = document.getElementById('clickOverlay');
     
     if (leftMenu) leftMenu.classList.remove('visible');
+    if (backdrop) backdrop.classList.remove('visible');
     if (progressBar) progressBar.classList.remove('visible');
     if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
     
