@@ -28,29 +28,62 @@ export class ReaderController {
       if (typeof window !== "undefined" && !window.JSZip) {
         window.JSZip = JSZip;
       }
+      console.log("JSZip is already loaded");
       return JSZip;
     }
+    console.log("Loading JSZip from CDN...");
     const module = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
     const jszip = module.default ?? module;
     if (typeof window !== "undefined") {
       window.JSZip = jszip;
     }
+    console.log("JSZip loaded successfully");
     return jszip;
   }
 
   async openEpub(file, startLocation) {
     this.type = "epub";
     await this.ensureJSZip();
+    
+    // EPUBライブラリの確認
+    if (typeof ePub === "undefined" && typeof window.ePub === "undefined") {
+      throw new Error("EPUB.jsライブラリが読み込まれていません。ページを再読み込みしてください。");
+    }
+    
     const arrayBuffer = await file.arrayBuffer();
-    this.book = ePub(arrayBuffer);
+    const epubConstructor = typeof ePub !== "undefined" ? ePub : window.ePub;
+    
+    console.log("Creating ePub instance...");
+    this.book = epubConstructor(arrayBuffer);
+    
+    if (!this.book) {
+      throw new Error("EPUBファイルの解析に失敗しました。");
+    }
+    
+    console.log("ePub instance created:", this.book);
+    console.log("Rendering to viewer element...");
+    
     this.rendition = this.book.renderTo(this.viewer, {
       width: "100%",
       height: "100%",
       flow: "paginated",
       allowScriptedContent: true,
     });
+    
+    if (!this.rendition) {
+      throw new Error("EPUBレンダラーの初期化に失敗しました。");
+    }
+    
+    console.log("Rendition created successfully");
 
-    this.book.ready.then(() => this.book.locations.generate(1600).catch(() => {}));
+    await this.book.ready;
+    
+    // 目次の生成
+    try {
+      await this.book.locations.generate(1600);
+    } catch (err) {
+      console.warn("目次の生成に失敗しました:", err);
+    }
 
     this.rendition.on("rendered", () => {
       this.injectImageZoom();
@@ -65,10 +98,15 @@ export class ReaderController {
       });
     });
 
-    await this.rendition.display(startLocation || undefined);
-    this.viewer.classList.remove("hidden");
-    this.imageViewer.classList.add("hidden");
-    this.onReady?.(this.book.package?.metadata);
+    try {
+      await this.rendition.display(startLocation || undefined);
+      this.viewer.classList.remove("hidden");
+      this.imageViewer.classList.add("hidden");
+      this.onReady?.(this.book.package?.metadata);
+    } catch (err) {
+      console.error("EPUBの表示に失敗しました:", err);
+      throw new Error(`EPUBの表示に失敗しました: ${err.message}`);
+    }
   }
 
   async openImageBook(file, startPage = 0) {

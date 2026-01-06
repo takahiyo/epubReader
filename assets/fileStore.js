@@ -135,14 +135,14 @@ function pCloudHeaders(settings) {
   return headers;
 }
 
-function ensureDriveToken() {
+async function ensureDriveToken() {
   const settings = getStoredSettings();
-  return ensureDriveAccessToken(settings, (driveToken) => persistSettings({ driveToken }));
+  return await ensureDriveAccessToken(settings, (driveToken) => persistSettings({ driveToken }));
 }
 
-function ensureOneDriveToken() {
+async function ensureOneDriveToken() {
   const settings = getStoredSettings();
-  return ensureOneDriveAccessToken(settings, (onedriveToken) => persistSettings({ onedriveToken }));
+  return await ensureOneDriveAccessToken(settings, (onedriveToken) => persistSettings({ onedriveToken }));
 }
 
 function buildDriveQueryForId(id) {
@@ -304,12 +304,12 @@ const externalSourceHandlers = {
   drive: {
     save: async (id, buffer, meta) => {
       const settings = getStoredSettings();
-      const accessToken = ensureDriveToken(settings);
+      const accessToken = await ensureDriveToken(settings);
       await uploadDriveFile(accessToken, id, buffer, meta, settings);
     },
     load: async (id) => {
       const settings = getStoredSettings();
-      const accessToken = ensureDriveToken(settings);
+      const accessToken = await ensureDriveToken(settings);
       const found = await findDriveFile(accessToken, id);
       if (!found?.id) return null;
       return downloadDriveRecord(accessToken, found);
@@ -317,11 +317,11 @@ const externalSourceHandlers = {
   },
   onedrive: {
     save: async (id, buffer, meta) => {
-      const accessToken = ensureOneDriveToken();
+      const accessToken = await ensureOneDriveToken();
       await uploadOneDriveFile(accessToken, id, buffer, meta);
     },
     load: async (id) => {
-      const accessToken = ensureOneDriveToken();
+      const accessToken = await ensureOneDriveToken();
       const item = await findOneDriveFile(accessToken, id);
       if (!item?.id) return null;
       return downloadOneDriveRecord(accessToken, item);

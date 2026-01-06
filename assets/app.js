@@ -154,11 +154,21 @@ function ensureOneDriveTokenInteractive() {
 
 async function handleFile(file, type) {
   try {
+    console.log(`Opening file: ${file.name}, type: ${type}`);
+    setStatus(`ファイルを読み込んでいます: ${file.name}`);
+    
     const buffer = await file.arrayBuffer();
+    console.log(`File buffer size: ${buffer.byteLength} bytes`);
+    
     const id = await hashBuffer(buffer, file.name);
+    console.log(`File ID: ${id}`);
+    
     const mime = guessMime(type, file);
     const source = storage.getSettings().source;
+    
+    setStatus("ファイルを保存しています...");
     await saveFile(id, buffer, { fileName: file.name, mime }, source);
+    console.log("File saved successfully");
 
     const info = {
       id,
@@ -177,10 +187,15 @@ async function handleFile(file, type) {
     const savedProgress = storage.getProgress(id);
     const startLocation = savedProgress?.location;
 
+    setStatus("ビューアを初期化しています...");
     if (info.type === "epub") {
+      console.log("Opening EPUB with startLocation:", startLocation);
       await reader.openEpub(new File([buffer], file.name, { type: mime }), startLocation);
+      console.log("EPUB opened successfully");
     } else {
+      console.log("Opening image book with startPage:", startLocation);
       await reader.openImageBook(new File([buffer], file.name, { type: mime }), typeof startLocation === "number" ? startLocation : 0);
+      console.log("Image book opened successfully");
     }
 
     renderBookmarks();
@@ -191,8 +206,10 @@ async function handleFile(file, type) {
       hideOpenFileModal();
     }
   } catch (error) {
-    console.error(error);
-    setStatus(error.message || "読み込みに失敗しました");
+    console.error("Error in handleFile:", error);
+    console.error("Error stack:", error.stack);
+    setStatus(`エラー: ${error.message || "読み込みに失敗しました"}`);
+    alert(`ファイルの読み込みに失敗しました:\n\n${error.message}\n\nブラウザのコンソールを確認してください。`);
   }
 }
 
@@ -463,7 +480,7 @@ function buildDriveQuery() {
 }
 
 async function fetchDriveFiles() {
-  const accessToken = ensureDriveTokenInteractive();
+  const accessToken = await ensureDriveTokenInteractive();
   const url = `https://www.googleapis.com/drive/v3/files?q=${buildDriveQuery()}&orderBy=modifiedTime desc&fields=files(id,name,mimeType,modifiedTime,size)`;
   const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!response.ok) {
@@ -474,7 +491,7 @@ async function fetchDriveFiles() {
 }
 
 async function downloadDriveFile(fileId) {
-  const accessToken = ensureDriveTokenInteractive();
+  const accessToken = await ensureDriveTokenInteractive();
   const metaResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -495,7 +512,7 @@ async function downloadDriveFile(fileId) {
 }
 
 async function fetchOneDriveFiles() {
-  const accessToken = ensureOneDriveTokenInteractive();
+  const accessToken = await ensureOneDriveTokenInteractive();
   const url =
     "https://graph.microsoft.com/v1.0/me/drive/special/approot/children?$top=200&$select=id,name,size,lastModifiedDateTime,file,@microsoft.graph.downloadUrl";
   const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -510,7 +527,7 @@ async function fetchOneDriveFiles() {
 }
 
 async function downloadOneDriveFile(fileId) {
-  const accessToken = ensureOneDriveTokenInteractive();
+  const accessToken = await ensureOneDriveTokenInteractive();
   const metaResponse = await fetch(
     `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}?select=id,name,file,@microsoft.graph.downloadUrl`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -897,6 +914,11 @@ function loadSettings() {
 }
 
 function init() {
+  // ライブラリの読み込み確認
+  console.log("Checking libraries...");
+  console.log("JSZip:", typeof JSZip !== "undefined" ? "✓ Loaded" : "✗ Not loaded");
+  console.log("ePub:", typeof ePub !== "undefined" ? "✓ Loaded" : "✗ Not loaded");
+  
   loadSettings();
   const capturedDrive = captureDriveAccessTokenFromHash("drive");
   if (capturedDrive) {
@@ -915,4 +937,9 @@ function init() {
   renderLibrary();
 }
 
-init();
+// DOMContentLoadedイベントを待ってから初期化
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
