@@ -80,6 +80,8 @@ export class UIController {
    * クリックハンドラーをセットアップ
    */
   setupClickHandler() {
+    let isProcessing = false;  // 連続クリックを防ぐフラグ
+    
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
       // メニュー内のクリックは無視
@@ -87,28 +89,34 @@ export class UIController {
         return;
       }
       
-      // オーバーレイがクリックされた場合のみ処理（重複を防ぐ）
-      const overlay = document.getElementById('clickOverlay');
-      const isOverlayActive = overlay && overlay.style.pointerEvents !== 'none';
-      
-      // オーバーレイが有効で、クリックがオーバーレイ上でない場合はスキップ
-      if (isOverlayActive && e.target !== overlay && !overlay.contains(e.target)) {
+      // 処理中なら無視（連続クリックを防ぐ）
+      if (isProcessing) {
+        console.log('Click event ignored (already processing)');
         return;
       }
+      
+      isProcessing = true;
       
       const area = this.getClickArea(e.clientX, e.clientY);
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
       
       this.handleAreaClick(area, e);
+      
+      // 処理完了後、フラグをリセット（100ms後）
+      setTimeout(() => {
+        isProcessing = false;
+      }, 100);
     };
     
     // fullscreenReader全体にイベントリスナーを追加
     const reader = document.getElementById('fullscreenReader');
     if (reader) {
       reader.addEventListener('click', clickHandler);
+      console.log('Click handler attached to fullscreenReader');
     } else {
       // フォールバック: ドキュメント全体
       document.addEventListener('click', clickHandler);
+      console.log('Click handler attached to document');
     }
   }
   
