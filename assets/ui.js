@@ -29,6 +29,20 @@ export class UIController {
     this.bookmarkMenuVisible = false;
     
     this.setupClickHandler();
+    this.setupResizeHandler();
+  }
+  
+  /**
+   * リサイズハンドラーをセットアップ
+   */
+  setupResizeHandler() {
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
+      }, 250);
+    });
   }
   
   /**
@@ -40,6 +54,8 @@ export class UIController {
     
     const xPercent = (x / width) * 100;
     const yPercent = (y / height) * 100;
+    
+    console.log(`Window size: ${width}x${height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
     
     // 縦方向: U(0-10%), M(10-90%), B(90-100%)
     let vArea = 'M';
