@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test Page</title>
+  </head>
+  <body>
+    <h1>Test Page</h1>
+    <p>If you see this, the server is working correctly.</p>
+    
+    <h2>Files Check:</h2>
+    <ul>
+      <li><a href="/index.html">index.html</a></li>
+      <li><a href="/login.html">login.html</a></li>
+      <li><a href="/assets/style.css">style.css</a></li>
+      <li><a href="/assets/app.js">app.js</a></li>
+      <li><a href="/assets/auth.js">auth.js</a></li>
+      <li><a href="/assets/ui.js">ui.js</a></li>
+    </ul>
+    
+    <h2>Console Test:</h2>
+    <button onclick="testImport()">Test Module Import</button>
+    <pre id="output"></pre>
+    
+    <script type="module">
+      window.testImport = async function() {
+        const output = document.getElementById('output');
+        try {
+          output.textContent = 'Testing imports...\n';
+          
+          const auth = await import('./assets/auth.js');
+          output.textContent += '✓ auth.js loaded\n';
+          
+          const ui = await import('./assets/ui.js');
+          output.textContent += '✓ ui.js loaded\n';
+          
+          const storage = await import('./assets/storage.js');
+          output.textContent += '✓ storage.js loaded\n';
+          
+          const reader = await import('./assets/reader.js');
+          output.textContent += '✓ reader.js loaded\n';
+          
+          output.textContent += '\n✅ All modules loaded successfully!';
+        } catch (error) {
+          output.textContent += '\n❌ Error: ' + error.message + '\n' + error.stack;
+        }
+      };
+    </script>
+  </body>
+</html>

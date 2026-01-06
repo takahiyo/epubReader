@@ -7,19 +7,22 @@
     <link rel="stylesheet" href="./assets/style.css" />
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
-    <!-- 認証チェック（ページ読み込み前に実行） -->
+    <!-- 認証チェック（ページ読み込み後に実行） -->
     <script type="module">
       import { checkAuthStatus } from './assets/auth.js';
       
-      // 認証状態をチェック
-      const authStatus = checkAuthStatus();
-      
-      if (!authStatus.authenticated) {
-        console.log('Not authenticated, redirecting to login...');
-        window.location.href = '/login.html';
-      } else {
-        console.log('Authenticated as:', authStatus.userEmail);
-      }
+      // DOMが読み込まれてから認証チェック
+      window.addEventListener('DOMContentLoaded', () => {
+        const authStatus = checkAuthStatus();
+        
+        if (!authStatus.authenticated) {
+          console.log('Not authenticated, redirecting to login...');
+          // 開発中はコメントアウトして認証なしでテスト可能
+          // window.location.href = '/login.html';
+        } else {
+          console.log('Authenticated as:', authStatus.userEmail);
+        }
+      });
     </script>
   </head>
   <body>

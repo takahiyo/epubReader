@@ -123,6 +123,19 @@ async function fetchUserInfo(accessToken, idToken) {
  * 現在の認証状態をチェック
  */
 export function checkAuthStatus() {
+  // 開発モード: DEV_MODE=true をlocalStorageに設定すると認証をスキップ
+  const devMode = localStorage.getItem('DEV_MODE') === 'true';
+  if (devMode) {
+    return {
+      authenticated: true,
+      token: 'dev-token',
+      userId: 'dev-user',
+      userEmail: 'dev@example.com',
+      userName: 'Development User',
+      devMode: true,
+    };
+  }
+  
   const token = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
   const expiry = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.tokenExpiry) || '0', 10);
   const lastActivity = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.lastActivity) || '0', 10);

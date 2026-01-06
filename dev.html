@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>開発者モード設定</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+      .card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 2rem;
+      }
+      h1 {
+        margin-top: 0;
+        background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      button {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 0.5rem;
+      }
+      .primary {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        color: white;
+      }
+      .secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: #e5e7eb;
+      }
+      .status {
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 8px;
+        background: rgba(139, 92, 246, 0.1);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+      }
+      .code {
+        background: #0f172a;
+        padding: 1rem;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>📖 Epub Reader - 開発者モード</h1>
+      
+      <div class="status">
+        <strong>現在の状態:</strong>
+        <p id="currentStatus">確認中...</p>
+      </div>
+      
+      <h3>開発モードの設定</h3>
+      <p>開発モードを有効にすると、Google認証なしでアプリを使用できます。</p>
+      
+      <div>
+        <button class="primary" onclick="enableDevMode()">開発モードを有効化</button>
+        <button class="secondary" onclick="disableDevMode()">開発モードを無効化</button>
+      </div>
+      
+      <div style="margin-top: 2rem;">
+        <button class="primary" onclick="goToApp()">アプリを開く</button>
+        <button class="secondary" onclick="goToLogin()">ログイン画面へ</button>
+      </div>
+      
+      <h3>その他の設定</h3>
+      <div>
+        <button class="secondary" onclick="clearAllData()">全データをクリア</button>
+        <button class="secondary" onclick="showStorage()">ストレージを表示</button>
+      </div>
+      
+      <div id="storageDisplay" class="code" style="display: none; margin-top: 1rem;"></div>
+    </div>
+    
+    <script>
+      function updateStatus() {
+        const devMode = localStorage.getItem('DEV_MODE') === 'true';
+        const status = document.getElementById('currentStatus');
+        
+        if (devMode) {
+          status.innerHTML = '✅ <strong>開発モードが有効です</strong><br>認証なしでアプリを使用できます。';
+        } else {
+          status.innerHTML = '⚠️ <strong>開発モードが無効です</strong><br>Google認証が必要です。';
+        }
+      }
+      
+      function enableDevMode() {
+        localStorage.setItem('DEV_MODE', 'true');
+        alert('開発モードを有効にしました！');
+        updateStatus();
+      }
+      
+      function disableDevMode() {
+        localStorage.removeItem('DEV_MODE');
+        alert('開発モードを無効にしました。');
+        updateStatus();
+      }
+      
+      function goToApp() {
+        window.location.href = '/index.html';
+      }
+      
+      function goToLogin() {
+        window.location.href = '/login.html';
+      }
+      
+      function clearAllData() {
+        if (confirm('全てのデータ（ライブラリ、しおり、履歴、設定）を削除しますか？\nこの操作は元に戻せません。')) {
+          localStorage.clear();
+          alert('全データをクリアしました。');
+          updateStatus();
+        }
+      }
+      
+      function showStorage() {
+        const display = document.getElementById('storageDisplay');
+        const data = {};
+        
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          data[key] = localStorage.getItem(key);
+        }
+        
+        display.textContent = JSON.stringify(data, null, 2);
+        display.style.display = 'block';
+      }
+      
+      // ページ読み込み時に状態を更新
+      updateStatus();
+    </script>
+  </body>
+</html>
