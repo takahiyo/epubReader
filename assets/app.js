@@ -1432,6 +1432,10 @@ function init() {
   
   // 検索ボタンの状態を更新
   updateSearchButtonState();
+
+  if (currentBookId === null) {
+    ui.showLeftMenu();
+  }
   
   console.log("Epub Reader initialized");
 }
