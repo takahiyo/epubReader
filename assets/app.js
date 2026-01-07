@@ -13,14 +13,29 @@ import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 const storage = new StorageService();
 const cloudSync = new CloudSync(storage);
+const settings = storage.getSettings();
 
 let currentBookId = null;
 let currentBookInfo = null;
-let theme = storage.getSettings().theme ?? "dark";
-let readingDirection = storage.getSettings().readingDirection ?? "rtl";
-let autoSyncEnabled = storage.getSettings().autoSyncEnabled ?? false;
-let libraryViewMode = storage.getSettings().libraryViewMode ?? "grid";
+let theme = settings.theme ?? "dark";
+let writingMode = settings.writingMode;
+let pageDirection = settings.pageDirection;
+const legacyDirection = settings.readingDirection;
+if (!writingMode || !pageDirection) {
+  if (legacyDirection === "rtl") {
+    writingMode = "vertical";
+    pageDirection = "rtl";
+  } else if (legacyDirection === "ltr") {
+    writingMode = "horizontal";
+    pageDirection = "ltr";
+  }
+}
+if (!writingMode) writingMode = "horizontal";
+if (!pageDirection) pageDirection = "ltr";
+let autoSyncEnabled = settings.autoSyncEnabled ?? false;
+let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
+let bookmarkMenuMode = "current";
 
 // ========================================
 // DOM要素
@@ -73,7 +88,8 @@ const elements = {
   settingsModal: document.getElementById("settingsModal"),
   closeSettingsModal: document.getElementById("closeSettingsModal"),
   themeSelect: document.getElementById("themeSelect"),
-  readingDirectionSelect: document.getElementById("readingDirection"),
+  writingModeSelect: document.getElementById("writingMode"),
+  pageDirectionSelect: document.getElementById("pageDirection"),
   autoSyncEnabled: document.getElementById("autoSyncEnabled"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
@@ -98,7 +114,7 @@ const reader = new ReaderController({
 });
 
 reader.applyTheme(theme);
-reader.applyReadingDirection(readingDirection);
+reader.applyReadingDirection(writingMode, pageDirection);
 
 // ========================================
 // UIコントローラー初期化
@@ -119,7 +135,8 @@ const ui = new UIController({
   onBookmarkMenu: (action) => {
     if (action === 'show') {
       updateActivity();
-      renderBookmarks();
+      renderBookmarks(bookmarkMenuMode);
+      bookmarkMenuMode = "current";
     }
   },
   onPagePrev: () => {
@@ -257,7 +274,8 @@ async function openFromLibrary(bookId, options = {}) {
     
     const bookmarks = storage.getBookmarks(bookId);
     const progress = storage.getProgress(bookId);
-    const startFromBookmark = options.useBookmark ? bookmarks[0]?.location : undefined;
+    const explicitBookmark = options.bookmark;
+    const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
     const start = startFromBookmark ?? progress?.location;
     
     if (info.type === "epub") {
@@ -461,11 +479,81 @@ function handleBookReady(meta) {
 // しおり管理
 // ========================================
 
-function renderBookmarks() {
+function renderBookmarks(mode = "current") {
   if (!elements.bookmarkList) return;
   
   elements.bookmarkList.innerHTML = "";
-  
+
+  if (mode === "all") {
+    const historyOrder = storage.data.history.map((item) => item.bookId);
+    const libraryOrder = Object.keys(storage.data.library);
+    const orderedBookIds = [...historyOrder, ...libraryOrder].filter((id, index, self) => self.indexOf(id) === index);
+    const entries = [];
+
+    orderedBookIds.forEach((bookId) => {
+      const book = storage.data.library[bookId];
+      if (!book) return;
+      const bookmarks = storage.getBookmarks(bookId);
+      bookmarks.forEach((bookmark) => {
+        entries.push({ bookId, book, bookmark });
+      });
+    });
+
+    if (!entries.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "しおりがありません";
+      empty.style.textAlign = "center";
+      empty.style.color = "var(--muted)";
+      elements.bookmarkList.appendChild(empty);
+      renderBookmarkMarkers();
+      return;
+    }
+
+    entries.forEach(({ bookId, book, bookmark }) => {
+      const item = document.createElement("li");
+      item.className = "bookmark-item";
+      
+      const info = document.createElement("div");
+      info.className = "bookmark-info";
+      info.onclick = async () => {
+        if (bookId === currentBookId) {
+          reader.goTo(bookmark);
+        } else {
+          await openFromLibrary(bookId, { bookmark });
+        }
+        ui.closeAllMenus();
+      };
+      
+      const label = document.createElement("div");
+      label.className = "bookmark-label";
+      label.textContent = `${book.title} / ${bookmark.label || "しおり"}`;
+      
+      const meta = document.createElement("div");
+      meta.className = "bookmark-meta";
+      meta.textContent = `${new Date(bookmark.createdAt).toLocaleString()} / ${bookmark.percentage}%`;
+      
+      info.append(label, meta);
+      
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "bookmark-delete";
+      deleteBtn.textContent = "🗑️";
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm("このしおりを削除しますか？")) {
+          storage.removeBookmark(bookId, bookmark.createdAt);
+          renderBookmarks(mode);
+          renderBookmarkMarkers();
+        }
+      };
+      
+      item.append(info, deleteBtn);
+      elements.bookmarkList.appendChild(item);
+    });
+
+    renderBookmarkMarkers();
+    return;
+  }
+
   if (!currentBookId) {
     const empty = document.createElement("li");
     empty.textContent = "本を開いてください";
@@ -475,9 +563,9 @@ function renderBookmarks() {
     renderBookmarkMarkers();
     return;
   }
-  
+
   const bookmarks = storage.getBookmarks(currentBookId);
-  
+
   if (!bookmarks.length) {
     const empty = document.createElement("li");
     empty.textContent = "しおりがありません";
@@ -487,28 +575,28 @@ function renderBookmarks() {
     renderBookmarkMarkers();
     return;
   }
-  
+
   bookmarks.forEach((bookmark) => {
     const item = document.createElement("li");
     item.className = "bookmark-item";
-    
+
     const info = document.createElement("div");
     info.className = "bookmark-info";
     info.onclick = () => {
       reader.goTo(bookmark);
       ui.closeAllMenus();
     };
-    
+
     const label = document.createElement("div");
     label.className = "bookmark-label";
     label.textContent = bookmark.label || "しおり";
-    
+
     const meta = document.createElement("div");
     meta.className = "bookmark-meta";
     meta.textContent = `${new Date(bookmark.createdAt).toLocaleString()} / ${bookmark.percentage}%`;
-    
+
     info.append(label, meta);
-    
+
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "bookmark-delete";
     deleteBtn.textContent = "🗑️";
@@ -516,11 +604,11 @@ function renderBookmarks() {
       e.stopPropagation();
       if (confirm("このしおりを削除しますか？")) {
         storage.removeBookmark(currentBookId, bookmark.createdAt);
-        renderBookmarks();
+        renderBookmarks(mode);
         renderBookmarkMarkers();
       }
     };
-    
+
     item.append(info, deleteBtn);
     elements.bookmarkList.appendChild(item);
   });
@@ -537,7 +625,7 @@ function addBookmark() {
   const bookmark = reader.addBookmark("しおり");
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
-    renderBookmarks();
+    renderBookmarks(bookmarkMenuMode);
     renderBookmarkMarkers();
     
     // 自動同期
@@ -669,10 +757,15 @@ function applyTheme(newTheme) {
   storage.setSettings({ theme });
 }
 
-function applyReadingDirection(direction) {
-  readingDirection = direction;
-  reader.applyReadingDirection(readingDirection);
-  storage.setSettings({ readingDirection: direction });
+function applyReadingSettings(nextWritingMode, nextPageDirection) {
+  if (nextWritingMode) {
+    writingMode = nextWritingMode;
+  }
+  if (nextPageDirection) {
+    pageDirection = nextPageDirection;
+  }
+  reader.applyReadingDirection(writingMode, pageDirection);
+  storage.setSettings({ writingMode, pageDirection });
 }
 
 function applyLibraryViewMode(mode) {
@@ -746,6 +839,7 @@ function setupEvents() {
   });
   
   elements.menuBookmarks?.addEventListener('click', () => {
+    bookmarkMenuMode = "all";
     ui.showBookmarkMenu();
   });
   
@@ -758,7 +852,8 @@ function setupEvents() {
     openModal(elements.settingsModal);
     // 現在の設定値を反映
     if (elements.themeSelect) elements.themeSelect.value = theme;
-    if (elements.readingDirectionSelect) elements.readingDirectionSelect.value = readingDirection;
+    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
     if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
   });
   
@@ -815,8 +910,12 @@ function setupEvents() {
     applyTheme(e.target.value);
   });
   
-  elements.readingDirectionSelect?.addEventListener('change', (e) => {
-    applyReadingDirection(e.target.value);
+  elements.writingModeSelect?.addEventListener('change', (e) => {
+    applyReadingSettings(e.target.value, null);
+  });
+
+  elements.pageDirectionSelect?.addEventListener('change', (e) => {
+    applyReadingSettings(null, e.target.value);
   });
   
   elements.autoSyncEnabled?.addEventListener('change', (e) => {
@@ -915,14 +1014,14 @@ function setupEvents() {
     
     switch (e.key) {
       case 'ArrowLeft':
-        if (readingDirection === 'rtl') {
+        if (pageDirection === 'rtl') {
           reader.next(); // 右開きの場合、左キーで次ページ
         } else {
           reader.prev();
         }
         break;
       case 'ArrowRight':
-        if (readingDirection === 'rtl') {
+        if (pageDirection === 'rtl') {
           reader.prev(); // 右開きの場合、右キーで前ページ
         } else {
           reader.next();
@@ -957,7 +1056,7 @@ function init() {
   
   // テーマ適用
   applyTheme(theme);
-  applyReadingDirection(readingDirection);
+  applyReadingSettings(writingMode, pageDirection);
   applyLibraryViewMode(libraryViewMode);
   
   // 自動同期設定
