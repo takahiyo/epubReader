@@ -21,7 +21,9 @@ export class ReaderController {
     this.imagePages = [];
     this.imageIndex = 0;
     this.theme = "dark";
-    this.readingDirection = "rtl";
+    this.writingMode = "horizontal";
+    this.pageDirection = "ltr";
+    this.imageZoomBound = false;
   }
 
   async ensureJSZip() {
@@ -125,7 +127,7 @@ export class ReaderController {
 
     try {
       console.log("Calling rendition.display with location:", startLocation);
-      this.applyReadingDirection(this.readingDirection);
+      this.applyReadingDirection(this.writingMode, this.pageDirection);
       const displayed = await this.rendition.display(startLocation || undefined);
       console.log("Display result:", displayed);
       console.log("Rendition current location:", this.rendition.currentLocation());
@@ -195,7 +197,17 @@ export class ReaderController {
       });
     }
 
-    images.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
+    images.sort((a, b) => {
+      const normalize = (path) => path.replace(/\\/g, "/");
+      const aPath = normalize(a.path);
+      const bPath = normalize(b.path);
+      const depthA = aPath.split("/").length;
+      const depthB = bPath.split("/").length;
+      if (depthA !== depthB) {
+        return depthA - depthB;
+      }
+      return aPath.localeCompare(bPath, undefined, { numeric: true, sensitivity: "base" });
+    });
     const buffers = await Promise.all(
       images.map(async (image) => {
         if (image.entry) {
@@ -229,7 +241,7 @@ export class ReaderController {
       location: this.imageIndex,
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
     });
-    this.imageElement.onclick = () => this.onImageZoom?.(this.imagePages[this.imageIndex]);
+    this.bindImageZoomHandlers();
   }
 
   next() {
@@ -292,17 +304,22 @@ export class ReaderController {
     document.body.dataset.theme = theme;
   }
 
-  applyReadingDirection(direction) {
-    this.readingDirection = direction;
+  applyReadingDirection(writingMode, pageDirection) {
+    if (writingMode) {
+      this.writingMode = writingMode;
+    }
+    if (pageDirection) {
+      this.pageDirection = pageDirection;
+    }
     this.updateEpubTheme();
     if (this.rendition?.direction) {
-      this.rendition.direction(direction);
+      this.rendition.direction(this.pageDirection);
     }
   }
 
   updateEpubTheme() {
     if (this.type !== "epub" || !this.rendition) return;
-    const isVertical = this.readingDirection === "rtl";
+    const isVertical = this.writingMode === "vertical";
     this.rendition.themes.default({
       body: {
         background: this.theme === "dark" ? "#0b1020" : "#ffffff",
@@ -311,7 +328,7 @@ export class ReaderController {
         lineHeight: 1.6,
         writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
         textOrientation: isVertical ? "mixed" : "initial",
-        direction: isVertical ? "rtl" : "ltr",
+        direction: this.pageDirection,
       },
       img: {
         maxWidth: "100%",
@@ -337,8 +354,46 @@ export class ReaderController {
       const doc = content.document;
       doc.querySelectorAll("img").forEach((img) => {
         img.style.cursor = "zoom-in";
-        img.onclick = () => this.onImageZoom?.(img.src);
+        this.bindElementZoomHandlers(img, () => img.src);
       });
+    });
+  }
+
+  bindImageZoomHandlers() {
+    if (!this.imageElement || this.imageZoomBound) return;
+    this.imageZoomBound = true;
+    this.bindElementZoomHandlers(this.imageElement, () => this.imagePages[this.imageIndex]);
+  }
+
+  bindElementZoomHandlers(element, getSrc) {
+    if (!element || element.dataset.zoomBound === "true") return;
+    element.dataset.zoomBound = "true";
+    let longPressTimer = null;
+    let longPressFired = false;
+    const startPress = (event) => {
+      if (event.type === "mousedown" && event.button !== 0) return;
+      longPressFired = false;
+      clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(() => {
+        longPressFired = true;
+        this.onImageZoom?.(getSrc());
+      }, 500);
+    };
+    const endPress = () => {
+      clearTimeout(longPressTimer);
+    };
+    element.addEventListener("mousedown", startPress);
+    element.addEventListener("touchstart", startPress, { passive: true });
+    element.addEventListener("mouseup", endPress);
+    element.addEventListener("mouseleave", endPress);
+    element.addEventListener("touchend", endPress);
+    element.addEventListener("touchcancel", endPress);
+    element.addEventListener("click", () => {
+      if (longPressFired) {
+        longPressFired = false;
+        return;
+      }
+      this.onImageZoom?.(getSrc());
     });
   }
 }
