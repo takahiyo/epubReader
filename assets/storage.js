@@ -19,6 +19,8 @@ const defaultData = {
     onedriveFilePath: "epub-reader-data.json",
     onedriveFileId: "",
     onedriveToken: null,
+    writingMode: "horizontal",
+    pageDirection: "ltr",
   },
 };
 
