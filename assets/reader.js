@@ -240,7 +240,7 @@ export class ReaderController {
     this.resetReaderState();
     this.type = "image";
     const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar = ext === "rar" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
+    const isRar = ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
     const buffer = await file.arrayBuffer();
     let images = [];
 
