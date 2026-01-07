@@ -982,8 +982,8 @@ body {
   }
   
   .left-menu {
-    width: 100%;
-    left: -100%;
+    width: min(320px, 85vw);
+    left: calc(-1 * min(320px, 85vw));
   }
   
   .left-menu.visible {
