@@ -892,8 +892,40 @@ async function performSearch(query) {
           
           // 結果を追加
           for (const match of matches) {
-            // CFIを生成（セクションの開始位置を使用）
-            const cfi = item.cfiBase;
+            // CFIを生成（マッチ位置のRangeから生成）
+            let cfi = null;
+            if (doc.body && typeof item.cfiFromRange === 'function') {
+              const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+              let currentNode = walker.nextNode();
+              let currentIndex = 0;
+              
+              while (currentNode) {
+                const text = currentNode.nodeValue || '';
+                const nextIndex = currentIndex + text.length;
+                
+                if (match.matchIndex >= currentIndex && match.matchIndex < nextIndex) {
+                  const startOffset = match.matchIndex - currentIndex;
+                  const endOffset = Math.min(startOffset + query.length, text.length);
+                  const range = doc.createRange();
+                  range.setStart(currentNode, startOffset);
+                  range.setEnd(currentNode, endOffset);
+                  
+                  try {
+                    cfi = item.cfiFromRange(range);
+                  } catch (error) {
+                    console.warn('Failed to create CFI from range:', error);
+                  }
+                  break;
+                }
+                
+                currentIndex = nextIndex;
+                currentNode = walker.nextNode();
+              }
+            }
+            
+            if (!cfi) {
+              cfi = item.cfiBase;
+            }
             
             // パーセンテージを計算
             let percentage = 0;
