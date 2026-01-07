@@ -26,6 +26,37 @@ export class ReaderController {
     this.imageZoomBound = false;
   }
 
+  resetReaderState() {
+    if (this.rendition?.destroy) {
+      try {
+        this.rendition.destroy();
+      } catch (error) {
+        console.warn("Failed to destroy rendition:", error);
+      }
+    }
+    if (this.book?.destroy) {
+      try {
+        this.book.destroy();
+      } catch (error) {
+        console.warn("Failed to destroy book:", error);
+      }
+    }
+    this.rendition = null;
+    this.book = null;
+    this.type = null;
+    this.imagePages = [];
+    this.imageIndex = 0;
+    if (this.viewer) {
+      this.viewer.innerHTML = "";
+    }
+    if (this.imageElement) {
+      this.imageElement.src = "";
+    }
+    if (this.pageIndicator) {
+      this.pageIndicator.textContent = "";
+    }
+  }
+
   async ensureJSZip() {
     if (typeof JSZip !== "undefined") {
       if (typeof window !== "undefined" && !window.JSZip) {
@@ -57,6 +88,7 @@ export class ReaderController {
   }
 
   async openEpub(file, startLocation) {
+    this.resetReaderState();
     this.type = "epub";
     await this.ensureJSZip();
     
@@ -155,6 +187,7 @@ export class ReaderController {
   }
 
   async openImageBook(file, startPage = 0) {
+    this.resetReaderState();
     this.type = "image";
     const ext = file.name.split(".").pop()?.toLowerCase();
     const isRar = ext === "rar" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
@@ -168,8 +201,10 @@ export class ReaderController {
       const headers = list?.fileHeaders ?? list?.files ?? [];
       const imageHeaders = headers.filter((header) => {
         const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
+        const normalized = name.replace(/\\/g, "/");
+        const fileName = normalized.split("/").pop() ?? "";
         const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory;
-        return !isDir && /(png|jpe?g|gif|webp)$/.test(name.toLowerCase());
+        return !isDir && /(png|jpe?g|gif|webp)$/.test(fileName.toLowerCase());
       });
 
       const imageNames = imageHeaders
@@ -190,9 +225,10 @@ export class ReaderController {
       const zip = await JSZipLib.loadAsync(buffer);
       zip.forEach((path, entry) => {
         if (entry.dir) return;
-        const lower = path.toLowerCase();
-        if (/(png|jpe?g|gif|webp)$/.test(lower)) {
-          images.push({ path, entry });
+        const normalized = path.replace(/\\/g, "/");
+        const fileName = normalized.split("/").pop() ?? normalized;
+        if (/(png|jpe?g|gif|webp)$/.test(fileName.toLowerCase())) {
+          images.push({ path: normalized, entry });
         }
       });
     }
@@ -315,12 +351,21 @@ export class ReaderController {
     if (this.rendition?.direction) {
       this.rendition.direction(this.pageDirection);
     }
+    if (this.type === "epub" && this.rendition?.currentLocation) {
+      const current = this.rendition.currentLocation();
+      this.rendition.display(current?.start?.cfi ?? undefined);
+    }
   }
 
   updateEpubTheme() {
     if (this.type !== "epub" || !this.rendition) return;
     const isVertical = this.writingMode === "vertical";
     this.rendition.themes.default({
+      html: {
+        writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
+        textOrientation: isVertical ? "mixed" : "initial",
+        direction: this.pageDirection,
+      },
       body: {
         background: this.theme === "dark" ? "#0b1020" : "#ffffff",
         color: this.theme === "dark" ? "#e5e7eb" : "#0f172a",
