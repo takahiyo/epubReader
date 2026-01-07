@@ -265,7 +265,7 @@ async function handleFile(file) {
     renderBookmarkMarkers();
     updateProgressBarDisplay();
     updateSearchButtonState();
-    closeModal(elements.openFileModal);
+    closeReaderOverlays();
     
     // 自動同期が有効なら保存
     if (autoSyncEnabled) {
@@ -339,7 +339,7 @@ async function openFromLibrary(bookId, options = {}) {
     renderBookmarkMarkers();
     updateProgressBarDisplay();
     updateSearchButtonState();
-    closeModal(elements.openFileModal);
+    closeReaderOverlays();
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
@@ -1030,6 +1030,17 @@ function renderSearchResults(results, query) {
     
     elements.searchResults.appendChild(item);
   });
+}
+
+function closeReaderOverlays() {
+  ui.closeAllMenus();
+  [
+    elements.openFileModal,
+    elements.historyModal,
+    elements.settingsModal,
+    elements.imageModal,
+    elements.searchModal,
+  ].forEach((modal) => closeModal(modal));
 }
 
 // ========================================
