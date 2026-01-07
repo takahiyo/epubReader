@@ -1415,9 +1415,20 @@ function setupEvents() {
 function init() {
   console.log("Initializing Epub Reader...");
   
-  // ライブラリ読み込み確認
-  console.log("JSZip:", typeof JSZip !== "undefined" ? "✓" : "✗");
-  console.log("ePub:", typeof ePub !== "undefined" ? "✓" : "✗");
+  // ライブラリ読み込み確認（詳細）
+  const hasGlobalJSZip = typeof JSZip !== "undefined";
+  const hasWindowJSZip = typeof window.JSZip !== "undefined";
+  const hasGlobalEPub = typeof ePub !== "undefined";
+  const hasWindowEPub = typeof window.ePub !== "undefined";
+  
+  console.log("JSZip:", hasGlobalJSZip || hasWindowJSZip ? "✓" : "✗", {
+    global: hasGlobalJSZip,
+    window: hasWindowJSZip
+  });
+  console.log("ePub:", hasGlobalEPub || hasWindowEPub ? "✓" : "✗", {
+    global: hasGlobalEPub,
+    window: hasWindowEPub
+  });
   
   // ユーザー情報表示
   updateUserInfo();

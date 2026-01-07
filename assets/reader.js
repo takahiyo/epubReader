@@ -183,7 +183,35 @@ export class ReaderController {
   async openEpub(file, startLocation) {
     this.resetReaderState();
     this.type = "epub";
-    await this.ensureJSZip();
+    
+    // JSZipを先にロード
+    const JSZipLib = await this.ensureJSZip();
+    
+    // JSZipがグローバルに設定されていることを確認（EPUB.jsが必要）
+    if (typeof window !== 'undefined') {
+      if (!window.JSZip) {
+        window.JSZip = JSZipLib;
+        console.log("Set window.JSZip explicitly for EPUB.js");
+      }
+      
+      // グローバルスコープにも設定（一部のEPUB.jsバージョンが必要とする）
+      if (typeof globalThis !== 'undefined' && !globalThis.JSZip) {
+        globalThis.JSZip = JSZipLib;
+        console.log("Set globalThis.JSZip for compatibility");
+      }
+    }
+    
+    // JSZipが正しくロードされたか確認
+    console.log("JSZip status after loading:", {
+      'window.JSZip': typeof window.JSZip,
+      'JSZipLib': typeof JSZipLib,
+      'has methods': typeof JSZipLib?.loadAsync === 'function'
+    });
+    
+    // EPUB.jsがJSZipを認識できるか最終確認
+    if (typeof window.JSZip === 'undefined' && typeof JSZipLib === 'undefined') {
+      throw new Error("JSZipの読み込みに失敗しました。ページを再読み込みしてください。");
+    }
     
     // EPUBライブラリの確認（複数の場所をチェック）
     let epubConstructor = null;
@@ -208,11 +236,45 @@ export class ReaderController {
     const arrayBuffer = await file.arrayBuffer();
     
     console.log("Creating ePub instance with constructor:", typeof epubConstructor);
+    // EPUB.jsのための最終的なJSZip確認
+    console.log("JSZip check before creating book:", {
+      'window.JSZip type': typeof window.JSZip,
+      'window.JSZip exists': !!window.JSZip,
+      'window.JSZip.loadAsync': typeof window.JSZip?.loadAsync
+    });
+    
+    // EPUB.jsがグローバルスコープでJSZipを見つけられるようにする
+    // これは一部のEPUB.jsバージョンで必要
+    if (typeof JSZip === 'undefined' && window.JSZip) {
+      try {
+        // グローバルスコープに注入を試みる（strictモードでは動作しない可能性あり）
+        globalThis.JSZip = window.JSZip;
+        console.log("Injected JSZip into globalThis");
+      } catch (e) {
+        console.warn("Could not inject JSZip into globalThis:", e);
+      }
+    }
     
     try {
       this.book = epubConstructor(arrayBuffer);
+      console.log("ePub book instance created successfully");
     } catch (error) {
       console.error("Failed to create ePub instance:", error);
+      
+      // JSZipの問題の場合、より詳細な情報を提供
+      if (error.message.includes('JSZip')) {
+        console.error("JSZip diagnostic info:", {
+          'window.JSZip': typeof window.JSZip,
+          'globalThis.JSZip': typeof globalThis.JSZip,
+          'JSZipLib available': !!JSZipLib,
+          'JSZipLib.loadAsync': typeof JSZipLib?.loadAsync,
+          'error': error.message
+        });
+        
+        // 別の読み込み方法を試す
+        throw new Error(`EPUB読み込みエラー: JSZipライブラリが見つかりません。\\n\\nブラウザのキャッシュをクリアして、ページを再読み込みしてください。\\n\\n技術詳細: ${error.message}`);
+      }
+      
       throw new Error(`EPUBファイルの解析に失敗しました: ${error.message}`);
     }
     

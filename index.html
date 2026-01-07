@@ -5,7 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Epub Reader</title>
     <link rel="stylesheet" href="./assets/style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+    <!-- JSZipとePubがグローバルに設定されていることを確認 -->
+    <script>
+      // EPUB.jsが必要とするグローバル変数を確実に設定
+      (function() {
+        // JSZipの確認と設定
+        if (typeof JSZip !== 'undefined') {
+          window.JSZip = JSZip;
+          console.log('[Init] JSZip loaded and set to window.JSZip');
+        } else {
+          console.error('[Init] JSZip NOT loaded from CDN!');
+        }
+        
+        // ePubの確認と設定
+        if (typeof ePub !== 'undefined') {
+          window.ePub = ePub;
+          console.log('[Init] ePub loaded and set to window.ePub');
+        } else {
+          console.error('[Init] ePub NOT loaded from CDN!');
+        }
+        
+        // デバッグ情報
+        console.log('[Init] Library status:', {
+          JSZip: typeof JSZip !== 'undefined' ? 'loaded' : 'missing',
+          'window.JSZip': typeof window.JSZip !== 'undefined' ? 'available' : 'missing',
+          ePub: typeof ePub !== 'undefined' ? 'loaded' : 'missing',
+          'window.ePub': typeof window.ePub !== 'undefined' ? 'available' : 'missing'
+        });
+      })();
+    </script>
     <!-- 認証チェック（ページ読み込み後に実行） -->
     <script type="module">
       import { checkAuthStatus } from './assets/auth.js';
