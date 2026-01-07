@@ -404,7 +404,7 @@ export class ReaderController {
     const current = this.rendition.currentLocation();
     const currentCfi = current?.start?.cfi;
     
-    // テーマとスタイルを更新
+    // テーマとスタイルを更新（表示前に適用）
     this.updateEpubTheme();
     
     // ページ送り方向を設定
@@ -415,14 +415,22 @@ export class ReaderController {
     // コンテンツにスタイルを適用
     this.applyWritingModeToContents();
     
-    // 現在位置を維持してリフレッシュ
+    // レンダリング完了を待ってから位置を復元
     if (currentCfi) {
       try {
-        await this.rendition.display(currentCfi);
+        // 一度レンダリングイベントを待つ
+        await new Promise((resolve) => {
+          const handler = () => {
+            this.rendition.off('rendered', handler);
+            resolve();
+          };
+          this.rendition.once('rendered', handler);
+          
+          // 位置を復元
+          this.rendition.display(currentCfi);
+        });
       } catch (error) {
         console.warn("Failed to restore position after direction change:", error);
-        // フォールバック: 最初から表示
-        await this.rendition.display();
       }
     }
   }

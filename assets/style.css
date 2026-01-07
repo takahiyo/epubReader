@@ -233,6 +233,15 @@ body {
   background: rgba(139, 92, 246, 0.1);
 }
 
+.menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menu-item:disabled:hover {
+  background: transparent;
+}
+
 .menu-icon {
   font-size: 1.25rem;
   width: 1.5rem;
