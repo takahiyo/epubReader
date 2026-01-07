@@ -148,8 +148,8 @@ export class UIController {
       bookmarkMenuVisible: this.bookmarkMenuVisible
     });
     
-    // メニューが開いている場合は閉じる
-    if (this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible) {
+    // メニューが開いている場合は閉じる（本が開いている時のみ）
+    if ((this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible) && this.isBookOpen()) {
       console.log('Closing menus...');
       this.closeAllMenus();
       return;
