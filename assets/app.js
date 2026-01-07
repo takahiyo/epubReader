@@ -27,6 +27,7 @@ let autoSyncInterval = null;
 
 const elements = {
   // リーダー
+  fullscreenReader: document.getElementById("fullscreenReader"),
   viewer: document.getElementById("viewer"),
   imageViewer: document.getElementById("imageViewer"),
   pageImage: document.getElementById("pageImage"),
@@ -782,6 +783,43 @@ function setupEvents() {
   elements.leftMenu?.addEventListener('click', (e) => {
     e.stopPropagation();
   });
+
+  // ホイール操作でページ送り
+  const wheelTarget = elements.fullscreenReader || elements.viewer;
+  const wheelThrottleMs = 300;
+  let lastWheelTime = 0;
+
+  wheelTarget?.addEventListener('wheel', (event) => {
+    // モーダルが開いている場合は無視
+    if (!elements.openFileModal?.classList.contains('hidden') ||
+        !elements.historyModal?.classList.contains('hidden') ||
+        !elements.settingsModal?.classList.contains('hidden') ||
+        !elements.imageModal?.classList.contains('hidden')) {
+      return;
+    }
+
+    const targetElement = event.target instanceof Element ? event.target : null;
+    if (targetElement?.closest('.left-menu, .progress-bar-panel, .bookmark-menu')) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const now = Date.now();
+    if (now - lastWheelTime < wheelThrottleMs) {
+      return;
+    }
+
+    if (event.deltaY > 0) {
+      updateActivity();
+      reader.next();
+    } else if (event.deltaY < 0) {
+      updateActivity();
+      reader.prev();
+    }
+
+    lastWheelTime = now;
+  }, { passive: false });
   
   // キーボード操作
   document.addEventListener('keydown', (e) => {
