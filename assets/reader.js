@@ -20,6 +20,9 @@ export class ReaderController {
     this.type = null;
     this.imagePages = [];
     this.imageIndex = 0;
+    this.imageEntries = [];
+    this.imagePageErrors = [];
+    this.imageLoadToken = 0;
     this.theme = "dark";
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
@@ -46,6 +49,9 @@ export class ReaderController {
     this.type = null;
     this.imagePages = [];
     this.imageIndex = 0;
+    this.imageEntries = [];
+    this.imagePageErrors = [];
+    this.imageLoadToken = 0;
     if (this.viewer) {
       this.viewer.innerHTML = "";
     }
@@ -389,64 +395,29 @@ export class ReaderController {
       
       console.log('Sorted image paths:', images.slice(0, 5).map(img => img.path));
       
-      console.log(`Converting ${images.length} images to base64...`);
-      const buffers = await Promise.all(
-        images.map(async (image, index) => {
-          try {
-            if (image.entry) {
-              // ZIP entry
-              const base64 = await image.entry.async("base64");
-              if (!base64) {
-                console.error(`Empty base64 data for: ${image.path}`);
-                return null;
-              }
-              return base64;
-            } else if (image.data) {
-              // RAR data (Uint8Array)
-              if (!image.data || image.data.length === 0) {
-                console.error(`Empty data for: ${image.path}`);
-                return null;
-              }
-              const base64 = this.uint8ToBase64(image.data);
-              return base64;
-            }
-            console.error(`No valid data source for: ${image.path}`);
-            return null;
-          } catch (error) {
-            console.error(`Failed to process image: ${image.path}`, error);
-            return null;
-          }
-        })
-      );
-      
-      console.log(`Converted ${buffers.filter(b => b !== null).length} images successfully`);
+      this.imageEntries = images;
+      this.imagePages = new Array(images.length).fill(null);
+      this.imagePageErrors = new Array(images.length).fill(null);
 
-      this.imagePages = buffers
-        .map((base64, index) => {
-          if (!base64) {
-            console.warn(`Skipping null base64 for image at index ${index}: ${images[index]?.path}`);
-            return null;
-          }
-          
-          const ext = images[index].path.split(".").pop()?.toLowerCase() ?? "jpeg";
-          const mime = 
-            ext === "png" ? "image/png" :
-            ext === "gif" ? "image/gif" :
-            ext === "webp" ? "image/webp" :
-            ext === "bmp" ? "image/bmp" :
-            ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-            "image/jpeg";
-          return `data:${mime};base64,${base64}`;
-        })
-        .filter(Boolean);
+      const preloadCount = Math.min(3, images.length);
+      console.log(`Preloading ${preloadCount} images to base64...`);
 
-      if (!this.imagePages.length) {
-        console.error('All images failed to convert to base64');
-        throw new Error("画像の読み込みに失敗しました。すべての画像ファイルの変換に失敗しました。");
+      for (let index = 0; index < preloadCount; index += 1) {
+        await this.convertImageAtIndex(index, { reportError: true });
       }
 
-      console.log(`Successfully loaded ${this.imagePages.length} images`);
       this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
+      const loadedCount = this.imagePages.filter((page) => page !== null).length;
+      console.log(`Preloaded ${loadedCount} images successfully`);
+
+      if (loadedCount === 0) {
+        await this.convertImageAtIndex(this.imageIndex, { reportError: true });
+        if (!this.imagePages[this.imageIndex]) {
+          console.error('All preloaded images failed to convert to base64');
+          throw new Error("画像の読み込みに失敗しました。最初のページの変換に失敗しました。");
+        }
+      }
+
       this.renderImagePage();
       this.onReady?.({ title: file.name, creator: "画像書籍" });
     } catch (error) {
@@ -455,17 +426,97 @@ export class ReaderController {
     }
   }
 
+  async convertImageAtIndex(index, { reportError } = {}) {
+    if (!this.imageEntries.length) return null;
+    if (this.imagePages[index]) return this.imagePages[index];
+    if (this.imagePageErrors[index]) return null;
+
+    const image = this.imageEntries[index];
+    if (!image) return null;
+
+    try {
+      let base64 = null;
+      if (image.entry) {
+        base64 = await image.entry.async("base64");
+        if (!base64) {
+          throw new Error("base64データが空です。");
+        }
+      } else if (image.data) {
+        if (!image.data || image.data.length === 0) {
+          throw new Error("画像データが空です。");
+        }
+        base64 = this.uint8ToBase64(image.data);
+      } else {
+        throw new Error("変換元データが見つかりませんでした。");
+      }
+
+      const ext = image.path.split(".").pop()?.toLowerCase() ?? "jpeg";
+      const mime =
+        ext === "png" ? "image/png" :
+        ext === "gif" ? "image/gif" :
+        ext === "webp" ? "image/webp" :
+        ext === "bmp" ? "image/bmp" :
+        ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+        "image/jpeg";
+      const dataUrl = `data:${mime};base64,${base64}`;
+      this.imagePages[index] = dataUrl;
+      return dataUrl;
+    } catch (error) {
+      const pageNumber = index + 1;
+      const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）`;
+      console.error(message, error);
+      this.imagePageErrors[index] = message;
+      if (reportError) {
+        this.showImageConvertError(message);
+      }
+      return null;
+    }
+  }
+
+  showImageConvertError(message) {
+    if (this.imageElement) {
+      this.imageElement.removeAttribute("src");
+      this.imageElement.alt = message;
+      this.imageElement.title = message;
+    }
+    if (typeof alert === "function") {
+      alert(message);
+    }
+  }
+
   renderImagePage() {
     if (!this.imagePages.length) return;
-    this.imageElement.src = this.imagePages[this.imageIndex];
+    const targetIndex = this.imageIndex;
+    this.imageElement.src = this.imagePages[targetIndex] || "";
     if (this.pageIndicator) {
-      this.pageIndicator.textContent = `${this.imageIndex + 1} / ${this.imagePages.length}`;
+      this.pageIndicator.textContent = `${targetIndex + 1} / ${this.imagePages.length}`;
     }
     this.onProgress?.({
-      location: this.imageIndex,
-      percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
+      location: targetIndex,
+      percentage: Math.round(((targetIndex + 1) / this.imagePages.length) * 100),
     });
     this.bindImageZoomHandlers();
+    this.loadImagePage(targetIndex);
+  }
+
+  async loadImagePage(index) {
+    const currentToken = ++this.imageLoadToken;
+    if (this.imagePages[index]) {
+      if (currentToken === this.imageLoadToken) {
+        this.imageElement.src = this.imagePages[index];
+        this.imageElement.alt = "ページ画像";
+        this.imageElement.title = "";
+      }
+      return;
+    }
+
+    const dataUrl = await this.convertImageAtIndex(index, { reportError: true });
+    if (!dataUrl) return;
+    if (currentToken === this.imageLoadToken) {
+      this.imageElement.src = dataUrl;
+      this.imageElement.alt = "ページ画像";
+      this.imageElement.title = "";
+    }
   }
 
   next() {
