@@ -359,7 +359,7 @@ function guessMime(type, file) {
   if (type === "epub") return "application/epub+zip";
   if (type === "image") {
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext === "rar") return "application/vnd.rar";
+    if (ext === "rar" || ext === "cbr") return "application/vnd.rar";
     return "application/vnd.comicbook+zip";
   }
   return file.type || "application/octet-stream";
