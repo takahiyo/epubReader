@@ -245,6 +245,9 @@ export class ReaderController {
     let images = [];
 
     try {
+      console.log(`Processing ${isRar ? 'RAR' : 'ZIP/CBZ'} file: ${file.name}`);
+      console.log(`File size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+      
       if (isRar) {
         console.log("Opening RAR file...");
         const { createExtractorFromData } = await this.ensureUnrar();
@@ -253,19 +256,49 @@ export class ReaderController {
         const headers = list?.fileHeaders ?? list?.files ?? [];
         console.log(`Found ${headers.length} entries in RAR`);
         
+        // デバッグ: 最初の数エントリを表示
+        if (headers.length > 0) {
+          console.log('Sample RAR entries:', headers.slice(0, 3).map(h => ({
+            name: h?.name ?? h?.fileName ?? h?.filename ?? h?.path,
+            isDir: h?.flags?.directory ?? h?.isDirectory ?? h?.directory
+          })));
+        }
+        
         const imageHeaders = headers.filter((header) => {
           const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
+          if (!name) return false;
+          
           const normalized = name.replace(/\\/g, "/");
           const fileName = normalized.split("/").pop() ?? "";
-          const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory;
-          return !isDir && /(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+          const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
+          
+          // 隠しファイルを除外 (.DS_Store, Thumbs.db, __MACOSX など)
+          if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
+            return false;
+          }
+          
+          const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+          const result = !isDir && isImage;
+          
+          if (result) {
+            console.log(`✓ Including: ${name}`);
+          }
+          
+          return result;
         });
         
         console.log(`Filtered ${imageHeaders.length} image entries`);
 
+        if (imageHeaders.length === 0) {
+          console.error('No image files found in RAR. Available files:', headers.map(h => h?.name ?? h?.fileName));
+          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
+        }
+
         const imageNames = imageHeaders
           .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
           .filter(Boolean);
+        
+        console.log('Extracting images:', imageNames);
         const extracted = extractor.extractFiles(imageNames);
         const extractedFiles = extracted?.files ?? extracted ?? [];
         
@@ -274,18 +307,25 @@ export class ReaderController {
             const header = item?.fileHeader ?? item?.header ?? item;
             const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
             const data = item?.extraction?.data ?? item?.data;
+            
+            if (!data) {
+              console.warn(`Failed to extract data for: ${name}`);
+              return null;
+            }
+            
             return { path: name, data };
           })
-          .filter((entry) => entry.path && entry.data);
+          .filter((entry) => entry !== null && entry.path && entry.data);
         
-        console.log(`Extracted ${images.length} images from RAR`);
+        console.log(`Successfully extracted ${images.length} images from RAR`);
       } else {
-        console.log("Opening ZIP file...");
+        console.log("Opening ZIP/CBZ file...");
         const JSZipLib = await this.ensureJSZip();
         const zip = await JSZipLib.loadAsync(buffer);
         
         const entries = [];
         zip.forEach((path, entry) => {
+          // ディレクトリを除外
           if (!entry.dir) {
             entries.push({ path, entry });
           }
@@ -293,65 +333,116 @@ export class ReaderController {
         
         console.log(`Found ${entries.length} files in ZIP`);
         
+        // デバッグ: 最初の数エントリを表示
+        if (entries.length > 0) {
+          console.log('Sample ZIP entries:', entries.slice(0, 5).map(e => e.path));
+        }
+        
         images = entries
           .filter(({ path }) => {
             const normalized = path.replace(/\\/g, "/");
             const fileName = normalized.split("/").pop() ?? normalized;
-            return /(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+            
+            // 隠しファイルを除外
+            if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
+              return false;
+            }
+            
+            const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+            
+            if (isImage) {
+              console.log(`✓ Including: ${path}`);
+            }
+            
+            return isImage;
           })
           .map(({ path, entry }) => ({ path, entry }));
         
         console.log(`Filtered ${images.length} image entries from ZIP`);
+        
+        if (images.length === 0) {
+          console.error('No image files found in ZIP. Available files:', entries.map(e => e.path));
+          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
+        }
       }
 
       if (!images.length) {
         throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, BMP");
       }
 
+      // 自然順ソート（ファイル名の数字を考慮）
       images.sort((a, b) => {
         const normalize = (path) => path.replace(/\\/g, "/");
         const aPath = normalize(a.path);
         const bPath = normalize(b.path);
+        
+        // 階層の深さで優先順位をつける（浅い階層を優先）
         const depthA = aPath.split("/").length;
         const depthB = bPath.split("/").length;
         if (depthA !== depthB) {
           return depthA - depthB;
         }
+        
+        // 同じ階層なら、自然順ソート（数字を数値として比較）
         return aPath.localeCompare(bPath, undefined, { numeric: true, sensitivity: "base" });
       });
       
+      console.log('Sorted image paths:', images.slice(0, 5).map(img => img.path));
+      
       console.log(`Converting ${images.length} images to base64...`);
       const buffers = await Promise.all(
-        images.map(async (image) => {
+        images.map(async (image, index) => {
           try {
             if (image.entry) {
-              return await image.entry.async("base64");
+              // ZIP entry
+              const base64 = await image.entry.async("base64");
+              if (!base64) {
+                console.error(`Empty base64 data for: ${image.path}`);
+                return null;
+              }
+              return base64;
+            } else if (image.data) {
+              // RAR data (Uint8Array)
+              if (!image.data || image.data.length === 0) {
+                console.error(`Empty data for: ${image.path}`);
+                return null;
+              }
+              const base64 = this.uint8ToBase64(image.data);
+              return base64;
             }
-            const base64 = this.uint8ToBase64(image.data);
-            return base64;
+            console.error(`No valid data source for: ${image.path}`);
+            return null;
           } catch (error) {
             console.error(`Failed to process image: ${image.path}`, error);
             return null;
           }
         })
       );
+      
+      console.log(`Converted ${buffers.filter(b => b !== null).length} images successfully`);
 
       this.imagePages = buffers
         .map((base64, index) => {
-          if (!base64) return null;
+          if (!base64) {
+            console.warn(`Skipping null base64 for image at index ${index}: ${images[index]?.path}`);
+            return null;
+          }
+          
           const ext = images[index].path.split(".").pop()?.toLowerCase() ?? "jpeg";
           const mime = 
             ext === "png" ? "image/png" :
             ext === "gif" ? "image/gif" :
             ext === "webp" ? "image/webp" :
             ext === "bmp" ? "image/bmp" :
+            ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
             "image/jpeg";
           return `data:${mime};base64,${base64}`;
         })
         .filter(Boolean);
 
       if (!this.imagePages.length) {
-        throw new Error("画像の読み込みに失敗しました");
+        console.error('All images failed to convert to base64');
+        throw new Error("画像の読み込みに失敗しました。すべての画像ファイルの変換に失敗しました。");
       }
 
       console.log(`Successfully loaded ${this.imagePages.length} images`);
