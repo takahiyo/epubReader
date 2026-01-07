@@ -185,19 +185,39 @@ export class ReaderController {
     this.type = "epub";
     await this.ensureJSZip();
     
-    // EPUBライブラリの確認
-    if (typeof ePub === "undefined" && typeof window.ePub === "undefined") {
-      throw new Error("EPUB.jsライブラリが読み込まれていません。ページを再読み込みしてください。");
+    // EPUBライブラリの確認（複数の場所をチェック）
+    let epubConstructor = null;
+    
+    if (typeof ePub !== "undefined") {
+      epubConstructor = ePub;
+      console.log("Found ePub in global scope");
+    } else if (typeof window.ePub !== "undefined") {
+      epubConstructor = window.ePub;
+      console.log("Found window.ePub");
+    } else if (typeof window.EPUBJS !== "undefined" && typeof window.EPUBJS.ePub !== "undefined") {
+      epubConstructor = window.EPUBJS.ePub;
+      console.log("Found window.EPUBJS.ePub");
+    }
+    
+    if (!epubConstructor) {
+      console.error("EPUB.js library not found in any expected location");
+      console.error("Available globals:", Object.keys(window).filter(k => k.toLowerCase().includes('epub')));
+      throw new Error("EPUB.jsライブラリが読み込まれていません。\\n\\nページを再読み込みしてください。\\n\\n問題が解決しない場合は、開発者ツールのコンソールを確認してください。");
     }
     
     const arrayBuffer = await file.arrayBuffer();
-    const epubConstructor = typeof ePub !== "undefined" ? ePub : window.ePub;
     
-    console.log("Creating ePub instance...");
-    this.book = epubConstructor(arrayBuffer);
+    console.log("Creating ePub instance with constructor:", typeof epubConstructor);
+    
+    try {
+      this.book = epubConstructor(arrayBuffer);
+    } catch (error) {
+      console.error("Failed to create ePub instance:", error);
+      throw new Error(`EPUBファイルの解析に失敗しました: ${error.message}`);
+    }
     
     if (!this.book) {
-      throw new Error("EPUBファイルの解析に失敗しました。");
+      throw new Error("EPUBファイルの解析に失敗しました（bookオブジェクトがnull）。");
     }
     
     console.log("ePub instance created:", this.book);

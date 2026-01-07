@@ -348,7 +348,16 @@ async function openFromLibrary(bookId, options = {}) {
 
 function detectFileType(file) {
   const ext = file.name.split('.').pop().toLowerCase();
-  return ext === 'epub' ? 'epub' : 'image';
+  
+  // EPUBファイル
+  if (ext === 'epub') return 'epub';
+  
+  // 画像書庫形式（ZIP, CBZ, CBR, RAR）
+  if (['zip', 'cbz', 'cbr', 'rar'].includes(ext)) return 'image';
+  
+  // その他は拡張子から推測（デフォルトはEPUB）
+  console.warn(`Unknown file type: ${ext}, treating as EPUB`);
+  return 'epub';
 }
 
 function fileTitle(name) {
