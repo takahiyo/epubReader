@@ -49,14 +49,26 @@ export class UIController {
   /**
    * クリック座標からエリアを判定
    */
-  getClickArea(x, y) {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+  getClickArea(x, y, baseElement, viewport = window.visualViewport) {
+    const rect = baseElement?.getBoundingClientRect();
+    const areaRect = rect
+      ? {
+          left: rect.left + (viewport?.offsetLeft ?? 0),
+          top: rect.top + (viewport?.offsetTop ?? 0),
+          width: viewport?.width ?? rect.width,
+          height: viewport?.height ?? rect.height
+        }
+      : {
+          left: 0,
+          top: 0,
+          width: viewport?.width ?? window.innerWidth,
+          height: viewport?.height ?? window.innerHeight
+        };
     
-    const xPercent = (x / width) * 100;
-    const yPercent = (y / height) * 100;
+    const xPercent = ((x - areaRect.left) / areaRect.width) * 100;
+    const yPercent = ((y - areaRect.top) / areaRect.height) * 100;
     
-    console.log(`Window size: ${width}x${height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
+    console.log(`Area size: ${areaRect.width}x${areaRect.height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
     
     // 縦方向: U(0-10%), M(10-90%), B(90-100%)
     let vArea = 'M';
@@ -114,7 +126,8 @@ export class UIController {
       
       isProcessing = true;
       
-      const area = this.getClickArea(e.clientX, e.clientY);
+      const baseElement = e.currentTarget || reader || document.documentElement;
+      const area = this.getClickArea(e.clientX, e.clientY, baseElement);
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
       
       this.handleAreaClick(area, e);
