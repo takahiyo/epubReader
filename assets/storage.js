@@ -72,9 +72,11 @@ export class StorageService {
   }
 
   upsertBook(book) {
+    const existing = this.data.library[book.id] ?? {};
     this.data.library[book.id] = {
-      ...(this.data.library[book.id] ?? {}),
+      ...existing,
       ...book,
+      contentHash: book.contentHash ?? existing.contentHash,
       updatedAt: Date.now(),
     };
     this.addHistory(book.id);
