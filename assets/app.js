@@ -160,7 +160,10 @@ async function handleFile(file) {
     const type = detectFileType(file);
     
     const buffer = await file.arrayBuffer();
-    const id = await hashBuffer(buffer, file.name);
+    const contentHash = await hashBuffer(buffer);
+    // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
+    const existingRecord = findBookByContentHash(storage.data.library, contentHash);
+    const id = existingRecord?.id ?? contentHash;
     const mime = guessMime(type, file);
     const source = storage.getSettings().source || 'local';
     
@@ -172,6 +175,7 @@ async function handleFile(file) {
       type: type === "epub" ? "epub" : "image",
       fileName: file.name,
       size: file.size,
+      contentHash,
       lastOpened: Date.now(),
     };
     
@@ -292,12 +296,27 @@ function guessMime(type, file) {
   return file.type || "application/octet-stream";
 }
 
-async function hashBuffer(buffer, fileName) {
+async function hashBuffer(buffer) {
   const hash = await crypto.subtle.digest("SHA-256", buffer);
   const hex = Array.from(new Uint8Array(hash))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  return `${fileName.replace(/\W+/g, "-").toLowerCase()}-${hex.slice(0, 12)}`;
+  return hex;
+}
+
+function findBookByContentHash(library, contentHash) {
+  const shortHash = contentHash.slice(0, 12);
+  for (const book of Object.values(library)) {
+    if (book?.contentHash === contentHash) {
+      return book;
+    }
+  }
+  for (const book of Object.values(library)) {
+    if (book?.id?.endsWith(`-${shortHash}`)) {
+      return book;
+    }
+  }
+  return null;
 }
 
 // ========================================
