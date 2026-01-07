@@ -370,6 +370,8 @@ body {
   border: 2px solid white;
   border-radius: 50%;
   cursor: pointer;
+  padding: 0;
+  appearance: none;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   z-index: 1;
 }
@@ -574,6 +576,15 @@ body {
    ファイル選択・ライブラリ
 ======================================== */
 
+.file-input-hidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
 .file-input-label {
   display: block;
   padding: 2rem;
@@ -601,13 +612,56 @@ body {
 
 .library-section h4 {
   font-size: 1.125rem;
+}
+
+.library-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.library-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.library-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.library-view-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.library-view-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
 
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
+}
+
+.library-grid[data-view="list"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .library-card {
@@ -617,6 +671,13 @@ body {
   background: rgba(255, 255, 255, 0.02);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.library-grid[data-view="list"] .library-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
 }
 
 .library-card:hover {
@@ -635,6 +696,13 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.library-grid[data-view="list"] .library-cover {
+  width: 48px;
+  aspect-ratio: 1 / 1;
+  margin-bottom: 0;
+  font-size: 1.25rem;
+}
+
 .library-title {
   font-size: 0.875rem;
   font-weight: 500;
@@ -644,9 +712,19 @@ body {
   white-space: nowrap;
 }
 
+.library-grid[data-view="list"] .library-title {
+  flex: 1;
+  margin-bottom: 0;
+  white-space: normal;
+}
+
 .library-meta {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.library-grid[data-view="list"] .library-meta {
+  margin-left: auto;
 }
 
 /* ========================================

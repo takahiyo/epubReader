@@ -21,6 +21,7 @@ export class ReaderController {
     this.imagePages = [];
     this.imageIndex = 0;
     this.theme = "dark";
+    this.readingDirection = "rtl";
   }
 
   async ensureJSZip() {
@@ -39,6 +40,18 @@ export class ReaderController {
     }
     console.log("JSZip loaded successfully");
     return jszip;
+  }
+
+  async ensureUnrar() {
+    if (typeof unrar !== "undefined") {
+      return unrar;
+    }
+    const module = await import("https://cdn.jsdelivr.net/npm/unrar-js@0.4.0/esm/unrar.js");
+    const api = module?.default ?? module;
+    if (typeof window !== "undefined") {
+      window.unrar = api;
+    }
+    return api;
   }
 
   async openEpub(file, startLocation) {
@@ -99,7 +112,7 @@ export class ReaderController {
 
     this.rendition.on("rendered", () => {
       this.injectImageZoom();
-      this.applyTheme(this.theme);
+      this.updateEpubTheme();
     });
 
     this.rendition.on("relocated", (location) => {
@@ -112,6 +125,7 @@ export class ReaderController {
 
     try {
       console.log("Calling rendition.display with location:", startLocation);
+      this.applyReadingDirection(this.readingDirection);
       const displayed = await this.rendition.display(startLocation || undefined);
       console.log("Display result:", displayed);
       console.log("Rendition current location:", this.rendition.currentLocation());
@@ -140,20 +154,56 @@ export class ReaderController {
 
   async openImageBook(file, startPage = 0) {
     this.type = "image";
-    const JSZipLib = await this.ensureJSZip();
-    const zip = await JSZipLib.loadAsync(file);
-    const images = [];
-    zip.forEach((path, entry) => {
-      if (entry.dir) return;
-      const lower = path.toLowerCase();
-      if (/(png|jpe?g|gif|webp)$/.test(lower)) {
-        images.push({ path, entry });
-      }
-    });
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const isRar = ext === "rar" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
+    const buffer = await file.arrayBuffer();
+    let images = [];
+
+    if (isRar) {
+      const { createExtractorFromData } = await this.ensureUnrar();
+      const extractor = createExtractorFromData({ data: new Uint8Array(buffer) });
+      const list = extractor.getFileList();
+      const headers = list?.fileHeaders ?? list?.files ?? [];
+      const imageHeaders = headers.filter((header) => {
+        const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
+        const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory;
+        return !isDir && /(png|jpe?g|gif|webp)$/.test(name.toLowerCase());
+      });
+
+      const imageNames = imageHeaders
+        .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
+        .filter(Boolean);
+      const extracted = extractor.extractFiles(imageNames);
+      const extractedFiles = extracted?.files ?? extracted ?? [];
+      images = extractedFiles
+        .map((item) => {
+          const header = item?.fileHeader ?? item?.header ?? item;
+          const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
+          const data = item?.extraction?.data ?? item?.data;
+          return { path: name, data };
+        })
+        .filter((entry) => entry.path && entry.data);
+    } else {
+      const JSZipLib = await this.ensureJSZip();
+      const zip = await JSZipLib.loadAsync(buffer);
+      zip.forEach((path, entry) => {
+        if (entry.dir) return;
+        const lower = path.toLowerCase();
+        if (/(png|jpe?g|gif|webp)$/.test(lower)) {
+          images.push({ path, entry });
+        }
+      });
+    }
 
     images.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
     const buffers = await Promise.all(
-      images.map((image) => image.entry.async("base64"))
+      images.map(async (image) => {
+        if (image.entry) {
+          return image.entry.async("base64");
+        }
+        const base64 = this.uint8ToBase64(image.data);
+        return base64;
+      })
     );
 
     this.imagePages = buffers.map((base64, index) => {
@@ -238,22 +288,46 @@ export class ReaderController {
 
   applyTheme(theme) {
     this.theme = theme;
-    if (this.type === "epub" && this.rendition) {
-      this.rendition.themes.default({
-        body: {
-          background: theme === "dark" ? "#0b1020" : "#ffffff",
-          color: theme === "dark" ? "#e5e7eb" : "#0f172a",
-          padding: "24px",
-          lineHeight: 1.6,
-        },
-        img: {
-          maxWidth: "100%",
-        },
-      });
-      this.rendition.themes.select("default");
-      this.injectImageZoom();
-    }
+    this.updateEpubTheme();
     document.body.dataset.theme = theme;
+  }
+
+  applyReadingDirection(direction) {
+    this.readingDirection = direction;
+    this.updateEpubTheme();
+    if (this.rendition?.direction) {
+      this.rendition.direction(direction);
+    }
+  }
+
+  updateEpubTheme() {
+    if (this.type !== "epub" || !this.rendition) return;
+    const isVertical = this.readingDirection === "rtl";
+    this.rendition.themes.default({
+      body: {
+        background: this.theme === "dark" ? "#0b1020" : "#ffffff",
+        color: this.theme === "dark" ? "#e5e7eb" : "#0f172a",
+        padding: "24px",
+        lineHeight: 1.6,
+        writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
+        textOrientation: isVertical ? "mixed" : "initial",
+        direction: isVertical ? "rtl" : "ltr",
+      },
+      img: {
+        maxWidth: "100%",
+      },
+    });
+    this.rendition.themes.select("default");
+    this.injectImageZoom();
+  }
+
+  uint8ToBase64(uint8) {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < uint8.length; i += chunkSize) {
+      binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
   }
 
   injectImageZoom() {

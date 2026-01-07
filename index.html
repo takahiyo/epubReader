@@ -46,6 +46,9 @@
         <p>画面左端をクリックしてメニューを開き、本を選択してください</p>
       </div>
     </div>
+    
+    <!-- ファイル選択（非表示） -->
+    <input type="file" id="fileInput" accept=".epub,.cbz,.zip,.rar" class="file-input-hidden" />
 
     <!-- 左サイドメニューバックドロップ -->
     <div id="leftMenuBackdrop" class="menu-backdrop"></div>
@@ -61,6 +64,10 @@
         <button id="menuOpen" class="menu-item">
           <span class="menu-icon">📂</span>
           <span>開く</span>
+        </button>
+        <button id="menuLibrary" class="menu-item">
+          <span class="menu-icon">📚</span>
+          <span>ライブラリ</span>
         </button>
         <button id="menuBookmarks" class="menu-item">
           <span class="menu-icon">🔖</span>
@@ -133,17 +140,18 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-large">
         <div class="modal-header">
-          <h3>ファイルを開く</h3>
+          <h3>ライブラリ</h3>
           <button id="closeFileModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
-          <label class="file-input-label">
-            <span>EPUB / 画像書籍 (.epub / .cbz / .zip)</span>
-            <input type="file" id="fileInput" accept=".epub,.cbz,.zip" />
-          </label>
-          
           <div id="librarySection" class="library-section">
-            <h4>ライブラリ</h4>
+            <div class="library-controls">
+              <h4>ライブラリ</h4>
+              <div class="library-view-toggle">
+                <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="グリッド表示">🔲</button>
+                <button id="libraryViewList" class="library-view-btn" type="button" aria-label="一覧表示">📄</button>
+              </div>
+            </div>
             <div id="libraryGrid" class="library-grid"></div>
           </div>
         </div>

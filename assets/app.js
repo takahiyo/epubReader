@@ -19,6 +19,7 @@ let currentBookInfo = null;
 let theme = storage.getSettings().theme ?? "dark";
 let readingDirection = storage.getSettings().readingDirection ?? "rtl";
 let autoSyncEnabled = storage.getSettings().autoSyncEnabled ?? false;
+let libraryViewMode = storage.getSettings().libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 
 // ========================================
@@ -36,6 +37,7 @@ const elements = {
   // メニュー
   leftMenu: document.getElementById("leftMenu"),
   menuOpen: document.getElementById("menuOpen"),
+  menuLibrary: document.getElementById("menuLibrary"),
   menuBookmarks: document.getElementById("menuBookmarks"),
   menuHistory: document.getElementById("menuHistory"),
   menuSettings: document.getElementById("menuSettings"),
@@ -46,6 +48,7 @@ const elements = {
   progressBarPanel: document.getElementById("progressBarPanel"),
   progressFill: document.getElementById("progressFill"),
   progressThumb: document.getElementById("progressThumb"),
+  progressTrack: document.querySelector(".progress-track"),
   currentPageInput: document.getElementById("currentPageInput"),
   totalPages: document.getElementById("totalPages"),
   
@@ -60,6 +63,8 @@ const elements = {
   closeFileModal: document.getElementById("closeFileModal"),
   fileInput: document.getElementById("fileInput"),
   libraryGrid: document.getElementById("libraryGrid"),
+  libraryViewGrid: document.getElementById("libraryViewGrid"),
+  libraryViewList: document.getElementById("libraryViewList"),
   
   historyModal: document.getElementById("historyModal"),
   closeHistoryModal: document.getElementById("closeHistoryModal"),
@@ -93,6 +98,7 @@ const reader = new ReaderController({
 });
 
 reader.applyTheme(theme);
+reader.applyReadingDirection(readingDirection);
 
 // ========================================
 // UIコントローラー初期化
@@ -217,6 +223,8 @@ async function handleFile(file) {
     
     console.log("Book opened successfully");
     renderLibrary();
+    renderBookmarkMarkers();
+    updateProgressBarDisplay();
     closeModal(elements.openFileModal);
     
     // 自動同期が有効なら保存
@@ -274,6 +282,8 @@ async function openFromLibrary(bookId, options = {}) {
       await reader.openImageBook(file, typeof start === "number" ? start : 0);
     }
     
+    renderBookmarkMarkers();
+    updateProgressBarDisplay();
     closeModal(elements.openFileModal);
   } catch (error) {
     console.error(error);
@@ -292,7 +302,11 @@ function fileTitle(name) {
 
 function guessMime(type, file) {
   if (type === "epub") return "application/epub+zip";
-  if (type === "image") return "application/vnd.comicbook+zip";
+  if (type === "image") {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "rar") return "application/vnd.rar";
+    return "application/vnd.comicbook+zip";
+  }
   return file.type || "application/octet-stream";
 }
 
@@ -335,9 +349,7 @@ function updateProgressBarDisplay() {
   if (!currentBookId) return;
   
   const progress = storage.getProgress(currentBookId);
-  if (!progress) return;
-  
-  const percentage = progress.percentage || 0;
+  const percentage = progress?.percentage || 0;
   
   // 進捗バーの更新
   if (elements.progressFill) {
@@ -368,6 +380,32 @@ function updateProgressBarDisplay() {
       }
     }
   }
+
+  renderBookmarkMarkers();
+}
+
+function renderBookmarkMarkers() {
+  if (!elements.progressTrack) return;
+  elements.progressTrack.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
+  if (!currentBookId) return;
+
+  const bookmarks = storage.getBookmarks(currentBookId);
+  if (!bookmarks.length) return;
+
+  bookmarks.forEach((bookmark) => {
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "bookmark-marker";
+    const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
+    marker.style.left = `${percentage}%`;
+    marker.title = `${bookmark.label ?? "しおり"} (${percentage}%)`;
+    marker.addEventListener("click", (event) => {
+      event.stopPropagation();
+      reader.goTo(bookmark);
+      ui.closeAllMenus();
+    });
+    elements.progressTrack.appendChild(marker);
+  });
 }
 
 async function seekToPercentage(percentage) {
@@ -434,6 +472,7 @@ function renderBookmarks() {
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.bookmarkList.appendChild(empty);
+    renderBookmarkMarkers();
     return;
   }
   
@@ -445,6 +484,7 @@ function renderBookmarks() {
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.bookmarkList.appendChild(empty);
+    renderBookmarkMarkers();
     return;
   }
   
@@ -477,12 +517,15 @@ function renderBookmarks() {
       if (confirm("このしおりを削除しますか？")) {
         storage.removeBookmark(currentBookId, bookmark.createdAt);
         renderBookmarks();
+        renderBookmarkMarkers();
       }
     };
     
     item.append(info, deleteBtn);
     elements.bookmarkList.appendChild(item);
   });
+
+  renderBookmarkMarkers();
 }
 
 function addBookmark() {
@@ -495,6 +538,7 @@ function addBookmark() {
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
     renderBookmarks();
+    renderBookmarkMarkers();
     
     // 自動同期
     if (autoSyncEnabled) {
@@ -627,8 +671,18 @@ function applyTheme(newTheme) {
 
 function applyReadingDirection(direction) {
   readingDirection = direction;
-  // reader.jsに読書方向設定を追加する必要あり
+  reader.applyReadingDirection(readingDirection);
   storage.setSettings({ readingDirection: direction });
+}
+
+function applyLibraryViewMode(mode) {
+  libraryViewMode = mode;
+  if (elements.libraryGrid) {
+    elements.libraryGrid.dataset.view = mode;
+  }
+  elements.libraryViewGrid?.classList.toggle("active", mode === "grid");
+  elements.libraryViewList?.classList.toggle("active", mode === "list");
+  storage.setSettings({ libraryViewMode: mode });
 }
 
 function toggleAutoSync(enabled) {
@@ -683,6 +737,10 @@ async function importData(file) {
 function setupEvents() {
   // メニューアクション
   elements.menuOpen?.addEventListener('click', () => {
+    elements.fileInput?.click();
+  });
+  
+  elements.menuLibrary?.addEventListener('click', () => {
     openModal(elements.openFileModal);
     renderLibrary();
   });
@@ -718,6 +776,9 @@ function setupEvents() {
   
   // しおり追加
   elements.addBookmarkBtn?.addEventListener('click', addBookmark);
+
+  elements.libraryViewGrid?.addEventListener('click', () => applyLibraryViewMode("grid"));
+  elements.libraryViewList?.addEventListener('click', () => applyLibraryViewMode("list"));
   
   // 進捗バーのページ入力
   let isEditingProgress = false;
@@ -896,6 +957,8 @@ function init() {
   
   // テーマ適用
   applyTheme(theme);
+  applyReadingDirection(readingDirection);
+  applyLibraryViewMode(libraryViewMode);
   
   // 自動同期設定
   if (autoSyncEnabled) {
