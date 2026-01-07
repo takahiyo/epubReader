@@ -180,19 +180,29 @@ function updateUserInfo() {
   }
 }
 
+function updateSearchButtonState() {
+  if (!elements.menuSearch) return;
+  
+  const isEpubOpen = currentBookId && currentBookInfo?.type === 'epub';
+  elements.menuSearch.disabled = !isEpubOpen;
+}
+
 // ========================================
 // ファイル処理
 // ========================================
 
 async function handleFile(file) {
   try {
-    console.log(`Opening file: ${file.name}`);
+    console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
     updateActivity();
     
     // ファイルタイプを自動判別
     const type = detectFileType(file);
+    console.log(`Detected file type: ${type}`);
     
     const buffer = await file.arrayBuffer();
+    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
+    
     const contentHash = await hashBuffer(buffer);
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = findBookByContentHash(storage.data.library, contentHash);
@@ -200,6 +210,7 @@ async function handleFile(file) {
     const mime = guessMime(type, file);
     const source = storage.getSettings().source || 'local';
     
+    console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
     await saveFile(id, buffer, { fileName: file.name, mime }, source);
     
     const info = {
@@ -233,6 +244,7 @@ async function handleFile(file) {
       await reader.openEpub(new File([buffer], file.name, { type: mime }), startLocation);
     } else {
       console.log("Opening image book...");
+      console.log(`Start location: ${startLocation}`);
       
       // 空の状態を非表示、画像ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
@@ -252,6 +264,7 @@ async function handleFile(file) {
     renderLibrary();
     renderBookmarkMarkers();
     updateProgressBarDisplay();
+    updateSearchButtonState();
     closeModal(elements.openFileModal);
     
     // 自動同期が有効なら保存
@@ -260,7 +273,20 @@ async function handleFile(file) {
     }
   } catch (error) {
     console.error("Error in handleFile:", error);
-    alert(`ファイルの読み込みに失敗しました:\n\n${error.message}`);
+    console.error("Error stack:", error.stack);
+    
+    // より詳細なエラーメッセージ
+    let userMessage = `ファイルの読み込みに失敗しました。\n\nファイル名: ${file.name}\nファイルサイズ: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n`;
+    
+    if (error.message.includes('画像が見つかりませんでした')) {
+      userMessage += 'エラー: アーカイブ内に画像ファイルが見つかりませんでした。\n\n対応フォーマット: PNG, JPEG, GIF, WebP, BMP';
+    } else if (error.message.includes('画像の読み込みに失敗')) {
+      userMessage += 'エラー: 画像ファイルの変換に失敗しました。\n\nファイルが破損している可能性があります。';
+    } else {
+      userMessage += `エラー詳細: ${error.message}`;
+    }
+    
+    alert(userMessage);
   }
 }
 
@@ -312,6 +338,7 @@ async function openFromLibrary(bookId, options = {}) {
     
     renderBookmarkMarkers();
     updateProgressBarDisplay();
+    updateSearchButtonState();
     closeModal(elements.openFileModal);
   } catch (error) {
     console.error(error);
@@ -790,7 +817,11 @@ function renderHistory() {
     
     const meta = document.createElement("div");
     meta.className = "history-meta";
-    meta.textContent = new Date(item.openedAt).toLocaleString();
+    
+    // 進捗情報を追加
+    const progress = storage.getProgress(book.id);
+    const progressText = progress ? `${progress.percentage}%` : "0%";
+    meta.textContent = `${new Date(item.openedAt).toLocaleString()} / 進捗: ${progressText}`;
     
     info.append(title, meta);
     historyItem.appendChild(info);
@@ -812,18 +843,20 @@ async function performSearch(query) {
   }
   
   try {
-    const results = await reader.book.spine.spineItems.reduce(async (accumPromise, item) => {
-      const accum = await accumPromise;
+    const searchResults = [];
+    const spine = reader.book.spine;
+    const locations = reader.book.locations;
+    
+    // 各セクションを検索
+    for (let i = 0; i < spine.length; i++) {
+      const item = spine.get(i);
       
       try {
         // セクションを読み込む
-        const section = reader.book.spine.get(item.href);
-        if (!section) return accum;
+        await item.load(reader.book.load.bind(reader.book));
         
-        // セクションのテキストコンテンツを取得
-        await section.load(reader.book.load.bind(reader.book));
-        const doc = section.document;
-        if (!doc) return accum;
+        const doc = item.document || item.contents?.document;
+        if (!doc) continue;
         
         // テキストコンテンツを取得
         const textContent = doc.body?.textContent || '';
@@ -835,40 +868,63 @@ async function performSearch(query) {
         if (lowerText.includes(lowerQuery)) {
           // マッチした位置を全て取得
           let index = 0;
-          while (index < lowerText.length) {
+          const matches = [];
+          
+          while (index < lowerText.length && matches.length < 5) { // 各セクションで最大5件
             const matchIndex = lowerText.indexOf(lowerQuery, index);
             if (matchIndex === -1) break;
             
             // 前後のコンテキストを取得（50文字ずつ）
             const start = Math.max(0, matchIndex - 50);
             const end = Math.min(textContent.length, matchIndex + query.length + 50);
-            const excerpt = textContent.substring(start, end);
+            let excerpt = textContent.substring(start, end);
             
-            // CFIを生成（セクションの開始位置）
-            const cfi = section.cfiBase;
+            // 改行を削除して整形
+            excerpt = excerpt.replace(/\s+/g, ' ').trim();
             
-            accum.push({
-              cfi,
+            matches.push({
               excerpt,
-              query,
-              sectionLabel: item.label || item.href,
+              matchIndex,
             });
             
             index = matchIndex + query.length;
           }
+          
+          // 結果を追加
+          for (const match of matches) {
+            // CFIを生成（セクションの開始位置を使用）
+            const cfi = item.cfiBase;
+            
+            // パーセンテージを計算
+            let percentage = 0;
+            if (locations && locations.length > 0) {
+              const sectionPercentage = locations.percentageFromCfi(cfi);
+              percentage = Math.round(sectionPercentage * 100);
+            } else {
+              // locationsが利用できない場合は、spine内の位置で概算
+              percentage = Math.round((i / spine.length) * 100);
+            }
+            
+            searchResults.push({
+              cfi,
+              excerpt: match.excerpt,
+              query,
+              sectionLabel: item.href,
+              percentage,
+              sectionIndex: i,
+            });
+          }
         }
         
         // メモリリークを防ぐためにセクションをアンロード
-        section.unload();
+        item.unload();
         
       } catch (error) {
         console.warn(`Failed to search in section ${item.href}:`, error);
       }
-      
-      return accum;
-    }, Promise.resolve([]));
+    }
     
-    return results;
+    return searchResults;
   } catch (error) {
     console.error('Search failed:', error);
     return [];
@@ -903,13 +959,25 @@ function renderSearchResults(results, query) {
     
     const meta = document.createElement('div');
     meta.className = 'search-result-meta';
-    meta.textContent = result.sectionLabel || `結果 ${index + 1}`;
+    
+    // パーセンテージまたはページ情報を表示
+    let locationText = '';
+    if (progressDisplayMode === "page" && reader.rendition?.book?.locations) {
+      const totalLocations = reader.rendition.book.locations.total;
+      const locationIndex = Math.round((result.percentage / 100) * totalLocations);
+      locationText = `${locationIndex}/${totalLocations}`;
+    } else {
+      locationText = `${result.percentage}%`;
+    }
+    
+    meta.textContent = `${locationText} / ${result.sectionLabel || `結果 ${index + 1}`}`;
     
     item.append(excerpt, meta);
     
     item.onclick = async () => {
       if (result.cfi && reader.rendition) {
         try {
+          console.log('Navigating to CFI:', result.cfi);
           await reader.rendition.display(result.cfi);
           closeModal(elements.searchModal);
         } catch (error) {
@@ -1329,6 +1397,9 @@ function init() {
   
   // ライブラリレンダリング
   renderLibrary();
+  
+  // 検索ボタンの状態を更新
+  updateSearchButtonState();
   
   console.log("Epub Reader initialized");
 }
