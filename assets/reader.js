@@ -66,26 +66,96 @@ export class ReaderController {
       console.log("JSZip is already loaded");
       return JSZip;
     }
-    console.log("Loading JSZip from CDN...");
-    const module = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
-    const jszip = module.default ?? module;
-    if (typeof window !== "undefined") {
-      window.JSZip = jszip;
+    if (typeof window !== "undefined" && window.JSZip) {
+      console.log("JSZip is already loaded (window.JSZip)");
+      return window.JSZip;
     }
-    console.log("JSZip loaded successfully");
-    return jszip;
+    console.log("Loading JSZip from CDN...");
+    const module = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm").then(
+      (loaded) => loaded,
+      async (error) => {
+        console.warn("Failed to import JSZip module, falling back to script tag:", error);
+        await this.loadScript("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
+        return null;
+      }
+    );
+    if (module) {
+      const jszip = module.default ?? module;
+      if (typeof window !== "undefined") {
+        window.JSZip = jszip;
+      }
+      console.log("JSZip loaded successfully");
+      return jszip;
+    }
+    const fallbackJszip = typeof window !== "undefined" ? window.JSZip : null;
+    if (!fallbackJszip) {
+      throw new Error("JSZipの読み込みに失敗しました。ネットワーク接続を確認してください。");
+    }
+    console.log("JSZip loaded successfully (fallback)");
+    return fallbackJszip;
   }
 
   async ensureUnrar() {
     if (typeof unrar !== "undefined") {
       return unrar;
     }
-    const module = await import("https://cdn.jsdelivr.net/npm/unrar-js@0.4.0/esm/unrar.js");
-    const api = module?.default ?? module;
     if (typeof window !== "undefined") {
-      window.unrar = api;
+      const existing = window.unrar || window.Unrar || window.UnRAR;
+      if (existing) {
+        window.unrar = existing;
+        return existing;
+      }
     }
-    return api;
+    const module = await import("https://cdn.jsdelivr.net/npm/unrar-js@0.4.0/esm/unrar.js").then(
+      (loaded) => loaded,
+      async (error) => {
+        console.warn("Failed to import unrar module, falling back to script tag:", error);
+        await this.loadScript("https://cdn.jsdelivr.net/npm/unrar-js@0.4.0/umd/unrar.js");
+        return null;
+      }
+    );
+    if (module) {
+      const api = module?.default ?? module;
+      if (typeof window !== "undefined") {
+        window.unrar = api;
+      }
+      return api;
+    }
+    const fallbackUnrar = typeof window !== "undefined"
+      ? (window.unrar || window.Unrar || window.UnRAR)
+      : null;
+    if (!fallbackUnrar) {
+      throw new Error("RARの読み込みに失敗しました。ネットワーク接続を確認してください。");
+    }
+    window.unrar = fallbackUnrar;
+    return fallbackUnrar;
+  }
+
+  async loadScript(src) {
+    if (typeof document === "undefined") {
+      throw new Error(`Script load requires document: ${src}`);
+    }
+    const existing = document.querySelector(`script[data-reader-src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === "true") return;
+      await new Promise((resolve, reject) => {
+        existing.addEventListener("load", resolve, { once: true });
+        existing.addEventListener("error", () => reject(new Error(`Failed to load script: ${src}`)), { once: true });
+      });
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = true;
+      script.dataset.readerSrc = src;
+      script.onload = () => {
+        script.dataset.loaded = "true";
+        resolve();
+      };
+      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+      document.head.appendChild(script);
+    });
   }
 
   async openEpub(file, startLocation) {
