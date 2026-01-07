@@ -55,6 +55,7 @@ export class ReaderController {
     if (this.pageIndicator) {
       this.pageIndicator.textContent = "";
     }
+    this.imageZoomBound = false;
   }
 
   async ensureJSZip() {
@@ -272,7 +273,9 @@ export class ReaderController {
   renderImagePage() {
     if (!this.imagePages.length) return;
     this.imageElement.src = this.imagePages[this.imageIndex];
-    this.pageIndicator.textContent = `${this.imageIndex + 1} / ${this.imagePages.length}`;
+    if (this.pageIndicator) {
+      this.pageIndicator.textContent = `${this.imageIndex + 1} / ${this.imagePages.length}`;
+    }
     this.onProgress?.({
       location: this.imageIndex,
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
@@ -351,10 +354,31 @@ export class ReaderController {
     if (this.rendition?.direction) {
       this.rendition.direction(this.pageDirection);
     }
+    this.applyWritingModeToContents();
     if (this.type === "epub" && this.rendition?.currentLocation) {
       const current = this.rendition.currentLocation();
       this.rendition.display(current?.start?.cfi ?? undefined);
     }
+  }
+
+  applyWritingModeToContents() {
+    if (this.type !== "epub" || !this.rendition) return;
+    const isVertical = this.writingMode === "vertical";
+    const writingMode = isVertical ? "vertical-rl" : "horizontal-tb";
+    const textOrientation = isVertical ? "mixed" : "initial";
+    const contents = this.rendition.getContents();
+    contents.forEach((content) => {
+      const doc = content.document;
+      if (!doc?.documentElement) return;
+      doc.documentElement.style.setProperty("writing-mode", writingMode, "important");
+      doc.documentElement.style.setProperty("text-orientation", textOrientation, "important");
+      doc.documentElement.style.setProperty("direction", this.pageDirection, "important");
+      if (doc.body) {
+        doc.body.style.setProperty("writing-mode", writingMode, "important");
+        doc.body.style.setProperty("text-orientation", textOrientation, "important");
+        doc.body.style.setProperty("direction", this.pageDirection, "important");
+      }
+    });
   }
 
   updateEpubTheme() {
@@ -380,6 +404,7 @@ export class ReaderController {
       },
     });
     this.rendition.themes.select("default");
+    this.applyWritingModeToContents();
     this.injectImageZoom();
   }
 
