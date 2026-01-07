@@ -23,6 +23,7 @@ export class UIController {
     this.onBookmarkMenu = options.onBookmarkMenu;
     this.onPagePrev = options.onPagePrev;
     this.onPageNext = options.onPageNext;
+    this.isBookOpen = options.isBookOpen || (() => false);
     
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -165,27 +166,39 @@ export class UIController {
         break;
         
       case 'M2':
-        // 中央左 → 前ページ
-        console.log('Previous page...');
-        this.onPagePrev?.();
+        // 中央左 → 前ページ（本が開いている時のみ）
+        if (this.isBookOpen()) {
+          console.log('Previous page...');
+          this.onPagePrev?.();
+        }
         break;
         
       case 'M3':
-        // 中央 → しおりメニュー表示
-        console.log('Showing bookmark menu...');
-        this.showBookmarkMenu();
+        // 中央 → しおりメニュー表示（本が開いている時のみ）
+        if (this.isBookOpen()) {
+          console.log('Showing bookmark menu...');
+          this.showBookmarkMenu();
+        } else {
+          console.log('No book open, bookmark menu not shown');
+        }
         break;
         
       case 'M4':
-        // 中央右 → 次ページ
-        console.log('Next page...');
-        this.onPageNext?.();
+        // 中央右 → 次ページ（本が開いている時のみ）
+        if (this.isBookOpen()) {
+          console.log('Next page...');
+          this.onPageNext?.();
+        }
         break;
         
       case 'B2':
-        // 下端 → 進捗バー表示
-        console.log('Showing progress bar...');
-        this.showProgressBar();
+        // 下端 → 進捗バー表示（本が開いている時のみ）
+        if (this.isBookOpen()) {
+          console.log('Showing progress bar...');
+          this.showProgressBar();
+        } else {
+          console.log('No book open, progress bar not shown');
+        }
         break;
         
       default:

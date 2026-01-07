@@ -195,79 +195,124 @@ export class ReaderController {
     const buffer = await file.arrayBuffer();
     let images = [];
 
-    if (isRar) {
-      const { createExtractorFromData } = await this.ensureUnrar();
-      const extractor = createExtractorFromData({ data: new Uint8Array(buffer) });
-      const list = extractor.getFileList();
-      const headers = list?.fileHeaders ?? list?.files ?? [];
-      const imageHeaders = headers.filter((header) => {
-        const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
-        const normalized = name.replace(/\\/g, "/");
-        const fileName = normalized.split("/").pop() ?? "";
-        const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory;
-        return !isDir && /(png|jpe?g|gif|webp)$/.test(fileName.toLowerCase());
-      });
+    try {
+      if (isRar) {
+        console.log("Opening RAR file...");
+        const { createExtractorFromData } = await this.ensureUnrar();
+        const extractor = createExtractorFromData({ data: new Uint8Array(buffer) });
+        const list = extractor.getFileList();
+        const headers = list?.fileHeaders ?? list?.files ?? [];
+        console.log(`Found ${headers.length} entries in RAR`);
+        
+        const imageHeaders = headers.filter((header) => {
+          const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
+          const normalized = name.replace(/\\/g, "/");
+          const fileName = normalized.split("/").pop() ?? "";
+          const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory;
+          return !isDir && /(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+        });
+        
+        console.log(`Filtered ${imageHeaders.length} image entries`);
 
-      const imageNames = imageHeaders
-        .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
-        .filter(Boolean);
-      const extracted = extractor.extractFiles(imageNames);
-      const extractedFiles = extracted?.files ?? extracted ?? [];
-      images = extractedFiles
-        .map((item) => {
-          const header = item?.fileHeader ?? item?.header ?? item;
-          const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
-          const data = item?.extraction?.data ?? item?.data;
-          return { path: name, data };
-        })
-        .filter((entry) => entry.path && entry.data);
-    } else {
-      const JSZipLib = await this.ensureJSZip();
-      const zip = await JSZipLib.loadAsync(buffer);
-      zip.forEach((path, entry) => {
-        if (entry.dir) return;
-        const normalized = path.replace(/\\/g, "/");
-        const fileName = normalized.split("/").pop() ?? normalized;
-        if (/(png|jpe?g|gif|webp)$/.test(fileName.toLowerCase())) {
-          images.push({ path: normalized, entry });
-        }
-      });
-    }
-
-    images.sort((a, b) => {
-      const normalize = (path) => path.replace(/\\/g, "/");
-      const aPath = normalize(a.path);
-      const bPath = normalize(b.path);
-      const depthA = aPath.split("/").length;
-      const depthB = bPath.split("/").length;
-      if (depthA !== depthB) {
-        return depthA - depthB;
+        const imageNames = imageHeaders
+          .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
+          .filter(Boolean);
+        const extracted = extractor.extractFiles(imageNames);
+        const extractedFiles = extracted?.files ?? extracted ?? [];
+        
+        images = extractedFiles
+          .map((item) => {
+            const header = item?.fileHeader ?? item?.header ?? item;
+            const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
+            const data = item?.extraction?.data ?? item?.data;
+            return { path: name, data };
+          })
+          .filter((entry) => entry.path && entry.data);
+        
+        console.log(`Extracted ${images.length} images from RAR`);
+      } else {
+        console.log("Opening ZIP file...");
+        const JSZipLib = await this.ensureJSZip();
+        const zip = await JSZipLib.loadAsync(buffer);
+        
+        const entries = [];
+        zip.forEach((path, entry) => {
+          if (!entry.dir) {
+            entries.push({ path, entry });
+          }
+        });
+        
+        console.log(`Found ${entries.length} files in ZIP`);
+        
+        images = entries
+          .filter(({ path }) => {
+            const normalized = path.replace(/\\/g, "/");
+            const fileName = normalized.split("/").pop() ?? normalized;
+            return /(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+          })
+          .map(({ path, entry }) => ({ path, entry }));
+        
+        console.log(`Filtered ${images.length} image entries from ZIP`);
       }
-      return aPath.localeCompare(bPath, undefined, { numeric: true, sensitivity: "base" });
-    });
-    const buffers = await Promise.all(
-      images.map(async (image) => {
-        if (image.entry) {
-          return image.entry.async("base64");
+
+      if (!images.length) {
+        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, BMP");
+      }
+
+      images.sort((a, b) => {
+        const normalize = (path) => path.replace(/\\/g, "/");
+        const aPath = normalize(a.path);
+        const bPath = normalize(b.path);
+        const depthA = aPath.split("/").length;
+        const depthB = bPath.split("/").length;
+        if (depthA !== depthB) {
+          return depthA - depthB;
         }
-        const base64 = this.uint8ToBase64(image.data);
-        return base64;
-      })
-    );
+        return aPath.localeCompare(bPath, undefined, { numeric: true, sensitivity: "base" });
+      });
+      
+      console.log(`Converting ${images.length} images to base64...`);
+      const buffers = await Promise.all(
+        images.map(async (image) => {
+          try {
+            if (image.entry) {
+              return await image.entry.async("base64");
+            }
+            const base64 = this.uint8ToBase64(image.data);
+            return base64;
+          } catch (error) {
+            console.error(`Failed to process image: ${image.path}`, error);
+            return null;
+          }
+        })
+      );
 
-    this.imagePages = buffers.map((base64, index) => {
-      const ext = images[index].path.split(".").pop()?.toLowerCase() ?? "jpeg";
-      const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
-      return `data:${mime};base64,${base64}`;
-    });
+      this.imagePages = buffers
+        .map((base64, index) => {
+          if (!base64) return null;
+          const ext = images[index].path.split(".").pop()?.toLowerCase() ?? "jpeg";
+          const mime = 
+            ext === "png" ? "image/png" :
+            ext === "gif" ? "image/gif" :
+            ext === "webp" ? "image/webp" :
+            ext === "bmp" ? "image/bmp" :
+            "image/jpeg";
+          return `data:${mime};base64,${base64}`;
+        })
+        .filter(Boolean);
 
-    if (!this.imagePages.length) {
-      throw new Error("画像が見つかりませんでした");
+      if (!this.imagePages.length) {
+        throw new Error("画像の読み込みに失敗しました");
+      }
+
+      console.log(`Successfully loaded ${this.imagePages.length} images`);
+      this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
+      this.renderImagePage();
+      this.onReady?.({ title: file.name, creator: "画像書籍" });
+    } catch (error) {
+      console.error("Error opening image book:", error);
+      throw new Error(`画像書籍の読み込みに失敗しました: ${error.message}`);
     }
-
-    this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
-    this.renderImagePage();
-    this.onReady?.({ title: file.name, creator: "画像書籍" });
   }
 
   renderImagePage() {
@@ -343,21 +388,42 @@ export class ReaderController {
     document.body.dataset.theme = theme;
   }
 
-  applyReadingDirection(writingMode, pageDirection) {
+  async applyReadingDirection(writingMode, pageDirection) {
     if (writingMode) {
       this.writingMode = writingMode;
     }
     if (pageDirection) {
       this.pageDirection = pageDirection;
     }
+    
+    if (this.type !== "epub" || !this.rendition) {
+      return;
+    }
+    
+    // 現在位置を保存
+    const current = this.rendition.currentLocation();
+    const currentCfi = current?.start?.cfi;
+    
+    // テーマとスタイルを更新
     this.updateEpubTheme();
-    if (this.rendition?.direction) {
+    
+    // ページ送り方向を設定
+    if (this.rendition.direction) {
       this.rendition.direction(this.pageDirection);
     }
+    
+    // コンテンツにスタイルを適用
     this.applyWritingModeToContents();
-    if (this.type === "epub" && this.rendition?.currentLocation) {
-      const current = this.rendition.currentLocation();
-      this.rendition.display(current?.start?.cfi ?? undefined);
+    
+    // 現在位置を維持してリフレッシュ
+    if (currentCfi) {
+      try {
+        await this.rendition.display(currentCfi);
+      } catch (error) {
+        console.warn("Failed to restore position after direction change:", error);
+        // フォールバック: 最初から表示
+        await this.rendition.display();
+      }
     }
   }
 
