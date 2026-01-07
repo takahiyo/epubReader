@@ -57,7 +57,7 @@
     <div id="leftMenu" class="left-menu">
       <div class="menu-header">
         <div class="menu-logo">📖</div>
-        <h2>Epub Reader</h2>
+        <h2>Book Reader</h2>
       </div>
       
       <nav class="menu-nav">
@@ -68,6 +68,10 @@
         <button id="menuLibrary" class="menu-item">
           <span class="menu-icon">📚</span>
           <span>ライブラリ</span>
+        </button>
+        <button id="menuSearch" class="menu-item">
+          <span class="menu-icon">🔍</span>
+          <span>検索</span>
         </button>
         <button id="menuBookmarks" class="menu-item">
           <span class="menu-icon">🔖</span>
@@ -131,6 +135,29 @@
           <button id="addBookmarkBtn" class="add-bookmark-btn">
             ✚ 現在位置にしおりを追加
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- テキスト検索モーダル（EPUB用） -->
+    <div id="searchModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content modal-medium">
+        <div class="modal-header">
+          <h3>テキスト検索</h3>
+          <button id="closeSearchModal" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="search-input-container">
+            <input 
+              type="text" 
+              id="searchInput" 
+              class="search-input" 
+              placeholder="検索キーワードを入力..." 
+            />
+            <button id="searchBtn" class="search-btn">🔍 検索</button>
+          </div>
+          <div id="searchResults" class="search-results"></div>
         </div>
       </div>
     </div>
@@ -202,6 +229,13 @@
               <select id="pageDirection">
                 <option value="ltr">左開き</option>
                 <option value="rtl">右開き</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="progressDisplayMode">進捗表示形式</label>
+              <select id="progressDisplayMode">
+                <option value="page">ページ数</option>
+                <option value="percentage">パーセンテージ</option>
               </select>
             </div>
           </div>
