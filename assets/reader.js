@@ -70,29 +70,14 @@ export class ReaderController {
       console.log("JSZip is already loaded (window.JSZip)");
       return window.JSZip;
     }
-    console.log("Loading JSZip from CDN...");
-    const module = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm").then(
-      (loaded) => loaded,
-      async (error) => {
-        console.warn("Failed to import JSZip module, falling back to script tag:", error);
-        await this.loadScript("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
-        return null;
-      }
-    );
-    if (module) {
-      const jszip = module.default ?? module;
-      if (typeof window !== "undefined") {
-        window.JSZip = jszip;
-      }
-      console.log("JSZip loaded successfully");
-      return jszip;
+    console.log("Loading JSZip from local vendor...");
+    await this.loadScript("./assets/vendor/jszip.min.js");
+    const localJszip = typeof window !== "undefined" ? window.JSZip : null;
+    if (!localJszip) {
+      throw new Error("JSZipの読み込みに失敗しました。ベンダーファイルを確認してください。");
     }
-    const fallbackJszip = typeof window !== "undefined" ? window.JSZip : null;
-    if (!fallbackJszip) {
-      throw new Error("JSZipの読み込みに失敗しました。ネットワーク接続を確認してください。");
-    }
-    console.log("JSZip loaded successfully (fallback)");
-    return fallbackJszip;
+    console.log("JSZip loaded successfully (local)");
+    return localJszip;
   }
 
   async ensureUnrar() {
@@ -106,29 +91,15 @@ export class ReaderController {
         return existing;
       }
     }
-    const module = await import("https://cdn.jsdelivr.net/npm/unrar-js@0.4.0/esm/unrar.js").then(
-      (loaded) => loaded,
-      async (error) => {
-        console.warn("Failed to import unrar module, falling back to script tag:", error);
-        await this.loadScript("https://cdn.jsdelivr.net/npm/unrar-js@0.4.0/umd/unrar.js");
-        return null;
-      }
-    );
-    if (module) {
-      const api = module?.default ?? module;
-      if (typeof window !== "undefined") {
-        window.unrar = api;
-      }
-      return api;
-    }
-    const fallbackUnrar = typeof window !== "undefined"
+    await this.loadScript("./assets/vendor/unrar.js");
+    const localUnrar = typeof window !== "undefined"
       ? (window.unrar || window.Unrar || window.UnRAR)
       : null;
-    if (!fallbackUnrar) {
-      throw new Error("RARの読み込みに失敗しました。ネットワーク接続を確認してください。");
+    if (!localUnrar) {
+      throw new Error("RARの読み込みに失敗しました。ベンダーファイルを確認してください。");
     }
-    window.unrar = fallbackUnrar;
-    return fallbackUnrar;
+    window.unrar = localUnrar;
+    return localUnrar;
   }
 
   async loadScript(src) {
