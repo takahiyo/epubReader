@@ -65,14 +65,25 @@ export class ReaderController {
   }
 
   async ensureJSZip() {
+    const isPlaceholder = (jszip) =>
+      typeof jszip?.loadAsync === "function" && jszip.loadAsync.name === "missing";
+
     if (typeof JSZip !== "undefined") {
       if (typeof window !== "undefined" && !window.JSZip) {
         window.JSZip = JSZip;
+      }
+      if (isPlaceholder(JSZip)) {
+        console.warn("JSZip vendor file is a placeholder. Loading JSZip from CDN...");
+        return this.loadJSZipFromCdn(isPlaceholder);
       }
       console.log("JSZip is already loaded");
       return JSZip;
     }
     if (typeof window !== "undefined" && window.JSZip) {
+      if (isPlaceholder(window.JSZip)) {
+        console.warn("JSZip vendor file is a placeholder. Loading JSZip from CDN...");
+        return this.loadJSZipFromCdn(isPlaceholder);
+      }
       console.log("JSZip is already loaded (window.JSZip)");
       return window.JSZip;
     }
@@ -82,8 +93,34 @@ export class ReaderController {
     if (!localJszip) {
       throw new Error("JSZipの読み込みに失敗しました。ベンダーファイルを確認してください。");
     }
+    if (isPlaceholder(localJszip)) {
+      console.warn("Local JSZip is a placeholder. Loading JSZip from CDN...");
+      return this.loadJSZipFromCdn(isPlaceholder);
+    }
     console.log("JSZip loaded successfully (local)");
     return localJszip;
+  }
+
+  async loadJSZipFromCdn(isPlaceholder) {
+    const sources = [
+      "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+      "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
+    ];
+
+    for (const src of sources) {
+      try {
+        await this.loadScript(src);
+        const cdnJszip = typeof window !== "undefined" ? window.JSZip : null;
+        if (cdnJszip && !isPlaceholder(cdnJszip)) {
+          console.log(`JSZip loaded successfully from CDN: ${src}`);
+          return cdnJszip;
+        }
+      } catch (error) {
+        console.warn(`Failed to load JSZip from CDN: ${src}`, error);
+      }
+    }
+
+    throw new Error("JSZipの読み込みに失敗しました。ベンダーファイルがプレースホルダーのため、公式JSZipを配置するかCDNにアクセスできる環境で再試行してください。");
   }
 
   async ensureUnrar() {
