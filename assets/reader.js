@@ -90,13 +90,21 @@ export class ReaderController {
         window.unrar = existing;
         return existing;
       }
+      window.Module = {
+        ...(window.Module || {}),
+        locateFile: (path) => `./assets/vendor/${path}`,
+      };
     }
-    await this.loadScript("./assets/vendor/unrar.js");
+    try {
+      await this.loadScript("./assets/vendor/unrar.js");
+    } catch (error) {
+      throw new Error("RARの読み込みに失敗しました。wasmの読み込みに失敗している可能性があります。");
+    }
     const localUnrar = typeof window !== "undefined"
       ? (window.unrar || window.Unrar || window.UnRAR)
       : null;
     if (!localUnrar) {
-      throw new Error("RARの読み込みに失敗しました。ベンダーファイルを確認してください。");
+      throw new Error("RARの読み込みに失敗しました。wasmの読み込みに失敗している可能性があります。");
     }
     window.unrar = localUnrar;
     return localUnrar;
