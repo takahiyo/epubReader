@@ -493,6 +493,45 @@ body {
   font-size: 1.25rem;
 }
 
+.toc-section {
+  margin-bottom: 1rem;
+}
+
+.toc-title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.toc-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.toc-item {
+  width: 100%;
+}
+
+.toc-link {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toc-link:hover {
+  background: rgba(148, 163, 184, 0.2);
+}
+
 .bookmark-list {
   list-style: none;
   display: flex;
