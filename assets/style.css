@@ -969,6 +969,10 @@ body {
   margin-top: 0.5rem;
 }
 
+.setting-warning {
+  color: #f0ad4e;
+}
+
 .setting-actions {
   display: flex;
   gap: 0.75rem;

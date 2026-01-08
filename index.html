@@ -325,6 +325,18 @@
           <div class="settings-section">
             <h4 data-i18n="settings.section.sync">クラウド同期</h4>
             <div class="setting-item">
+              <label for="saveDestination" data-i18n="settings.saveDestination">保存先</label>
+              <select id="saveDestination">
+                <option value="local" data-i18n="settings.saveDestination.local">ローカル</option>
+                <option value="drive" data-i18n="settings.saveDestination.drive">Google Drive</option>
+                <option value="onedrive" data-i18n="settings.saveDestination.onedrive">OneDrive</option>
+                <option value="pcloud" data-i18n="settings.saveDestination.pcloud">pCloud</option>
+              </select>
+              <p id="saveDestinationWarning" class="setting-hint setting-warning hidden" data-i18n="settings.saveDestination.warning">
+                未ログインのクラウド先は選択できません
+              </p>
+            </div>
+            <div class="setting-item">
               <label>
                 <input type="checkbox" id="autoSyncEnabled" />
                 <span data-i18n="settings.autoSync">Google Drive 自動同期を有効にする</span>
