@@ -787,6 +787,26 @@ function handleBookReady(payload) {
   storage.upsertBook({ ...currentBookInfo, title });
   renderLibrary();
   renderToc(currentToc);
+  
+  // locations生成完了時に進捗バーを更新
+  if (currentBookInfo.type === 'epub') {
+    console.log('[handleBookReady] Setting up locations listener for progress updates');
+    // locations生成完了を監視
+    const checkLocations = setInterval(() => {
+      const locations = reader.book?.locations ?? reader.rendition?.book?.locations;
+      if (locations?.total > 0) {
+        console.log('[handleBookReady] Locations available, updating progress bar');
+        clearInterval(checkLocations);
+        updateProgressBarDisplay();
+      }
+    }, 500);
+    
+    // 10秒後にタイムアウト
+    setTimeout(() => {
+      clearInterval(checkLocations);
+      console.log('[handleBookReady] Locations check timeout');
+    }, 10000);
+  }
 }
 
 // ========================================
@@ -801,9 +821,11 @@ function renderToc(tocItems = []) {
 
   if (!isEpub || !tocItems.length) {
     elements.tocSection.classList.add("hidden");
+    console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocItems.length });
     return;
   }
 
+  console.log('[renderToc] Showing TOC section with', tocItems.length, 'items');
   elements.tocSection.classList.remove("hidden");
   renderTocEntries(tocItems, elements.tocList, 0);
 }

@@ -329,13 +329,6 @@ export class ReaderController {
     if (detectedReading?.pageDirection) {
       this.pageDirection = detectedReading.pageDirection;
     }
-    
-    // 目次の生成
-    try {
-      await this.book.locations.generate(1600);
-    } catch (err) {
-      console.warn("目次の生成に失敗しました:", err);
-    }
 
     this.rendition.on("rendered", () => {
       this.injectImageZoom();
@@ -370,10 +363,29 @@ export class ReaderController {
         }
       }, 100);
       
+      // 初回のonReadyコールバック（メタデータと目次）
       this.onReady?.({
         metadata: this.book.package?.metadata,
         toc: this.toc,
       });
+      
+      // locations生成（進捗計算に必要）- バックグラウンドで実行
+      console.log("Generating locations for progress tracking...");
+      this.book.locations.generate(1600).then(() => {
+        console.log("Locations generated successfully:", this.book.locations.total);
+        // locations生成完了後に進捗を再計算
+        const currentLocation = this.rendition.currentLocation();
+        if (currentLocation?.start) {
+          const percentage = Math.round((currentLocation.start.percentage ?? 0) * 100);
+          this.onProgress?.({
+            location: currentLocation.start.cfi,
+            percentage,
+          });
+        }
+      }).catch((err) => {
+        console.warn("目次の生成に失敗しました:", err);
+      });
+      
       console.log("EPUB opened successfully");
     } catch (err) {
       console.error("EPUBの表示に失敗しました:", err);
