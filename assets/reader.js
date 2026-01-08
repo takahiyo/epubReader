@@ -27,6 +27,7 @@ export class ReaderController {
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
     this.imageZoomBound = false;
+    this.toc = [];
   }
 
   resetReaderState() {
@@ -52,6 +53,7 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.toc = [];
     if (this.viewer) {
       this.viewer.innerHTML = "";
     }
@@ -311,6 +313,15 @@ export class ReaderController {
 
     await this.book.ready;
 
+    let toc = [];
+    try {
+      await this.book.loaded.navigation;
+      toc = this.book.navigation?.toc ?? [];
+    } catch (err) {
+      console.warn("目次の取得に失敗しました:", err);
+    }
+    this.toc = toc;
+
     const detectedReading = await this.detectReadingDirectionFromBook();
     if (detectedReading?.writingMode) {
       this.writingMode = detectedReading.writingMode;
@@ -359,7 +370,10 @@ export class ReaderController {
         }
       }, 100);
       
-      this.onReady?.(this.book.package?.metadata);
+      this.onReady?.({
+        metadata: this.book.package?.metadata,
+        toc: this.toc,
+      });
       console.log("EPUB opened successfully");
     } catch (err) {
       console.error("EPUBの表示に失敗しました:", err);
@@ -371,6 +385,7 @@ export class ReaderController {
   async openImageBook(file, startPage = 0) {
     this.resetReaderState();
     this.type = "image";
+    this.toc = [];
     const ext = file.name.split(".").pop()?.toLowerCase();
     const isRar = ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
     const buffer = await file.arrayBuffer();
@@ -545,7 +560,10 @@ export class ReaderController {
       }
 
       this.renderImagePage();
-      this.onReady?.({ title: file.name, creator: "画像書籍" });
+      this.onReady?.({
+        metadata: { title: file.name, creator: "画像書籍" },
+        toc: [],
+      });
     } catch (error) {
       console.error("Error opening image book:", error);
       throw new Error(`画像書籍の読み込みに失敗しました: ${error.message}`);

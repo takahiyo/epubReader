@@ -27,6 +27,7 @@ let autoSyncEnabled = settings.autoSyncEnabled ?? false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 let bookmarkMenuMode = "current";
+let currentToc = [];
 
 // ========================================
 // DOM要素
@@ -62,6 +63,8 @@ const elements = {
   
   // しおりメニュー
   bookmarkMenu: document.getElementById("bookmarkMenu"),
+  tocSection: document.getElementById("tocSection"),
+  tocList: document.getElementById("tocList"),
   bookmarkList: document.getElementById("bookmarkList"),
   addBookmarkBtn: document.getElementById("addBookmarkBtn"),
   closeBookmarkMenu: document.getElementById("closeBookmarkMenu"),
@@ -623,6 +626,9 @@ function updateReaderUiState() {
 
   elements.fullscreenReader?.classList.toggle("epub-scroll", Boolean(isEpub));
   elements.menuToggleButton?.classList.toggle("hidden", !currentBookId);
+  if (!currentBookId || !isEpub) {
+    elements.tocSection?.classList.add("hidden");
+  }
 
   if (!isImage) {
     elements.progressBarPanel?.classList.add("hidden");
@@ -740,13 +746,84 @@ async function seekToPercentage(percentage) {
   }
 }
 
-function handleBookReady(meta) {
-  if (!currentBookInfo || !meta) return;
-  
-  const title = meta.title || currentBookInfo.title;
+function handleBookReady(payload) {
+  if (!currentBookInfo || !payload) return;
+
+  const metadata = payload.metadata ?? payload;
+  const toc = Array.isArray(payload.toc) ? payload.toc : [];
+  currentToc = toc;
+
+  const title = metadata.title || currentBookInfo.title;
   currentBookInfo.title = title;
   storage.upsertBook({ ...currentBookInfo, title });
   renderLibrary();
+  renderToc(currentToc);
+}
+
+// ========================================
+// 目次管理
+// ========================================
+
+function renderToc(tocItems = []) {
+  if (!elements.tocSection || !elements.tocList) return;
+
+  elements.tocList.innerHTML = "";
+  const isEpub = currentBookInfo?.type === "epub";
+
+  if (!isEpub || !tocItems.length) {
+    elements.tocSection.classList.add("hidden");
+    return;
+  }
+
+  elements.tocSection.classList.remove("hidden");
+  renderTocEntries(tocItems, elements.tocList, 0);
+}
+
+function renderTocEntries(items, container, depth) {
+  if (!Array.isArray(items)) return;
+
+  items.forEach((item) => {
+    const label = (item.label ?? item.title ?? "無題").toString().trim() || "無題";
+    const li = document.createElement("li");
+    li.className = "toc-item";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toc-link";
+    button.textContent = label;
+    button.style.paddingLeft = `${Math.min(depth, 6) * 12}px`;
+
+    button.addEventListener("click", async () => {
+      if (!reader?.rendition) return;
+      const cfi = resolveTocCfi(item);
+      try {
+        if (cfi) {
+          await reader.rendition.display(cfi);
+        } else if (item.href) {
+          await reader.rendition.display(item.href);
+        }
+        ui.closeAllMenus();
+      } catch (error) {
+        console.warn("目次移動に失敗しました:", error);
+      }
+    });
+
+    li.appendChild(button);
+    container.appendChild(li);
+
+    if (item.subitems?.length) {
+      renderTocEntries(item.subitems, container, depth + 1);
+    }
+  });
+}
+
+function resolveTocCfi(item) {
+  const href = item?.href;
+  if (!href) {
+    return item?.cfi ?? null;
+  }
+  const cfiFromHref = reader?.book?.locations?.cfiFromHref?.(href);
+  return cfiFromHref ?? item?.cfi ?? null;
 }
 
 // ========================================
