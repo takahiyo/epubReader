@@ -61,6 +61,13 @@ h1 {
   background-clip: text;
 }
 
+.login-title {
+  display: block;
+  width: min(240px, 100%);
+  height: auto;
+  margin: 0 auto 0.5rem;
+}
+
 .subtitle {
   color: var(--muted);
   font-size: 0.95rem;
