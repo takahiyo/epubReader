@@ -64,6 +64,11 @@
       
       <!-- クリック検知用オーバーレイ -->
       <div id="clickOverlay" class="click-overlay"></div>
+
+      <!-- メニュー表示ボタン（スクロール時の操作用） -->
+      <button id="menuToggleButton" class="floating-menu-button hidden" type="button" aria-label="メニュー">
+        ☰
+      </button>
       
       <!-- 画像ビューア -->
       <div id="imageViewer" class="image-viewer hidden">
@@ -298,27 +303,6 @@
               <select id="themeSelect">
                 <option value="dark" data-i18n="settings.theme.dark">ダークモード</option>
                 <option value="light" data-i18n="settings.theme.light">ライトモード</option>
-              </select>
-            </div>
-            <div class="setting-item">
-              <label for="writingMode" data-i18n="settings.writingMode">書字方向</label>
-              <select id="writingMode">
-                <option value="horizontal" data-i18n="settings.writingMode.horizontal">横書き</option>
-                <option value="vertical" data-i18n="settings.writingMode.vertical">縦書き</option>
-              </select>
-            </div>
-            <div class="setting-item">
-              <label for="pageDirection" data-i18n="settings.pageDirection">開き方向</label>
-              <select id="pageDirection">
-                <option value="ltr" data-i18n="settings.pageDirection.ltr">左開き</option>
-                <option value="rtl" data-i18n="settings.pageDirection.rtl">右開き</option>
-              </select>
-            </div>
-            <div class="setting-item">
-              <label for="progressDisplayMode" data-i18n="settings.progressDisplayMode">進捗表示形式</label>
-              <select id="progressDisplayMode">
-                <option value="page" data-i18n="settings.progressDisplayMode.page">ページ数</option>
-                <option value="percentage" data-i18n="settings.progressDisplayMode.percentage">パーセンテージ</option>
               </select>
             </div>
           </div>

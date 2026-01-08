@@ -299,9 +299,9 @@ export class ReaderController {
     this.rendition = this.book.renderTo(this.viewer, {
       width: viewerWidth,
       height: viewerHeight,
-      flow: "paginated",
+      flow: "scrolled",
       allowScriptedContent: true,
-      spread: "auto",
+      spread: "none",
     });
     
     if (!this.rendition) {

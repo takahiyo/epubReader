@@ -24,6 +24,8 @@ export class UIController {
     this.onPagePrev = options.onPagePrev;
     this.onPageNext = options.onPageNext;
     this.isBookOpen = options.isBookOpen || (() => false);
+    this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
+    this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
     
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -192,7 +194,7 @@ export class UIController {
       const absDeltaX = Math.abs(deltaX);
       const absDeltaY = Math.abs(deltaY);
 
-      if (this.isBookOpen() && absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+      if (this.isBookOpen() && this.isPageNavigationEnabled() && absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
         if (deltaX > 0) {
           this.onPagePrev?.();
         } else {
@@ -239,7 +241,7 @@ export class UIController {
         
       case 'M2':
         // 中央左 → 前ページ（本が開いている時のみ）
-        if (this.isBookOpen()) {
+        if (this.isBookOpen() && this.isPageNavigationEnabled()) {
           console.log('Previous page...');
           this.onPagePrev?.();
         }
@@ -257,7 +259,7 @@ export class UIController {
         
       case 'M4':
         // 中央右 → 次ページ（本が開いている時のみ）
-        if (this.isBookOpen()) {
+        if (this.isBookOpen() && this.isPageNavigationEnabled()) {
           console.log('Next page...');
           this.onPageNext?.();
         }
@@ -265,7 +267,7 @@ export class UIController {
         
       case 'B2':
         // 下端 → 進捗バー表示（本が開いている時のみ）
-        if (this.isBookOpen()) {
+        if (this.isBookOpen() && this.isProgressBarAvailable()) {
           console.log('Showing progress bar...');
           this.showProgressBar();
         } else {

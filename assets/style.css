@@ -75,6 +75,34 @@ body {
   display: block;
 }
 
+.fullscreen-reader.epub-scroll .click-overlay {
+  display: none;
+  pointer-events: none;
+}
+
+/* スクロール時のメニューボタン */
+.floating-menu-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 12;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(15, 23, 42, 0.65);
+  color: #fff;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.floating-menu-button:hover {
+  background: rgba(15, 23, 42, 0.8);
+}
+
 /* メニューが開いている時はオーバーレイを非表示 */
 .left-menu.visible ~ .fullscreen-reader .click-overlay,
 .progress-bar-panel.visible ~ .fullscreen-reader .click-overlay,
