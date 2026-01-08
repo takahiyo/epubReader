@@ -16,27 +16,13 @@ import { isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 const storage = new StorageService();
 const cloudSync = new CloudSync(storage);
 const settings = storage.getSettings();
+const LOCAL_PROGRESS_KEY = "epubReader:localProgress";
 
 let currentBookId = null;
 let currentBookInfo = null;
 let theme = settings.theme ?? "dark";
-let writingMode = settings.writingMode;
-let pageDirection = settings.pageDirection;
 let uiLanguage = settings.uiLanguage ?? "ja";
-let progressDisplayMode = settings.progressDisplayMode ?? "page";
 let saveDestination = settings.saveDestination ?? settings.source ?? "local";
-const legacyDirection = settings.readingDirection;
-if (!writingMode || !pageDirection) {
-  if (legacyDirection === "rtl") {
-    writingMode = "vertical";
-    pageDirection = "rtl";
-  } else if (legacyDirection === "ltr") {
-    writingMode = "horizontal";
-    pageDirection = "ltr";
-  }
-}
-if (!writingMode) writingMode = "horizontal";
-if (!pageDirection) pageDirection = "ltr";
 let autoSyncEnabled = settings.autoSyncEnabled ?? false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
@@ -67,6 +53,7 @@ const elements = {
   
   // 進捗バー
   progressBarPanel: document.getElementById("progressBarPanel"),
+  progressBarBackdrop: document.getElementById("progressBarBackdrop"),
   progressFill: document.getElementById("progressFill"),
   progressThumb: document.getElementById("progressThumb"),
   progressTrack: document.querySelector(".progress-track"),
@@ -94,9 +81,6 @@ const elements = {
   settingsModal: document.getElementById("settingsModal"),
   closeSettingsModal: document.getElementById("closeSettingsModal"),
   themeSelect: document.getElementById("themeSelect"),
-  writingModeSelect: document.getElementById("writingMode"),
-  pageDirectionSelect: document.getElementById("pageDirection"),
-  progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   saveDestinationSelect: document.getElementById("saveDestination"),
   saveDestinationWarning: document.getElementById("saveDestinationWarning"),
   driveLinkSection: document.getElementById("driveLinkSection"),
@@ -115,10 +99,46 @@ const elements = {
   searchBtn: document.getElementById("searchBtn"),
   searchResults: document.getElementById("searchResults"),
 
+  // メニュー表示ボタン
+  menuToggleButton: document.getElementById("menuToggleButton"),
+
   // 言語切り替え
   langJa: document.getElementById("langJa"),
   langEn: document.getElementById("langEn"),
 };
+
+function loadLocalProgress() {
+  try {
+    const raw = localStorage.getItem(LOCAL_PROGRESS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.warn("ローカル進捗の読み込みに失敗しました", error);
+    return {};
+  }
+}
+
+function saveLocalProgress(map) {
+  try {
+    localStorage.setItem(LOCAL_PROGRESS_KEY, JSON.stringify(map));
+  } catch (error) {
+    console.warn("ローカル進捗の保存に失敗しました", error);
+  }
+}
+
+const localProgressMap = loadLocalProgress();
+
+function getLocalProgress(bookId) {
+  return localProgressMap[bookId] ?? null;
+}
+
+function setLocalProgress(bookId, progress) {
+  if (!bookId || !progress) return;
+  localProgressMap[bookId] = {
+    ...progress,
+    updatedAt: progress.updatedAt ?? Date.now(),
+  };
+  saveLocalProgress(localProgressMap);
+}
 
 // ========================================
 // リーダーコントローラー初期化
@@ -135,7 +155,6 @@ const reader = new ReaderController({
 });
 
 reader.applyTheme(theme);
-reader.applyReadingDirection(writingMode, pageDirection);
 
 // ========================================
 // UIコントローラー初期化
@@ -143,6 +162,8 @@ reader.applyReadingDirection(writingMode, pageDirection);
 
 const ui = new UIController({
   isBookOpen: () => currentBookId !== null,
+  isPageNavigationEnabled: () => currentBookInfo?.type === "image",
+  isProgressBarAvailable: () => currentBookInfo?.type === "image",
   onLeftMenu: (action) => {
     if (action === 'show') {
       updateActivity();
@@ -204,15 +225,6 @@ const translations = {
     "settings.theme": "テーマ",
     "settings.theme.dark": "ダークモード",
     "settings.theme.light": "ライトモード",
-    "settings.writingMode": "書字方向",
-    "settings.writingMode.horizontal": "横書き",
-    "settings.writingMode.vertical": "縦書き",
-    "settings.pageDirection": "開き方向",
-    "settings.pageDirection.ltr": "左開き",
-    "settings.pageDirection.rtl": "右開き",
-    "settings.progressDisplayMode": "進捗表示形式",
-    "settings.progressDisplayMode.page": "ページ数",
-    "settings.progressDisplayMode.percentage": "パーセンテージ",
     "settings.section.sync": "クラウド同期",
     "settings.saveDestination": "保存先",
     "settings.saveDestination.local": "ローカル",
@@ -258,15 +270,6 @@ const translations = {
     "settings.theme": "Theme",
     "settings.theme.dark": "Dark mode",
     "settings.theme.light": "Light mode",
-    "settings.writingMode": "Writing mode",
-    "settings.writingMode.horizontal": "Horizontal",
-    "settings.writingMode.vertical": "Vertical",
-    "settings.pageDirection": "Page direction",
-    "settings.pageDirection.ltr": "Left-to-right",
-    "settings.pageDirection.rtl": "Right-to-left",
-    "settings.progressDisplayMode": "Progress display",
-    "settings.progressDisplayMode.page": "Pages",
-    "settings.progressDisplayMode.percentage": "Percentage",
     "settings.section.sync": "Cloud sync",
     "settings.saveDestination": "Save destination",
     "settings.saveDestination.local": "Local",
@@ -318,7 +321,9 @@ const progressBarHandler = new ProgressBarHandler({
   thumb: elements.progressThumb,
   onSeek: (percentage) => {
     // パーセンテージからページ位置を計算してジャンプ
-    seekToPercentage(percentage);
+    if (currentBookInfo?.type === "image") {
+      seekToPercentage(percentage);
+    }
   },
 });
 
@@ -401,6 +406,7 @@ async function handleFile(file) {
     storage.upsertBook(info);
     currentBookId = id;
     currentBookInfo = info;
+    updateReaderUiState();
     
     const savedProgress = storage.getProgress(id);
     const startLocation = savedProgress?.location;
@@ -485,12 +491,35 @@ async function openFromLibrary(bookId, options = {}) {
     
     currentBookId = bookId;
     currentBookInfo = info;
+    updateReaderUiState();
     
     const bookmarks = storage.getBookmarks(bookId);
     const progress = storage.getProgress(bookId);
+    const localProgress = getLocalProgress(bookId);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
-    const start = startFromBookmark ?? progress?.location;
+    let start = startFromBookmark ?? progress?.location;
+
+    if (!explicitBookmark && !options.useBookmark) {
+      const hasLocal = localProgress?.location !== undefined && localProgress?.location !== null;
+      const hasSynced = progress?.location !== undefined && progress?.location !== null;
+      const localUpdatedAt = localProgress?.updatedAt ?? 0;
+      const syncedUpdatedAt = progress?.updatedAt ?? 0;
+      const isDifferentLocation = hasLocal && hasSynced && localProgress.location !== progress.location;
+
+      if (hasLocal && !hasSynced) {
+        start = localProgress.location;
+      } else if (hasLocal && hasSynced && localUpdatedAt > syncedUpdatedAt) {
+        start = localProgress.location;
+      } else if (hasLocal && hasSynced && syncedUpdatedAt > localUpdatedAt && isDifferentLocation) {
+        const useSynced = confirm(
+          "他の端末でより新しい読書位置が見つかりました。最新位置へ移動しますか？\nOK=最新位置へ / キャンセル=この端末の位置",
+        );
+        if (!useSynced) {
+          start = localProgress.location;
+        }
+      }
+    }
     
     if (info.type === "epub") {
       // 空の状態を非表示、ビューアを表示
@@ -584,60 +613,55 @@ function handleProgress(progress) {
   updateActivity();
   
   storage.setProgress(currentBookId, progress);
+  setLocalProgress(currentBookId, progress);
   updateProgressBarDisplay();
+}
+
+function updateReaderUiState() {
+  const isEpub = currentBookInfo?.type === "epub";
+  const isImage = currentBookInfo?.type === "image";
+
+  elements.fullscreenReader?.classList.toggle("epub-scroll", Boolean(isEpub));
+  elements.menuToggleButton?.classList.toggle("hidden", !currentBookId);
+
+  if (!isImage) {
+    elements.progressBarPanel?.classList.add("hidden");
+    elements.progressBarBackdrop?.classList.add("hidden");
+  }
 }
 
 function updateProgressBarDisplay() {
   if (!currentBookId) return;
-  
+
+  if (currentBookInfo?.type !== "image") {
+    elements.progressBarPanel?.classList.add("hidden");
+    elements.progressBarBackdrop?.classList.add("hidden");
+    return;
+  }
+
+  elements.progressBarPanel?.classList.remove("hidden");
+  elements.progressBarBackdrop?.classList.remove("hidden");
+
   const progress = storage.getProgress(currentBookId);
   const percentage = progress?.percentage || 0;
-  
+
   // 進捗バーの更新
   if (elements.progressFill) {
     elements.progressFill.style.width = `${percentage}%`;
   }
-  
+
   if (elements.progressThumb) {
     elements.progressThumb.style.left = `${percentage}%`;
   }
-  
+
   // ページ数の更新（入力中でない場合のみ）
   if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
-    if (progressDisplayMode === "page") {
-      // ページ数モード
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        // EPUBの場合はlocationインデックスを表示
-        const totalLocations = reader.rendition.book.locations.total;
-        const currentLocation = Math.round((percentage / 100) * totalLocations);
-        elements.currentPageInput.value = currentLocation;
-        
-        if (elements.totalPages) {
-          elements.totalPages.textContent = totalLocations.toString();
-        }
-      } else if (currentBookInfo?.type === 'image') {
-        // 画像書籍の場合はページ数
-        const totalPages = reader.imagePages?.length || 1;
-        const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
-        elements.currentPageInput.value = currentPage;
-        
-        if (elements.totalPages) {
-          elements.totalPages.textContent = totalPages.toString();
-        }
-      } else {
-        // locations未生成のEPUBはパーセンテージ表示
-        elements.currentPageInput.value = Math.round(percentage);
-        if (elements.totalPages) {
-          elements.totalPages.textContent = '100';
-        }
-      }
-    } else {
-      // パーセンテージモード
-      elements.currentPageInput.value = Math.round(percentage);
-      
-      if (elements.totalPages) {
-        elements.totalPages.textContent = '100';
-      }
+    const totalPages = reader.imagePages?.length || 1;
+    const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
+    elements.currentPageInput.value = currentPage;
+
+    if (elements.totalPages) {
+      elements.totalPages.textContent = totalPages.toString();
     }
   }
 
@@ -648,6 +672,7 @@ function renderBookmarkMarkers() {
   if (!elements.progressTrack) return;
   elements.progressTrack.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
   if (!currentBookId) return;
+  if (currentBookInfo?.type !== "image") return;
 
   const bookmarks = storage.getBookmarks(currentBookId);
   if (!bookmarks.length) return;
@@ -659,25 +684,11 @@ function renderBookmarkMarkers() {
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
     
-    // ツールチップの表示内容を進捗表示モードに合わせる
+    // ツールチップは画像書籍のページ数で表示
     let tooltipText = bookmark.label ?? "しおり";
-    if (progressDisplayMode === "page") {
-      // ページ数モードの場合
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
-        const locationIndex = Math.round((percentage / 100) * totalLocations);
-        tooltipText += ` (${locationIndex}/${totalLocations})`;
-      } else if (currentBookInfo?.type === 'image') {
-        const totalPages = reader.imagePages?.length || 1;
-        const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
-        tooltipText += ` (${pageNumber}/${totalPages})`;
-      } else {
-        tooltipText += ` (${percentage}%)`;
-      }
-    } else {
-      // パーセンテージモード
-      tooltipText += ` (${percentage}%)`;
-    }
+    const totalPages = reader.imagePages?.length || 1;
+    const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
+    tooltipText += ` (${pageNumber}/${totalPages})`;
     
     marker.title = tooltipText;
     marker.addEventListener("click", (event) => {
@@ -796,12 +807,7 @@ function renderBookmarks(mode = "current") {
       
       // メタ情報を進捗表示モードに合わせて表示
       let metaText = new Date(bookmark.createdAt).toLocaleString();
-      if (progressDisplayMode === "page") {
-        // ここでは簡易的にパーセンテージのみ表示（本を開いていないため正確なページ数は不明）
-        metaText += ` / ${bookmark.percentage}%`;
-      } else {
-        metaText += ` / ${bookmark.percentage}%`;
-      }
+      metaText += ` / ${bookmark.percentage}%`;
       meta.textContent = metaText;
       
       info.append(label, meta);
@@ -868,18 +874,10 @@ function renderBookmarks(mode = "current") {
     
     // メタ情報を進捗表示モードに合わせて表示
     let metaText = new Date(bookmark.createdAt).toLocaleString();
-    if (progressDisplayMode === "page") {
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
-        const locationIndex = Math.round((bookmark.percentage / 100) * totalLocations);
-        metaText += ` / ${locationIndex}/${totalLocations}`;
-      } else if (currentBookInfo?.type === 'image') {
-        const totalPages = reader.imagePages?.length || 1;
-        const pageNumber = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
-        metaText += ` / ${pageNumber}/${totalPages}`;
-      } else {
-        metaText += ` / ${bookmark.percentage}%`;
-      }
+    if (currentBookInfo?.type === "image") {
+      const totalPages = reader.imagePages?.length || 1;
+      const pageNumber = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
+      metaText += ` / ${pageNumber}/${totalPages}`;
     } else {
       metaText += ` / ${bookmark.percentage}%`;
     }
@@ -1179,15 +1177,8 @@ function renderSearchResults(results, query) {
     const meta = document.createElement('div');
     meta.className = 'search-result-meta';
     
-    // パーセンテージまたはページ情報を表示
-    let locationText = '';
-    if (progressDisplayMode === "page" && reader.rendition?.book?.locations) {
-      const totalLocations = reader.rendition.book.locations.total;
-      const locationIndex = Math.round((result.percentage / 100) * totalLocations);
-      locationText = `${locationIndex}/${totalLocations}`;
-    } else {
-      locationText = `${result.percentage}%`;
-    }
+    // パーセンテージを表示
+    const locationText = `${result.percentage}%`;
     
     meta.textContent = `${locationText} / ${result.sectionLabel || `結果 ${index + 1}`}`;
     
@@ -1256,17 +1247,6 @@ function applyTheme(newTheme) {
   storage.setSettings({ theme });
 }
 
-async function applyReadingSettings(nextWritingMode, nextPageDirection) {
-  if (nextWritingMode) {
-    writingMode = nextWritingMode;
-  }
-  if (nextPageDirection) {
-    pageDirection = nextPageDirection;
-  }
-  await reader.applyReadingDirection(writingMode, pageDirection);
-  storage.setSettings({ writingMode, pageDirection });
-}
-
 function applyLibraryViewMode(mode) {
   libraryViewMode = mode;
   if (elements.libraryGrid) {
@@ -1275,13 +1255,6 @@ function applyLibraryViewMode(mode) {
   elements.libraryViewGrid?.classList.toggle("active", mode === "grid");
   elements.libraryViewList?.classList.toggle("active", mode === "list");
   storage.setSettings({ libraryViewMode: mode });
-}
-
-function applyProgressDisplayMode(mode) {
-  progressDisplayMode = mode;
-  storage.setSettings({ progressDisplayMode: mode });
-  updateProgressBarDisplay();
-  renderBookmarkMarkers();
 }
 
 function resolveSaveDestination(nextDestination) {
@@ -1459,9 +1432,6 @@ function setupEvents() {
     openModal(elements.settingsModal);
     // 現在の設定値を反映
     if (elements.themeSelect) elements.themeSelect.value = theme;
-    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-    if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
     if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
     applySaveDestination(saveDestination);
   });
@@ -1506,42 +1476,16 @@ function setupEvents() {
   elements.libraryViewList?.addEventListener('click', () => applyLibraryViewMode("list"));
   
   // 進捗バーのページ入力
-  let isEditingProgress = false;
-  
-  elements.currentPageInput?.addEventListener('focus', () => {
-    isEditingProgress = true;
-  });
-  
-  elements.currentPageInput?.addEventListener('blur', () => {
-    isEditingProgress = false;
-  });
-  
   elements.currentPageInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.target.blur(); // フォーカスを外してblurイベントをトリガー
       
       const value = parseInt(e.target.value, 10);
-      if (!isNaN(value)) {
-        if (progressDisplayMode === "page") {
-          // ページ数モード
-          if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-            // EPUBの場合はlocationインデックスとして扱う
-            const totalLocations = reader.rendition.book.locations.total;
-            const percentage = (value / totalLocations) * 100;
-            seekToPercentage(Math.max(0, Math.min(percentage, 100)));
-          } else if (currentBookInfo?.type === 'image') {
-            // 画像書籍の場合はページ数として扱う
-            const totalPages = reader.imagePages?.length || 1;
-            const percentage = ((value - 1) / (totalPages - 1)) * 100;
-            seekToPercentage(Math.max(0, Math.min(percentage, 100)));
-          } else {
-            // locations未生成のEPUBはパーセンテージとして扱う
-            seekToPercentage(Math.max(0, Math.min(value, 100)));
-          }
-        } else {
-          // パーセンテージモード
-          seekToPercentage(Math.max(0, Math.min(value, 100)));
-        }
+      if (!isNaN(value) && currentBookInfo?.type === 'image') {
+        const totalPages = reader.imagePages?.length || 1;
+        const safeTotal = Math.max(1, totalPages - 1);
+        const percentage = ((value - 1) / safeTotal) * 100;
+        seekToPercentage(Math.max(0, Math.min(percentage, 100)));
       }
     }
   });
@@ -1549,18 +1493,6 @@ function setupEvents() {
   // 設定
   elements.themeSelect?.addEventListener('change', (e) => {
     applyTheme(e.target.value);
-  });
-  
-  elements.writingModeSelect?.addEventListener('change', async (e) => {
-    await applyReadingSettings(e.target.value, null);
-  });
-
-  elements.pageDirectionSelect?.addEventListener('change', async (e) => {
-    await applyReadingSettings(null, e.target.value);
-  });
-  
-  elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
-    applyProgressDisplayMode(e.target.value);
   });
 
   elements.saveDestinationSelect?.addEventListener('change', (e) => {
@@ -1585,6 +1517,11 @@ function setupEvents() {
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
+
+  elements.menuToggleButton?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    ui.showLeftMenu();
+  });
   
   // 検索機能
   const executeSearch = async () => {
@@ -1653,6 +1590,10 @@ function setupEvents() {
       return;
     }
 
+    if (currentBookInfo?.type !== "image") {
+      return;
+    }
+
     event.preventDefault();
 
     const now = Date.now();
@@ -1682,26 +1623,18 @@ function setupEvents() {
       return;
     }
     
+    if (currentBookInfo?.type !== "image") {
+      return;
+    }
+
     updateActivity();
-    
+
     switch (e.key) {
       case 'ArrowLeft':
-        if (pageDirection === 'rtl') {
-          reader.next(); // 右開きの場合、左キーで次ページ
-        } else {
-          reader.prev();
-        }
-        break;
-      case 'ArrowRight':
-        if (pageDirection === 'rtl') {
-          reader.prev(); // 右開きの場合、右キーで前ページ
-        } else {
-          reader.next();
-        }
-        break;
       case 'ArrowUp':
         reader.prev();
         break;
+      case 'ArrowRight':
       case 'ArrowDown':
         reader.next();
         break;
@@ -1740,9 +1673,7 @@ async function init() {
   
   // テーマ適用
   applyTheme(theme);
-  applyReadingSettings(writingMode, pageDirection);
   applyLibraryViewMode(libraryViewMode);
-  applyProgressDisplayMode(progressDisplayMode);
   applySaveDestination(saveDestination);
   
   // 自動同期設定
@@ -1757,6 +1688,7 @@ async function init() {
   
   // 検索ボタンの状態を更新
   updateSearchButtonState();
+  updateReaderUiState();
 
   if (currentBookId === null) {
     ui.showLeftMenu();
