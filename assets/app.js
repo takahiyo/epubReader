@@ -4,7 +4,7 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, logout, getCurrentUserId, checkAuthStatus } from "./auth.js";
+import { updateActivity, logout, getCurrentUserId, checkAuthStatus, requestDriveScope } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
 import { isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
@@ -99,6 +99,8 @@ const elements = {
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   saveDestinationSelect: document.getElementById("saveDestination"),
   saveDestinationWarning: document.getElementById("saveDestinationWarning"),
+  driveLinkSection: document.getElementById("driveLinkSection"),
+  driveLinkButton: document.getElementById("driveLinkButton"),
   autoSyncEnabled: document.getElementById("autoSyncEnabled"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
@@ -218,6 +220,10 @@ const translations = {
     "settings.saveDestination.onedrive": "OneDrive",
     "settings.saveDestination.pcloud": "pCloud",
     "settings.saveDestination.warning": "未ログインのクラウド先は選択できません",
+    "settings.driveLink.label": "Google Drive 連携",
+    "settings.driveLink.button": "Google Drive 連携",
+    "settings.driveLink.linked": "Google Drive 連携済み",
+    "settings.driveLink.hint": "Google でログイン後に Drive へのアクセスを許可します",
     "settings.autoSync": "Google Drive 自動同期を有効にする",
     "settings.autoSyncHint": "※ しおり、履歴、進捗が30秒ごとに自動保存されます",
     "settings.section.data": "データ管理",
@@ -268,6 +274,10 @@ const translations = {
     "settings.saveDestination.onedrive": "OneDrive",
     "settings.saveDestination.pcloud": "pCloud",
     "settings.saveDestination.warning": "Cloud destinations require a logged-in account.",
+    "settings.driveLink.label": "Google Drive connection",
+    "settings.driveLink.button": "Connect Google Drive",
+    "settings.driveLink.linked": "Google Drive connected",
+    "settings.driveLink.hint": "Authorize Drive access after signing in with Google.",
     "settings.autoSync": "Enable Google Drive auto sync",
     "settings.autoSyncHint": "Bookmarks, history, and progress are saved every 30 seconds",
     "settings.section.data": "Data management",
@@ -298,6 +308,7 @@ function applyLanguage(nextLanguage) {
     }
   });
   updateLanguageButtons();
+  updateDriveLinkState();
   storage.setSettings({ uiLanguage });
 }
 
@@ -322,6 +333,22 @@ function updateUserInfo() {
   if (authStatus.authenticated && elements.userInfo) {
     elements.userInfo.textContent = authStatus.userEmail || authStatus.userId || '';
   }
+}
+
+function updateDriveLinkState() {
+  if (!elements.driveLinkSection) return;
+  const authStatus = checkAuthStatus();
+  const isLoggedIn = authStatus.authenticated;
+  elements.driveLinkSection.classList.toggle("hidden", !isLoggedIn);
+  if (!isLoggedIn || !elements.driveLinkButton) return;
+
+  const currentSettings = storage.getSettings();
+  const isLinked = isDriveTokenValid(currentSettings?.driveToken);
+  const strings = translations[uiLanguage] ?? {};
+  elements.driveLinkButton.textContent = isLinked
+    ? strings["settings.driveLink.linked"] || "Google Drive 連携済み"
+    : strings["settings.driveLink.button"] || "Google Drive 連携";
+  elements.driveLinkButton.disabled = isLinked;
 }
 
 function updateSearchButtonState() {
@@ -1438,6 +1465,24 @@ function setupEvents() {
     if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
     applySaveDestination(saveDestination);
   });
+
+  elements.driveLinkButton?.addEventListener("click", async () => {
+    try {
+      if (elements.driveLinkButton) {
+        elements.driveLinkButton.disabled = true;
+      }
+      const driveToken = await requestDriveScope();
+      storage.setSettings({ driveToken });
+      const availability = getSaveDestinationAvailability(storage.getSettings());
+      updateSaveDestinationOptions(availability);
+      updateSaveDestinationWarning(availability);
+    } catch (error) {
+      console.error("Drive link failed:", error);
+      alert(error.message || "Google Drive 連携に失敗しました");
+    } finally {
+      updateDriveLinkState();
+    }
+  });
   
   elements.menuLogout?.addEventListener('click', () => {
     if (confirm("ログアウトしますか？")) {
@@ -1688,6 +1733,7 @@ async function init() {
   
   // ユーザー情報表示
   updateUserInfo();
+  updateDriveLinkState();
   
   // イベント設定
   setupEvents();
