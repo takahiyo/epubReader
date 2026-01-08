@@ -28,8 +28,11 @@ export class UIController {
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
     this.bookmarkMenuVisible = false;
+    this.touchStartX = null;
+    this.touchStartY = null;
     
     this.setupClickHandler();
+    this.setupTouchHandlers();
     this.setupResizeHandler();
   }
   
@@ -148,6 +151,62 @@ export class UIController {
       document.addEventListener('click', clickHandler);
       console.log('Click handler attached to document');
     }
+  }
+
+  /**
+   * タッチスワイプハンドラーをセットアップ
+   */
+  setupTouchHandlers() {
+    const reader = document.getElementById('fullscreenReader');
+    if (!reader) {
+      return;
+    }
+
+    const minSwipeDistance = 40;
+    const axisDifference = 20;
+
+    reader.addEventListener('touchstart', (e) => {
+      if (this.isAnyMenuVisible()) {
+        return;
+      }
+
+      const touch = e.touches[0];
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+    }, { passive: true });
+
+    reader.addEventListener('touchend', (e) => {
+      if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      if (this.touchStartX === null || this.touchStartY === null) {
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - this.touchStartX;
+      const deltaY = touch.clientY - this.touchStartY;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+
+      if (this.isBookOpen() && absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+        if (deltaX > 0) {
+          this.onPagePrev?.();
+        } else {
+          this.onPageNext?.();
+        }
+      }
+
+      this.touchStartX = null;
+      this.touchStartY = null;
+    }, { passive: true });
+  }
+
+  isAnyMenuVisible() {
+    return this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible;
   }
   
   /**
