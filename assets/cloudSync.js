@@ -1,5 +1,6 @@
-import { ensureDriveAccessToken, isTokenValid as isDriveTokenValid } from "./driveAuth.js";
+import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
+import { requestDriveScope } from "./auth.js";
 
 export class CloudSync {
   constructor(storage) {
@@ -57,9 +58,6 @@ export class CloudSync {
       return { source: "local", status: "skipped" };
     }
     if (resolvedSource === "drive") {
-      if (!isDriveTokenValid(settings?.driveToken)) {
-        return { source: "drive", status: "unauthenticated" };
-      }
       return this.pushToDrive(settings);
     }
     if (resolvedSource === "onedrive") {
@@ -83,9 +81,6 @@ export class CloudSync {
       return { source: "local", status: "skipped" };
     }
     if (resolvedSource === "drive") {
-      if (!isDriveTokenValid(settings?.driveToken)) {
-        return { source: "drive", status: "unauthenticated" };
-      }
       return this.pullFromDrive(settings);
     }
     if (resolvedSource === "onedrive") {
@@ -143,7 +138,7 @@ export class CloudSync {
   }
 
   async pushToDrive(settings) {
-    const accessToken = this.ensureDriveToken(settings);
+    const accessToken = await this.ensureDriveToken(settings);
     const payload = {
       updatedAt: Date.now(),
       data: this.storage.snapshot(),
@@ -156,7 +151,7 @@ export class CloudSync {
   }
 
   async pullFromDrive(settings) {
-    const accessToken = this.ensureDriveToken(settings);
+    const accessToken = await this.ensureDriveToken(settings);
     const fileId = await this.resolveDriveFileId(accessToken, settings);
     if (!fileId) {
       throw new Error("Drive 上に同期ファイルが見つかりませんでした");
@@ -180,11 +175,13 @@ export class CloudSync {
     return json;
   }
 
-  ensureDriveToken(settings) {
-    const token = ensureDriveAccessToken(settings, (driveToken) => {
-      this.storage.setSettings({ driveToken });
-    });
-    return token;
+  async ensureDriveToken(settings) {
+    if (isDriveTokenValid(settings?.driveToken)) {
+      return settings.driveToken.accessToken;
+    }
+    const driveToken = await requestDriveScope();
+    this.storage.setSettings({ driveToken });
+    return driveToken.accessToken;
   }
 
   async resolveDriveFileId(accessToken, settings) {

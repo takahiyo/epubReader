@@ -15,7 +15,7 @@ const AUTH_CONFIG = {
     return resolveClientId();
   },
   redirectUri: window.location.origin + '/login.html',
-  basicScope: 'openid profile email',
+  scope: 'openid profile email',
   driveScope: 'https://www.googleapis.com/auth/drive.file',
   tokenExpiry: 60 * 60 * 1000, // 1時間（ミリ秒）
 };
@@ -141,7 +141,7 @@ function requestBasicAccessToken() {
   if (!googleTokenClient) {
     googleTokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: AUTH_CONFIG.clientId,
-      scope: AUTH_CONFIG.basicScope,
+      scope: AUTH_CONFIG.scope,
       callback: (tokenResponse) => {
         if (!tokenResponse?.access_token) {
           console.error('アクセストークンの取得に失敗しました。', tokenResponse);
@@ -156,6 +156,47 @@ function requestBasicAccessToken() {
   }
 
   googleTokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+/**
+ * Google Drive 用の追加スコープを要求
+ */
+export function requestDriveScope() {
+  return new Promise((resolve, reject) => {
+    if (!window.google?.accounts?.oauth2) {
+      reject(new Error('Google OAuth2 client が利用できません。'));
+      return;
+    }
+
+    const clientId = AUTH_CONFIG.clientId;
+    if (!clientId) {
+      reject(
+        new Error(
+          'Google ログインのクライアントIDが設定されていません。' +
+            'assets/config.js もしくは login.html の data-client-id を設定してください。'
+        )
+      );
+      return;
+    }
+
+    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: AUTH_CONFIG.driveScope,
+      callback: (tokenResponse) => {
+        if (!tokenResponse?.access_token) {
+          reject(new Error('Google Drive の認証に失敗しました。'));
+          return;
+        }
+        const expiresIn = tokenResponse.expires_in ? tokenResponse.expires_in * 1000 : AUTH_CONFIG.tokenExpiry;
+        resolve({
+          accessToken: tokenResponse.access_token,
+          tokenType: tokenResponse.token_type || 'Bearer',
+          expiresAt: Date.now() + expiresIn,
+        });
+      },
+    });
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  });
 }
 
 /**
