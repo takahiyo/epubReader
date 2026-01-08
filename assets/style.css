@@ -186,6 +186,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+  justify-content: center;
 }
 
 .menu-logo {
@@ -205,6 +206,12 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.menu-title-image {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
 }
 
 .menu-nav {
