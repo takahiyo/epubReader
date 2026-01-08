@@ -80,7 +80,7 @@ export function captureGoogleToken() {
     
     // メインページにリダイレクト
     setTimeout(() => {
-      window.location.href = '/index.html';
+      window.location.href = 'index.html';
     }, 500);
     
     return true;
@@ -184,7 +184,7 @@ export function clearAuth() {
  */
 export function logout() {
   clearAuth();
-  window.location.href = '/login.html';
+  window.location.href = 'login.html';
 }
 
 /**
