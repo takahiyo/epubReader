@@ -53,12 +53,26 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* EPUBスクロールモード時 */
+.fullscreen-reader.epub-scroll .viewer {
+  overflow-y: auto;
 }
 
 .viewer iframe {
   width: 100% !important;
   height: 100% !important;
   border: none;
+  display: block;
+}
+
+/* スクロール表示のためのiframe設定 */
+.fullscreen-reader.epub-scroll .viewer iframe {
+  min-height: 100vh;
+  height: auto !important;
 }
 
 /* クリック検知用オーバーレイ */
