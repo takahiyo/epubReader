@@ -112,7 +112,7 @@ export class CloudSync {
 
     const json = await response.json();
     if (json?.data) {
-      this.storage.importData(JSON.stringify(json.data));
+      this.storage.mergeData(json.data);
     }
     return json;
   }
@@ -147,7 +147,7 @@ export class CloudSync {
     }
     const json = await response.json();
     if (json?.data) {
-      this.storage.importData(JSON.stringify(json.data));
+      this.storage.mergeData(json.data);
     }
     if (fileId !== settings.driveFileId) {
       this.storage.setSettings({ driveFileId: fileId });
@@ -248,7 +248,7 @@ export class CloudSync {
     }
     const json = await response.json();
     if (json?.data) {
-      this.storage.importData(JSON.stringify(json.data));
+      this.storage.mergeData(json.data);
     }
     if (item.id && item.id !== settings.onedriveFileId) {
       this.storage.setSettings({ onedriveFileId: item.id });
@@ -366,7 +366,7 @@ export class CloudSync {
     }
     const json = await response.json();
     if (json?.data) {
-      this.storage.importData(JSON.stringify(json.data));
+      this.storage.mergeData(json.data);
     }
     return json;
   }

@@ -322,6 +322,10 @@ async function handleFile(file) {
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
     updateActivity();
+
+    if (autoSyncEnabled) {
+      await pullCloudData({ refreshUi: false });
+    }
     
     // ファイルタイプを自動判別
     const type = detectFileType(file);
@@ -420,6 +424,9 @@ async function handleFile(file) {
 async function openFromLibrary(bookId, options = {}) {
   try {
     updateActivity();
+    if (autoSyncEnabled) {
+      await pullCloudData({ refreshUi: false });
+    }
     const source = storage.getSettings().source || 'local';
     const record = await loadFile(bookId, source);
     
@@ -1233,7 +1240,23 @@ function applyProgressDisplayMode(mode) {
   renderBookmarkMarkers();
 }
 
-function toggleAutoSync(enabled) {
+async function pullCloudData({ refreshUi = true } = {}) {
+  if (!autoSyncEnabled) return;
+  try {
+    await cloudSync.pull();
+    if (refreshUi) {
+      renderLibrary();
+      renderHistory();
+      renderBookmarkMarkers();
+      updateProgressBarDisplay();
+      updateSearchButtonState();
+    }
+  } catch (error) {
+    console.error('Auto-sync pull failed:', error);
+  }
+}
+
+async function toggleAutoSync(enabled) {
   autoSyncEnabled = enabled;
   storage.setSettings({ autoSyncEnabled: enabled });
   
@@ -1243,6 +1266,7 @@ function toggleAutoSync(enabled) {
   }
   
   if (enabled) {
+    await pullCloudData();
     // 30秒ごとに自動同期
     autoSyncInterval = setInterval(async () => {
       try {
@@ -1553,7 +1577,7 @@ function setupEvents() {
 // 初期化
 // ========================================
 
-function init() {
+async function init() {
   console.log("Initializing Epub Reader...");
   
   // ライブラリ読み込み確認（詳細）
@@ -1585,7 +1609,9 @@ function init() {
   
   // 自動同期設定
   if (autoSyncEnabled) {
-    toggleAutoSync(true);
+    await toggleAutoSync(true);
+  } else {
+    await pullCloudData({ refreshUi: false });
   }
   
   // ライブラリレンダリング
