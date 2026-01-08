@@ -294,12 +294,11 @@ export class ReaderController {
     
     // ビューアのサイズを明示的に設定
     const viewerWidth = this.viewer.clientWidth || 800;
-    const viewerHeight = this.viewer.clientHeight || 600;
     
     this.rendition = this.book.renderTo(this.viewer, {
       width: viewerWidth,
-      height: viewerHeight,
-      flow: "scrolled",
+      flow: "scrolled-doc",
+      manager: "continuous",
       allowScriptedContent: true,
       spread: "none",
     });
