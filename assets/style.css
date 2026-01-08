@@ -54,20 +54,14 @@ body {
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
-/* 横書き（縦スクロール）モード */
+/* EPUBスクロールモード（縦書き・横書きともに縦スクロール） */
 .fullscreen-reader.epub-scroll .viewer {
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-/* 縦書き（横スクロール）モード */
-.fullscreen-reader.epub-scroll-horizontal .viewer {
-  overflow-y: hidden;
-  overflow-x: auto;
 }
 
 .viewer iframe {
@@ -78,17 +72,11 @@ body {
   background: transparent;
 }
 
-/* 横書き：スクロール表示のためのiframe設定 */
+/* スクロール表示のためのiframe設定（縦書き・横書き共通） */
 .fullscreen-reader.epub-scroll .viewer iframe {
   min-height: 100vh;
   height: auto !important;
-}
-
-/* 縦書き：横スクロール表示のためのiframe設定 */
-.fullscreen-reader.epub-scroll-horizontal .viewer iframe {
-  min-width: 100vw;
-  width: auto !important;
-  height: 100vh !important;
+  width: 100% !important;
 }
 
 /* クリック検知用オーバーレイ */

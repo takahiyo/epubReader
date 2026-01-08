@@ -240,6 +240,10 @@ async function handleFile(file) {
         elements.viewer.classList.remove('hidden');
         elements.viewer.classList.add('visible');
       }
+      // EPUBスクロールモードを設定
+      if (elements.fullscreenReader) {
+        elements.fullscreenReader.classList.add('epub-scroll');
+      }
       
       await reader.openEpub(new File([buffer], file.name, { type: mime }), startLocation);
     } else {
@@ -322,6 +326,10 @@ async function openFromLibrary(bookId, options = {}) {
         elements.viewer.classList.remove('hidden');
         elements.viewer.classList.add('visible');
       }
+      // EPUBスクロールモードを設定
+      if (elements.fullscreenReader) {
+        elements.fullscreenReader.classList.add('epub-scroll');
+      }
       
       await reader.openEpub(file, start);
     } else {
@@ -402,6 +410,16 @@ function handleProgress(progress) {
 
 function updateProgressBarDisplay() {
   if (!currentBookId) return;
+  
+  // 進捗バーパネルを表示（EPUB/画像書籍の場合）
+  if (currentBookInfo?.type === 'epub' || currentBookInfo?.type === 'image') {
+    if (elements.progressBarPanel) {
+      elements.progressBarPanel.classList.remove('hidden');
+    }
+    if (elements.progressBarBackdrop) {
+      elements.progressBarBackdrop.classList.remove('hidden');
+    }
+  }
   
   const progress = storage.getProgress(currentBookId);
   const percentage = progress?.percentage || 0;
@@ -555,20 +573,10 @@ function handleBookReady(payload) {
   renderLibrary();
   renderToc(currentToc);
   
-  // EPUBスクロールモードのクラスを設定（縦書き・横書き対応）
+  // EPUBスクロールモードのクラスを設定（縦書き・横書きともに縦スクロール）
   if (currentBookInfo.type === 'epub' && elements.fullscreenReader) {
-    const isVertical = reader.writingMode === "vertical";
-    console.log('[handleBookReady] Setting scroll mode class:', isVertical ? 'horizontal-scroll' : 'vertical-scroll');
-    
-    // 既存のスクロールクラスを削除
-    elements.fullscreenReader.classList.remove('epub-scroll', 'epub-scroll-horizontal');
-    
-    // 縦書きは横スクロール、横書きは縦スクロール
-    if (isVertical) {
-      elements.fullscreenReader.classList.add('epub-scroll-horizontal');
-    } else {
-      elements.fullscreenReader.classList.add('epub-scroll');
-    }
+    console.log('[handleBookReady] Setting epub-scroll class for vertical scrolling');
+    elements.fullscreenReader.classList.add('epub-scroll');
   }
   
   // locations生成完了時に進捗バーを更新
