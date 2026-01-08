@@ -1,5 +1,5 @@
-import { ensureDriveAccessToken } from "./driveAuth.js";
-import { ensureOneDriveAccessToken } from "./onedriveAuth.js";
+import { ensureDriveAccessToken, isTokenValid as isDriveTokenValid } from "./driveAuth.js";
+import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
 export class CloudSync {
   constructor(storage) {
@@ -7,11 +7,18 @@ export class CloudSync {
   }
 
   resolveSource(source, settings = this.storage.getSettings()) {
-    const selected = source || settings.source || "local";
+    const selected = source || settings.saveDestination || settings.source || "local";
     if (["local", "drive", "onedrive", "pcloud"].includes(selected)) {
       return selected;
     }
     return "local";
+  }
+
+  isPCloudConfigured(settings) {
+    if (!settings?.apiKey || settings.apiKey === "<必要ならキー>") {
+      return false;
+    }
+    return Boolean(settings?.endpoint);
   }
 
   getSettings(source) {
@@ -50,12 +57,21 @@ export class CloudSync {
       return { source: "local", status: "skipped" };
     }
     if (resolvedSource === "drive") {
+      if (!isDriveTokenValid(settings?.driveToken)) {
+        return { source: "drive", status: "unauthenticated" };
+      }
       return this.pushToDrive(settings);
     }
     if (resolvedSource === "onedrive") {
+      if (!isOneDriveTokenValid(settings?.onedriveToken)) {
+        return { source: "onedrive", status: "unauthenticated" };
+      }
       return this.pushToOneDrive(settings);
     }
     if (resolvedSource === "pcloud") {
+      if (!this.isPCloudConfigured(settings)) {
+        return { source: "pcloud", status: "unauthenticated" };
+      }
       return this.pushToPCloud(settings);
     }
     return this.pushToEndpoint(settings);
@@ -67,12 +83,21 @@ export class CloudSync {
       return { source: "local", status: "skipped" };
     }
     if (resolvedSource === "drive") {
+      if (!isDriveTokenValid(settings?.driveToken)) {
+        return { source: "drive", status: "unauthenticated" };
+      }
       return this.pullFromDrive(settings);
     }
     if (resolvedSource === "onedrive") {
+      if (!isOneDriveTokenValid(settings?.onedriveToken)) {
+        return { source: "onedrive", status: "unauthenticated" };
+      }
       return this.pullFromOneDrive(settings);
     }
     if (resolvedSource === "pcloud") {
+      if (!this.isPCloudConfigured(settings)) {
+        return { source: "pcloud", status: "unauthenticated" };
+      }
       return this.pullFromPCloud(settings);
     }
     return this.pullFromEndpoint(settings);

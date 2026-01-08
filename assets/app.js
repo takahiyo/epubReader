@@ -6,6 +6,8 @@ import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
 import { updateActivity, logout, getCurrentUserId, checkAuthStatus } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
+import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
+import { isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
 // ========================================
 // 初期化
@@ -22,6 +24,7 @@ let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
 let uiLanguage = settings.uiLanguage ?? "ja";
 let progressDisplayMode = settings.progressDisplayMode ?? "page";
+let saveDestination = settings.saveDestination ?? settings.source ?? "local";
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
   if (legacyDirection === "rtl") {
@@ -94,6 +97,8 @@ const elements = {
   writingModeSelect: document.getElementById("writingMode"),
   pageDirectionSelect: document.getElementById("pageDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
+  saveDestinationSelect: document.getElementById("saveDestination"),
+  saveDestinationWarning: document.getElementById("saveDestinationWarning"),
   autoSyncEnabled: document.getElementById("autoSyncEnabled"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
@@ -207,6 +212,12 @@ const translations = {
     "settings.progressDisplayMode.page": "ページ数",
     "settings.progressDisplayMode.percentage": "パーセンテージ",
     "settings.section.sync": "クラウド同期",
+    "settings.saveDestination": "保存先",
+    "settings.saveDestination.local": "ローカル",
+    "settings.saveDestination.drive": "Google Drive",
+    "settings.saveDestination.onedrive": "OneDrive",
+    "settings.saveDestination.pcloud": "pCloud",
+    "settings.saveDestination.warning": "未ログインのクラウド先は選択できません",
     "settings.autoSync": "Google Drive 自動同期を有効にする",
     "settings.autoSyncHint": "※ しおり、履歴、進捗が30秒ごとに自動保存されます",
     "settings.section.data": "データ管理",
@@ -251,6 +262,12 @@ const translations = {
     "settings.progressDisplayMode.page": "Pages",
     "settings.progressDisplayMode.percentage": "Percentage",
     "settings.section.sync": "Cloud sync",
+    "settings.saveDestination": "Save destination",
+    "settings.saveDestination.local": "Local",
+    "settings.saveDestination.drive": "Google Drive",
+    "settings.saveDestination.onedrive": "OneDrive",
+    "settings.saveDestination.pcloud": "pCloud",
+    "settings.saveDestination.warning": "Cloud destinations require a logged-in account.",
     "settings.autoSync": "Enable Google Drive auto sync",
     "settings.autoSyncHint": "Bookmarks, history, and progress are saved every 30 seconds",
     "settings.section.data": "Data management",
@@ -339,7 +356,7 @@ async function handleFile(file) {
     const existingRecord = findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
     const mime = guessMime(type, file);
-    const source = storage.getSettings().source || 'local';
+    const source = saveDestination;
     
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
     await saveFile(id, buffer, { fileName: file.name, mime }, source);
@@ -427,7 +444,7 @@ async function openFromLibrary(bookId, options = {}) {
     if (autoSyncEnabled) {
       await pullCloudData({ refreshUi: false });
     }
-    const source = storage.getSettings().source || 'local';
+    const source = saveDestination;
     const record = await loadFile(bookId, source);
     
     if (!record) {
@@ -1240,10 +1257,79 @@ function applyProgressDisplayMode(mode) {
   renderBookmarkMarkers();
 }
 
+function resolveSaveDestination(nextDestination) {
+  if (["local", "drive", "onedrive", "pcloud"].includes(nextDestination)) {
+    return nextDestination;
+  }
+  return "local";
+}
+
+function isPCloudConfigured(settings) {
+  if (!settings?.apiKey || settings.apiKey === "<必要ならキー>") {
+    return false;
+  }
+  return Boolean(settings?.endpoint);
+}
+
+function getSaveDestinationAvailability(settings = storage.getSettings()) {
+  return {
+    drive: isDriveTokenValid(settings?.driveToken),
+    onedrive: isOneDriveTokenValid(settings?.onedriveToken),
+    pcloud: isPCloudConfigured(settings),
+  };
+}
+
+function updateSaveDestinationOptions(availability) {
+  if (!elements.saveDestinationSelect) return;
+  Array.from(elements.saveDestinationSelect.options).forEach((option) => {
+    if (option.value === "local") {
+      option.disabled = false;
+      return;
+    }
+    option.disabled = !availability[option.value];
+  });
+}
+
+function updateSaveDestinationWarning(availability) {
+  if (!elements.saveDestinationWarning) return;
+  const hasUnavailable = Object.values(availability).some((available) => !available);
+  elements.saveDestinationWarning.classList.toggle("hidden", !hasUnavailable);
+}
+
+function applySaveDestination(nextDestination, { showWarning = false } = {}) {
+  const availability = getSaveDestinationAvailability();
+  let resolved = resolveSaveDestination(nextDestination);
+  let downgraded = false;
+
+  if (resolved === "drive" && !availability.drive) {
+    resolved = "local";
+    downgraded = true;
+  }
+  if (resolved === "onedrive" && !availability.onedrive) {
+    resolved = "local";
+    downgraded = true;
+  }
+  if (resolved === "pcloud" && !availability.pcloud) {
+    resolved = "local";
+    downgraded = true;
+  }
+
+  saveDestination = resolved;
+  storage.setSettings({ saveDestination: resolved });
+  if (elements.saveDestinationSelect) {
+    elements.saveDestinationSelect.value = resolved;
+  }
+  updateSaveDestinationOptions(availability);
+  updateSaveDestinationWarning(availability);
+  if (showWarning && downgraded) {
+    elements.saveDestinationWarning?.classList.remove("hidden");
+  }
+}
+
 async function pullCloudData({ refreshUi = true } = {}) {
   if (!autoSyncEnabled) return;
   try {
-    await cloudSync.pull();
+    await cloudSync.pull(saveDestination);
     if (refreshUi) {
       renderLibrary();
       renderHistory();
@@ -1270,7 +1356,7 @@ async function toggleAutoSync(enabled) {
     // 30秒ごとに自動同期
     autoSyncInterval = setInterval(async () => {
       try {
-        await cloudSync.push();
+        await cloudSync.push(saveDestination);
         console.log('Auto-sync completed');
       } catch (error) {
         console.error('Auto-sync failed:', error);
@@ -1350,6 +1436,7 @@ function setupEvents() {
     if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
     if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
     if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+    applySaveDestination(saveDestination);
   });
   
   elements.menuLogout?.addEventListener('click', () => {
@@ -1429,6 +1516,10 @@ function setupEvents() {
   
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
     applyProgressDisplayMode(e.target.value);
+  });
+
+  elements.saveDestinationSelect?.addEventListener('change', (e) => {
+    applySaveDestination(e.target.value, { showWarning: true });
   });
   
   elements.autoSyncEnabled?.addEventListener('change', (e) => {
@@ -1606,6 +1697,7 @@ async function init() {
   applyReadingSettings(writingMode, pageDirection);
   applyLibraryViewMode(libraryViewMode);
   applyProgressDisplayMode(progressDisplayMode);
+  applySaveDestination(saveDestination);
   
   // 自動同期設定
   if (autoSyncEnabled) {

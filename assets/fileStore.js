@@ -1,5 +1,5 @@
-import { ensureDriveAccessToken } from "./driveAuth.js";
-import { ensureOneDriveAccessToken } from "./onedriveAuth.js";
+import { ensureDriveAccessToken, isTokenValid as isDriveTokenValid } from "./driveAuth.js";
+import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
 const DB_NAME = "epubReader-files";
 const STORE = "files";
@@ -32,11 +32,30 @@ function persistSettings(partialSettings) {
 
 function resolveSource(source) {
   const settings = getStoredSettings();
-  const selected = source || settings?.source || "local";
+  const selected = source || settings?.saveDestination || settings?.source || "local";
   if (["local", "drive", "onedrive", "pcloud"].includes(selected)) {
     return selected;
   }
   return "local";
+}
+
+function isPCloudConfigured(settings) {
+  if (!settings?.apiKey || settings.apiKey === "<必要ならキー>") {
+    return false;
+  }
+  return Boolean(settings?.endpoint);
+}
+
+function ensureCloudLoggedIn(source, settings) {
+  if (source === "drive" && !isDriveTokenValid(settings?.driveToken)) {
+    throw new Error("Google Drive にログインしてください。");
+  }
+  if (source === "onedrive" && !isOneDriveTokenValid(settings?.onedriveToken)) {
+    throw new Error("OneDrive にログインしてください。");
+  }
+  if (source === "pcloud" && !isPCloudConfigured(settings)) {
+    throw new Error("pCloud の認証情報を設定してください。");
+  }
 }
 
 function openDB() {
@@ -78,6 +97,7 @@ export async function saveFile(id, buffer, meta, source) {
     return saveLocalFile(id, buffer, meta);
   }
 
+  ensureCloudLoggedIn(resolvedSource, getStoredSettings());
   const handler = externalSourceHandlers[resolvedSource]?.save;
   if (!handler) {
     throw new Error(`${resolvedSource} は現在未対応のソースです`);
@@ -101,6 +121,7 @@ export async function loadFile(id, source) {
     return loadLocalFile(id);
   }
 
+  ensureCloudLoggedIn(resolvedSource, getStoredSettings());
   const handler = externalSourceHandlers[resolvedSource]?.load;
   if (!handler) {
     throw new Error(`${resolvedSource} は現在未対応のソースです`);
