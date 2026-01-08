@@ -1,10 +1,18 @@
 // Google OAuth 2.0 認証管理モジュール
 
+function resolveClientId() {
+  const configuredClientId = window.EPUB_READER_CONFIG?.googleClientId || '';
+  const htmlClientId = document.documentElement?.dataset?.clientId || '';
+  const bodyClientId = document.body?.dataset?.clientId || '';
+
+  return (configuredClientId || htmlClientId || bodyClientId).trim();
+}
+
 const AUTH_CONFIG = {
   // Google Cloud Console で取得するクライアントID
-  // 現在は開発用にlocalStorageから取得（設定画面で入力可能）
+  // ビルド時または静的設定ファイル/HTML属性から読み込む
   get clientId() {
-    return localStorage.getItem('googleClientId') || '';
+    return resolveClientId();
   },
   redirectUri: window.location.origin + '/login.html',
   scope: 'openid profile email https://www.googleapis.com/auth/drive.file',
@@ -27,23 +35,10 @@ export function initGoogleLogin() {
   const clientId = AUTH_CONFIG.clientId;
   
   if (!clientId) {
-    // クライアントIDが未設定の場合、プロンプトで入力
-    const inputClientId = prompt(
-      'Google Cloud Console で取得したクライアントIDを入力してください:\n\n' +
-      '1. https://console.cloud.google.com/ にアクセス\n' +
-      '2. プロジェクトを作成または選択\n' +
-      '3. 「APIとサービス」→「認証情報」\n' +
-      '4. 「OAuth 2.0 クライアント ID」を作成\n' +
-      '5. 承認済みのリダイレクトURIに以下を追加:\n' +
-      `   ${AUTH_CONFIG.redirectUri}\n\n` +
-      'クライアントIDを入力:'
+    throw new Error(
+      'Google ログインのクライアントIDが設定されていません。' +
+      'assets/config.js もしくは login.html の data-client-id を設定してください。'
     );
-    
-    if (!inputClientId) {
-      throw new Error('クライアントIDが必要です');
-    }
-    
-    localStorage.setItem('googleClientId', inputClientId.trim());
   }
   
   const params = new URLSearchParams({
