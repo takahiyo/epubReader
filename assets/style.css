@@ -186,6 +186,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+  justify-content: center;
 }
 
 .menu-logo {
@@ -205,6 +206,12 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.menu-title-image {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
 }
 
 .menu-nav {
@@ -248,6 +255,32 @@ body {
   text-align: center;
 }
 
+.menu-language {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1.5rem 1rem;
+}
+
+.lang-btn {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 1.25rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.lang-btn:hover {
+  border-color: var(--accent);
+}
+
+.lang-btn.active {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: var(--accent);
+}
+
 .menu-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--border);
@@ -257,6 +290,10 @@ body {
   font-size: 0.875rem;
   color: var(--muted);
   word-break: break-all;
+}
+
+.btn-icon {
+  margin-right: 0.5rem;
 }
 
 /* ========================================

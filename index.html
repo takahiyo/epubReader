@@ -70,11 +70,11 @@
       </div>
       
       <!-- 空の状態（本が未選択） -->
-      <div id="emptyState" class="empty-state">
-        <div class="empty-icon">📖</div>
-        <h2>本が選択されていません</h2>
-        <p>画面左端をクリックしてメニューを開き、本を選択してください</p>
-      </div>
+    <div id="emptyState" class="empty-state">
+      <div class="empty-icon">📖</div>
+      <h2 data-i18n="empty.title">本が選択されていません</h2>
+      <p data-i18n="empty.description">画面左端をクリックしてメニューを開き、本を選択してください</p>
+    </div>
     </div>
     
     <!-- ファイル選択（非表示） -->
@@ -86,39 +86,67 @@
     <!-- 左サイドメニュー -->
     <div id="leftMenu" class="left-menu">
       <div class="menu-header">
-        <div class="menu-logo">📖</div>
-        <h2>Book Reader</h2>
+        <img
+          id="menuTitleImage"
+          class="menu-title-image"
+          src="./assets/menu-title.svg"
+          alt="Book Reader EPUB / ZIP / RAR"
+        />
       </div>
       
       <nav class="menu-nav">
         <button id="menuOpen" class="menu-item">
           <span class="menu-icon">📂</span>
-          <span>開く</span>
+          <span data-i18n="menu.open">開く</span>
         </button>
         <button id="menuLibrary" class="menu-item">
           <span class="menu-icon">📚</span>
-          <span>ライブラリ</span>
+          <span data-i18n="menu.library">ライブラリ</span>
         </button>
         <button id="menuSearch" class="menu-item">
           <span class="menu-icon">🔍</span>
-          <span>テキスト検索</span>
+          <span data-i18n="menu.search">テキスト検索</span>
         </button>
         <button id="menuBookmarks" class="menu-item">
           <span class="menu-icon">🔖</span>
-          <span>しおり</span>
+          <span data-i18n="menu.bookmarks">しおり</span>
         </button>
         <button id="menuHistory" class="menu-item">
           <span class="menu-icon">📜</span>
-          <span>履歴</span>
+          <span data-i18n="menu.history">履歴</span>
         </button>
         <button id="menuSettings" class="menu-item">
           <span class="menu-icon">⚙️</span>
-          <span>設定</span>
+          <span data-i18n="menu.settings">設定</span>
         </button>
         <button id="menuLogout" class="menu-item">
           <span class="menu-icon">🚪</span>
-          <span>ログアウト</span>
+          <span data-i18n="menu.logout">ログアウト</span>
         </button>
+        <div class="menu-language">
+          <button
+            id="langJa"
+            class="lang-btn"
+            type="button"
+            data-lang="ja"
+            data-i18n="language.ja"
+            data-i18n-attr="aria-label"
+            aria-label="日本語"
+          >
+            🇯🇵
+          </button>
+          <button
+            id="langEn"
+            class="lang-btn"
+            type="button"
+            data-lang="en"
+            data-i18n="language.en"
+            data-i18n-attr="aria-label"
+            aria-label="English"
+          >
+            🇺🇸
+          </button>
+        </div>
       </nav>
       
       <div class="menu-footer">
@@ -157,13 +185,14 @@
     <div id="bookmarkMenu" class="bookmark-menu">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>しおり</h3>
+          <h3 data-i18n="bookmark.title">しおり</h3>
           <button id="closeBookmarkMenu" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
           <ul id="bookmarkList" class="bookmark-list"></ul>
           <button id="addBookmarkBtn" class="add-bookmark-btn">
-            ✚ 現在位置にしおりを追加
+            <span class="btn-icon">✚</span>
+            <span data-i18n="bookmark.add">現在位置にしおりを追加</span>
           </button>
         </div>
       </div>
@@ -174,7 +203,7 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-medium">
         <div class="modal-header">
-          <h3>テキスト検索</h3>
+          <h3 data-i18n="search.title">テキスト検索</h3>
           <button id="closeSearchModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
@@ -183,9 +212,14 @@
               type="text" 
               id="searchInput" 
               class="search-input" 
-              placeholder="検索キーワードを入力..." 
+              placeholder="検索キーワードを入力..."
+              data-i18n="search.placeholder"
+              data-i18n-attr="placeholder"
             />
-            <button id="searchBtn" class="search-btn">🔍 検索</button>
+            <button id="searchBtn" class="search-btn">
+              <span class="btn-icon">🔍</span>
+              <span data-i18n="search.button">検索</span>
+            </button>
           </div>
           <div id="searchResults" class="search-results"></div>
         </div>
@@ -197,16 +231,34 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-large">
         <div class="modal-header">
-          <h3>ライブラリ</h3>
+          <h3 data-i18n="library.title">ライブラリ</h3>
           <button id="closeFileModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
           <div id="librarySection" class="library-section">
             <div class="library-controls">
-              <h4>ライブラリ</h4>
+              <h4 data-i18n="library.section">ライブラリ</h4>
               <div class="library-view-toggle">
-                <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="グリッド表示">🔲</button>
-                <button id="libraryViewList" class="library-view-btn" type="button" aria-label="一覧表示">📄</button>
+                <button
+                  id="libraryViewGrid"
+                  class="library-view-btn"
+                  type="button"
+                  aria-label="グリッド表示"
+                  data-i18n="library.view.grid"
+                  data-i18n-attr="aria-label"
+                >
+                  🔲
+                </button>
+                <button
+                  id="libraryViewList"
+                  class="library-view-btn"
+                  type="button"
+                  aria-label="一覧表示"
+                  data-i18n="library.view.list"
+                  data-i18n-attr="aria-label"
+                >
+                  📄
+                </button>
               </div>
             </div>
             <div id="libraryGrid" class="library-grid"></div>
@@ -220,7 +272,7 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-medium">
         <div class="modal-header">
-          <h3>履歴</h3>
+          <h3 data-i18n="history.title">履歴</h3>
           <button id="closeHistoryModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
@@ -234,59 +286,59 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-large">
         <div class="modal-header">
-          <h3>設定</h3>
+          <h3 data-i18n="settings.title">設定</h3>
           <button id="closeSettingsModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
           <div class="settings-section">
-            <h4>表示設定</h4>
+            <h4 data-i18n="settings.section.display">表示設定</h4>
             <div class="setting-item">
-              <label for="themeSelect">テーマ</label>
+              <label for="themeSelect" data-i18n="settings.theme">テーマ</label>
               <select id="themeSelect">
-                <option value="dark">ダークモード</option>
-                <option value="light">ライトモード</option>
+                <option value="dark" data-i18n="settings.theme.dark">ダークモード</option>
+                <option value="light" data-i18n="settings.theme.light">ライトモード</option>
               </select>
             </div>
             <div class="setting-item">
-              <label for="writingMode">書字方向</label>
+              <label for="writingMode" data-i18n="settings.writingMode">書字方向</label>
               <select id="writingMode">
-                <option value="horizontal">横書き</option>
-                <option value="vertical">縦書き</option>
+                <option value="horizontal" data-i18n="settings.writingMode.horizontal">横書き</option>
+                <option value="vertical" data-i18n="settings.writingMode.vertical">縦書き</option>
               </select>
             </div>
             <div class="setting-item">
-              <label for="pageDirection">開き方向</label>
+              <label for="pageDirection" data-i18n="settings.pageDirection">開き方向</label>
               <select id="pageDirection">
-                <option value="ltr">左開き</option>
-                <option value="rtl">右開き</option>
+                <option value="ltr" data-i18n="settings.pageDirection.ltr">左開き</option>
+                <option value="rtl" data-i18n="settings.pageDirection.rtl">右開き</option>
               </select>
             </div>
             <div class="setting-item">
-              <label for="progressDisplayMode">進捗表示形式</label>
+              <label for="progressDisplayMode" data-i18n="settings.progressDisplayMode">進捗表示形式</label>
               <select id="progressDisplayMode">
-                <option value="page">ページ数</option>
-                <option value="percentage">パーセンテージ</option>
+                <option value="page" data-i18n="settings.progressDisplayMode.page">ページ数</option>
+                <option value="percentage" data-i18n="settings.progressDisplayMode.percentage">パーセンテージ</option>
               </select>
             </div>
           </div>
           
           <div class="settings-section">
-            <h4>クラウド同期</h4>
+            <h4 data-i18n="settings.section.sync">クラウド同期</h4>
             <div class="setting-item">
               <label>
                 <input type="checkbox" id="autoSyncEnabled" />
-                Google Drive 自動同期を有効にする
+                <span data-i18n="settings.autoSync">Google Drive 自動同期を有効にする</span>
               </label>
             </div>
-            <p class="setting-hint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
+            <p class="setting-hint" data-i18n="settings.autoSyncHint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
           </div>
           
           <div class="settings-section">
-            <h4>データ管理</h4>
+            <h4 data-i18n="settings.section.data">データ管理</h4>
             <div class="setting-actions">
-              <button id="exportDataBtn" class="secondary-btn">設定・データを書き出す</button>
+              <button id="exportDataBtn" class="secondary-btn" data-i18n="settings.exportData">設定・データを書き出す</button>
               <label for="importDataInput" class="secondary-btn">
-                設定・データを読み込む
+                <span data-i18n="settings.importData">設定・データを読み込む</span>
                 <input type="file" id="importDataInput" accept="application/json" style="display:none;" />
               </label>
             </div>

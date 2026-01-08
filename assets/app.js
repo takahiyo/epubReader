@@ -20,6 +20,7 @@ let currentBookInfo = null;
 let theme = settings.theme ?? "dark";
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
+let uiLanguage = settings.uiLanguage ?? "ja";
 let progressDisplayMode = settings.progressDisplayMode ?? "page";
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
@@ -106,6 +107,10 @@ const elements = {
   searchInput: document.getElementById("searchInput"),
   searchBtn: document.getElementById("searchBtn"),
   searchResults: document.getElementById("searchResults"),
+
+  // 言語切り替え
+  langJa: document.getElementById("langJa"),
+  langEn: document.getElementById("langEn"),
 };
 
 // ========================================
@@ -159,6 +164,126 @@ const ui = new UIController({
   },
 });
 
+// ========================================
+// 言語設定
+// ========================================
+
+const translations = {
+  ja: {
+    "empty.title": "本が選択されていません",
+    "empty.description": "画面左端をクリックしてメニューを開き、本を選択してください",
+    "menu.title": "ブックリーダー",
+    "menu.open": "開く",
+    "menu.library": "ライブラリ",
+    "menu.search": "テキスト検索",
+    "menu.bookmarks": "しおり",
+    "menu.history": "履歴",
+    "menu.settings": "設定",
+    "menu.logout": "ログアウト",
+    "language.ja": "日本語",
+    "language.en": "English",
+    "bookmark.title": "しおり",
+    "bookmark.add": "現在位置にしおりを追加",
+    "search.title": "テキスト検索",
+    "search.placeholder": "検索キーワードを入力...",
+    "search.button": "検索",
+    "library.title": "ライブラリ",
+    "library.section": "ライブラリ",
+    "library.view.grid": "グリッド表示",
+    "library.view.list": "一覧表示",
+    "history.title": "履歴",
+    "settings.title": "設定",
+    "settings.section.display": "表示設定",
+    "settings.theme": "テーマ",
+    "settings.theme.dark": "ダークモード",
+    "settings.theme.light": "ライトモード",
+    "settings.writingMode": "書字方向",
+    "settings.writingMode.horizontal": "横書き",
+    "settings.writingMode.vertical": "縦書き",
+    "settings.pageDirection": "開き方向",
+    "settings.pageDirection.ltr": "左開き",
+    "settings.pageDirection.rtl": "右開き",
+    "settings.progressDisplayMode": "進捗表示形式",
+    "settings.progressDisplayMode.page": "ページ数",
+    "settings.progressDisplayMode.percentage": "パーセンテージ",
+    "settings.section.sync": "クラウド同期",
+    "settings.autoSync": "Google Drive 自動同期を有効にする",
+    "settings.autoSyncHint": "※ しおり、履歴、進捗が30秒ごとに自動保存されます",
+    "settings.section.data": "データ管理",
+    "settings.exportData": "設定・データを書き出す",
+    "settings.importData": "設定・データを読み込む",
+  },
+  en: {
+    "empty.title": "No book selected",
+    "empty.description": "Click the left edge to open the menu and choose a book",
+    "menu.title": "Book Reader",
+    "menu.open": "Open",
+    "menu.library": "Library",
+    "menu.search": "Text Search",
+    "menu.bookmarks": "Bookmarks",
+    "menu.history": "History",
+    "menu.settings": "Settings",
+    "menu.logout": "Log out",
+    "language.ja": "Japanese",
+    "language.en": "English",
+    "bookmark.title": "Bookmarks",
+    "bookmark.add": "Add a bookmark at current position",
+    "search.title": "Text Search",
+    "search.placeholder": "Enter keywords...",
+    "search.button": "Search",
+    "library.title": "Library",
+    "library.section": "Library",
+    "library.view.grid": "Grid view",
+    "library.view.list": "List view",
+    "history.title": "History",
+    "settings.title": "Settings",
+    "settings.section.display": "Display",
+    "settings.theme": "Theme",
+    "settings.theme.dark": "Dark mode",
+    "settings.theme.light": "Light mode",
+    "settings.writingMode": "Writing mode",
+    "settings.writingMode.horizontal": "Horizontal",
+    "settings.writingMode.vertical": "Vertical",
+    "settings.pageDirection": "Page direction",
+    "settings.pageDirection.ltr": "Left-to-right",
+    "settings.pageDirection.rtl": "Right-to-left",
+    "settings.progressDisplayMode": "Progress display",
+    "settings.progressDisplayMode.page": "Pages",
+    "settings.progressDisplayMode.percentage": "Percentage",
+    "settings.section.sync": "Cloud sync",
+    "settings.autoSync": "Enable Google Drive auto sync",
+    "settings.autoSyncHint": "Bookmarks, history, and progress are saved every 30 seconds",
+    "settings.section.data": "Data management",
+    "settings.exportData": "Export settings/data",
+    "settings.importData": "Import settings/data",
+  },
+};
+
+function updateLanguageButtons() {
+  const isJa = uiLanguage === "ja";
+  elements.langJa?.classList.toggle("active", isJa);
+  elements.langEn?.classList.toggle("active", !isJa);
+}
+
+function applyLanguage(nextLanguage) {
+  uiLanguage = translations[nextLanguage] ? nextLanguage : "ja";
+  document.documentElement.lang = uiLanguage;
+  const strings = translations[uiLanguage];
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    const key = element.dataset.i18n;
+    const value = strings[key];
+    if (!value) return;
+    const attr = element.dataset.i18nAttr;
+    if (attr) {
+      element.setAttribute(attr, value);
+    } else {
+      element.textContent = value;
+    }
+  });
+  updateLanguageButtons();
+  storage.setSettings({ uiLanguage });
+}
+
 // 進捗バーのドラッグハンドラー
 const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector('.progress-track'),
@@ -168,6 +293,8 @@ const progressBarHandler = new ProgressBarHandler({
     seekToPercentage(percentage);
   },
 });
+
+applyLanguage(uiLanguage);
 
 // ========================================
 // ユーザー情報表示
@@ -1206,6 +1333,9 @@ function setupEvents() {
       logout();
     }
   });
+
+  elements.langJa?.addEventListener('click', () => applyLanguage("ja"));
+  elements.langEn?.addEventListener('click', () => applyLanguage("en"));
   
   // ファイル選択
   elements.fileInput?.addEventListener('change', (e) => {

@@ -21,6 +21,7 @@ const defaultData = {
     onedriveToken: null,
     writingMode: "horizontal",
     pageDirection: "ltr",
+    uiLanguage: "ja",
   },
 };
 
