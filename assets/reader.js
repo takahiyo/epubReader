@@ -313,10 +313,10 @@ export class ReaderController {
     await this.book.ready;
 
     const detectedReading = await this.detectReadingDirectionFromBook();
-    if (detectedReading?.writingMode && this.writingMode === "horizontal") {
+    if (detectedReading?.writingMode) {
       this.writingMode = detectedReading.writingMode;
     }
-    if (detectedReading?.pageDirection && this.pageDirection === "ltr") {
+    if (detectedReading?.pageDirection) {
       this.pageDirection = detectedReading.pageDirection;
     }
     
@@ -758,17 +758,22 @@ export class ReaderController {
     const isVertical = this.writingMode === "vertical";
     const writingMode = isVertical ? "vertical-rl" : "horizontal-tb";
     const textOrientation = isVertical ? "mixed" : "initial";
+    const contentDirection = "ltr";
     const contents = this.rendition.getContents();
     contents.forEach((content) => {
       const doc = content.document;
       if (!doc?.documentElement) return;
       doc.documentElement.style.setProperty("writing-mode", writingMode, "important");
       doc.documentElement.style.setProperty("text-orientation", textOrientation, "important");
-      doc.documentElement.style.setProperty("direction", this.pageDirection, "important");
+      doc.documentElement.style.setProperty("direction", contentDirection, "important");
+      doc.documentElement.style.setProperty("text-align", "start", "important");
+      doc.documentElement.style.setProperty("text-align-last", "start", "important");
       if (doc.body) {
         doc.body.style.setProperty("writing-mode", writingMode, "important");
         doc.body.style.setProperty("text-orientation", textOrientation, "important");
-        doc.body.style.setProperty("direction", this.pageDirection, "important");
+        doc.body.style.setProperty("direction", contentDirection, "important");
+        doc.body.style.setProperty("text-align", "start", "important");
+        doc.body.style.setProperty("text-align-last", "start", "important");
       }
     });
   }
@@ -776,11 +781,14 @@ export class ReaderController {
   updateEpubTheme() {
     if (this.type !== "epub" || !this.rendition) return;
     const isVertical = this.writingMode === "vertical";
+    const contentDirection = "ltr";
     this.rendition.themes.default({
       html: {
         writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
         textOrientation: isVertical ? "mixed" : "initial",
-        direction: this.pageDirection,
+        direction: contentDirection,
+        textAlign: "start",
+        textAlignLast: "start",
       },
       body: {
         background: this.theme === "dark" ? "#0b1020" : "#ffffff",
@@ -789,7 +797,9 @@ export class ReaderController {
         lineHeight: 1.6,
         writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
         textOrientation: isVertical ? "mixed" : "initial",
-        direction: this.pageDirection,
+        direction: contentDirection,
+        textAlign: "start",
+        textAlignLast: "start",
       },
       img: {
         maxWidth: "100%",
