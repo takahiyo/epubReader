@@ -294,61 +294,81 @@ export class ReaderController {
       clientHeight: this.viewer.clientHeight
     });
     
+    // book.readyを待つ
+    await this.book.ready;
+    console.log("Book ready");
+
+    // 目次を取得
+    let toc = [];
+    try {
+      await this.book.loaded.navigation;
+      toc = this.book.navigation?.toc ?? [];
+      console.log("TOC loaded:", toc.length, "items");
+    } catch (err) {
+      console.warn("目次の取得に失敗しました:", err);
+    }
+    this.toc = toc;
+
+    // 縦書き・横書きを自動判別
+    const detectedReading = await this.detectReadingDirectionFromBook();
+    if (detectedReading?.writingMode) {
+      this.writingMode = detectedReading.writingMode;
+      console.log("Detected writing mode:", this.writingMode);
+    }
+    if (detectedReading?.pageDirection) {
+      this.pageDirection = detectedReading.pageDirection;
+      console.log("Detected page direction:", this.pageDirection);
+    }
+
     // ビューアのサイズを明示的に設定
-    const viewerWidth = this.viewer.clientWidth || 800;
+    const viewerWidth = this.viewer.clientWidth || window.innerWidth;
+    const viewerHeight = this.viewer.clientHeight || window.innerHeight;
+    
+    console.log("Creating rendition with dimensions:", { width: viewerWidth, height: viewerHeight });
+    
+    // スクロール表示設定（縦書き・横書きに対応）
+    const isVertical = this.writingMode === "vertical";
     
     this.rendition = this.book.renderTo(this.viewer, {
-      width: viewerWidth,
-      flow: "scrolled-doc",
+      width: "100%",
+      height: "100%",
+      flow: isVertical ? "scrolled-doc" : "scrolled-doc",
       manager: "continuous",
       allowScriptedContent: true,
       spread: "none",
+      snap: false,
     });
     
     if (!this.rendition) {
       throw new Error("EPUBレンダラーの初期化に失敗しました。");
     }
     
-    console.log("Rendition created successfully:", this.rendition);
+    console.log("Rendition created successfully");
 
-    await this.book.ready;
-
-    let toc = [];
-    try {
-      await this.book.loaded.navigation;
-      toc = this.book.navigation?.toc ?? [];
-    } catch (err) {
-      console.warn("目次の取得に失敗しました:", err);
-    }
-    this.toc = toc;
-
-    const detectedReading = await this.detectReadingDirectionFromBook();
-    if (detectedReading?.writingMode) {
-      this.writingMode = detectedReading.writingMode;
-    }
-    if (detectedReading?.pageDirection) {
-      this.pageDirection = detectedReading.pageDirection;
-    }
-
+    // イベントハンドラを設定
     this.rendition.on("rendered", () => {
+      console.log("Content rendered");
       this.injectImageZoom();
       this.updateEpubTheme();
     });
 
     this.rendition.on("relocated", (location) => {
       const percentage = Math.round((location.start?.percentage ?? 0) * 100);
+      console.log("Relocated to:", percentage + "%");
       this.onProgress?.({
         location: location.start?.cfi,
         percentage,
       });
     });
 
+    // テーマを事前適用
+    this.updateEpubTheme();
+
     try {
-      console.log("Calling rendition.display with location:", startLocation);
-      this.applyReadingDirection(this.writingMode, this.pageDirection);
+      console.log("Displaying EPUB content at location:", startLocation);
       const displayed = await this.rendition.display(startLocation || undefined);
-      console.log("Display result:", displayed);
-      console.log("Rendition current location:", this.rendition.currentLocation());
+      console.log("Display completed:", displayed);
+      console.log("Current location:", this.rendition.currentLocation());
       
       console.log("Viewer visibility set, checking iframe...");
       setTimeout(() => {
@@ -811,35 +831,60 @@ export class ReaderController {
     if (this.type !== "epub" || !this.rendition) return;
     const isVertical = this.writingMode === "vertical";
     const contentDirection = "ltr";
+    
+    console.log("[updateEpubTheme] Applying theme:", { 
+      isVertical, 
+      theme: this.theme,
+      writingMode: this.writingMode 
+    });
+    
     this.rendition.themes.default({
       html: {
-        writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
-        textOrientation: isVertical ? "mixed" : "initial",
-        direction: contentDirection,
-        textAlign: "start",
-        textAlignLast: "start",
+        writingMode: isVertical ? "vertical-rl !important" : "horizontal-tb !important",
+        textOrientation: isVertical ? "mixed !important" : "initial !important",
+        direction: contentDirection + " !important",
+        textAlign: "start !important",
+        textAlignLast: "start !important",
+        width: "100% !important",
+        height: "auto !important",
+        overflow: isVertical ? "hidden" : "visible",
       },
       body: {
-        background: this.theme === "dark" ? "#0b1020" : "#ffffff",
-        color: this.theme === "dark" ? "#e5e7eb" : "#0f172a",
-        padding: "24px",
-        lineHeight: 1.6,
-        writingMode: isVertical ? "vertical-rl" : "horizontal-tb",
-        textOrientation: isVertical ? "mixed" : "initial",
-        direction: contentDirection,
-        textAlign: "start",
-        textAlignLast: "start",
+        background: this.theme === "dark" ? "#0b1020 !important" : "#ffffff !important",
+        color: this.theme === "dark" ? "#e5e7eb !important" : "#0f172a !important",
+        padding: isVertical ? "24px 48px !important" : "24px !important",
+        lineHeight: "1.8 !important",
+        writingMode: isVertical ? "vertical-rl !important" : "horizontal-tb !important",
+        textOrientation: isVertical ? "mixed !important" : "initial !important",
+        direction: contentDirection + " !important",
+        textAlign: "start !important",
+        textAlignLast: "start !important",
+        margin: "0 auto !important",
+        maxWidth: isVertical ? "none !important" : "800px !important",
+        width: isVertical ? "auto !important" : "100% !important",
+        minHeight: isVertical ? "100vh !important" : "auto !important",
       },
       img: {
-        maxWidth: "100%",
-        maxHeight: "60vh",
-        display: "block",
-        margin: "0 auto",
+        maxWidth: isVertical ? "60vh !important" : "100% !important",
+        maxHeight: isVertical ? "80vw !important" : "60vh !important",
+        display: "block !important",
+        margin: "1em auto !important",
+        objectFit: "contain !important",
+      },
+      p: {
+        margin: "1em 0 !important",
+      },
+      "h1, h2, h3, h4, h5, h6": {
+        margin: "1.5em 0 0.5em !important",
       },
     });
     this.rendition.themes.select("default");
-    this.applyWritingModeToContents();
-    this.injectImageZoom();
+    
+    // コンテンツに直接スタイルを適用
+    setTimeout(() => {
+      this.applyWritingModeToContents();
+      this.injectImageZoom();
+    }, 100);
   }
 
   async detectReadingDirectionFromBook() {
