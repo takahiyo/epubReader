@@ -166,7 +166,7 @@ reader.applyTheme(theme);
 const ui = new UIController({
   isBookOpen: () => currentBookId !== null,
   isPageNavigationEnabled: () => currentBookInfo?.type === "image",
-  isProgressBarAvailable: () => currentBookInfo?.type === "image",
+  isProgressBarAvailable: () => ["image", "epub"].includes(currentBookInfo?.type),
   onLeftMenu: (action) => {
     if (action === 'show') {
       updateActivity();
@@ -324,7 +324,7 @@ const progressBarHandler = new ProgressBarHandler({
   thumb: elements.progressThumb,
   onSeek: (percentage) => {
     // パーセンテージからページ位置を計算してジャンプ
-    if (currentBookInfo?.type === "image") {
+    if (["image", "epub"].includes(currentBookInfo?.type)) {
       seekToPercentage(percentage);
     }
   },
@@ -630,7 +630,7 @@ function updateReaderUiState() {
     elements.tocSection?.classList.add("hidden");
   }
 
-  if (!isImage) {
+  if (!isImage && !isEpub) {
     elements.progressBarPanel?.classList.add("hidden");
     elements.progressBarBackdrop?.classList.add("hidden");
   }
@@ -639,7 +639,7 @@ function updateReaderUiState() {
 function updateProgressBarDisplay() {
   if (!currentBookId) return;
 
-  if (currentBookInfo?.type !== "image") {
+  if (!["image", "epub"].includes(currentBookInfo?.type)) {
     elements.progressBarPanel?.classList.add("hidden");
     elements.progressBarBackdrop?.classList.add("hidden");
     return;
@@ -649,7 +649,17 @@ function updateProgressBarDisplay() {
   elements.progressBarBackdrop?.classList.remove("hidden");
 
   const progress = storage.getProgress(currentBookId);
-  const percentage = progress?.percentage || 0;
+  let percentage = progress?.percentage || 0;
+  const isEpub = currentBookInfo?.type === "epub";
+  const locations = reader.book?.locations ?? reader.rendition?.book?.locations;
+  const hasLocations = Boolean(locations?.total);
+
+  if (isEpub && hasLocations && progress?.location) {
+    const calculated = locations.percentageFromCfi?.(progress.location);
+    if (Number.isFinite(calculated)) {
+      percentage = Math.round(calculated * 100);
+    }
+  }
 
   // 進捗バーの更新
   if (elements.progressFill) {
@@ -662,8 +672,23 @@ function updateProgressBarDisplay() {
 
   // ページ数の更新（入力中でない場合のみ）
   if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
-    const totalPages = reader.imagePages?.length || 1;
-    const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
+    let totalPages = 1;
+    let currentPage = 1;
+
+    if (isEpub) {
+      if (hasLocations && progress?.location) {
+        totalPages = locations.total;
+        const locationIndex = locations.locationFromCfi?.(progress.location);
+        currentPage = Number.isFinite(locationIndex) ? Math.max(1, locationIndex + 1) : 1;
+      } else {
+        totalPages = 100;
+        currentPage = Math.max(1, Math.round(percentage));
+      }
+    } else {
+      totalPages = reader.imagePages?.length || 1;
+      currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
+    }
+
     elements.currentPageInput.value = currentPage;
 
     if (elements.totalPages) {
@@ -678,7 +703,7 @@ function renderBookmarkMarkers() {
   if (!elements.progressTrack) return;
   elements.progressTrack.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
   if (!currentBookId) return;
-  if (currentBookInfo?.type !== "image") return;
+  if (!["image", "epub"].includes(currentBookInfo?.type)) return;
 
   const bookmarks = storage.getBookmarks(currentBookId);
   if (!bookmarks.length) return;
@@ -692,9 +717,13 @@ function renderBookmarkMarkers() {
     
     // ツールチップは画像書籍のページ数で表示
     let tooltipText = bookmark.label ?? "しおり";
-    const totalPages = reader.imagePages?.length || 1;
-    const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
-    tooltipText += ` (${pageNumber}/${totalPages})`;
+    if (currentBookInfo?.type === "image") {
+      const totalPages = reader.imagePages?.length || 1;
+      const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
+      tooltipText += ` (${pageNumber}/${totalPages})`;
+    } else {
+      tooltipText += ` (${percentage}%)`;
+    }
     
     marker.title = tooltipText;
     marker.addEventListener("click", (event) => {
@@ -714,9 +743,9 @@ async function seekToPercentage(percentage) {
     console.log(`Seeking to ${percentage}%`);
     
     try {
-      // EPUB.jsのrendition.locationsを使用
-      if (reader.rendition && reader.rendition.book && reader.rendition.book.locations) {
-        const locations = reader.rendition.book.locations;
+      // EPUB.jsのlocationsを使用
+      const locations = reader.book?.locations ?? reader.rendition?.book?.locations;
+      if (locations) {
         
         // パーセンテージからlocationインデックスを計算
         const totalLocations = locations.total;
