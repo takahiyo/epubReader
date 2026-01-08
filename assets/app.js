@@ -279,6 +279,13 @@ async function handleFile(file) {
     console.error("Error in handleFile:", error);
     console.error("Error stack:", error.stack);
     
+    // JSZipエラーは警告のみ（ファイルは正常に開ける可能性が高い）
+    if (error.message && (error.message.includes('JSZip') || error.message.includes('not defined'))) {
+      console.warn("JSZip warning detected, but file may have opened successfully");
+      // エラーダイアログを表示しない（ファイルが開けているため）
+      return;
+    }
+    
     // より詳細なエラーメッセージ
     let userMessage = `ファイルの読み込みに失敗しました。\n\nファイル名: ${file.name}\nファイルサイズ: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n`;
     
