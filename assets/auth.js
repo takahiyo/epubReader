@@ -88,6 +88,12 @@ export function captureGoogleToken(credentialResponse) {
   saveIdToken(idToken);
   fetchUserInfo(idToken);
   requestBasicAccessToken();
+  setTimeout(() => {
+    const accessToken = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
+    if (!accessToken) {
+      window.location.href = 'index.html';
+    }
+  }, 800);
   return true;
 }
 
@@ -112,6 +118,24 @@ function saveIdToken(idToken) {
   const now = Date.now();
   localStorage.setItem(AUTH_STORAGE_KEYS.idToken, idToken);
   localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, now.toString());
+
+  const expiry = parseIdTokenExpiry(idToken);
+  if (expiry) {
+    localStorage.setItem(AUTH_STORAGE_KEYS.tokenExpiry, expiry.toString());
+  }
+}
+
+function parseIdTokenExpiry(idToken) {
+  if (!idToken) {
+    return 0;
+  }
+  try {
+    const payload = JSON.parse(atob(idToken.split('.')[1]));
+    return payload?.exp ? payload.exp * 1000 : 0;
+  } catch (error) {
+    console.error('Failed to parse id token expiry:', error);
+    return 0;
+  }
 }
 
 /**
@@ -216,8 +240,12 @@ export function checkAuthStatus() {
     };
   }
   
-  const token = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
-  const expiry = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.tokenExpiry) || '0', 10);
+  const accessToken = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
+  const idToken = localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
+  const token = accessToken || idToken;
+  const expiry = accessToken
+    ? parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.tokenExpiry) || '0', 10)
+    : parseIdTokenExpiry(idToken) || 0;
   const lastActivity = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.lastActivity) || '0', 10);
   const now = Date.now();
   
