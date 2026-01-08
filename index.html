@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Epub Reader</title>
     <link rel="stylesheet" href="./assets/style.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
@@ -334,6 +335,17 @@
               </select>
               <p id="saveDestinationWarning" class="setting-hint setting-warning hidden" data-i18n="settings.saveDestination.warning">
                 未ログインのクラウド先は選択できません
+              </p>
+            </div>
+            <div id="driveLinkSection" class="setting-item hidden">
+              <label data-i18n="settings.driveLink.label">Google Drive 連携</label>
+              <div class="setting-actions">
+                <button id="driveLinkButton" class="secondary-btn" type="button" data-i18n="settings.driveLink.button">
+                  Google Drive 連携
+                </button>
+              </div>
+              <p class="setting-hint" data-i18n="settings.driveLink.hint">
+                Google でログイン後に Drive へのアクセスを許可します
               </p>
             </div>
             <div class="setting-item">
