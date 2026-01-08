@@ -2,4 +2,4 @@
 window.EPUB_READER_CONFIG = window.EPUB_READER_CONFIG || {};
 window.EPUB_READER_CONFIG.googleClientId =
   window.EPUB_READER_CONFIG.googleClientId ||
-  'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+  '672654349618-in31imd7see6djk25vmtuipgu18ca9tg.apps.googleusercontent.com';
