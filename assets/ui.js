@@ -165,17 +165,25 @@ export class UIController {
     const minSwipeDistance = 40;
     const axisDifference = 20;
 
-    reader.addEventListener('touchstart', (e) => {
+    const handleTouchStart = (e) => {
+      if (e.currentTarget !== reader) {
+        e.stopPropagation();
+      }
       if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
         return;
       }
 
       const touch = e.touches[0];
       this.touchStartX = touch.clientX;
       this.touchStartY = touch.clientY;
-    }, { passive: true });
+    };
 
-    reader.addEventListener('touchend', (e) => {
+    const handleTouchEnd = (e) => {
+      if (e.currentTarget !== reader) {
+        e.stopPropagation();
+      }
       if (this.isAnyMenuVisible()) {
         this.touchStartX = null;
         this.touchStartY = null;
@@ -202,7 +210,27 @@ export class UIController {
 
       this.touchStartX = null;
       this.touchStartY = null;
-    }, { passive: true });
+    };
+
+    const handleTouchCancel = (e) => {
+      if (e.currentTarget !== reader) {
+        e.stopPropagation();
+      }
+      this.touchStartX = null;
+      this.touchStartY = null;
+    };
+
+    reader.addEventListener('touchstart', handleTouchStart, { passive: true });
+    reader.addEventListener('touchend', handleTouchEnd, { passive: true });
+    reader.addEventListener('touchcancel', handleTouchCancel, { passive: true });
+
+    const overlay = document.getElementById('clickOverlay');
+    const imageViewer = document.getElementById('imageViewer');
+    [overlay, imageViewer].filter(Boolean).forEach((target) => {
+      target.addEventListener('touchstart', handleTouchStart, { passive: true });
+      target.addEventListener('touchend', handleTouchEnd, { passive: true });
+      target.addEventListener('touchcancel', handleTouchCancel, { passive: true });
+    });
   }
 
   isAnyMenuVisible() {
