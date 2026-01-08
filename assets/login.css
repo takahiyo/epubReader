@@ -106,6 +106,13 @@ h1 {
 .login-buttons {
   display: grid;
   gap: 0.75rem;
+  justify-items: center;
+}
+
+.google-signin-button {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .google-login-btn {

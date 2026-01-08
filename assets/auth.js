@@ -15,18 +15,24 @@ const AUTH_CONFIG = {
     return resolveClientId();
   },
   redirectUri: window.location.origin + '/login.html',
-  scope: 'openid profile email https://www.googleapis.com/auth/drive.file',
+  basicScope: 'openid profile email',
+  driveScope: 'https://www.googleapis.com/auth/drive.file',
   tokenExpiry: 60 * 60 * 1000, // 1時間（ミリ秒）
 };
 
 const AUTH_STORAGE_KEYS = {
   accessToken: 'epub_reader_google_token',
+  idToken: 'epub_reader_google_id_token',
   tokenExpiry: 'epub_reader_token_expiry',
   userId: 'epub_reader_user_id',
   userEmail: 'epub_reader_user_email',
   userName: 'epub_reader_user_name',
   lastActivity: 'epub_reader_last_activity',
 };
+
+let googleTokenClient = null;
+let googleLoginInitialized = false;
+let googleButtonRendered = false;
 
 /**
  * Google OAuth認証を開始
@@ -41,65 +47,77 @@ export function initGoogleLogin() {
     );
   }
   
-  const params = new URLSearchParams({
-    client_id: AUTH_CONFIG.clientId,
-    redirect_uri: AUTH_CONFIG.redirectUri,
-    response_type: 'token id_token',
-    scope: AUTH_CONFIG.scope,
-    nonce: generateNonce(),
-  });
-  
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  window.location.href = authUrl;
+  if (!window.google?.accounts?.id || !window.google?.accounts?.oauth2) {
+    throw new Error('Google Identity Services が読み込まれていません。');
+  }
+
+  if (!googleLoginInitialized) {
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: captureGoogleToken,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    googleLoginInitialized = true;
+  }
+
+  const buttonContainer = document.getElementById('googleSignInButton');
+  if (buttonContainer && !googleButtonRendered) {
+    window.google.accounts.id.renderButton(buttonContainer, {
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+      width: 260,
+    });
+    googleButtonRendered = true;
+  }
+
+  window.google.accounts.id.prompt();
 }
 
 /**
- * OAuth リダイレクト後のトークン取得
+ * Google Identity Services からのトークン取得
  */
-export function captureGoogleToken() {
-  const hash = window.location.hash.substring(1);
-  const params = new URLSearchParams(hash);
-  
-  const accessToken = params.get('access_token');
-  const idToken = params.get('id_token');
-  
-  if (accessToken && idToken) {
-    // トークンを保存
-    saveAuthToken(accessToken);
-    
-    // ユーザー情報を取得
-    fetchUserInfo(accessToken, idToken);
-    
-    // ハッシュをクリア
-    window.history.replaceState(null, null, ' ');
-    
-    // メインページにリダイレクト
-    setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 500);
-    
-    return true;
+export function captureGoogleToken(credentialResponse) {
+  const idToken = credentialResponse?.credential;
+  if (!idToken) {
+    return false;
   }
-  
-  return false;
+
+  saveIdToken(idToken);
+  fetchUserInfo(idToken);
+  requestBasicAccessToken();
+  return true;
 }
 
 /**
  * 認証トークンを保存
  */
-function saveAuthToken(token) {
+function saveAuthToken(token, expiresInSeconds) {
   const now = Date.now();
-  const expiry = now + AUTH_CONFIG.tokenExpiry;
-  
+  const expiry = expiresInSeconds
+    ? now + expiresInSeconds * 1000
+    : now + AUTH_CONFIG.tokenExpiry;
+
   localStorage.setItem(AUTH_STORAGE_KEYS.accessToken, token);
   localStorage.setItem(AUTH_STORAGE_KEYS.tokenExpiry, expiry.toString());
   localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, now.toString());
 }
 
 /**
+ * IDトークンを保存
+ */
+function saveIdToken(idToken) {
+  const now = Date.now();
+  localStorage.setItem(AUTH_STORAGE_KEYS.idToken, idToken);
+  localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, now.toString());
+}
+
+/**
  * ユーザー情報を取得して保存
  */
-async function fetchUserInfo(accessToken, idToken) {
+async function fetchUserInfo(idToken) {
   try {
     // ID トークンをデコード（簡易版）
     const payload = JSON.parse(atob(idToken.split('.')[1]));
@@ -112,6 +130,32 @@ async function fetchUserInfo(accessToken, idToken) {
   } catch (error) {
     console.error('Failed to parse user info:', error);
   }
+}
+
+function requestBasicAccessToken() {
+  if (!window.google?.accounts?.oauth2) {
+    console.error('Google OAuth2 client が利用できません。');
+    return;
+  }
+
+  if (!googleTokenClient) {
+    googleTokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: AUTH_CONFIG.clientId,
+      scope: AUTH_CONFIG.basicScope,
+      callback: (tokenResponse) => {
+        if (!tokenResponse?.access_token) {
+          console.error('アクセストークンの取得に失敗しました。', tokenResponse);
+          return;
+        }
+        saveAuthToken(tokenResponse.access_token, tokenResponse.expires_in);
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 500);
+      },
+    });
+  }
+
+  googleTokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 /**
@@ -215,11 +259,4 @@ export function getCurrentUserId() {
 export function getAccessToken() {
   const authStatus = checkAuthStatus();
   return authStatus.authenticated ? authStatus.token : null;
-}
-
-// ページ読み込み時にトークンをキャプチャ（login.html用）
-if (window.location.pathname.includes('login.html')) {
-  window.addEventListener('load', () => {
-    captureGoogleToken();
-  });
 }
