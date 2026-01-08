@@ -105,7 +105,10 @@ export class StorageService {
   }
 
   setProgress(bookId, progress) {
-    this.data.progress[bookId] = progress;
+    this.data.progress[bookId] = {
+      ...progress,
+      updatedAt: Date.now(),
+    };
     this.save();
   }
 
@@ -171,5 +174,80 @@ export class StorageService {
     } catch (error) {
       throw new Error("JSON の読み込みに失敗しました");
     }
+  }
+
+  mergeData(incoming) {
+    const parsed = typeof incoming === "string" ? JSON.parse(incoming) : incoming;
+    const normalized = {
+      ...defaultData,
+      ...parsed,
+      library: parsed?.library ?? {},
+      bookmarks: parsed?.bookmarks ?? {},
+      progress: parsed?.progress ?? {},
+      history: parsed?.history ?? [],
+    };
+
+    const mergedLibrary = { ...this.data.library };
+    Object.entries(normalized.library).forEach(([id, book]) => {
+      const existing = mergedLibrary[id];
+      const incomingUpdatedAt = book?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedLibrary[id] = { ...existing, ...book };
+      } else {
+        mergedLibrary[id] = { ...book, ...existing };
+      }
+    });
+
+    const mergedBookmarks = { ...this.data.bookmarks };
+    Object.entries(normalized.bookmarks).forEach(([bookId, incomingList]) => {
+      const currentList = mergedBookmarks[bookId] ?? [];
+      const map = new Map();
+      [...incomingList, ...currentList].forEach((bookmark) => {
+        if (!bookmark?.createdAt) return;
+        const existing = map.get(bookmark.createdAt);
+        if (!existing || (!existing.label && bookmark.label)) {
+          map.set(bookmark.createdAt, bookmark);
+        }
+      });
+      const mergedList = Array.from(map.values())
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+        .slice(0, 50);
+      mergedBookmarks[bookId] = mergedList;
+    });
+
+    const mergedHistoryMap = new Map();
+    [...(this.data.history ?? []), ...(normalized.history ?? [])].forEach((entry) => {
+      if (!entry?.bookId) return;
+      const existing = mergedHistoryMap.get(entry.bookId);
+      if (!existing || (entry.openedAt ?? 0) > (existing.openedAt ?? 0)) {
+        mergedHistoryMap.set(entry.bookId, entry);
+      }
+    });
+    const mergedHistory = Array.from(mergedHistoryMap.values()).sort(
+      (a, b) => (b.openedAt ?? 0) - (a.openedAt ?? 0),
+    );
+
+    const mergedProgress = { ...this.data.progress };
+    Object.entries(normalized.progress).forEach(([bookId, incomingProgress]) => {
+      const existing = mergedProgress[bookId];
+      const incomingUpdatedAt = incomingProgress?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedProgress[bookId] = { ...existing, ...incomingProgress };
+      } else {
+        mergedProgress[bookId] = { ...incomingProgress, ...existing };
+      }
+    });
+
+    this.data = {
+      ...this.data,
+      library: mergedLibrary,
+      bookmarks: mergedBookmarks,
+      progress: mergedProgress,
+      history: mergedHistory,
+      settings: this.data.settings,
+    };
+    this.save();
   }
 }
