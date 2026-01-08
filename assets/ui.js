@@ -28,8 +28,11 @@ export class UIController {
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
     this.bookmarkMenuVisible = false;
+    this.touchStartX = null;
+    this.touchStartY = null;
     
     this.setupClickHandler();
+    this.setupTouchHandlers();
     this.setupResizeHandler();
   }
   
@@ -148,6 +151,90 @@ export class UIController {
       document.addEventListener('click', clickHandler);
       console.log('Click handler attached to document');
     }
+  }
+
+  /**
+   * タッチスワイプハンドラーをセットアップ
+   */
+  setupTouchHandlers() {
+    const reader = document.getElementById('fullscreenReader');
+    if (!reader) {
+      return;
+    }
+
+    const minSwipeDistance = 40;
+    const axisDifference = 20;
+
+    const handleTouchStart = (e) => {
+      if (e.currentTarget !== reader) {
+        e.stopPropagation();
+      }
+      if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      const touch = e.touches[0];
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+    };
+
+    const handleTouchEnd = (e) => {
+      if (e.currentTarget !== reader) {
+        e.stopPropagation();
+      }
+      if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      if (this.touchStartX === null || this.touchStartY === null) {
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - this.touchStartX;
+      const deltaY = touch.clientY - this.touchStartY;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+
+      if (this.isBookOpen() && absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+        if (deltaX > 0) {
+          this.onPagePrev?.();
+        } else {
+          this.onPageNext?.();
+        }
+      }
+
+      this.touchStartX = null;
+      this.touchStartY = null;
+    };
+
+    const handleTouchCancel = (e) => {
+      if (e.currentTarget !== reader) {
+        e.stopPropagation();
+      }
+      this.touchStartX = null;
+      this.touchStartY = null;
+    };
+
+    reader.addEventListener('touchstart', handleTouchStart, { passive: true });
+    reader.addEventListener('touchend', handleTouchEnd, { passive: true });
+    reader.addEventListener('touchcancel', handleTouchCancel, { passive: true });
+
+    const overlay = document.getElementById('clickOverlay');
+    const imageViewer = document.getElementById('imageViewer');
+    [overlay, imageViewer].filter(Boolean).forEach((target) => {
+      target.addEventListener('touchstart', handleTouchStart, { passive: true });
+      target.addEventListener('touchend', handleTouchEnd, { passive: true });
+      target.addEventListener('touchcancel', handleTouchCancel, { passive: true });
+    });
+  }
+
+  isAnyMenuVisible() {
+    return this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible;
   }
   
   /**

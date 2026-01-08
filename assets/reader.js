@@ -311,6 +311,14 @@ export class ReaderController {
     console.log("Rendition created successfully:", this.rendition);
 
     await this.book.ready;
+
+    const detectedReading = await this.detectReadingDirectionFromBook();
+    if (detectedReading?.writingMode && this.writingMode === "horizontal") {
+      this.writingMode = detectedReading.writingMode;
+    }
+    if (detectedReading?.pageDirection && this.pageDirection === "ltr") {
+      this.pageDirection = detectedReading.pageDirection;
+    }
     
     // 目次の生成
     try {
@@ -790,6 +798,46 @@ export class ReaderController {
     this.rendition.themes.select("default");
     this.applyWritingModeToContents();
     this.injectImageZoom();
+  }
+
+  async detectReadingDirectionFromBook() {
+    if (!this.book?.spine) return null;
+    const metadataDirection = this.book.package?.metadata?.direction;
+    const spineDirection = this.book.spine?.direction;
+    const pageDirection = metadataDirection || spineDirection || null;
+    let writingMode = null;
+
+    const spineItem = this.book.spine.get(0);
+    if (spineItem) {
+      try {
+        await spineItem.load(this.book.load.bind(this.book));
+        const doc = spineItem.document || spineItem.contents?.document;
+        if (doc) {
+          const inlineStyles = [
+            doc.documentElement?.getAttribute("style"),
+            doc.body?.getAttribute("style"),
+          ]
+            .filter(Boolean)
+            .join(" ");
+          const styleText = Array.from(doc.querySelectorAll("style"))
+            .map((style) => style.textContent || "")
+            .join(" ");
+          const combined = `${inlineStyles} ${styleText}`.toLowerCase();
+          if (combined.includes("writing-mode: vertical")) {
+            writingMode = "vertical";
+          } else if (combined.includes("writing-mode: horizontal")) {
+            writingMode = "horizontal";
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to detect writing mode from spine:", error);
+      }
+    }
+
+    return {
+      writingMode,
+      pageDirection,
+    };
   }
 
   uint8ToBase64(uint8) {
