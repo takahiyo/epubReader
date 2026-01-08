@@ -555,6 +555,22 @@ function handleBookReady(payload) {
   renderLibrary();
   renderToc(currentToc);
   
+  // EPUBスクロールモードのクラスを設定（縦書き・横書き対応）
+  if (currentBookInfo.type === 'epub' && elements.fullscreenReader) {
+    const isVertical = reader.writingMode === "vertical";
+    console.log('[handleBookReady] Setting scroll mode class:', isVertical ? 'horizontal-scroll' : 'vertical-scroll');
+    
+    // 既存のスクロールクラスを削除
+    elements.fullscreenReader.classList.remove('epub-scroll', 'epub-scroll-horizontal');
+    
+    // 縦書きは横スクロール、横書きは縦スクロール
+    if (isVertical) {
+      elements.fullscreenReader.classList.add('epub-scroll-horizontal');
+    } else {
+      elements.fullscreenReader.classList.add('epub-scroll');
+    }
+  }
+  
   // locations生成完了時に進捗バーを更新
   if (currentBookInfo.type === 'epub') {
     console.log('[handleBookReady] Setting up locations listener for progress updates');
