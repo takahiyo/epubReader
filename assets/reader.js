@@ -802,6 +802,9 @@ export class ReaderController {
       },
       img: {
         maxWidth: "100%",
+        maxHeight: "60vh",
+        display: "block",
+        margin: "0 auto",
       },
     });
     this.rendition.themes.select("default");
