@@ -1,3 +1,5 @@
+import { EpubPaginator } from "../src/reader/epubPaginator.js";
+
 export class ReaderController {
   constructor({
     viewerId,
@@ -26,6 +28,13 @@ export class ReaderController {
     this.theme = "dark";
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
+    this.paginator = null;
+    this.pagination = null;
+    this.paginationPromise = null;
+    this.currentPageIndex = 0;
+    this.usingPaginator = false;
+    this.resourceUrlCache = new Map();
+    this.pageContainer = null;
     this.imageZoomBound = false;
     this.toc = [];
   }
@@ -54,6 +63,17 @@ export class ReaderController {
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
     this.toc = [];
+    if (this.paginator?.destroy) {
+      this.paginator.destroy();
+    }
+    this.paginator = null;
+    this.pagination = null;
+    this.paginationPromise = null;
+    this.currentPageIndex = 0;
+    this.usingPaginator = false;
+    this.resourceUrlCache.forEach((url) => URL.revokeObjectURL(url));
+    this.resourceUrlCache.clear();
+    this.pageContainer = null;
     if (this.viewer) {
       this.viewer.innerHTML = "";
     }
@@ -185,6 +205,7 @@ export class ReaderController {
   async openEpub(file, startLocation) {
     this.resetReaderState();
     this.type = "epub";
+    this.usingPaginator = true;
     
     // JSZipを先にロード
     const JSZipLib = await this.ensureJSZip();
@@ -333,97 +354,184 @@ export class ReaderController {
       console.log("Detected page direction:", this.pageDirection);
     }
 
-    const isVertical = this.writingMode === "vertical";
-    
-    // ビューアのサイズを明示的に設定
-    const viewerWidth = this.viewer.clientWidth || window.innerWidth;
-    const viewerHeight = this.viewer.clientHeight || window.innerHeight;
-    
-    console.log("Creating rendition with dimensions:", { width: viewerWidth, height: viewerHeight });
-    
-    // 横書きは全文を連続表示、縦書きはページ送りを維持
-    this.rendition = this.book.renderTo(this.viewer, {
-      width: "100%",
-      height: "100%",
-      flow: isVertical ? "paginated" : "scrolled-doc",
-      manager: isVertical ? "default" : "continuous",
-      allowScriptedContent: true,
-      spread: "none",
-      snap: false,
-    });
-    
-    if (!this.rendition) {
-      throw new Error("EPUBレンダラーの初期化に失敗しました。");
+    if (this.viewer) {
+      this.viewer.style.overflow = "hidden";
     }
-    
-    console.log("Rendition created successfully");
-
-    // イベントハンドラを設定
-    this.rendition.on("rendered", () => {
-      console.log("Content rendered");
-      this.injectImageZoom();
-      this.updateEpubTheme();
-    });
-
-    this.rendition.on("relocated", (location) => {
-      const percentage = Math.round((location.start?.percentage ?? 0) * 100);
-      console.log("Relocated to:", percentage + "%");
-      this.onProgress?.({
-        location: location.start?.cfi,
-        percentage,
-      });
-    });
 
     // テーマを事前適用
     this.updateEpubTheme();
 
     try {
-      console.log("Displaying EPUB content at location:", startLocation);
-      const displayed = await this.rendition.display(startLocation || undefined);
-      console.log("Display completed:", displayed);
-      console.log("Current location:", this.rendition.currentLocation());
-      
-      console.log("Viewer visibility set, checking iframe...");
-      setTimeout(() => {
-        const iframe = this.viewer.querySelector("iframe");
-        console.log("Iframe element:", iframe);
-        if (iframe) {
-          console.log("Iframe dimensions:", {
-            width: iframe.offsetWidth,
-            height: iframe.offsetHeight,
-            src: iframe.src
-          });
-        }
-      }, 100);
-      
+      const pagination = await this.buildPagination();
+      if (!pagination?.pages?.length) {
+        throw new Error("EPUBのページ分割に失敗しました。");
+      }
+
+      const startPage = this.resolveStartPageIndex(startLocation, pagination.pages.length);
+      this.renderEpubPage(startPage, pagination);
+
       // 初回のonReadyコールバック（メタデータと目次）
       this.onReady?.({
         metadata: this.book.package?.metadata,
         toc: this.toc,
       });
-      
-      // locations生成（進捗計算に必要）- バックグラウンドで実行
-      console.log("Generating locations for progress tracking...");
+
+      // locations生成（検索の補助用）- バックグラウンドで実行
+      console.log("Generating locations for search support...");
       this.book.locations.generate(1600).then(() => {
         console.log("Locations generated successfully:", this.book.locations.total);
-        // locations生成完了後に進捗を再計算
-        const currentLocation = this.rendition.currentLocation();
-        if (currentLocation?.start) {
-          const percentage = Math.round((currentLocation.start.percentage ?? 0) * 100);
-          this.onProgress?.({
-            location: currentLocation.start.cfi,
-            percentage,
-          });
-        }
       }).catch((err) => {
         console.warn("目次の生成に失敗しました:", err);
       });
-      
+
       console.log("EPUB opened successfully");
     } catch (err) {
       console.error("EPUBの表示に失敗しました:", err);
       console.error("Error stack:", err.stack);
       throw new Error(`EPUBの表示に失敗しました: ${err.message}`);
+    }
+  }
+
+  resolveStartPageIndex(startLocation, totalPages) {
+    if (typeof startLocation === "number") {
+      return Math.max(0, Math.min(startLocation, totalPages - 1));
+    }
+    if (startLocation && typeof startLocation === "object") {
+      const explicitLocation = startLocation.location;
+      if (typeof explicitLocation === "number") {
+        return Math.max(0, Math.min(explicitLocation, totalPages - 1));
+      }
+      const percentage = startLocation.percentage;
+      if (typeof percentage === "number") {
+        const index = Math.round((percentage / 100) * totalPages) - 1;
+        return Math.max(0, Math.min(index, totalPages - 1));
+      }
+    }
+    return 0;
+  }
+
+  renderEpubPage(index, pagination = this.pagination) {
+    if (!pagination?.pages?.length || !this.viewer) return;
+    const clampedIndex = Math.max(0, Math.min(index, pagination.pages.length - 1));
+    const page = pagination.pages[clampedIndex];
+    if (!page) return;
+    this.currentPageIndex = clampedIndex;
+    this.viewer.innerHTML = `<div class="epub-page"></div>`;
+    this.pageContainer = this.viewer.querySelector(".epub-page");
+    if (!this.pageContainer) return;
+    this.pageContainer.innerHTML = page.htmlFragment;
+    this.pageContainer.querySelectorAll("img").forEach((img) => {
+      img.style.maxWidth = "100%";
+      img.style.maxHeight = "70vh";
+      img.style.display = "block";
+      img.style.margin = "1em auto";
+      img.style.objectFit = "contain";
+    });
+    this.updateEpubTheme();
+    this.injectImageZoom();
+    this.updateProgressFromPagination(pagination.pages.length);
+  }
+
+  updateProgressFromPagination(totalPages) {
+    if (!totalPages) return;
+    const percentage = Math.round(((this.currentPageIndex + 1) / totalPages) * 100);
+    this.onProgress?.({
+      location: this.currentPageIndex,
+      percentage,
+    });
+  }
+
+  async buildPagination() {
+    if (this.type !== "epub" || !this.book?.spine) {
+      return null;
+    }
+    if (this.pagination) {
+      return this.pagination;
+    }
+    if (this.paginationPromise) {
+      return this.paginationPromise;
+    }
+
+    const viewportWidth = this.viewer?.clientWidth || window.innerWidth;
+    const viewportHeight = this.viewer?.clientHeight || window.innerHeight;
+    const baseFontSize = Number.parseFloat(
+      window.getComputedStyle(this.viewer || document.body)?.fontSize
+    ) || 16;
+    const writingMode = this.writingMode === "vertical" ? "vertical-rl" : "horizontal-tb";
+
+    this.paginationPromise = (async () => {
+      const spineItems = [];
+
+      for (let i = 0; i < this.book.spine.length; i += 1) {
+        const item = this.book.spine.get(i);
+        if (!item) continue;
+        try {
+          await item.load(this.book.load.bind(this.book));
+          const doc = item.document || item.contents?.document;
+          const htmlString = doc?.body?.innerHTML ?? "";
+          if (htmlString.trim()) {
+            spineItems.push({
+              id: item.idref || item.id || `spine-${i}`,
+              href: item.href,
+              htmlString,
+            });
+          }
+        } catch (error) {
+          console.warn("Failed to load spine item for pagination:", error);
+        } finally {
+          if (item.unload) {
+            item.unload();
+          }
+        }
+      }
+
+      if (!spineItems.length) {
+        this.pagination = null;
+        return null;
+      }
+
+      if (this.paginator?.destroy) {
+        this.paginator.destroy();
+      }
+      const resourceLoader = async (url) => {
+        if (!url) return url;
+        if (/^(https?:|data:|blob:)/i.test(url)) {
+          return url;
+        }
+        if (this.resourceUrlCache.has(url)) {
+          return this.resourceUrlCache.get(url);
+        }
+        try {
+          const loaded = await this.book.load(url);
+          if (!loaded) return url;
+          if (typeof loaded === "string") return loaded;
+          const blob = loaded instanceof Blob ? loaded : new Blob([loaded]);
+          const objectUrl = URL.createObjectURL(blob);
+          this.resourceUrlCache.set(url, objectUrl);
+          return objectUrl;
+        } catch (error) {
+          console.warn("Failed to resolve resource:", url, error);
+          return url;
+        }
+      };
+
+      this.paginator = new EpubPaginator(spineItems, resourceLoader, {
+        viewportWidth,
+        viewportHeight,
+        fontSize: baseFontSize,
+        lineHeight: 1.8,
+        writingMode,
+        padding: 24,
+      });
+
+      this.pagination = await this.paginator.paginate();
+      return this.pagination;
+    })();
+
+    try {
+      return await this.paginationPromise;
+    } finally {
+      this.paginationPromise = null;
     }
   }
 
@@ -710,7 +818,8 @@ export class ReaderController {
 
   next() {
     if (this.type === "epub") {
-      this.rendition?.next();
+      if (!this.pagination?.pages?.length) return;
+      this.renderEpubPage(this.currentPageIndex + 1);
     } else if (this.type === "image") {
       if (this.imageIndex < this.imagePages.length - 1) {
         this.imageIndex += 1;
@@ -721,7 +830,8 @@ export class ReaderController {
 
   prev() {
     if (this.type === "epub") {
-      this.rendition?.prev();
+      if (!this.pagination?.pages?.length) return;
+      this.renderEpubPage(this.currentPageIndex - 1);
     } else if (this.type === "image") {
       if (this.imageIndex > 0) {
         this.imageIndex -= 1;
@@ -732,12 +842,12 @@ export class ReaderController {
 
   addBookmark(label = "しおり") {
     if (this.type === "epub") {
-      const location = this.rendition?.currentLocation();
-      if (!location) return null;
+      if (!this.pagination?.pages?.length) return null;
+      const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
       return {
         label,
-        location: location.start?.cfi,
-        percentage: Math.round((location.start?.percentage ?? 0) * 100),
+        location: this.currentPageIndex,
+        percentage,
         createdAt: Date.now(),
         type: "epub",
       };
@@ -754,8 +864,15 @@ export class ReaderController {
 
   async goTo(bookmark) {
     if (!bookmark) return;
-    if (bookmark.type === "epub" && this.rendition) {
-      await this.rendition.display(bookmark.location);
+    if (bookmark.type === "epub") {
+      if (typeof bookmark.location === "number" && this.pagination?.pages?.length) {
+        this.renderEpubPage(bookmark.location);
+        return;
+      }
+      if (typeof bookmark.percentage === "number" && this.pagination?.pages?.length) {
+        const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
+        this.renderEpubPage(index);
+      }
     } else if (bookmark.type === "image") {
       this.imageIndex = Math.min(bookmark.location, this.imagePages.length - 1);
       this.renderImagePage();
@@ -769,83 +886,39 @@ export class ReaderController {
   }
 
   async applyReadingDirection(writingMode, pageDirection) {
-    this.writingMode = "horizontal";
     if (pageDirection) {
       this.pageDirection = pageDirection;
     }
     
-    if (this.type !== "epub" || !this.rendition) {
+    if (this.type !== "epub") {
       return;
     }
     
-    // 現在位置を保存
-    const current = this.rendition.currentLocation();
-    const currentCfi = current?.start?.cfi;
-    
-    const isVertical = this.writingMode === "vertical";
-
-    // テーマとスタイルを更新（表示前に適用）
-    this.updateEpubTheme();
-
-    if (this.rendition.flow) {
-      this.rendition.flow("scrolled");
+    if (writingMode) {
+      this.writingMode = writingMode;
     }
-    
-    // ページ送り方向を設定
-    if (this.rendition.direction) {
-      this.rendition.direction(this.pageDirection);
-    }
-    
-    // コンテンツにスタイルを適用
-    this.applyWritingModeToContents();
-    
-    // レンダリング完了を待ってから位置を復元
-    if (currentCfi) {
-      try {
-        // 一度レンダリングイベントを待つ
-        await new Promise((resolve) => {
-          const handler = () => {
-            this.rendition.off('rendered', handler);
-            resolve();
-          };
-          this.rendition.once('rendered', handler);
-          
-          // 位置を復元
-          this.rendition.display(currentCfi);
-        });
-      } catch (error) {
-        console.warn("Failed to restore position after direction change:", error);
-      }
-    }
+    this.pagination = null;
+    await this.buildPagination();
+    this.renderEpubPage(this.currentPageIndex);
   }
 
   applyWritingModeToContents() {
-    if (this.type !== "epub" || !this.rendition) return;
+    if (this.type !== "epub") return;
     const isVertical = this.writingMode === "vertical";
     const writingMode = isVertical ? "vertical-rl" : "horizontal-tb";
     const textOrientation = isVertical ? "mixed" : "initial";
     const contentDirection = "ltr";
-    const contents = this.rendition.getContents();
-    contents.forEach((content) => {
-      const doc = content.document;
-      if (!doc?.documentElement) return;
-      doc.documentElement.style.setProperty("writing-mode", writingMode, "important");
-      doc.documentElement.style.setProperty("text-orientation", textOrientation, "important");
-      doc.documentElement.style.setProperty("direction", contentDirection, "important");
-      doc.documentElement.style.setProperty("text-align", "start", "important");
-      doc.documentElement.style.setProperty("text-align-last", "start", "important");
-      if (doc.body) {
-        doc.body.style.setProperty("writing-mode", writingMode, "important");
-        doc.body.style.setProperty("text-orientation", textOrientation, "important");
-        doc.body.style.setProperty("direction", contentDirection, "important");
-        doc.body.style.setProperty("text-align", "start", "important");
-        doc.body.style.setProperty("text-align-last", "start", "important");
-      }
-    });
+    const target = this.pageContainer || this.viewer;
+    if (!target) return;
+    target.style.setProperty("writing-mode", writingMode);
+    target.style.setProperty("text-orientation", textOrientation);
+    target.style.setProperty("direction", contentDirection);
+    target.style.setProperty("text-align", "start");
+    target.style.setProperty("text-align-last", "start");
   }
 
   updateEpubTheme() {
-    if (this.type !== "epub" || !this.rendition) return;
+    if (this.type !== "epub") return;
     const isVertical = this.writingMode === "vertical";
     const contentDirection = "ltr";
     
@@ -857,54 +930,22 @@ export class ReaderController {
     
     // 縦書き・横書きともに縦スクロールで表示するため、
     // writing-modeはそのまま適用するが、レイアウトは縦スクロール用に最適化
-    this.rendition.themes.default({
-      html: {
-        writingMode: isVertical ? "vertical-rl !important" : "horizontal-tb !important",
-        textOrientation: isVertical ? "mixed !important" : "initial !important",
-        direction: contentDirection + " !important",
-        textAlign: "start !important",
-        textAlignLast: "start !important",
-        width: "100% !important",
-        height: "auto !important",
-        minHeight: "100% !important",
-      },
-      body: {
-        background: this.theme === "dark" ? "#0b1020 !important" : "#ffffff !important",
-        color: this.theme === "dark" ? "#e5e7eb !important" : "#0f172a !important",
-        padding: "24px !important",
-        lineHeight: "1.8 !important",
-        writingMode: isVertical ? "vertical-rl !important" : "horizontal-tb !important",
-        textOrientation: isVertical ? "mixed !important" : "initial !important",
-        direction: contentDirection + " !important",
-        textAlign: "start !important",
-        textAlignLast: "start !important",
-        margin: "0 auto !important",
-        maxWidth: "900px !important",
-        width: "100% !important",
-        minHeight: "100vh !important",
-        boxSizing: "border-box !important",
-      },
-      img: {
-        maxWidth: "100% !important",
-        maxHeight: "70vh !important",
-        display: "block !important",
-        margin: "1em auto !important",
-        objectFit: "contain !important",
-      },
-      p: {
-        margin: "1em 0 !important",
-      },
-      "h1, h2, h3, h4, h5, h6": {
-        margin: "1.5em 0 0.5em !important",
-      },
-    });
-    this.rendition.themes.select("default");
-    
-    // コンテンツに直接スタイルを適用
-    setTimeout(() => {
-      this.applyWritingModeToContents();
-      this.injectImageZoom();
-    }, 100);
+    if (this.viewer) {
+      this.viewer.style.background = this.theme === "dark" ? "#0b1020" : "#ffffff";
+      this.viewer.style.color = this.theme === "dark" ? "#e5e7eb" : "#0f172a";
+      this.viewer.style.width = "100%";
+      this.viewer.style.height = "100%";
+    }
+    if (this.pageContainer) {
+      this.pageContainer.style.padding = "24px";
+      this.pageContainer.style.lineHeight = "1.8";
+      this.pageContainer.style.maxWidth = "900px";
+      this.pageContainer.style.margin = "0 auto";
+      this.pageContainer.style.width = "100%";
+      this.pageContainer.style.minHeight = "100%";
+      this.pageContainer.style.boxSizing = "border-box";
+    }
+    this.applyWritingModeToContents();
   }
 
   async detectReadingDirectionFromBook() {
@@ -957,15 +998,14 @@ export class ReaderController {
   }
 
   injectImageZoom() {
-    if (!this.rendition) return;
-    const contents = this.rendition.getContents();
-    contents.forEach((content) => {
-      const doc = content.document;
-      doc.querySelectorAll("img").forEach((img) => {
+    if (this.type === "epub") {
+      this.viewer?.querySelectorAll("img").forEach((img) => {
         img.style.cursor = "zoom-in";
         this.bindElementZoomHandlers(img, () => img.src);
       });
-    });
+      return;
+    }
+    if (!this.rendition) return;
   }
 
   bindImageZoomHandlers() {
