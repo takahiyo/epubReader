@@ -58,9 +58,10 @@ export class UIController {
    * クリック座標からエリアを判定
    */
   getClickArea(x, y, baseElement, viewport = window.visualViewport) {
-    const rect = typeof baseElement?.getBoundingClientRect === "function"
-      ? baseElement.getBoundingClientRect()
-      : null;
+    if (!baseElement || typeof baseElement.getBoundingClientRect !== "function") {
+      return null;
+    }
+    const rect = baseElement.getBoundingClientRect();
     const areaRect = rect
       ? {
           left: rect.left + (viewport?.offsetLeft ?? 0),
@@ -136,8 +137,12 @@ export class UIController {
       
       isProcessing = true;
       
-      const baseElement = e.currentTarget || document.documentElement;
+      const baseElement = document.getElementById('fullscreenReader');
       const area = this.getClickArea(e.clientX, e.clientY, baseElement);
+      if (!area) {
+        isProcessing = false;
+        return;
+      }
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
       
       this.handleAreaClick(area, e);
