@@ -1246,6 +1246,7 @@ function renderBookmarks(mode = "current") {
           storage.removeBookmark(bookId, bookmark.createdAt);
           renderBookmarks(mode);
           renderBookmarkMarkers();
+          scheduleAutoSyncPush();
         }
       };
       
@@ -1331,6 +1332,7 @@ function renderBookmarks(mode = "current") {
         storage.removeBookmark(currentBookId, bookmark.createdAt);
         renderBookmarks(mode);
         renderBookmarkMarkers();
+        scheduleAutoSyncPush();
       }
     };
 
@@ -1354,9 +1356,7 @@ function addBookmark() {
     renderBookmarkMarkers();
     
     // 自動同期
-    if (autoSyncEnabled) {
-      cloudSync.push();
-    }
+    scheduleAutoSyncPush();
   }
 }
 
