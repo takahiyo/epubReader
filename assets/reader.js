@@ -339,12 +339,14 @@ export class ReaderController {
     
     console.log("Creating rendition with dimensions:", { width: viewerWidth, height: viewerHeight });
     
-    // スクロール表示設定（縦書き・横書きともに縦スクロールで統一）
+    const isVertical = this.writingMode === "vertical";
+
+    // 縦書きはページ送り、横書きはスクロール表示にする
     this.rendition = this.book.renderTo(this.viewer, {
       width: "100%",
       height: "100%",
-      flow: "scrolled",
-      manager: "continuous",
+      flow: isVertical ? "paginated" : "scrolled",
+      manager: isVertical ? "default" : "continuous",
       allowScriptedContent: true,
       spread: "none",
       snap: false,
@@ -782,8 +784,14 @@ export class ReaderController {
     const current = this.rendition.currentLocation();
     const currentCfi = current?.start?.cfi;
     
+    const isVertical = this.writingMode === "vertical";
+
     // テーマとスタイルを更新（表示前に適用）
     this.updateEpubTheme();
+
+    if (this.rendition.flow) {
+      this.rendition.flow(isVertical ? "paginated" : "scrolled");
+    }
     
     // ページ送り方向を設定
     if (this.rendition.direction) {
