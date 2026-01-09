@@ -20,7 +20,7 @@ const defaultData = {
     onedriveFilePath: "epub-reader-data.json",
     onedriveFileId: "",
     onedriveToken: null,
-    uiLanguage: "ja",
+    uiLanguage: "en",
     fontSize: 16,
   },
 };
