@@ -101,15 +101,12 @@ body {
 #floatOverlay {
   position: fixed;
   inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.25s ease;
   z-index: 999999;
+  display: none;
 }
 
 #floatOverlay.visible {
-  opacity: 1;
-  pointer-events: auto;
+  display: block;
 }
 
 .float-backdrop {
