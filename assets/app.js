@@ -47,7 +47,7 @@ const UI_STRINGS = {
   ja: {
     documentTitle: "Epub Reader",
     emptyTitle: "本が選択されていません",
-    emptyDescription: "右下のメニューから本を選択してください",
+    emptyDescription: "画面中央をクリックしてメニューを表示",
     menuOpen: "開く",
     menuLibrary: "ライブラリ",
     menuSearch: "テキスト検索",
@@ -110,7 +110,7 @@ const UI_STRINGS = {
   en: {
     documentTitle: "Epub Reader",
     emptyTitle: "No book selected",
-    emptyDescription: "Choose a book from the menu in the lower right.",
+    emptyDescription: "Click the center of the screen to show the menu.",
     menuOpen: "Open",
     menuLibrary: "Library",
     menuSearch: "Text Search",
@@ -350,6 +350,58 @@ const ui = new UIController({
 
 uiInitialized = true;
 applyUiLanguage(uiLanguage);
+
+function setupViewerIframeClickBridge() {
+  if (!elements.viewer || !elements.fullscreenReader) return;
+
+  const handleIframeClick = (iframe, event) => {
+    const rect = iframe.getBoundingClientRect();
+    const x = rect.left + event.clientX;
+    const y = rect.top + event.clientY;
+    const area = ui.getClickArea(x, y, elements.fullscreenReader);
+    ui.handleAreaClick(area, event);
+  };
+
+  const bindIframe = (iframe) => {
+    if (!iframe || iframe.dataset.clickBridgeBound === "true") return;
+    iframe.dataset.clickBridgeBound = "true";
+
+    const attachClickListener = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+        doc.addEventListener("click", (event) => handleIframeClick(iframe, event));
+      } catch (error) {
+        console.warn("Failed to attach iframe click bridge:", error);
+      }
+    };
+
+    if (iframe.contentDocument?.readyState === "complete") {
+      attachClickListener();
+    } else {
+      iframe.addEventListener("load", attachClickListener, { once: true });
+    }
+  };
+
+  elements.viewer.querySelectorAll("iframe").forEach(bindIframe);
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        if (node.tagName === "IFRAME") {
+          bindIframe(node);
+          return;
+        }
+        node.querySelectorAll?.("iframe").forEach(bindIframe);
+      });
+    });
+  });
+
+  observer.observe(elements.viewer, { childList: true, subtree: true });
+}
+
+setupViewerIframeClickBridge();
 
 // 進捗バーのドラッグハンドラー
 const progressBarHandler = new ProgressBarHandler({
