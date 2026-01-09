@@ -58,7 +58,9 @@ export class UIController {
    * クリック座標からエリアを判定
    */
   getClickArea(x, y, baseElement, viewport = window.visualViewport) {
-    const rect = baseElement?.getBoundingClientRect();
+    const rect = typeof baseElement?.getBoundingClientRect === "function"
+      ? baseElement.getBoundingClientRect()
+      : null;
     const areaRect = rect
       ? {
           left: rect.left + (viewport?.offsetLeft ?? 0),
