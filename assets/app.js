@@ -192,7 +192,15 @@ const elements = {
   pageImage: document.getElementById("pageImage"),
   emptyState: document.getElementById("emptyState"),
   floatOverlay: document.getElementById("floatOverlay"),
+  floatBackdrop: document.querySelector("#floatOverlay .float-backdrop"),
   floatProgressBar: document.getElementById("floatProgressBar"),
+  floatOpen: document.getElementById("floatOpen"),
+  floatLibrary: document.getElementById("floatLibrary"),
+  floatSearch: document.getElementById("floatSearch"),
+  floatBookmarks: document.getElementById("floatBookmarks"),
+  floatHistory: document.getElementById("floatHistory"),
+  floatSettings: document.getElementById("floatSettings"),
+  modalOverlay: document.getElementById("modalOverlay"),
   fontPlus: document.getElementById("fontPlus"),
   fontMinus: document.getElementById("fontMinus"),
   toggleTheme: document.getElementById("toggleTheme"),
@@ -432,6 +440,9 @@ function updateSearchButtonState() {
   if (elements.openToc) {
     elements.openToc.disabled = !isEpubOpen;
   }
+  if (elements.floatSearch) {
+    elements.floatSearch.disabled = !isEpubOpen;
+  }
 }
 
 function toggleFloatOverlay(forceVisible) {
@@ -635,6 +646,9 @@ async function handleFile(file) {
     updateProgressBarDisplay();
     updateSearchButtonState();
     closeModal(elements.openFileModal);
+    if (floatVisible) {
+      toggleFloatOverlay(false);
+    }
     
     // 自動同期が有効なら保存
     if (autoSyncEnabled) {
@@ -722,6 +736,9 @@ async function openFromLibrary(bookId, options = {}) {
     updateProgressBarDisplay();
     updateSearchButtonState();
     closeModal(elements.openFileModal);
+    if (floatVisible) {
+      toggleFloatOverlay(false);
+    }
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
@@ -1576,17 +1593,59 @@ function renderSearchResults(results, query) {
 // モーダル制御
 // ========================================
 
-function openModal(modal) {
-  if (modal) {
-    modal.classList.remove('hidden');
-    updateActivity();
+function isModalVisible(modal) {
+  if (!modal) return false;
+  if (modal.classList.contains("bookmark-menu")) {
+    return modal.classList.contains("visible");
   }
+  return !modal.classList.contains("hidden");
+}
+
+function openModal(modal) {
+  if (!modal) return;
+  if (elements.modalOverlay && modal.parentElement !== elements.modalOverlay) {
+    elements.modalOverlay.appendChild(modal);
+  }
+  if (elements.modalOverlay) {
+    elements.modalOverlay.classList.add("visible");
+  }
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.add("visible");
+    ui.bookmarkMenuVisible = true;
+  } else {
+    modal.classList.remove("hidden");
+  }
+  updateActivity();
 }
 
 function closeModal(modal) {
-  if (modal) {
-    modal.classList.add('hidden');
+  if (!modal) return;
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.remove("visible");
+    ui.bookmarkMenuVisible = false;
+  } else {
+    modal.classList.add("hidden");
   }
+  if (!elements.modalOverlay) return;
+  const hasVisibleModal = Array.from(elements.modalOverlay.children).some((child) => {
+    if (!(child instanceof HTMLElement)) return false;
+    return isModalVisible(child);
+  });
+  if (!hasVisibleModal) {
+    elements.modalOverlay.classList.remove("visible");
+  }
+}
+
+function closeExclusiveMenus() {
+  closeModal(elements.bookmarkMenu);
+  closeModal(elements.historyModal);
+  closeModal(elements.searchModal);
+  closeModal(elements.settingsModal);
+}
+
+function openExclusiveMenu(modal) {
+  closeExclusiveMenus();
+  openModal(modal);
 }
 
 function openImageModal(src) {
@@ -1647,6 +1706,10 @@ function applyUiLanguage(nextLanguage) {
     const label = button?.querySelector("span:last-child");
     if (label) label.textContent = text;
   };
+  const setFloatLabel = (button, icon, text) => {
+    if (!button) return;
+    button.textContent = `${icon} ${text}`;
+  };
   setMenuLabel(elements.menuOpen, strings.menuOpen);
   setMenuLabel(elements.menuLibrary, strings.menuLibrary);
   setMenuLabel(elements.menuSearch, strings.menuSearch);
@@ -1654,6 +1717,11 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuHistory, strings.menuHistory);
   setMenuLabel(elements.menuSettings, strings.menuSettings);
   setMenuLabel(elements.menuLogout, strings.menuLogout);
+  setFloatLabel(elements.floatOpen, "📂", strings.menuOpen);
+  setFloatLabel(elements.floatLibrary, "📚", strings.menuLibrary);
+  setFloatLabel(elements.floatSearch, "🔍", strings.menuSearch);
+  setFloatLabel(elements.floatBookmarks, "🔖", strings.menuBookmarks);
+  setFloatLabel(elements.floatHistory, "🕘", strings.menuHistory);
 
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
@@ -1811,6 +1879,50 @@ async function importData(file) {
   }
 }
 
+function openFileDialog() {
+  elements.fileInput?.click();
+}
+
+function showLibrary() {
+  openModal(elements.openFileModal);
+  renderLibrary();
+}
+
+function showSearch() {
+  if (!currentBookId || currentBookInfo?.type !== 'epub') {
+    alert(t("searchEpubOnly"));
+    return;
+  }
+  openExclusiveMenu(elements.searchModal);
+  if (elements.searchInput) {
+    elements.searchInput.value = '';
+    elements.searchInput.focus();
+  }
+  if (elements.searchResults) {
+    elements.searchResults.innerHTML = '';
+  }
+}
+
+function showBookmarks() {
+  bookmarkMenuMode = "all";
+  renderBookmarks(bookmarkMenuMode);
+  openExclusiveMenu(elements.bookmarkMenu);
+}
+
+function showHistory() {
+  openExclusiveMenu(elements.historyModal);
+  renderHistory();
+}
+
+function showSettings() {
+  openExclusiveMenu(elements.settingsModal);
+  if (elements.themeSelect) elements.themeSelect.value = theme;
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+}
+
 // ========================================
 // イベントハンドラー
 // ========================================
@@ -1818,47 +1930,51 @@ async function importData(file) {
 function setupEvents() {
   // メニューアクション
   elements.menuOpen?.addEventListener('click', () => {
-    elements.fileInput?.click();
+    openFileDialog();
   });
   
   elements.menuLibrary?.addEventListener('click', () => {
-    openModal(elements.openFileModal);
-    renderLibrary();
+    showLibrary();
   });
   
   elements.menuSearch?.addEventListener('click', () => {
-    if (!currentBookId || currentBookInfo?.type !== 'epub') {
-      alert(t("searchEpubOnly"));
-      return;
-    }
-    openModal(elements.searchModal);
-    if (elements.searchInput) {
-      elements.searchInput.value = '';
-      elements.searchInput.focus();
-    }
-    if (elements.searchResults) {
-      elements.searchResults.innerHTML = '';
-    }
+    showSearch();
   });
   
   elements.menuBookmarks?.addEventListener('click', () => {
-    bookmarkMenuMode = "all";
-    ui.showBookmarkMenu();
+    showBookmarks();
   });
   
   elements.menuHistory?.addEventListener('click', () => {
-    openModal(elements.historyModal);
-    renderHistory();
+    showHistory();
+  });
+
+  elements.floatOpen?.addEventListener('click', () => {
+    openFileDialog();
+  });
+
+  elements.floatLibrary?.addEventListener('click', () => {
+    showLibrary();
+  });
+
+  elements.floatSearch?.addEventListener('click', () => {
+    showSearch();
+  });
+
+  elements.floatBookmarks?.addEventListener('click', () => {
+    showBookmarks();
+  });
+
+  elements.floatHistory?.addEventListener('click', () => {
+    showHistory();
+  });
+
+  elements.floatSettings?.addEventListener('click', () => {
+    showSettings();
   });
   
   elements.menuSettings?.addEventListener('click', () => {
-    openModal(elements.settingsModal);
-    // 現在の設定値を反映
-    if (elements.themeSelect) elements.themeSelect.value = theme;
-    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-    if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
-    if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+    showSettings();
   });
   
   elements.menuLogout?.addEventListener('click', () => {
@@ -1892,6 +2008,11 @@ function setupEvents() {
 
   elements.toggleLanguage?.addEventListener('click', () => {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
+  });
+
+  elements.floatBackdrop?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFloatOverlay(false);
   });
 
   elements.openToc?.addEventListener('click', () => {
@@ -1991,7 +2112,7 @@ function setupEvents() {
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
-  elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
+  elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
   
   // 検索機能
   const executeSearch = async () => {
@@ -2021,12 +2142,22 @@ function setupEvents() {
       }
     });
   });
+
+  elements.modalOverlay?.addEventListener('click', (e) => {
+    if (e.target !== elements.modalOverlay) return;
+    e.stopPropagation();
+    Array.from(elements.modalOverlay.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        closeModal(child);
+      }
+    });
+  });
   
   // しおりメニューのバックドロップクリック
   elements.bookmarkMenu?.addEventListener('click', (e) => {
     // bookmarkMenuの直接クリック（背景部分）の場合は閉じる
     if (e.target === elements.bookmarkMenu) {
-      ui.closeAllMenus();
+      closeModal(elements.bookmarkMenu);
     }
   });
   
