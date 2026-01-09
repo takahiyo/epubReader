@@ -582,7 +582,18 @@ function handleBookReady(payload) {
   renderToc(currentToc);
   
   // EPUBスクロールモードのクラスを設定（横書きのみ縦スクロール）
-  updateEpubScrollMode();
+  const scheduleEpubScrollModeUpdate = (attempt = 0) => {
+    if (reader?.writingMode != null) {
+      updateEpubScrollMode();
+      return;
+    }
+    if (attempt >= 5) {
+      console.warn("[handleBookReady] Writing mode not resolved, skipping epub-scroll update");
+      return;
+    }
+    setTimeout(() => scheduleEpubScrollModeUpdate(attempt + 1), 100);
+  };
+  scheduleEpubScrollModeUpdate();
   
   // locations生成完了時に進捗バーを更新
   if (currentBookInfo.type === 'epub') {
@@ -607,8 +618,16 @@ function handleBookReady(payload) {
 
 function updateEpubScrollMode() {
   if (currentBookInfo?.type !== 'epub' || !elements.fullscreenReader) return;
-  console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
-  elements.fullscreenReader.classList.add('epub-scroll');
+  const resolvedWritingMode = reader?.writingMode ?? currentBookInfo?.writingMode ?? writingMode;
+  if (resolvedWritingMode === "vertical") {
+    console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
+    elements.fullscreenReader.classList.remove('epub-scroll');
+    return;
+  }
+  if (resolvedWritingMode === "horizontal") {
+    console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
+    elements.fullscreenReader.classList.add('epub-scroll');
+  }
 }
 
 // ========================================
