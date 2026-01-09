@@ -755,6 +755,8 @@ async function openFromLibrary(bookId, options = {}) {
       await reader.openImageBook(file, typeof start === "number" ? start : 0);
     }
     
+    storage.addHistory(bookId);
+    scheduleAutoSyncPush();
     renderBookmarkMarkers();
     updateProgressBarDisplay();
     updateSearchButtonState();
