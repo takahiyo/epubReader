@@ -333,22 +333,19 @@ export class ReaderController {
       console.log("Detected page direction:", this.pageDirection);
     }
 
-    if (this.writingMode == null) {
-      this.writingMode = "horizontal";
-    }
     const isVertical = this.writingMode === "vertical";
-
+    
     // ビューアのサイズを明示的に設定
     const viewerWidth = this.viewer.clientWidth || window.innerWidth;
     const viewerHeight = this.viewer.clientHeight || window.innerHeight;
     
     console.log("Creating rendition with dimensions:", { width: viewerWidth, height: viewerHeight });
     
-    // 常に横書き縦スクロールで表示する
+    // 横書きは全文を連続表示、縦書きはページ送りを維持
     this.rendition = this.book.renderTo(this.viewer, {
       width: "100%",
       height: "100%",
-      flow: isVertical ? "paginated" : "scrolled",
+      flow: isVertical ? "paginated" : "scrolled-doc",
       manager: isVertical ? "default" : "continuous",
       allowScriptedContent: true,
       spread: "none",
