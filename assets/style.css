@@ -141,11 +141,17 @@ body {
 .float-main-menu {
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  left: 20px;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.float-settings {
+  position: absolute;
+  top: 20px;
+  left: 20px;
 }
 
 .float-buttons button {
@@ -793,6 +799,17 @@ body {
 /* ========================================
    モーダル共通
 ======================================== */
+
+#modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000000;
+  display: none;
+}
+
+#modalOverlay.visible {
+  display: block;
+}
 
 .modal {
   position: fixed;

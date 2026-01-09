@@ -199,6 +199,8 @@ const elements = {
   floatSearch: document.getElementById("floatSearch"),
   floatBookmarks: document.getElementById("floatBookmarks"),
   floatHistory: document.getElementById("floatHistory"),
+  floatSettings: document.getElementById("floatSettings"),
+  modalOverlay: document.getElementById("modalOverlay"),
   fontPlus: document.getElementById("fontPlus"),
   fontMinus: document.getElementById("fontMinus"),
   toggleTheme: document.getElementById("toggleTheme"),
@@ -1591,17 +1593,59 @@ function renderSearchResults(results, query) {
 // モーダル制御
 // ========================================
 
-function openModal(modal) {
-  if (modal) {
-    modal.classList.remove('hidden');
-    updateActivity();
+function isModalVisible(modal) {
+  if (!modal) return false;
+  if (modal.classList.contains("bookmark-menu")) {
+    return modal.classList.contains("visible");
   }
+  return !modal.classList.contains("hidden");
+}
+
+function openModal(modal) {
+  if (!modal) return;
+  if (elements.modalOverlay && modal.parentElement !== elements.modalOverlay) {
+    elements.modalOverlay.appendChild(modal);
+  }
+  if (elements.modalOverlay) {
+    elements.modalOverlay.classList.add("visible");
+  }
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.add("visible");
+    ui.bookmarkMenuVisible = true;
+  } else {
+    modal.classList.remove("hidden");
+  }
+  updateActivity();
 }
 
 function closeModal(modal) {
-  if (modal) {
-    modal.classList.add('hidden');
+  if (!modal) return;
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.remove("visible");
+    ui.bookmarkMenuVisible = false;
+  } else {
+    modal.classList.add("hidden");
   }
+  if (!elements.modalOverlay) return;
+  const hasVisibleModal = Array.from(elements.modalOverlay.children).some((child) => {
+    if (!(child instanceof HTMLElement)) return false;
+    return isModalVisible(child);
+  });
+  if (!hasVisibleModal) {
+    elements.modalOverlay.classList.remove("visible");
+  }
+}
+
+function closeExclusiveMenus() {
+  closeModal(elements.bookmarkMenu);
+  closeModal(elements.historyModal);
+  closeModal(elements.searchModal);
+  closeModal(elements.settingsModal);
+}
+
+function openExclusiveMenu(modal) {
+  closeExclusiveMenus();
+  openModal(modal);
 }
 
 function openImageModal(src) {
@@ -1849,7 +1893,7 @@ function showSearch() {
     alert(t("searchEpubOnly"));
     return;
   }
-  openModal(elements.searchModal);
+  openExclusiveMenu(elements.searchModal);
   if (elements.searchInput) {
     elements.searchInput.value = '';
     elements.searchInput.focus();
@@ -1861,12 +1905,22 @@ function showSearch() {
 
 function showBookmarks() {
   bookmarkMenuMode = "all";
-  ui.showBookmarkMenu();
+  renderBookmarks(bookmarkMenuMode);
+  openExclusiveMenu(elements.bookmarkMenu);
 }
 
 function showHistory() {
-  openModal(elements.historyModal);
+  openExclusiveMenu(elements.historyModal);
   renderHistory();
+}
+
+function showSettings() {
+  openExclusiveMenu(elements.settingsModal);
+  if (elements.themeSelect) elements.themeSelect.value = theme;
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
 }
 
 // ========================================
@@ -1914,15 +1968,13 @@ function setupEvents() {
   elements.floatHistory?.addEventListener('click', () => {
     showHistory();
   });
+
+  elements.floatSettings?.addEventListener('click', () => {
+    showSettings();
+  });
   
   elements.menuSettings?.addEventListener('click', () => {
-    openModal(elements.settingsModal);
-    // 現在の設定値を反映
-    if (elements.themeSelect) elements.themeSelect.value = theme;
-    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-    if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
-    if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+    showSettings();
   });
   
   elements.menuLogout?.addEventListener('click', () => {
@@ -2060,7 +2112,7 @@ function setupEvents() {
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
-  elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
+  elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
   
   // 検索機能
   const executeSearch = async () => {
@@ -2090,12 +2142,22 @@ function setupEvents() {
       }
     });
   });
+
+  elements.modalOverlay?.addEventListener('click', (e) => {
+    if (e.target !== elements.modalOverlay) return;
+    e.stopPropagation();
+    Array.from(elements.modalOverlay.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        closeModal(child);
+      }
+    });
+  });
   
   // しおりメニューのバックドロップクリック
   elements.bookmarkMenu?.addEventListener('click', (e) => {
     // bookmarkMenuの直接クリック（背景部分）の場合は閉じる
     if (e.target === elements.bookmarkMenu) {
-      ui.closeAllMenus();
+      closeModal(elements.bookmarkMenu);
     }
   });
   
