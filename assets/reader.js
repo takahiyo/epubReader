@@ -868,10 +868,21 @@ export class ReaderController {
           return this.resourceUrlCache.get(resolvedUrl);
         }
         try {
-          const resourceItem = this.book?.resources?.get?.(resolvedUrl) || this.book?.resources?.get?.(url);
+          let resourceItem = this.book?.resources?.get?.(resolvedUrl) || this.book?.resources?.get?.(url);
+          if (resourceItem?.then) {
+            resourceItem = await resourceItem;
+          }
           if (!resourceItem) {
             console.warn("Resource not found in EPUB:", resolvedUrl);
             return url;
+          }
+          if (typeof resourceItem === "string") {
+            return resourceItem;
+          }
+          if (resourceItem instanceof Blob) {
+            const objectUrl = URL.createObjectURL(resourceItem);
+            this.resourceUrlCache.set(resolvedUrl, objectUrl);
+            return objectUrl;
           }
           const type = resourceItem.mediaType || resourceItem.type || "";
           if (type.startsWith("image/") || type.includes("font")) {
