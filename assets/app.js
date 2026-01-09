@@ -100,6 +100,10 @@ const UI_STRINGS = {
     searchResultFallback: "結果",
     writingModeToggleVertical: "縦",
     writingModeToggleHorizontal: "横",
+    syncPromptTitle: "同期の確認",
+    syncPromptMessage: "他の端末で、より新しい読書位置があります。",
+    syncPromptRemote: "他端末の続きから読む（{time}）",
+    syncPromptLocal: "この端末の位置から読む",
   },
   en: {
     documentTitle: "Epub Reader",
@@ -159,6 +163,10 @@ const UI_STRINGS = {
     searchResultFallback: "Result",
     writingModeToggleVertical: "V",
     writingModeToggleHorizontal: "H",
+    syncPromptTitle: "Sync available",
+    syncPromptMessage: "A newer reading position is available on another device.",
+    syncPromptRemote: "Continue from other device ({time})",
+    syncPromptLocal: "Keep this device's position",
   },
 };
 
@@ -201,6 +209,11 @@ const elements = {
   tocModal: document.getElementById("tocModal"),
   tocModalList: document.getElementById("tocModalList"),
   closeTocModal: document.getElementById("closeTocModal"),
+  syncModal: document.getElementById("syncModal"),
+  syncModalTitle: document.getElementById("syncModalTitle"),
+  syncModalMessage: document.getElementById("syncModalMessage"),
+  syncUseRemote: document.getElementById("syncUseRemote"),
+  syncUseLocal: document.getElementById("syncUseLocal"),
   
   // 進捗バー
   progressBarPanel: document.getElementById("progressBarPanel"),
@@ -357,6 +370,105 @@ function updateSearchButtonState() {
   }
 }
 
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return "";
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMinutes < 1) return "1分未満";
+  if (diffMinutes < 60) return `${diffMinutes}分前`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}時間前`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays}日前`;
+}
+
+function formatRelativeTimeEn(timestamp) {
+  if (!timestamp) return "";
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMinutes < 1) return "less than a minute ago";
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} days ago`;
+}
+
+function buildSyncRemoteLabel(timestamp) {
+  const timeText = uiLanguage === "en"
+    ? formatRelativeTimeEn(timestamp)
+    : formatRelativeTime(timestamp);
+  return t("syncPromptRemote").replace("{time}", timeText || "--");
+}
+
+function promptSyncChoice(remoteProgress) {
+  return new Promise((resolve) => {
+    if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
+      resolve("local");
+      return;
+    }
+
+    if (elements.syncModalTitle) {
+      elements.syncModalTitle.textContent = t("syncPromptTitle");
+    }
+    if (elements.syncModalMessage) {
+      elements.syncModalMessage.textContent = t("syncPromptMessage");
+    }
+    elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteProgress?.updatedAt);
+    elements.syncUseLocal.textContent = t("syncPromptLocal");
+
+    const cleanup = () => {
+      elements.syncUseRemote.removeEventListener("click", onRemote);
+      elements.syncUseLocal.removeEventListener("click", onLocal);
+    };
+    const onRemote = () => {
+      cleanup();
+      closeModal(elements.syncModal);
+      resolve("remote");
+    };
+    const onLocal = () => {
+      cleanup();
+      closeModal(elements.syncModal);
+      resolve("local");
+    };
+
+    elements.syncUseRemote.addEventListener("click", onRemote, { once: true });
+    elements.syncUseLocal.addEventListener("click", onLocal, { once: true });
+    openModal(elements.syncModal);
+  });
+}
+
+async function resolveSyncedProgress(bookId) {
+  const localProgress = storage.getProgress(bookId);
+  const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
+  if (resolvedSource === "local") {
+    return localProgress;
+  }
+
+  try {
+    const remoteSnapshot = await cloudSync.fetchRemoteSnapshot(resolvedSource);
+    const remoteProgress = remoteSnapshot?.progress?.[bookId];
+    if (!remoteProgress?.updatedAt) {
+      return localProgress;
+    }
+
+    const localUpdatedAt = localProgress?.updatedAt ?? 0;
+    if (remoteProgress.updatedAt <= localUpdatedAt) {
+      return localProgress;
+    }
+
+    const choice = await promptSyncChoice(remoteProgress);
+    if (choice === "remote") {
+      storage.setProgress(bookId, remoteProgress);
+      return remoteProgress;
+    }
+  } catch (error) {
+    console.warn("同期情報の取得に失敗しました:", error);
+  }
+
+  return localProgress;
+}
+
 // ========================================
 // ファイル処理
 // ========================================
@@ -397,9 +509,10 @@ async function handleFile(file) {
     currentBookId = id;
     currentBookInfo = info;
     
-    const savedProgress = storage.getProgress(id);
-    const startLocation = savedProgress?.location;
-    const startProgress = savedProgress?.percentage;
+    const syncedProgress = await resolveSyncedProgress(id);
+    await applyReadingState(syncedProgress);
+    const startLocation = syncedProgress?.location;
+    const startProgress = syncedProgress?.percentage;
     
     if (info.type === "epub") {
       console.log("Opening EPUB...");
@@ -494,7 +607,8 @@ async function openFromLibrary(bookId, options = {}) {
     currentBookInfo = info;
     
     const bookmarks = storage.getBookmarks(bookId);
-    const progress = storage.getProgress(bookId);
+    const progress = await resolveSyncedProgress(bookId);
+    await applyReadingState(progress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
     const start = startFromBookmark ?? progress?.location;
@@ -582,18 +696,42 @@ function findBookByContentHash(library, contentHash) {
 // 進捗管理
 // ========================================
 
+function persistReadingState(update) {
+  if (!currentBookId) return;
+  const existing = storage.getProgress(currentBookId) ?? {};
+  storage.setProgress(currentBookId, { ...existing, ...update });
+}
+
+async function applyReadingState(progress) {
+  if (!progress) return;
+  if (progress.writingMode && progress.writingMode !== writingMode) {
+    writingMode = progress.writingMode;
+    if (elements.writingModeSelect) {
+      elements.writingModeSelect.value = writingMode;
+    }
+    await applyReadingSettings(writingMode, pageDirection);
+  }
+  if (progress.uiLanguage && progress.uiLanguage !== uiLanguage) {
+    applyUiLanguage(progress.uiLanguage);
+  }
+}
+
 function handleProgress(progress) {
   if (!currentBookId) return;
   updateActivity();
   
-  storage.setProgress(currentBookId, progress);
+  storage.setProgress(currentBookId, {
+    ...progress,
+    writingMode,
+    uiLanguage,
+  });
   updateProgressBarDisplay();
 }
 
 function getEpubPaginationTotal() {
   const totalPages = reader.pagination?.pages?.length;
   if (totalPages) return totalPages;
-  const totalLocations = reader.rendition?.book?.locations?.total;
+  const totalLocations = reader.book?.locations?.total;
   if (totalLocations) return totalLocations;
   return null;
 }
@@ -740,26 +878,7 @@ async function seekToPercentage(percentage) {
         }
         return;
       }
-      // EPUB.jsのrendition.locationsを使用
-      if (reader.rendition && reader.rendition.book && reader.rendition.book.locations) {
-        const locations = reader.rendition.book.locations;
-        
-        // パーセンテージからlocationインデックスを計算
-        const totalLocations = locations.total;
-        const targetIndex = Math.floor((percentage / 100) * totalLocations);
-        
-        // locationインデックスからCFIを取得
-        const cfi = locations.cfiFromPercentage(percentage / 100);
-        
-        if (cfi) {
-          console.log(`Jumping to CFI: ${cfi}`);
-          await reader.rendition.display(cfi);
-        } else {
-          console.warn('Could not get CFI for percentage:', percentage);
-        }
-      } else {
-        console.warn('Locations not generated yet');
-      }
+      console.warn('Locations not generated yet');
     } catch (error) {
       console.error('Error seeking to percentage:', error);
     }
@@ -805,7 +924,7 @@ function handleBookReady(payload) {
     console.log('[handleBookReady] Setting up locations listener for progress updates');
     // locations生成完了を監視
     const checkLocations = setInterval(() => {
-      const locations = reader.book?.locations ?? reader.rendition?.book?.locations;
+      const locations = reader.book?.locations;
       if (locations?.total > 0) {
         console.log('[handleBookReady] Locations available, updating progress bar');
         clearInterval(checkLocations);
@@ -882,13 +1001,6 @@ function renderTocEntries(items, container, depth) {
       try {
         if (reader?.usingPaginator && item.href) {
           reader.navigateToHref(item.href);
-        } else if (reader?.rendition) {
-          const cfi = resolveTocCfi(item);
-          if (cfi) {
-            await reader.rendition.display(cfi);
-          } else if (item.href) {
-            await reader.rendition.display(item.href);
-          }
         }
         ui.closeAllMenus();
         closeModal(elements.tocModal);
@@ -904,15 +1016,6 @@ function renderTocEntries(items, container, depth) {
       renderTocEntries(item.subitems, container, depth + 1);
     }
   });
-}
-
-function resolveTocCfi(item) {
-  const href = item?.href;
-  if (!href) {
-    return item?.cfi ?? null;
-  }
-  const cfiFromHref = reader?.book?.locations?.cfiFromHref?.(href);
-  return cfiFromHref ?? item?.cfi ?? null;
 }
 
 // ========================================
@@ -1347,8 +1450,8 @@ function renderSearchResults(results, query) {
       if (totalPages) {
         const pageIndex = Math.max(1, Math.round((result.percentage / 100) * totalPages));
         locationText = `${pageIndex}/${totalPages}`;
-      } else if (reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
+      } else if (reader.book?.locations) {
+        const totalLocations = reader.book.locations.total;
         const locationIndex = Math.round((result.percentage / 100) * totalLocations);
         locationText = `${locationIndex}/${totalLocations}`;
       } else {
@@ -1363,21 +1466,8 @@ function renderSearchResults(results, query) {
     item.append(excerpt, meta);
     
     item.onclick = async () => {
-      if (reader?.usingPaginator) {
-        seekToPercentage(result.percentage);
-        closeModal(elements.searchModal);
-        return;
-      }
-      if (result.cfi && reader.rendition) {
-        try {
-          console.log('Navigating to CFI:', result.cfi);
-          await reader.rendition.display(result.cfi);
-          closeModal(elements.searchModal);
-        } catch (error) {
-          console.error('Failed to navigate to search result:', error);
-          alert(t("searchNavigateFailed"));
-        }
-      }
+      seekToPercentage(result.percentage);
+      closeModal(elements.searchModal);
     };
     
     elements.searchResults.appendChild(item);
@@ -1426,6 +1516,7 @@ function applyUiLanguage(nextLanguage) {
   document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
   elements.langJa?.classList.toggle("active", uiLanguage === "ja");
   elements.langEn?.classList.toggle("active", uiLanguage === "en");
+  persistReadingState({ uiLanguage });
 
   const strings = getUiStrings(nextLanguage);
   document.title = strings.documentTitle;
@@ -1453,6 +1544,9 @@ function applyUiLanguage(nextLanguage) {
   if (elements.searchInput) elements.searchInput.placeholder = strings.searchPlaceholder;
   if (elements.searchBtn) elements.searchBtn.textContent = strings.searchButton;
   if (elements.tocModalTitle) elements.tocModalTitle.textContent = strings.tocTitle;
+  if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
+  if (elements.syncModalMessage) elements.syncModalMessage.textContent = strings.syncPromptMessage;
+  if (elements.syncUseLocal) elements.syncUseLocal.textContent = strings.syncPromptLocal;
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
   if (elements.librarySectionTitle) elements.librarySectionTitle.textContent = strings.librarySectionTitle;
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
@@ -1533,6 +1627,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   await reader.applyReadingDirection(writingMode, pageDirection);
   updateEpubScrollMode();
   storage.setSettings({ writingMode, pageDirection });
+  persistReadingState({ writingMode });
   updateWritingModeToggleLabel();
 }
 
@@ -1822,7 +1917,8 @@ function setupEvents() {
         !elements.historyModal?.classList.contains('hidden') ||
         !elements.settingsModal?.classList.contains('hidden') ||
         !elements.imageModal?.classList.contains('hidden') ||
-        !elements.searchModal?.classList.contains('hidden')) {
+        !elements.searchModal?.classList.contains('hidden') ||
+        !elements.syncModal?.classList.contains('hidden')) {
       return;
     }
 

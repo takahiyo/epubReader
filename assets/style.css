@@ -66,20 +66,6 @@ body {
   overflow-x: hidden;
 }
 
-.viewer iframe {
-  width: 100% !important;
-  height: 100% !important;
-  border: none;
-  display: block;
-  background: transparent;
-}
-
-/* スクロール表示のためのiframe設定（縦書き・横書き共通） */
-.fullscreen-reader.epub-scroll .viewer iframe {
-  min-height: 100vh;
-  height: auto !important;
-  width: 100% !important;
-}
 
 /* クリック検知用オーバーレイ */
 .click-overlay {
@@ -123,50 +109,35 @@ body {
   background: rgba(15, 23, 42, 0.8);
 }
 
-.writing-mode-toggle {
+.reader-controls {
   position: absolute;
-  top: var(--reader-safe-block);
-  right: var(--reader-safe-inline);
-  z-index: 12;
-  min-width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.75);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 95;
 }
 
-.writing-mode-toggle:hover {
-  background: rgba(15, 23, 42, 0.9);
-}
-
-.toc-toggle {
-  position: absolute;
-  top: var(--reader-safe-block);
-  right: calc(var(--reader-safe-inline) + 60px);
-  z-index: 12;
-  min-width: 44px;
-  height: 44px;
-  border-radius: 999px;
+.control-btn {
+  min-width: 56px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.75);
-  color: #fff;
+  background: rgba(17, 24, 39, 0.75);
+  color: var(--text);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 0 12px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
-.toc-toggle:hover {
-  background: rgba(15, 23, 42, 0.9);
+.control-btn:hover {
+  background: rgba(17, 24, 39, 0.9);
 }
 
-.toc-toggle:disabled {
+.control-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -753,6 +724,42 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.sync-message {
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.sync-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sync-action-btn {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.75);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.sync-action-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.sync-action-btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none;
+}
+
+.sync-action-btn.primary:hover {
+  transform: translateY(-1px);
 }
 
 /* ========================================

@@ -181,20 +181,22 @@ function positionForSegmentIndex(segments, index) {
 function createRangeFromSegmentIndices(segments, startIndex, endIndex) {
   if (!segments.length) return null;
   const range = document.createRange();
-  const startPos = positionForSegmentIndex(segments, startIndex);
-  const endPos = positionForSegmentIndex(segments, endIndex);
-  if (!startPos || !endPos) return null;
+  const clampedStart = Math.min(Math.max(startIndex, 0), segments.length - 1);
+  const clampedEnd = Math.min(Math.max(endIndex, clampedStart + 1), segments.length);
+  const startSeg = segments[clampedStart];
+  const endSeg = segments[clampedEnd - 1];
+  if (!startSeg || !endSeg) return null;
 
-  if (startPos.type === "element") {
-    range.setStartBefore(startPos.node);
+  if (startSeg.type === "element") {
+    range.setStartBefore(startSeg.node);
   } else {
-    range.setStart(startPos.node, startPos.offset);
+    range.setStart(startSeg.node, startSeg.start);
   }
 
-  if (endPos.type === "element") {
-    range.setEndBefore(endPos.node);
+  if (endSeg.type === "element") {
+    range.setEndAfter(endSeg.node);
   } else {
-    range.setEnd(endPos.node, endPos.offset);
+    range.setEnd(endSeg.node, endSeg.end);
   }
 
   return range;
