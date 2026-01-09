@@ -343,7 +343,7 @@ export class ReaderController {
     this.rendition = this.book.renderTo(this.viewer, {
       width: "100%",
       height: "100%",
-      flow: "scrolled-doc",
+      flow: "scrolled",
       manager: "continuous",
       allowScriptedContent: true,
       spread: "none",
