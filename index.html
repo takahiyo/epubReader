@@ -300,6 +300,13 @@
             </div>
             <p class="setting-hint" id="autoSyncHint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
           </div>
+
+          <div class="settings-section">
+            <h4>アカウント</h4>
+            <div class="setting-actions">
+              <button id="logoutBtn" class="secondary-btn" type="button">ログアウト</button>
+            </div>
+          </div>
           
         </div>
       </div>
@@ -352,7 +359,14 @@
         </button>
       </div>
 
-      <div id="floatProgressBar"></div>
+      <div id="floatProgress">
+        <div id="floatProgressPercent">0%</div>
+        <div id="floatProgressTrack">
+          <div id="floatProgressMarks"></div>
+          <div id="floatProgressFill"></div>
+          <div id="floatProgressThumb"></div>
+        </div>
+      </div>
     </div>
 
     <div id="modalOverlay"></div>

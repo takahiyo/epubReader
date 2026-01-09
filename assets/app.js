@@ -193,13 +193,18 @@ const elements = {
   emptyState: document.getElementById("emptyState"),
   floatOverlay: document.getElementById("floatOverlay"),
   floatBackdrop: document.querySelector("#floatOverlay .float-backdrop"),
-  floatProgressBar: document.getElementById("floatProgressBar"),
   floatOpen: document.getElementById("floatOpen"),
   floatLibrary: document.getElementById("floatLibrary"),
   floatSearch: document.getElementById("floatSearch"),
   floatBookmarks: document.getElementById("floatBookmarks"),
   floatHistory: document.getElementById("floatHistory"),
   floatSettings: document.getElementById("floatSettings"),
+  floatProgress: document.getElementById("floatProgress"),
+  floatProgressPercent: document.getElementById("floatProgressPercent"),
+  floatProgressTrack: document.getElementById("floatProgressTrack"),
+  floatProgressMarks: document.getElementById("floatProgressMarks"),
+  floatProgressFill: document.getElementById("floatProgressFill"),
+  floatProgressThumb: document.getElementById("floatProgressThumb"),
   modalOverlay: document.getElementById("modalOverlay"),
   fontPlus: document.getElementById("fontPlus"),
   fontMinus: document.getElementById("fontMinus"),
@@ -266,6 +271,7 @@ const elements = {
   pageDirectionSelect: document.getElementById("pageDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   autoSyncEnabled: document.getElementById("autoSyncEnabled"),
+  logoutBtn: document.getElementById("logoutBtn"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
   
@@ -421,6 +427,14 @@ const progressBarHandler = new ProgressBarHandler({
   },
 });
 
+const floatProgressHandler = new ProgressBarHandler({
+  container: elements.floatProgressTrack,
+  thumb: elements.floatProgressThumb,
+  onSeek: (percentage) => {
+    seekToPercentage(percentage);
+  },
+});
+
 // ========================================
 // ユーザー情報表示
 // ========================================
@@ -454,9 +468,17 @@ function toggleFloatOverlay(forceVisible) {
 }
 
 function updateFloatProgressBar(percentage) {
-  if (!elements.floatProgressBar || !floatVisible) return;
+  if (!elements.floatProgress || !floatVisible) return;
   const clamped = Math.min(100, Math.max(0, percentage));
-  elements.floatProgressBar.style.setProperty("--progress", `${clamped}%`);
+  if (elements.floatProgressFill) {
+    elements.floatProgressFill.style.width = `${clamped}%`;
+  }
+  if (elements.floatProgressThumb) {
+    elements.floatProgressThumb.style.left = `${clamped}%`;
+  }
+  if (elements.floatProgressPercent) {
+    elements.floatProgressPercent.textContent = `${Math.floor(clamped)}%`;
+  }
 }
 
 function formatRelativeTime(timestamp) {
@@ -958,6 +980,31 @@ function renderBookmarkMarkers() {
       ui.closeAllMenus();
     });
     elements.progressTrack.appendChild(marker);
+  });
+
+  renderFloatBookmarkMarkers();
+}
+
+function renderFloatBookmarkMarkers() {
+  if (!elements.floatProgressMarks) return;
+  elements.floatProgressMarks.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
+  if (!currentBookId) return;
+
+  const bookmarks = storage.getBookmarks(currentBookId);
+  if (!bookmarks.length) return;
+
+  bookmarks.forEach((bookmark) => {
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "bookmark-marker";
+    const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
+    marker.style.left = `${percentage}%`;
+    marker.title = bookmark.label ?? t("bookmarkDefault");
+    marker.addEventListener("click", (event) => {
+      event.stopPropagation();
+      reader.goTo(bookmark);
+    });
+    elements.floatProgressMarks.appendChild(marker);
   });
 }
 
@@ -1743,6 +1790,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsCloudTitle) elements.settingsCloudTitle.textContent = strings.settingsCloudTitle;
+  if (elements.logoutBtn) elements.logoutBtn.textContent = strings.menuLogout;
   if (elements.autoSyncLabel) {
     const input = elements.autoSyncLabel.querySelector("input");
     elements.autoSyncLabel.textContent = strings.autoSyncLabel;
@@ -1978,6 +2026,12 @@ function setupEvents() {
   });
   
   elements.menuLogout?.addEventListener('click', () => {
+    if (confirm("ログアウトしますか？")) {
+      logout();
+    }
+  });
+
+  elements.logoutBtn?.addEventListener('click', () => {
     if (confirm("ログアウトしますか？")) {
       logout();
     }
