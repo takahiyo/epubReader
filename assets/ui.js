@@ -134,7 +134,7 @@ export class UIController {
       
       isProcessing = true;
       
-      const baseElement = e.currentTarget || reader || document.documentElement;
+      const baseElement = e.currentTarget || document.documentElement;
       const area = this.getClickArea(e.clientX, e.clientY, baseElement);
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
       
