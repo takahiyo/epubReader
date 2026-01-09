@@ -81,21 +81,48 @@ export class CloudSync {
       return { source: "local", status: "skipped" };
     }
     if (resolvedSource === "drive") {
-      return this.pullFromDrive(settings);
+      return this.pullFromDrive(settings, { merge: true });
     }
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) {
         return { source: "onedrive", status: "unauthenticated" };
       }
-      return this.pullFromOneDrive(settings);
+      return this.pullFromOneDrive(settings, { merge: true });
     }
     if (resolvedSource === "pcloud") {
       if (!this.isPCloudConfigured(settings)) {
         return { source: "pcloud", status: "unauthenticated" };
       }
-      return this.pullFromPCloud(settings);
+      return this.pullFromPCloud(settings, { merge: true });
     }
-    return this.pullFromEndpoint(settings);
+    return this.pullFromEndpoint(settings, { merge: true });
+  }
+
+  async fetchRemoteSnapshot(source) {
+    const { settings, resolvedSource } = this.getSettings(source);
+    if (resolvedSource === "local") {
+      return null;
+    }
+    if (resolvedSource === "drive") {
+      const result = await this.pullFromDrive(settings, { merge: false });
+      return result?.data ?? result;
+    }
+    if (resolvedSource === "onedrive") {
+      if (!isOneDriveTokenValid(settings?.onedriveToken)) {
+        throw new Error("OneDrive の認証が必要です");
+      }
+      const result = await this.pullFromOneDrive(settings, { merge: false });
+      return result?.data ?? result;
+    }
+    if (resolvedSource === "pcloud") {
+      if (!this.isPCloudConfigured(settings)) {
+        throw new Error("pCloud の設定が必要です");
+      }
+      const result = await this.pullFromPCloud(settings, { merge: false });
+      return result?.data ?? result;
+    }
+    const result = await this.pullFromEndpoint(settings, { merge: false });
+    return result?.data ?? result;
   }
 
   async pushToEndpoint(settings) {
@@ -118,7 +145,7 @@ export class CloudSync {
     return response.json().catch(() => ({}));
   }
 
-  async pullFromEndpoint(settings) {
+  async pullFromEndpoint(settings, { merge = true } = {}) {
     const { endpoint, apiKey } = settings;
     const response = await fetch(endpoint, {
       method: "POST",
@@ -131,7 +158,7 @@ export class CloudSync {
     }
 
     const json = await response.json();
-    if (json?.data) {
+    if (json?.data && merge) {
       this.storage.mergeData(json.data);
     }
     return json;
@@ -150,7 +177,7 @@ export class CloudSync {
     return { source: "drive", fileId };
   }
 
-  async pullFromDrive(settings) {
+  async pullFromDrive(settings, { merge = true } = {}) {
     const accessToken = await this.ensureDriveToken(settings);
     const fileId = await this.resolveDriveFileId(accessToken, settings);
     if (!fileId) {
@@ -166,7 +193,7 @@ export class CloudSync {
       throw new Error(`Drive からの取得に失敗しました (${response.status})`);
     }
     const json = await response.json();
-    if (json?.data) {
+    if (json?.data && merge) {
       this.storage.mergeData(json.data);
     }
     if (fileId !== settings.driveFileId) {
@@ -255,7 +282,7 @@ export class CloudSync {
     return { source: "onedrive", fileId };
   }
 
-  async pullFromOneDrive(settings) {
+  async pullFromOneDrive(settings, { merge = true } = {}) {
     const accessToken = this.ensureOneDriveToken(settings);
     const item = await this.resolveOneDriveItem(accessToken, settings);
     if (!item?.id) {
@@ -269,7 +296,7 @@ export class CloudSync {
       throw new Error(`OneDrive からの取得に失敗しました (${response.status})`);
     }
     const json = await response.json();
-    if (json?.data) {
+    if (json?.data && merge) {
       this.storage.mergeData(json.data);
     }
     if (item.id && item.id !== settings.onedriveFileId) {
@@ -374,7 +401,7 @@ export class CloudSync {
     return response.json().catch(() => ({ source: "pcloud" }));
   }
 
-  async pullFromPCloud(settings) {
+  async pullFromPCloud(settings, { merge = true } = {}) {
     const { endpoint, apiKey } = settings;
     const response = await fetch(endpoint, {
       method: "GET",
@@ -387,7 +414,7 @@ export class CloudSync {
       throw new Error(`pCloud からの取得に失敗しました (${response.status})`);
     }
     const json = await response.json();
-    if (json?.data) {
+    if (json?.data && merge) {
       this.storage.mergeData(json.data);
     }
     return json;

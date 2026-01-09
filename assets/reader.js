@@ -1,5 +1,7 @@
 import { EpubPaginator } from "../src/reader/epubPaginator.js";
 
+const TEXT_SEGMENT_STEP = 24; // epubPaginator.js の MIN_TEXT_UNIT_STEP と合わせる
+
 class PageController {
   constructor(onChange) {
     this.onChange = onChange;
@@ -60,6 +62,7 @@ export class ReaderController {
     this.theme = "dark";
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
+    this.preferredWritingMode = null;
     this.paginator = null;
     this.pagination = null;
     this.paginationPromise = null;
@@ -361,14 +364,6 @@ export class ReaderController {
     }
     
     console.log("ePub instance created:", this.book);
-    console.log("Rendering to viewer element...");
-    console.log("Viewer element:", this.viewer);
-    console.log("Viewer dimensions:", {
-      width: this.viewer.offsetWidth,
-      height: this.viewer.offsetHeight,
-      clientWidth: this.viewer.clientWidth,
-      clientHeight: this.viewer.clientHeight
-    });
     
     // book.readyを待つ
     await this.book.ready;
@@ -387,13 +382,16 @@ export class ReaderController {
 
     // 縦書き・横書きを自動判別
     const detectedReading = await this.detectReadingDirectionFromBook();
-    if (detectedReading?.writingMode) {
-      this.writingMode = detectedReading.writingMode;
-      console.log("Detected writing mode:", this.writingMode);
-    }
     if (detectedReading?.pageDirection) {
       this.pageDirection = detectedReading.pageDirection;
       console.log("Detected page direction:", this.pageDirection);
+    }
+    if (this.preferredWritingMode) {
+      this.writingMode = this.preferredWritingMode;
+      console.log("Using preferred writing mode:", this.writingMode);
+    } else if (detectedReading?.writingMode) {
+      this.writingMode = detectedReading.writingMode;
+      console.log("Detected writing mode:", this.writingMode);
     }
 
     if (this.viewer) {
@@ -519,12 +517,41 @@ export class ReaderController {
 
     let node = walker.nextNode();
     while (node) {
-      segments.push(node);
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || "";
+        const length = text.length;
+        let start = 0;
+        while (start < length) {
+          const end = Math.min(length, start + TEXT_SEGMENT_STEP);
+          segments.push({ type: "text", node, start, end });
+          start = end;
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        segments.push({ type: "element", node });
+      }
       node = walker.nextNode();
     }
 
-    const index = segments.findIndex((segment) => target.contains(segment));
+    const index = segments.findIndex((segment) => target.contains(segment.node));
     return index >= 0 ? index : 0;
+  }
+
+  locatePageContaining(spineIndex, segmentIndex) {
+    const pages = this.pagination?.pages ?? [];
+    for (let i = 0; i < pages.length; i += 1) {
+      const page = pages[i];
+      if (page.spineIndex !== spineIndex) continue;
+      const start = Number(String(page.withinSpineOffset).replace("s:", ""));
+      const next = pages[i + 1];
+      const end =
+        next && next.spineIndex === spineIndex
+          ? Number(String(next.withinSpineOffset).replace("s:", ""))
+          : Infinity;
+      if (segmentIndex >= start && segmentIndex < end) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   navigateToHref(href, fallbackSpineIndex = 0) {
@@ -532,13 +559,16 @@ export class ReaderController {
     const [pathPart, fragPart] = href.split("#");
     const spineIndex = this.resolveSpineIndexFromHref(pathPart || href, fallbackSpineIndex);
     let within = "s:0";
+    let segmentIndex = 0;
     if (fragPart) {
       const spineItem = this.spineItems?.[spineIndex];
-      const segmentIndex = this.computeSegmentIndexForFragment(spineItem?.htmlString, fragPart);
+      segmentIndex = this.computeSegmentIndexForFragment(spineItem?.htmlString, fragPart);
       within = `s:${Math.max(0, segmentIndex)}`;
     }
 
-    let pageIndex = this.pagination.locatePage?.(spineIndex, within) ?? -1;
+    let pageIndex = fragPart
+      ? this.locatePageContaining(spineIndex, segmentIndex)
+      : this.pagination.locatePage?.(spineIndex, within) ?? -1;
     if (pageIndex < 0) {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
@@ -1120,14 +1150,15 @@ export class ReaderController {
     if (pageDirection) {
       this.pageDirection = pageDirection;
     }
-    
+    if (writingMode) {
+      this.writingMode = writingMode;
+      this.preferredWritingMode = writingMode;
+    }
+
     if (this.type !== "epub") {
       return;
     }
-    
-    if (writingMode) {
-      this.writingMode = writingMode;
-    }
+
     this.pagination = null;
     await this.buildPagination();
     this.pageController.goTo(this.currentPageIndex);
