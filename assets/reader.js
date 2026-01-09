@@ -333,6 +333,11 @@ export class ReaderController {
       console.log("Detected page direction:", this.pageDirection);
     }
 
+    if (this.writingMode == null) {
+      this.writingMode = "horizontal";
+    }
+    const isVertical = this.writingMode === "vertical";
+
     // ビューアのサイズを明示的に設定
     const viewerWidth = this.viewer.clientWidth || window.innerWidth;
     const viewerHeight = this.viewer.clientHeight || window.innerHeight;
