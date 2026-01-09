@@ -1,3 +1,5 @@
+import { EpubPaginator } from "../src/reader/epubPaginator.js";
+
 export class ReaderController {
   constructor({
     viewerId,
@@ -26,6 +28,9 @@ export class ReaderController {
     this.theme = "dark";
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
+    this.paginator = null;
+    this.pagination = null;
+    this.paginationPromise = null;
     this.imageZoomBound = false;
     this.toc = [];
   }
@@ -54,6 +59,12 @@ export class ReaderController {
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
     this.toc = [];
+    if (this.paginator?.destroy) {
+      this.paginator.destroy();
+    }
+    this.paginator = null;
+    this.pagination = null;
+    this.paginationPromise = null;
     if (this.viewer) {
       this.viewer.innerHTML = "";
     }
@@ -424,6 +435,78 @@ export class ReaderController {
       console.error("EPUBの表示に失敗しました:", err);
       console.error("Error stack:", err.stack);
       throw new Error(`EPUBの表示に失敗しました: ${err.message}`);
+    }
+  }
+
+  async buildPagination() {
+    if (this.type !== "epub" || !this.book?.spine) {
+      return null;
+    }
+    if (this.pagination) {
+      return this.pagination;
+    }
+    if (this.paginationPromise) {
+      return this.paginationPromise;
+    }
+
+    const viewportWidth = this.viewer?.clientWidth || window.innerWidth;
+    const viewportHeight = this.viewer?.clientHeight || window.innerHeight;
+    const baseFontSize = Number.parseFloat(
+      window.getComputedStyle(this.viewer || document.body)?.fontSize
+    ) || 16;
+    const writingMode = this.writingMode === "vertical" ? "vertical-rl" : "horizontal-tb";
+
+    this.paginationPromise = (async () => {
+      const spineItems = [];
+
+      for (let i = 0; i < this.book.spine.length; i += 1) {
+        const item = this.book.spine.get(i);
+        if (!item) continue;
+        try {
+          await item.load(this.book.load.bind(this.book));
+          const doc = item.document || item.contents?.document;
+          const htmlString = doc?.body?.innerHTML ?? "";
+          if (htmlString.trim()) {
+            spineItems.push({
+              id: item.idref || item.id || `spine-${i}`,
+              href: item.href,
+              htmlString,
+            });
+          }
+        } catch (error) {
+          console.warn("Failed to load spine item for pagination:", error);
+        } finally {
+          if (item.unload) {
+            item.unload();
+          }
+        }
+      }
+
+      if (!spineItems.length) {
+        this.pagination = null;
+        return null;
+      }
+
+      if (this.paginator?.destroy) {
+        this.paginator.destroy();
+      }
+      this.paginator = new EpubPaginator(spineItems, null, {
+        viewportWidth,
+        viewportHeight,
+        fontSize: baseFontSize,
+        lineHeight: 1.8,
+        writingMode,
+        padding: 24,
+      });
+
+      this.pagination = await this.paginator.paginate();
+      return this.pagination;
+    })();
+
+    try {
+      return await this.paginationPromise;
+    } finally {
+      this.paginationPromise = null;
     }
   }
 
