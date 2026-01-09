@@ -17,7 +17,7 @@
  * PageModel output:
  * - pages: Array<{
  *     spineIndex: number,
- *     withinSpineOffset: string, // "u:<unitIndex>" (stable locator)
+ *     withinSpineOffset: string, // "s:<segmentIndex>" (stable locator)
  *     htmlFragment: string,
  *     estimatedCharCount?: number
  *   }>
@@ -27,7 +27,7 @@
  * Measurement strategy:
  * - Uses a hidden container sized to the viewport, applies base CSS, and measures
  *   overflow by injecting candidate fragments into a page element.
- * - Uses binary search on unit offsets to find the largest fragment that fits.
+ * - Uses binary search on segment indices to find the largest fragment that fits.
  * - Guards against infinite loops with max iterations and progress checks.
  */
 
@@ -44,6 +44,8 @@ const DEFAULTS = {
 const MAX_BINARY_SEARCH_ITERATIONS = 24;
 const MAX_PAGES_PER_SPINE = 5000;
 const MIN_TEXT_UNIT_STEP = 24;
+const FIT_TOLERANCE_PX = 3;
+const MAX_FIT_ATTEMPTS = 3;
 
 function normalizeSettings(settings) {
   return {
@@ -157,52 +159,40 @@ function createSegments(body) {
   return segments;
 }
 
-function positionForIndex(segments, index) {
-  if (index <= 0) {
-    return { node: segments[0]?.node, offset: segments[0]?.type === "text" ? segments[0].start : 0, type: segments[0]?.type };
+function positionForSegmentIndex(segments, index) {
+  const clampedIndex = Math.min(Math.max(index, 0), segments.length);
+  if (!segments.length) return null;
+  if (clampedIndex === 0) {
+    const first = segments[0];
+    return {
+      node: first.node,
+      offset: first.type === "text" ? first.start : 0,
+      type: first.type
+    };
   }
-  let remaining = index;
-  for (const segment of segments) {
-    const length = segment.type === "text" ? segment.end - segment.start : 1;
-    if (remaining <= length) {
-      if (segment.type === "text") {
-        return { node: segment.node, offset: segment.start + remaining - 0, type: "text" };
-      }
-      return { node: segment.node, offset: remaining >= 1 ? 1 : 0, type: "element" };
-    }
-    remaining -= length;
+  const segmentIndex = Math.min(clampedIndex, segments.length - 1);
+  const segment = segments[segmentIndex];
+  if (segment.type === "text") {
+    return { node: segment.node, offset: segment.start, type: "text" };
   }
-  const last = segments[segments.length - 1];
-  if (!last) return null;
-  if (last.type === "text") {
-    return { node: last.node, offset: last.end, type: "text" };
-  }
-  return { node: last.node, offset: 1, type: "element" };
+  return { node: segment.node, offset: 0, type: "element" };
 }
 
-function createRangeFromUnits(segments, startIndex, endIndex) {
+function createRangeFromSegmentIndices(segments, startIndex, endIndex) {
   if (!segments.length) return null;
   const range = document.createRange();
-  const startPos = positionForIndex(segments, startIndex);
-  const endPos = positionForIndex(segments, endIndex);
+  const startPos = positionForSegmentIndex(segments, startIndex);
+  const endPos = positionForSegmentIndex(segments, endIndex);
   if (!startPos || !endPos) return null;
 
   if (startPos.type === "element") {
-    if (startPos.offset === 0) {
-      range.setStartBefore(startPos.node);
-    } else {
-      range.setStartAfter(startPos.node);
-    }
+    range.setStartBefore(startPos.node);
   } else {
     range.setStart(startPos.node, startPos.offset);
   }
 
   if (endPos.type === "element") {
-    if (endPos.offset === 0) {
-      range.setEndBefore(endPos.node);
-    } else {
-      range.setEndAfter(endPos.node);
-    }
+    range.setEndBefore(endPos.node);
   } else {
     range.setEnd(endPos.node, endPos.offset);
   }
@@ -217,14 +207,37 @@ function serializeRange(range) {
   return wrapper.innerHTML;
 }
 
-function measureFits(pageElement, htmlFragment, settings) {
+async function waitForImages(pageElement) {
+  const images = Array.from(pageElement.querySelectorAll("img"));
+  if (!images.length) return;
+  await Promise.all(
+    images.map((img) => {
+      if (img.decode) {
+        return img.decode().catch(() => undefined);
+      }
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        const cleanup = () => {
+          img.removeEventListener("load", cleanup);
+          img.removeEventListener("error", cleanup);
+          resolve();
+        };
+        img.addEventListener("load", cleanup, { once: true });
+        img.addEventListener("error", cleanup, { once: true });
+      });
+    })
+  );
+}
+
+async function measureFits(pageElement, htmlFragment, settings) {
   pageElement.innerHTML = htmlFragment;
+  await waitForImages(pageElement);
   const overflowWidth = pageElement.scrollWidth - pageElement.clientWidth;
   const overflowHeight = pageElement.scrollHeight - pageElement.clientHeight;
   if (settings.writingMode === "vertical-rl") {
-    return overflowWidth <= 1 && overflowHeight <= 1;
+    return overflowWidth <= FIT_TOLERANCE_PX && overflowHeight <= FIT_TOLERANCE_PX;
   }
-  return overflowHeight <= 1 && overflowWidth <= 1;
+  return overflowHeight <= FIT_TOLERANCE_PX && overflowWidth <= FIT_TOLERANCE_PX;
 }
 
 async function resolveResources(body, resourceLoader, spineItem) {
@@ -275,35 +288,35 @@ export class EpubPaginator {
         continue;
       }
 
-      const totalUnits = segments.reduce((sum, segment) => {
-        return sum + (segment.type === "text" ? segment.end - segment.start : 1);
-      }, 0);
-
+      const totalUnits = segments.length;
       let startIndex = 0;
       let pageCount = 0;
+      let safetyCounter = 0;
 
       while (startIndex < totalUnits) {
-        if (pageCount > MAX_PAGES_PER_SPINE) {
+        if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
           break;
         }
-        const endIndex = this.findFittingEndIndex(segments, startIndex, totalUnits);
+        const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits);
         const safeEndIndex = Math.max(endIndex, startIndex + 1);
-        const range = createRangeFromUnits(segments, startIndex, safeEndIndex);
+        const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
         const htmlFragment = serializeRange(range);
 
         this.pages.push({
           spineIndex,
-          withinSpineOffset: `u:${startIndex}`,
+          withinSpineOffset: `s:${startIndex}`,
           htmlFragment,
-          estimatedCharCount: safeEndIndex - startIndex
+          estimatedCharCount: htmlFragment.length
         });
         this.pageStartIndexMap.push({ spineIndex, startIndex });
 
         if (safeEndIndex <= startIndex) {
-          break;
+          startIndex += 1;
+        } else {
+          startIndex = safeEndIndex;
         }
-        startIndex = safeEndIndex;
         pageCount += 1;
+        safetyCounter += 1;
       }
     }
 
@@ -314,18 +327,18 @@ export class EpubPaginator {
     };
   }
 
-  findFittingEndIndex(segments, startIndex, totalUnits) {
+  async findFittingEndIndex(segments, startIndex, totalUnits) {
     const { page } = this.measurement;
     let low = startIndex + 1;
     let high = totalUnits;
-    let best = low;
+    let best = startIndex + 1;
     let iterations = 0;
 
     while (low <= high && iterations < MAX_BINARY_SEARCH_ITERATIONS) {
       const mid = Math.floor((low + high) / 2);
-      const range = createRangeFromUnits(segments, startIndex, mid);
+      const range = createRangeFromSegmentIndices(segments, startIndex, mid);
       const htmlFragment = serializeRange(range);
-      const fits = measureFits(page, htmlFragment, this.settings);
+      const fits = await measureFits(page, htmlFragment, this.settings);
 
       if (fits) {
         best = mid;
@@ -336,11 +349,23 @@ export class EpubPaginator {
       iterations += 1;
     }
 
+    const singleRange = createRangeFromSegmentIndices(segments, startIndex, startIndex + 1);
+    const singleFragment = serializeRange(singleRange);
+    let canFitSingle = false;
+    for (let attempt = 0; attempt < MAX_FIT_ATTEMPTS; attempt += 1) {
+      canFitSingle = await measureFits(page, singleFragment, this.settings);
+      if (canFitSingle) break;
+    }
+
+    if (!canFitSingle) {
+      return startIndex + 1;
+    }
+
     return best;
   }
 
   locatePage(spineIndex, withinSpineOffset) {
-    const offsetIndex = Number(String(withinSpineOffset).replace("u:", ""));
+    const offsetIndex = Number(String(withinSpineOffset).replace("s:", ""));
     if (Number.isNaN(offsetIndex)) return -1;
 
     let lastMatch = -1;
