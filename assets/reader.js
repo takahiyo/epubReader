@@ -1,5 +1,37 @@
 import { EpubPaginator } from "../src/reader/epubPaginator.js";
 
+class PageController {
+  constructor(onChange) {
+    this.onChange = onChange;
+    this.currentIndex = 0;
+    this.totalPages = 0;
+  }
+
+  setTotalPages(totalPages) {
+    this.totalPages = Math.max(0, totalPages || 0);
+    if (this.totalPages === 0) {
+      this.currentIndex = 0;
+      return;
+    }
+    this.currentIndex = Math.min(this.currentIndex, this.totalPages - 1);
+  }
+
+  goTo(index) {
+    if (this.totalPages === 0) return;
+    const clamped = Math.max(0, Math.min(index, this.totalPages - 1));
+    this.currentIndex = clamped;
+    this.onChange?.(clamped);
+  }
+
+  next() {
+    this.goTo(this.currentIndex + 1);
+  }
+
+  prev() {
+    this.goTo(this.currentIndex - 1);
+  }
+}
+
 export class ReaderController {
   constructor({
     viewerId,
@@ -34,7 +66,12 @@ export class ReaderController {
     this.currentPageIndex = 0;
     this.usingPaginator = false;
     this.resourceUrlCache = new Map();
+    this.resourceLoader = null;
     this.pageContainer = null;
+    this.spineItems = [];
+    this.pageController = new PageController((index) => {
+      this.renderEpubPage(index);
+    });
     this.imageZoomBound = false;
     this.toc = [];
   }
@@ -73,7 +110,12 @@ export class ReaderController {
     this.usingPaginator = false;
     this.resourceUrlCache.forEach((url) => URL.revokeObjectURL(url));
     this.resourceUrlCache.clear();
+    this.resourceLoader = null;
     this.pageContainer = null;
+    this.spineItems = [];
+    this.pageController = new PageController((index) => {
+      this.renderEpubPage(index);
+    });
     if (this.viewer) {
       this.viewer.innerHTML = "";
     }
@@ -368,7 +410,8 @@ export class ReaderController {
       }
 
       const startPage = this.resolveStartPageIndex(startLocation, pagination.pages.length);
-      this.renderEpubPage(startPage, pagination);
+      this.pageController.setTotalPages(pagination.pages.length);
+      this.pageController.goTo(startPage);
 
       // 初回のonReadyコールバック（メタデータと目次）
       this.onReady?.({
@@ -427,6 +470,7 @@ export class ReaderController {
       img.style.margin = "1em auto";
       img.style.objectFit = "contain";
     });
+    this.resolveImagesInRenderedPage(page);
     this.updateEpubTheme();
     this.injectImageZoom();
     this.updateProgressFromPagination(pagination.pages.length);
@@ -439,6 +483,27 @@ export class ReaderController {
       location: this.currentPageIndex,
       percentage,
     });
+  }
+
+  async resolveImagesInRenderedPage(page) {
+    if (!this.pageContainer || !this.resourceLoader) return;
+    if (page?.spineIndex == null || page.spineIndex < 0) return;
+    const spineItem = this.spineItems[page.spineIndex];
+    if (!spineItem) return;
+    const images = Array.from(this.pageContainer.querySelectorAll("img"));
+    if (!images.length) return;
+    await Promise.all(
+      images.map(async (img) => {
+        const src = img.getAttribute("src");
+        if (!src || src.startsWith("blob:")) return;
+        try {
+          const resolved = await this.resourceLoader(src, spineItem);
+          if (resolved) img.setAttribute("src", resolved);
+        } catch (error) {
+          // ignore
+        }
+      })
+    );
   }
 
   async buildPagination() {
@@ -515,6 +580,8 @@ export class ReaderController {
         }
       };
 
+      this.spineItems = spineItems;
+      this.resourceLoader = resourceLoader;
       this.paginator = new EpubPaginator(spineItems, resourceLoader, {
         viewportWidth,
         viewportHeight,
@@ -524,7 +591,10 @@ export class ReaderController {
         padding: 24,
       });
 
-      this.pagination = await this.paginator.paginate();
+      const pagination = await this.paginator.paginate();
+      await this.addCoverPageIfNeeded(pagination);
+      this.pagination = pagination;
+      this.pageController.setTotalPages(pagination.pages.length);
       return this.pagination;
     })();
 
@@ -819,7 +889,7 @@ export class ReaderController {
   next() {
     if (this.type === "epub") {
       if (!this.pagination?.pages?.length) return;
-      this.renderEpubPage(this.currentPageIndex + 1);
+      this.pageController.next();
     } else if (this.type === "image") {
       if (this.imageIndex < this.imagePages.length - 1) {
         this.imageIndex += 1;
@@ -831,7 +901,7 @@ export class ReaderController {
   prev() {
     if (this.type === "epub") {
       if (!this.pagination?.pages?.length) return;
-      this.renderEpubPage(this.currentPageIndex - 1);
+      this.pageController.prev();
     } else if (this.type === "image") {
       if (this.imageIndex > 0) {
         this.imageIndex -= 1;
@@ -866,12 +936,12 @@ export class ReaderController {
     if (!bookmark) return;
     if (bookmark.type === "epub") {
       if (typeof bookmark.location === "number" && this.pagination?.pages?.length) {
-        this.renderEpubPage(bookmark.location);
+        this.pageController.goTo(bookmark.location);
         return;
       }
       if (typeof bookmark.percentage === "number" && this.pagination?.pages?.length) {
         const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
-        this.renderEpubPage(index);
+        this.pageController.goTo(index);
       }
     } else if (bookmark.type === "image") {
       this.imageIndex = Math.min(bookmark.location, this.imagePages.length - 1);
@@ -899,7 +969,7 @@ export class ReaderController {
     }
     this.pagination = null;
     await this.buildPagination();
-    this.renderEpubPage(this.currentPageIndex);
+    this.pageController.goTo(this.currentPageIndex);
   }
 
   applyWritingModeToContents() {
@@ -946,6 +1016,43 @@ export class ReaderController {
       this.pageContainer.style.boxSizing = "border-box";
     }
     this.applyWritingModeToContents();
+  }
+
+  async addCoverPageIfNeeded(pagination) {
+    if (!pagination?.pages?.length || !this.book) return;
+    const coverUrl = await this.resolveCoverUrl();
+    if (!coverUrl) return;
+    const htmlFragment = `
+      <div class="epub-cover">
+        <img src="${coverUrl}" alt="Cover" />
+      </div>
+    `;
+    pagination.pages.unshift({
+      spineIndex: -1,
+      withinSpineOffset: "cover",
+      htmlFragment,
+      estimatedCharCount: htmlFragment.length,
+    });
+  }
+
+  async resolveCoverUrl() {
+    if (typeof this.book.coverUrl === "function") {
+      try {
+        const url = await this.book.coverUrl();
+        if (url) return url;
+      } catch (error) {
+        // ignore
+      }
+    }
+    try {
+      const coverPath = await this.book.loaded?.cover;
+      if (coverPath && this.resourceLoader) {
+        return await this.resourceLoader(coverPath);
+      }
+    } catch (error) {
+      // ignore
+    }
+    return null;
   }
 
   async detectReadingDirectionFromBook() {

@@ -564,7 +564,11 @@ async function seekToPercentage(percentage) {
       if (reader.usingPaginator && reader.pagination?.pages?.length) {
         const totalPages = reader.pagination.pages.length;
         const pageIndex = Math.max(0, Math.min(Math.round((percentage / 100) * totalPages) - 1, totalPages - 1));
-        reader.renderEpubPage(pageIndex);
+        if (reader.pageController) {
+          reader.pageController.goTo(pageIndex);
+        } else {
+          reader.renderEpubPage(pageIndex);
+        }
         return;
       }
       // EPUB.jsのrendition.locationsを使用
