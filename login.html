@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ログイン - Epub Reader</title>
+    <title>Login - Epub Reader</title>
     <link rel="stylesheet" href="./assets/login.css" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
@@ -11,30 +11,30 @@
     <div class="login-container">
       <div class="login-card">
         <img class="login-title" src="./assets/BookReader_Titlle.png" alt="Epub Reader" />
-        <p class="subtitle">EPUB と画像スキャン書籍を快適に読む</p>
+        <p class="subtitle">Read EPUBs and scanned books comfortably</p>
         
         <div class="login-actions">
-          <div class="login-methods" role="radiogroup" aria-label="ログイン方法">
+          <div class="login-methods" role="radiogroup" aria-label="Login method">
             <label class="login-option">
               <input type="radio" name="loginMethod" value="google" checked />
-              Google ログイン
+              Sign in with Google
             </label>
             <label class="login-option">
               <input type="radio" name="loginMethod" value="local" />
-              ローカルで使う
+              Use locally
             </label>
           </div>
           <div class="login-buttons">
             <div id="googleSignInButton" class="google-signin-button" aria-hidden="false"></div>
             <button id="localLoginBtn" class="local-login-btn" type="button">
-              ローカルで使う
+              Use locally
             </button>
           </div>
         </div>
         
         <div class="info">
-          <p>※ 現在は Google ログインまたはローカル利用（認証なし）を選べます</p>
-          <p>※ しおりや履歴は Google ログイン時にアカウントごとに管理されます</p>
+          <p>* You can choose Google sign-in or local mode (no authentication).</p>
+          <p>* Bookmarks and history are managed per account when using Google sign-in.</p>
         </div>
       </div>
     </div>
@@ -66,7 +66,7 @@
         await initGoogleLogin();
       } catch (error) {
         console.error('Login failed:', error);
-        alert('ログインに失敗しました: ' + error.message);
+        alert('Login failed: ' + error.message);
       }
 
       localLoginBtn.addEventListener('click', () => {

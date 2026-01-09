@@ -20,7 +20,7 @@ let currentBookInfo = null;
 let theme = settings.theme ?? "dark";
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
-let uiLanguage = settings.uiLanguage ?? "ja";
+let uiLanguage = settings.uiLanguage ?? "en";
 let progressDisplayMode = settings.progressDisplayMode ?? "page";
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
 const legacyDirection = settings.readingDirection;
@@ -38,6 +38,7 @@ if (!pageDirection) pageDirection = "ltr";
 let autoSyncEnabled = settings.autoSyncEnabled ?? false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
+let autoSyncTimeout = null;
 let bookmarkMenuMode = "current";
 let currentToc = [];
 let uiInitialized = false;
@@ -110,7 +111,7 @@ const UI_STRINGS = {
   en: {
     documentTitle: "Epub Reader",
     emptyTitle: "No book selected",
-    emptyDescription: "Click the center of the screen to show the menu.",
+    emptyDescription: "Tap center of the screen to open menu",
     menuOpen: "Open",
     menuLibrary: "Library",
     menuSearch: "Text Search",
@@ -850,6 +851,7 @@ function handleProgress(progress) {
     theme,
     uiLanguage,
   });
+  scheduleAutoSyncPush();
   updateProgressBarDisplay();
 }
 
@@ -1890,6 +1892,10 @@ function toggleAutoSync(enabled) {
     clearInterval(autoSyncInterval);
     autoSyncInterval = null;
   }
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+    autoSyncTimeout = null;
+  }
   
   if (enabled) {
     // 30秒ごとに自動同期
@@ -1902,6 +1908,21 @@ function toggleAutoSync(enabled) {
       }
     }, 30000);
   }
+}
+
+function scheduleAutoSyncPush() {
+  if (!autoSyncEnabled) return;
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+  }
+  autoSyncTimeout = setTimeout(async () => {
+    autoSyncTimeout = null;
+    try {
+      await cloudSync.push();
+    } catch (error) {
+      console.error("Auto-sync failed:", error);
+    }
+  }, 1500);
 }
 
 function exportData() {
@@ -2299,6 +2320,13 @@ function setupEvents() {
         reader.next();
         break;
     }
+  });
+
+  window.addEventListener('pagehide', () => {
+    if (!autoSyncEnabled) return;
+    cloudSync.push().catch((error) => {
+      console.error("Auto-sync failed:", error);
+    });
   });
 }
 

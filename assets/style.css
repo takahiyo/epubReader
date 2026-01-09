@@ -114,6 +114,7 @@ body {
   inset: 0;
   backdrop-filter: blur(10px);
   background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
   z-index: 1;
 }
 
@@ -134,7 +135,7 @@ body {
 .float-buttons {
   position: absolute;
   inset: 0;
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 3;
 }
 
@@ -146,6 +147,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  pointer-events: auto;
 }
 
 .float-settings {
@@ -173,16 +175,18 @@ body {
   background: rgba(17, 24, 39, 0.95);
 }
 
-#toggleWritingMode {
+.float-top-right {
   position: absolute;
   top: 20px;
-  right: 100px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
 }
 
-#openToc {
-  position: absolute;
-  top: 20px;
-  right: 24px;
+.float-top-right button {
+  pointer-events: auto;
 }
 
 .font-buttons {
@@ -192,6 +196,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  pointer-events: auto;
 }
 
 #toggleTheme {
@@ -200,6 +205,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.2rem;
+  pointer-events: auto;
 }
 
 #toggleLanguage {
@@ -207,6 +213,7 @@ body {
   left: 24px;
   bottom: 24px;
   padding: 8px 10px;
+  pointer-events: auto;
 }
 
 #toggleLanguage img {
