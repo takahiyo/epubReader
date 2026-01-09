@@ -67,6 +67,7 @@
 
       <!-- 縦横切替ボタン -->
       <button id="toggleWritingMode" class="writing-mode-toggle" type="button">横</button>
+      <button id="openToc" class="toc-toggle" type="button">目次</button>
       
       <!-- 画像ビューア -->
       <div id="imageViewer" class="image-viewer hidden">
@@ -90,7 +91,7 @@
     <!-- 左サイドメニュー -->
     <div id="leftMenu" class="left-menu">
       <div class="menu-header">
-        <img src="assets/BookReader.png" alt="BookReader" class="menu-title-image" />
+        <img src="assets/bookreader.png" alt="BookReader" class="menu-title-image" />
       </div>
       
       <nav class="menu-nav">
@@ -170,7 +171,7 @@
     <div id="bookmarkMenu" class="bookmark-menu">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>しおり</h3>
+          <h3 id="bookmarkMenuTitle">しおり</h3>
           <button id="closeBookmarkMenu" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
@@ -187,7 +188,7 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-medium">
         <div class="modal-header">
-          <h3>テキスト検索</h3>
+          <h3 id="searchModalTitle">テキスト検索</h3>
           <button id="closeSearchModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
@@ -205,18 +206,32 @@
       </div>
     </div>
 
+    <!-- 目次モーダル -->
+    <div id="tocModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content modal-medium">
+        <div class="modal-header">
+          <h3 id="tocModalTitle">目次</h3>
+          <button id="closeTocModal" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <ul id="tocModalList" class="toc-list"></ul>
+        </div>
+      </div>
+    </div>
+
     <!-- ファイル選択モーダル -->
     <div id="openFileModal" class="modal hidden">
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-large">
         <div class="modal-header">
-          <h3>ライブラリ</h3>
+          <h3 id="openFileModalTitle">ライブラリ</h3>
           <button id="closeFileModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
           <div id="librarySection" class="library-section">
             <div class="library-controls">
-              <h4>ライブラリ</h4>
+              <h4 id="librarySectionTitle">ライブラリ</h4>
               <div class="library-view-toggle">
                 <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="グリッド表示">🔲</button>
                 <button id="libraryViewList" class="library-view-btn" type="button" aria-label="一覧表示">📄</button>
@@ -233,7 +248,7 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-medium">
         <div class="modal-header">
-          <h3>履歴</h3>
+          <h3 id="historyModalTitle">履歴</h3>
           <button id="closeHistoryModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
@@ -247,35 +262,35 @@
       <div class="modal-backdrop"></div>
       <div class="modal-content modal-large">
         <div class="modal-header">
-          <h3>設定</h3>
+          <h3 id="settingsModalTitle">設定</h3>
           <button id="closeSettingsModal" class="close-btn">✕</button>
         </div>
         <div class="modal-body">
           <div class="settings-section">
-            <h4>表示設定</h4>
+            <h4 id="settingsDisplayTitle">表示設定</h4>
             <div class="setting-item">
-              <label for="themeSelect">テーマ</label>
+              <label for="themeSelect" id="themeLabel">テーマ</label>
               <select id="themeSelect">
                 <option value="dark">ダークモード</option>
                 <option value="light">ライトモード</option>
               </select>
             </div>
             <div class="setting-item">
-              <label for="writingMode">書字方向</label>
+              <label for="writingMode" id="writingModeLabel">書字方向</label>
               <select id="writingMode">
                 <option value="horizontal">横書き</option>
                 <option value="vertical">縦書き</option>
               </select>
             </div>
             <div class="setting-item">
-              <label for="pageDirection">開き方向</label>
+              <label for="pageDirection" id="pageDirectionLabel">開き方向</label>
               <select id="pageDirection">
                 <option value="ltr">左開き</option>
                 <option value="rtl">右開き</option>
               </select>
             </div>
             <div class="setting-item">
-              <label for="progressDisplayMode">進捗表示形式</label>
+              <label for="progressDisplayMode" id="progressDisplayModeLabel">進捗表示形式</label>
               <select id="progressDisplayMode">
                 <option value="page">ページ数</option>
                 <option value="percentage">パーセンテージ</option>
@@ -284,21 +299,21 @@
           </div>
           
           <div class="settings-section">
-            <h4>クラウド同期</h4>
+            <h4 id="settingsCloudTitle">クラウド同期</h4>
             <div class="setting-item">
-              <label>
+              <label id="autoSyncLabel">
                 <input type="checkbox" id="autoSyncEnabled" />
                 Google Drive 自動同期を有効にする
               </label>
             </div>
-            <p class="setting-hint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
+            <p class="setting-hint" id="autoSyncHint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
           </div>
           
           <div class="settings-section">
-            <h4>データ管理</h4>
+            <h4 id="settingsDataTitle">データ管理</h4>
             <div class="setting-actions">
               <button id="exportDataBtn" class="secondary-btn">設定・データを書き出す</button>
-              <label for="importDataInput" class="secondary-btn">
+              <label for="importDataInput" class="secondary-btn" id="importDataLabel">
                 設定・データを読み込む
                 <input type="file" id="importDataInput" accept="application/json" style="display:none;" />
               </label>

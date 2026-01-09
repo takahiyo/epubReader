@@ -26,9 +26,11 @@ export class UIController {
     this.isBookOpen = options.isBookOpen || (() => false);
     this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
+    this.getWritingMode = options.getWritingMode || (() => "horizontal");
     
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
+    this.progressBarPinned = false;
     this.bookmarkMenuVisible = false;
     this.touchStartX = null;
     this.touchStartY = null;
@@ -194,11 +196,22 @@ export class UIController {
       const absDeltaX = Math.abs(deltaX);
       const absDeltaY = Math.abs(deltaY);
 
-      if (this.isBookOpen() && this.isPageNavigationEnabled() && absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
-        if (deltaX > 0) {
-          this.onPagePrev?.();
-        } else {
-          this.onPageNext?.();
+      if (this.isBookOpen() && this.isPageNavigationEnabled()) {
+        const mode = this.getWritingMode?.() || "horizontal";
+        if (mode === "vertical") {
+          if (absDeltaY >= minSwipeDistance && (absDeltaY - absDeltaX) >= axisDifference) {
+            if (deltaY > 0) {
+              this.onPagePrev?.();
+            } else {
+              this.onPageNext?.();
+            }
+          }
+        } else if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+          if (deltaX > 0) {
+            this.onPagePrev?.();
+          } else {
+            this.onPageNext?.();
+          }
         }
       }
 
@@ -208,7 +221,7 @@ export class UIController {
   }
 
   isAnyMenuVisible() {
-    return this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible;
+    return this.leftMenuVisible || this.bookmarkMenuVisible || (this.progressBarVisible && !this.progressBarPinned);
   }
   
   /**
@@ -229,6 +242,8 @@ export class UIController {
       return;
     }
     
+    const mode = this.getWritingMode?.() || "horizontal";
+
     // エリア別の処理
     switch (area) {
       case 'U1':
@@ -239,9 +254,16 @@ export class UIController {
         this.showLeftMenu();
         break;
         
+      case 'U2':
+        if (mode === "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
+          console.log('Previous page (vertical)...');
+          this.onPagePrev?.();
+        }
+        break;
+        
       case 'M2':
         // 中央左 → 前ページ（本が開いている時のみ）
-        if (this.isBookOpen() && this.isPageNavigationEnabled()) {
+        if (mode !== "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
           console.log('Previous page...');
           this.onPagePrev?.();
         }
@@ -259,7 +281,7 @@ export class UIController {
         
       case 'M4':
         // 中央右 → 次ページ（本が開いている時のみ）
-        if (this.isBookOpen() && this.isPageNavigationEnabled()) {
+        if (mode !== "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
           console.log('Next page...');
           this.onPageNext?.();
         }
@@ -267,6 +289,11 @@ export class UIController {
         
       case 'B2':
         // 下端 → 進捗バー表示（本が開いている時のみ）
+        if (mode === "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
+          console.log('Next page (vertical)...');
+          this.onPageNext?.();
+          break;
+        }
         if (this.isBookOpen() && this.isProgressBarAvailable()) {
           console.log('Showing progress bar...');
           this.showProgressBar();
@@ -320,9 +347,15 @@ export class UIController {
   /**
    * 進捗バーを表示
    */
-  showProgressBar() {
+  showProgressBar(options = {}) {
+    return this.showProgressBarWithOptions(options);
+  }
+
+  showProgressBarWithOptions(options = {}) {
+    const { persistent = false } = options;
     console.log('showProgressBar called');
-    this.progressBarVisible = true;
+    this.progressBarPinned = this.progressBarPinned || persistent;
+    this.progressBarVisible = !persistent;
     this.onProgressBar?.('show');
     
     const bar = document.getElementById('progressBarPanel');
@@ -337,18 +370,24 @@ export class UIController {
       console.error('progressBarPanel element not found!');
     }
     
-    // バックドロップを表示
-    if (backdrop) {
-      backdrop.classList.add('visible');
-      // バックドロップクリックで進捗バーを閉じる
-      backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
-      console.log('Showed progress bar backdrop');
-    }
-    
-    // オーバーレイを無効化
-    if (overlay) {
-      overlay.style.pointerEvents = 'none';
-      console.log('Disabled overlay pointer events');
+    if (!persistent) {
+      // バックドロップを表示
+      if (backdrop) {
+        backdrop.classList.add('visible');
+        // バックドロップクリックで進捗バーを閉じる
+        backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
+        console.log('Showed progress bar backdrop');
+      }
+      
+      // オーバーレイを無効化
+      if (overlay) {
+        overlay.style.pointerEvents = 'none';
+        console.log('Disabled overlay pointer events');
+      }
+    } else {
+      if (backdrop) {
+        backdrop.classList.remove('visible');
+      }
     }
   }
   
@@ -395,8 +434,12 @@ export class UIController {
     
     if (leftMenu) leftMenu.classList.remove('visible');
     if (leftMenuBackdrop) leftMenuBackdrop.classList.remove('visible');
-    if (progressBar) progressBar.classList.remove('visible');
-    if (progressBarBackdrop) progressBarBackdrop.classList.remove('visible');
+    if (!this.progressBarPinned) {
+      if (progressBar) progressBar.classList.remove('visible');
+      if (progressBarBackdrop) progressBarBackdrop.classList.remove('visible');
+    } else if (progressBarBackdrop) {
+      progressBarBackdrop.classList.remove('visible');
+    }
     if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
     
     // オーバーレイを再度有効化

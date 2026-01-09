@@ -8,6 +8,8 @@
   --border: #1f2937;
   --reader-bg: #0b1020;
   --reader-text: #e5e7eb;
+  --reader-safe-inline: clamp(12px, 4vw, 36px);
+  --reader-safe-block: clamp(12px, 5vh, 48px);
 }
 
 [data-theme="light"] {
@@ -123,8 +125,8 @@ body {
 
 .writing-mode-toggle {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: var(--reader-safe-block);
+  right: var(--reader-safe-inline);
   z-index: 12;
   min-width: 44px;
   height: 44px;
@@ -140,6 +142,33 @@ body {
 
 .writing-mode-toggle:hover {
   background: rgba(15, 23, 42, 0.9);
+}
+
+.toc-toggle {
+  position: absolute;
+  top: var(--reader-safe-block);
+  right: calc(var(--reader-safe-inline) + 60px);
+  z-index: 12;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.toc-toggle:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.toc-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* メニューが開いている時はオーバーレイを非表示 */
@@ -158,6 +187,7 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--reader-bg);
+  padding: var(--reader-safe-block) var(--reader-safe-inline);
 }
 
 .image-viewer img {
@@ -909,6 +939,15 @@ body {
 
 .history-info {
   flex: 1;
+}
+
+.history-delete {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
 }
 
 .history-title {
