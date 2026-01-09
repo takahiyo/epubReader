@@ -65,12 +65,6 @@
       <!-- クリック検知用オーバーレイ -->
       <div id="clickOverlay" class="click-overlay"></div>
 
-      <!-- 縦横切替ボタン -->
-      <div id="readerControls" class="reader-controls">
-        <button id="toggleWritingMode" class="control-btn" type="button">横</button>
-        <button id="openToc" class="control-btn" type="button">目次</button>
-      </div>
-      
       <!-- 画像ビューア -->
       <div id="imageViewer" class="image-viewer hidden">
         <img id="pageImage" alt="ページ画像" />
@@ -82,6 +76,37 @@
         <h2>本が選択されていません</h2>
         <p>画面左端をクリックしてメニューを開き、本を選択してください</p>
       </div>
+    </div>
+
+    <!-- フロートオーバーレイ -->
+    <div id="floatOverlay">
+      <div class="float-backdrop"></div>
+
+      <div class="float-title">
+        <img src="assets/bookreader.png" alt="BookReader" />
+      </div>
+
+      <div class="float-buttons">
+        <!-- 右上 -->
+        <button id="toggleWritingMode" type="button">縦</button>
+        <button id="openToc" type="button">目次</button>
+
+        <!-- 右下 -->
+        <div class="font-buttons">
+          <button id="fontPlus" type="button">A+</button>
+          <button id="fontMinus" type="button">A-</button>
+        </div>
+
+        <!-- 右中央 -->
+        <button id="toggleTheme" type="button">🌙</button>
+
+        <!-- 左下 -->
+        <button id="toggleLanguage" type="button">
+          <img id="langIcon" src="assets/Flag_Japan.svg" alt="言語" />
+        </button>
+      </div>
+
+      <div id="floatProgressBar"></div>
     </div>
     
     <!-- ファイル選択（非表示） -->
@@ -288,27 +313,6 @@
           <div class="settings-section">
             <h4 id="settingsDisplayTitle">表示設定</h4>
             <div class="setting-item">
-              <label for="themeSelect" id="themeLabel">テーマ</label>
-              <select id="themeSelect">
-                <option value="dark">ダークモード</option>
-                <option value="light">ライトモード</option>
-              </select>
-            </div>
-            <div class="setting-item">
-              <label for="writingMode" id="writingModeLabel">書字方向</label>
-              <select id="writingMode">
-                <option value="horizontal">横書き</option>
-                <option value="vertical">縦書き</option>
-              </select>
-            </div>
-            <div class="setting-item">
-              <label for="pageDirection" id="pageDirectionLabel">開き方向</label>
-              <select id="pageDirection">
-                <option value="ltr">左開き</option>
-                <option value="rtl">右開き</option>
-              </select>
-            </div>
-            <div class="setting-item">
               <label for="progressDisplayMode" id="progressDisplayModeLabel">進捗表示形式</label>
               <select id="progressDisplayMode">
                 <option value="page">ページ数</option>
@@ -328,16 +332,6 @@
             <p class="setting-hint" id="autoSyncHint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
           </div>
           
-          <div class="settings-section">
-            <h4 id="settingsDataTitle">データ管理</h4>
-            <div class="setting-actions">
-              <button id="exportDataBtn" class="secondary-btn">設定・データを書き出す</button>
-              <label for="importDataInput" class="secondary-btn" id="importDataLabel">
-                設定・データを読み込む
-                <input type="file" id="importDataInput" accept="application/json" style="display:none;" />
-              </label>
-            </div>
-          </div>
         </div>
       </div>
     </div>

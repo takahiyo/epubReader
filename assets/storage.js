@@ -21,6 +21,7 @@ const defaultData = {
     onedriveFileId: "",
     onedriveToken: null,
     uiLanguage: "ja",
+    fontSize: 16,
   },
 };
 
