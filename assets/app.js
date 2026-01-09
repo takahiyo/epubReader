@@ -20,6 +20,7 @@ let currentBookInfo = null;
 let theme = settings.theme ?? "dark";
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
+let uiLanguage = settings.uiLanguage ?? "ja";
 let progressDisplayMode = settings.progressDisplayMode ?? "page";
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
@@ -61,6 +62,11 @@ const elements = {
   menuSettings: document.getElementById("menuSettings"),
   menuLogout: document.getElementById("menuLogout"),
   userInfo: document.getElementById("userInfo"),
+  tocSection: document.getElementById("tocSection"),
+  tocList: document.getElementById("tocList"),
+  langJa: document.getElementById("langJa"),
+  langEn: document.getElementById("langEn"),
+  toggleWritingMode: document.getElementById("toggleWritingMode"),
   
   // 進捗バー
   progressBarPanel: document.getElementById("progressBarPanel"),
@@ -125,6 +131,8 @@ const reader = new ReaderController({
 
 reader.applyTheme(theme);
 reader.applyReadingDirection(writingMode, pageDirection);
+applyUiLanguage(uiLanguage);
+updateWritingModeToggleLabel();
 
 // ========================================
 // UIコントローラー初期化
@@ -706,13 +714,16 @@ function renderTocEntries(items, container, depth) {
     button.style.paddingLeft = `${Math.min(depth, 6) * 12}px`;
 
     button.addEventListener("click", async () => {
-      if (!reader?.rendition) return;
-      const cfi = resolveTocCfi(item);
       try {
-        if (cfi) {
-          await reader.rendition.display(cfi);
-        } else if (item.href) {
-          await reader.rendition.display(item.href);
+        if (reader?.usingPaginator && item.href) {
+          reader.navigateToHref(item.href);
+        } else if (reader?.rendition) {
+          const cfi = resolveTocCfi(item);
+          if (cfi) {
+            await reader.rendition.display(cfi);
+          } else if (item.href) {
+            await reader.rendition.display(item.href);
+          }
         }
         ui.closeAllMenus();
       } catch (error) {
@@ -1230,6 +1241,22 @@ function applyTheme(newTheme) {
   storage.setSettings({ theme });
 }
 
+function applyUiLanguage(nextLanguage) {
+  if (!nextLanguage) return;
+  uiLanguage = nextLanguage;
+  storage.setSettings({ uiLanguage });
+  document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
+  elements.langJa?.classList.toggle("active", uiLanguage === "ja");
+  elements.langEn?.classList.toggle("active", uiLanguage === "en");
+}
+
+function updateWritingModeToggleLabel() {
+  if (!elements.toggleWritingMode) return;
+  const isVertical = writingMode === "vertical";
+  elements.toggleWritingMode.textContent = isVertical ? "縦" : "横";
+  elements.toggleWritingMode.setAttribute("aria-pressed", isVertical ? "true" : "false");
+}
+
 async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   if (nextWritingMode) {
     writingMode = nextWritingMode;
@@ -1240,6 +1267,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   await reader.applyReadingDirection(writingMode, pageDirection);
   updateEpubScrollMode();
   storage.setSettings({ writingMode, pageDirection });
+  updateWritingModeToggleLabel();
 }
 
 function applyLibraryViewMode(mode) {
@@ -1357,6 +1385,17 @@ function setupEvents() {
   elements.menuLogout?.addEventListener('click', () => {
     if (confirm("ログアウトしますか？")) {
       logout();
+    }
+  });
+
+  elements.langJa?.addEventListener('click', () => applyUiLanguage("ja"));
+  elements.langEn?.addEventListener('click', () => applyUiLanguage("en"));
+
+  elements.toggleWritingMode?.addEventListener('click', async () => {
+    const nextMode = writingMode === "vertical" ? "horizontal" : "vertical";
+    await applyReadingSettings(nextMode, null);
+    if (elements.writingModeSelect) {
+      elements.writingModeSelect.value = writingMode;
     }
   });
   

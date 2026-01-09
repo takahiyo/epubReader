@@ -64,6 +64,9 @@
       
       <!-- クリック検知用オーバーレイ -->
       <div id="clickOverlay" class="click-overlay"></div>
+
+      <!-- 縦横切替ボタン -->
+      <button id="toggleWritingMode" class="writing-mode-toggle" type="button">横</button>
       
       <!-- 画像ビューア -->
       <div id="imageViewer" class="image-viewer hidden">
@@ -87,8 +90,7 @@
     <!-- 左サイドメニュー -->
     <div id="leftMenu" class="left-menu">
       <div class="menu-header">
-        <div class="menu-logo">📖</div>
-        <h2>Book Reader</h2>
+        <img src="assets/BookReader.png" alt="BookReader" class="menu-title-image" />
       </div>
       
       <nav class="menu-nav">
@@ -121,6 +123,16 @@
           <span>ログアウト</span>
         </button>
       </nav>
+
+      <div class="menu-language">
+        <button id="langJa" class="lang-btn" type="button">日</button>
+        <button id="langEn" class="lang-btn" type="button">EN</button>
+      </div>
+
+      <div id="tocSection" class="toc-section hidden">
+        <h3 class="toc-title">目次</h3>
+        <ul id="tocList" class="toc-list"></ul>
+      </div>
       
       <div class="menu-footer">
         <p id="userInfo" class="user-info"></p>
