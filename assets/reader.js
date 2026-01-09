@@ -453,6 +453,59 @@ export class ReaderController {
     return 0;
   }
 
+  isExternalLink(href) {
+    if (!href) return false;
+    return /^(https?:|mailto:|tel:|data:|blob:|ftp:)/i.test(href) || href.startsWith("//");
+  }
+
+  normalizeHrefPath(path) {
+    if (!path) return "";
+    const cleaned = path.split("?")[0].split("#")[0].trim();
+    return cleaned.replace(/^\.\//, "");
+  }
+
+  resolveSpineIndexFromHref(href, fallbackSpineIndex = 0) {
+    if (!href) return fallbackSpineIndex;
+    const [pathPart] = href.split("#");
+    const normalized = this.normalizeHrefPath(pathPart);
+    if (!normalized) return fallbackSpineIndex;
+    const directIndex = this.spineItems.findIndex((item) => item.href === normalized);
+    if (directIndex >= 0) return directIndex;
+    const matchIndex = this.spineItems.findIndex((item) =>
+      item.href?.endsWith(`/${normalized}`) || item.href?.endsWith(normalized)
+    );
+    return matchIndex >= 0 ? matchIndex : fallbackSpineIndex;
+  }
+
+  navigateToHref(href, fallbackSpineIndex = 0) {
+    if (!href || !this.pagination?.pages?.length) return;
+    const spineIndex = this.resolveSpineIndexFromHref(href, fallbackSpineIndex);
+    let pageIndex = this.pagination.locatePage?.(spineIndex, "s:0") ?? -1;
+    if (pageIndex < 0) {
+      pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
+    }
+    if (pageIndex >= 0) {
+      this.pageController.goTo(pageIndex);
+    }
+  }
+
+  interceptInternalLinks(container, page) {
+    if (!container) return;
+    const anchors = Array.from(container.querySelectorAll("a[href]"));
+    if (!anchors.length) return;
+    anchors.forEach((anchor) => {
+      anchor.addEventListener("click", (event) => {
+        const href = anchor.getAttribute("href");
+        if (!href || this.isExternalLink(href)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const fallbackSpineIndex =
+          page?.spineIndex ?? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0;
+        this.navigateToHref(href, fallbackSpineIndex);
+      });
+    });
+  }
+
   renderEpubPage(index, pagination = this.pagination) {
     if (!pagination?.pages?.length || !this.viewer) return;
     const clampedIndex = Math.max(0, Math.min(index, pagination.pages.length - 1));
@@ -471,6 +524,7 @@ export class ReaderController {
       img.style.objectFit = "contain";
     });
     this.resolveImagesInRenderedPage(page);
+    this.interceptInternalLinks(this.pageContainer, page);
     this.updateEpubTheme();
     this.injectImageZoom();
     this.updateProgressFromPagination(pagination.pages.length);
@@ -490,15 +544,20 @@ export class ReaderController {
     if (page?.spineIndex == null || page.spineIndex < 0) return;
     const spineItem = this.spineItems[page.spineIndex];
     if (!spineItem) return;
-    const images = Array.from(this.pageContainer.querySelectorAll("img"));
+    const images = Array.from(this.pageContainer.querySelectorAll("img, svg image"));
     if (!images.length) return;
     await Promise.all(
       images.map(async (img) => {
-        const src = img.getAttribute("src");
+        const tagName = img.tagName.toLowerCase();
+        const isSvgImage = tagName === "image";
+        const attrName = isSvgImage
+          ? (img.getAttribute("href") ? "href" : "xlink:href")
+          : "src";
+        const src = img.getAttribute(attrName);
         if (!src || src.startsWith("blob:")) return;
         try {
           const resolved = await this.resourceLoader(src, spineItem);
-          if (resolved) img.setAttribute("src", resolved);
+          if (resolved) img.setAttribute(attrName, resolved);
         } catch (error) {
           // ignore
         }
@@ -558,24 +617,44 @@ export class ReaderController {
       if (this.paginator?.destroy) {
         this.paginator.destroy();
       }
-      const resourceLoader = async (url) => {
+      const resolveResourceUrl = (url, spineItem) => {
+        if (!url || /^(https?:|data:|blob:)/i.test(url)) {
+          return url;
+        }
+        if (this.book?.resolve) {
+          try {
+            return this.book.resolve(url, spineItem?.href);
+          } catch (error) {
+            // ignore and fallback
+          }
+        }
+        if (spineItem?.href) {
+          const baseParts = spineItem.href.split("/").slice(0, -1);
+          const base = baseParts.length ? `${baseParts.join("/")}/` : "";
+          return `${base}${url}`.replace(/\/{2,}/g, "/");
+        }
+        return url;
+      };
+
+      const resourceLoader = async (url, spineItem) => {
         if (!url) return url;
         if (/^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
-        if (this.resourceUrlCache.has(url)) {
-          return this.resourceUrlCache.get(url);
+        const resolvedUrl = resolveResourceUrl(url, spineItem);
+        if (this.resourceUrlCache.has(resolvedUrl)) {
+          return this.resourceUrlCache.get(resolvedUrl);
         }
         try {
-          const loaded = await this.book.load(url);
+          const loaded = await this.book.load(resolvedUrl);
           if (!loaded) return url;
           if (typeof loaded === "string") return loaded;
           const blob = loaded instanceof Blob ? loaded : new Blob([loaded]);
           const objectUrl = URL.createObjectURL(blob);
-          this.resourceUrlCache.set(url, objectUrl);
+          this.resourceUrlCache.set(resolvedUrl, objectUrl);
           return objectUrl;
         } catch (error) {
-          console.warn("Failed to resolve resource:", url, error);
+          console.warn("Failed to resolve resource:", resolvedUrl, error);
           return url;
         }
       };

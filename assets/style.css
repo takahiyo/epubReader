@@ -121,6 +121,27 @@ body {
   background: rgba(15, 23, 42, 0.8);
 }
 
+.writing-mode-toggle {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 12;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.writing-mode-toggle:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
 /* メニューが開いている時はオーバーレイを非表示 */
 .left-menu.visible ~ .fullscreen-reader .click-overlay,
 .progress-bar-panel.visible ~ .fullscreen-reader .click-overlay,
@@ -513,6 +534,7 @@ body {
 
 .toc-section {
   margin-bottom: 1rem;
+  padding: 0 1.5rem 0.5rem;
 }
 
 .toc-title {
