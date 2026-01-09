@@ -39,6 +39,136 @@ let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 let bookmarkMenuMode = "current";
 let currentToc = [];
+let uiInitialized = false;
+
+const UI_STRINGS = {
+  ja: {
+    documentTitle: "Epub Reader",
+    emptyTitle: "本が選択されていません",
+    emptyDescription: "画面左端をクリックしてメニューを開き、本を選択してください",
+    menuOpen: "開く",
+    menuLibrary: "ライブラリ",
+    menuSearch: "テキスト検索",
+    menuBookmarks: "しおり",
+    menuHistory: "履歴",
+    menuSettings: "設定",
+    menuLogout: "ログアウト",
+    tocButton: "目次",
+    bookmarkTitle: "しおり",
+    bookmarkDefault: "しおり",
+    addBookmark: "✚ 現在位置にしおりを追加",
+    searchTitle: "テキスト検索",
+    searchPlaceholder: "検索キーワードを入力...",
+    searchButton: "🔍 検索",
+    tocTitle: "目次",
+    tocUntitled: "無題",
+    openFileTitle: "ライブラリ",
+    librarySectionTitle: "ライブラリ",
+    historyTitle: "履歴",
+    settingsTitle: "設定",
+    settingsDisplayTitle: "表示設定",
+    themeLabel: "テーマ",
+    themeDark: "ダークモード",
+    themeLight: "ライトモード",
+    writingModeLabel: "書字方向",
+    writingModeHorizontal: "横書き",
+    writingModeVertical: "縦書き",
+    pageDirectionLabel: "開き方向",
+    pageDirectionLtr: "左開き",
+    pageDirectionRtl: "右開き",
+    progressDisplayModeLabel: "進捗表示形式",
+    progressDisplayPage: "ページ数",
+    progressDisplayPercentage: "パーセンテージ",
+    settingsCloudTitle: "クラウド同期",
+    autoSyncLabel: "Google Drive 自動同期を有効にする",
+    autoSyncHint: "※ しおり、履歴、進捗が30秒ごとに自動保存されます",
+    settingsDataTitle: "データ管理",
+    exportData: "設定・データを書き出す",
+    importData: "設定・データを読み込む",
+    libraryEmpty: "ライブラリが空です",
+    historyEmpty: "履歴がありません",
+    historyDeleteConfirm: "この履歴を削除しますか？",
+    progressLabel: "進捗",
+    bookmarkEmpty: "しおりがありません",
+    bookmarkDeleteConfirm: "このしおりを削除しますか？",
+    openBookPrompt: "本を開いてください",
+    searchMissingQuery: "検索キーワードを入力してください",
+    searchNoResults: "検索結果が見つかりませんでした",
+    searchLoading: "検索中...",
+    searchEpubOnly: "EPUB形式の本を開いている時のみ検索できます",
+    searchNavigateFailed: "検索結果への移動に失敗しました",
+    searchResultFallback: "結果",
+    writingModeToggleVertical: "縦",
+    writingModeToggleHorizontal: "横",
+  },
+  en: {
+    documentTitle: "Epub Reader",
+    emptyTitle: "No book selected",
+    emptyDescription: "Click the left edge to open the menu and choose a book.",
+    menuOpen: "Open",
+    menuLibrary: "Library",
+    menuSearch: "Text Search",
+    menuBookmarks: "Bookmarks",
+    menuHistory: "History",
+    menuSettings: "Settings",
+    menuLogout: "Log out",
+    tocButton: "TOC",
+    bookmarkTitle: "Bookmarks",
+    bookmarkDefault: "Bookmark",
+    addBookmark: "✚ Add bookmark at current location",
+    searchTitle: "Text Search",
+    searchPlaceholder: "Enter a search keyword...",
+    searchButton: "🔍 Search",
+    tocTitle: "Table of Contents",
+    tocUntitled: "Untitled",
+    openFileTitle: "Library",
+    librarySectionTitle: "Library",
+    historyTitle: "History",
+    settingsTitle: "Settings",
+    settingsDisplayTitle: "Display",
+    themeLabel: "Theme",
+    themeDark: "Dark mode",
+    themeLight: "Light mode",
+    writingModeLabel: "Writing mode",
+    writingModeHorizontal: "Horizontal",
+    writingModeVertical: "Vertical",
+    pageDirectionLabel: "Page direction",
+    pageDirectionLtr: "Left binding",
+    pageDirectionRtl: "Right binding",
+    progressDisplayModeLabel: "Progress format",
+    progressDisplayPage: "Pages",
+    progressDisplayPercentage: "Percentage",
+    settingsCloudTitle: "Cloud Sync",
+    autoSyncLabel: "Enable Google Drive auto sync",
+    autoSyncHint: "* Bookmarks, history, and progress are saved every 30 seconds.",
+    settingsDataTitle: "Data",
+    exportData: "Export settings & data",
+    importData: "Import settings & data",
+    libraryEmpty: "Your library is empty",
+    historyEmpty: "No history yet",
+    historyDeleteConfirm: "Delete this history entry?",
+    progressLabel: "Progress",
+    bookmarkEmpty: "No bookmarks",
+    bookmarkDeleteConfirm: "Delete this bookmark?",
+    openBookPrompt: "Please open a book.",
+    searchMissingQuery: "Please enter a search keyword.",
+    searchNoResults: "No results found.",
+    searchLoading: "Searching...",
+    searchEpubOnly: "Search is available only when an EPUB is open.",
+    searchNavigateFailed: "Failed to navigate to the search result.",
+    searchResultFallback: "Result",
+    writingModeToggleVertical: "V",
+    writingModeToggleHorizontal: "H",
+  },
+};
+
+function getUiStrings(language = uiLanguage) {
+  return UI_STRINGS[language] ?? UI_STRINGS.ja;
+}
+
+function t(key) {
+  return getUiStrings()[key] ?? key;
+}
 
 // ========================================
 // DOM要素
@@ -67,9 +197,14 @@ const elements = {
   langJa: document.getElementById("langJa"),
   langEn: document.getElementById("langEn"),
   toggleWritingMode: document.getElementById("toggleWritingMode"),
+  openToc: document.getElementById("openToc"),
+  tocModal: document.getElementById("tocModal"),
+  tocModalList: document.getElementById("tocModalList"),
+  closeTocModal: document.getElementById("closeTocModal"),
   
   // 進捗バー
   progressBarPanel: document.getElementById("progressBarPanel"),
+  progressBarBackdrop: document.getElementById("progressBarBackdrop"),
   progressFill: document.getElementById("progressFill"),
   progressThumb: document.getElementById("progressThumb"),
   progressTrack: document.querySelector(".progress-track"),
@@ -113,6 +248,25 @@ const elements = {
   searchInput: document.getElementById("searchInput"),
   searchBtn: document.getElementById("searchBtn"),
   searchResults: document.getElementById("searchResults"),
+
+  // UIラベル
+  bookmarkMenuTitle: document.getElementById("bookmarkMenuTitle"),
+  searchModalTitle: document.getElementById("searchModalTitle"),
+  tocModalTitle: document.getElementById("tocModalTitle"),
+  openFileModalTitle: document.getElementById("openFileModalTitle"),
+  librarySectionTitle: document.getElementById("librarySectionTitle"),
+  historyModalTitle: document.getElementById("historyModalTitle"),
+  settingsModalTitle: document.getElementById("settingsModalTitle"),
+  settingsDisplayTitle: document.getElementById("settingsDisplayTitle"),
+  themeLabel: document.getElementById("themeLabel"),
+  writingModeLabel: document.getElementById("writingModeLabel"),
+  pageDirectionLabel: document.getElementById("pageDirectionLabel"),
+  progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
+  settingsCloudTitle: document.getElementById("settingsCloudTitle"),
+  autoSyncLabel: document.getElementById("autoSyncLabel"),
+  autoSyncHint: document.getElementById("autoSyncHint"),
+  settingsDataTitle: document.getElementById("settingsDataTitle"),
+  importDataLabel: document.getElementById("importDataLabel"),
 };
 
 // ========================================
@@ -131,8 +285,6 @@ const reader = new ReaderController({
 
 reader.applyTheme(theme);
 reader.applyReadingDirection(writingMode, pageDirection);
-applyUiLanguage(uiLanguage);
-updateWritingModeToggleLabel();
 
 // ========================================
 // UIコントローラー初期化
@@ -140,6 +292,9 @@ updateWritingModeToggleLabel();
 
 const ui = new UIController({
   isBookOpen: () => currentBookId !== null,
+  isPageNavigationEnabled: () => currentBookId !== null,
+  isProgressBarAvailable: () => currentBookId !== null,
+  getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
   onLeftMenu: (action) => {
     if (action === 'show') {
       updateActivity();
@@ -168,6 +323,9 @@ const ui = new UIController({
   },
 });
 
+uiInitialized = true;
+applyUiLanguage(uiLanguage);
+
 // 進捗バーのドラッグハンドラー
 const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector('.progress-track'),
@@ -194,6 +352,9 @@ function updateSearchButtonState() {
   
   const isEpubOpen = currentBookId && currentBookInfo?.type === 'epub';
   elements.menuSearch.disabled = !isEpubOpen;
+  if (elements.openToc) {
+    elements.openToc.disabled = !isEpubOpen;
+  }
 }
 
 // ========================================
@@ -528,7 +689,7 @@ function renderBookmarkMarkers() {
     marker.style.left = `${percentage}%`;
     
     // ツールチップの表示内容を進捗表示モードに合わせる
-    let tooltipText = bookmark.label ?? "しおり";
+    let tooltipText = bookmark.label ?? t("bookmarkDefault");
     if (progressDisplayMode === "page") {
       // ページ数モードの場合
       if (currentBookInfo?.type === 'epub') {
@@ -623,6 +784,7 @@ function handleBookReady(payload) {
   storage.upsertBook({ ...currentBookInfo, title });
   renderLibrary();
   renderToc(currentToc);
+  ui.showProgressBar({ persistent: true });
   
   // EPUBスクロールモードのクラスを設定（横書きのみ縦スクロール）
   const scheduleEpubScrollModeUpdate = (attempt = 0) => {
@@ -683,27 +845,30 @@ function updateEpubScrollMode() {
 // ========================================
 
 function renderToc(tocItems = []) {
-  if (!elements.tocSection || !elements.tocList) return;
+  if (!elements.tocModalList) return;
 
-  elements.tocList.innerHTML = "";
+  if (elements.tocList) {
+    elements.tocList.innerHTML = "";
+  }
+  elements.tocModalList.innerHTML = "";
   const isEpub = currentBookInfo?.type === "epub";
 
   if (!isEpub || !tocItems.length) {
-    elements.tocSection.classList.add("hidden");
+    elements.tocSection?.classList.add("hidden");
     console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocItems.length });
     return;
   }
 
   console.log('[renderToc] Showing TOC section with', tocItems.length, 'items');
-  elements.tocSection.classList.remove("hidden");
-  renderTocEntries(tocItems, elements.tocList, 0);
+  elements.tocSection?.classList.add("hidden");
+  renderTocEntries(tocItems, elements.tocModalList, 0);
 }
 
 function renderTocEntries(items, container, depth) {
   if (!Array.isArray(items)) return;
 
   items.forEach((item) => {
-    const label = (item.label ?? item.title ?? "無題").toString().trim() || "無題";
+    const label = (item.label ?? item.title ?? t("tocUntitled")).toString().trim() || t("tocUntitled");
     const li = document.createElement("li");
     li.className = "toc-item";
 
@@ -726,6 +891,7 @@ function renderTocEntries(items, container, depth) {
           }
         }
         ui.closeAllMenus();
+        closeModal(elements.tocModal);
       } catch (error) {
         console.warn("目次移動に失敗しました:", error);
       }
@@ -775,7 +941,7 @@ function renderBookmarks(mode = "current") {
 
     if (!entries.length) {
       const empty = document.createElement("li");
-      empty.textContent = "しおりがありません";
+      empty.textContent = t("bookmarkEmpty");
       empty.style.textAlign = "center";
       empty.style.color = "var(--muted)";
       elements.bookmarkList.appendChild(empty);
@@ -800,7 +966,7 @@ function renderBookmarks(mode = "current") {
       
       const label = document.createElement("div");
       label.className = "bookmark-label";
-      label.textContent = `${book.title} / ${bookmark.label || "しおり"}`;
+      label.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
       
       const meta = document.createElement("div");
       meta.className = "bookmark-meta";
@@ -822,7 +988,7 @@ function renderBookmarks(mode = "current") {
       deleteBtn.textContent = "🗑️";
       deleteBtn.onclick = (e) => {
         e.stopPropagation();
-        if (confirm("このしおりを削除しますか？")) {
+        if (confirm(t("bookmarkDeleteConfirm"))) {
           storage.removeBookmark(bookId, bookmark.createdAt);
           renderBookmarks(mode);
           renderBookmarkMarkers();
@@ -839,7 +1005,7 @@ function renderBookmarks(mode = "current") {
 
   if (!currentBookId) {
     const empty = document.createElement("li");
-    empty.textContent = "本を開いてください";
+    empty.textContent = t("openBookPrompt");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.bookmarkList.appendChild(empty);
@@ -851,7 +1017,7 @@ function renderBookmarks(mode = "current") {
 
   if (!bookmarks.length) {
     const empty = document.createElement("li");
-    empty.textContent = "しおりがありません";
+    empty.textContent = t("bookmarkEmpty");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.bookmarkList.appendChild(empty);
@@ -872,7 +1038,7 @@ function renderBookmarks(mode = "current") {
 
     const label = document.createElement("div");
     label.className = "bookmark-label";
-    label.textContent = bookmark.label || "しおり";
+    label.textContent = bookmark.label || t("bookmarkDefault");
 
     const meta = document.createElement("div");
     meta.className = "bookmark-meta";
@@ -907,7 +1073,7 @@ function renderBookmarks(mode = "current") {
     deleteBtn.textContent = "🗑️";
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
-      if (confirm("このしおりを削除しますか？")) {
+      if (confirm(t("bookmarkDeleteConfirm"))) {
         storage.removeBookmark(currentBookId, bookmark.createdAt);
         renderBookmarks(mode);
         renderBookmarkMarkers();
@@ -923,11 +1089,11 @@ function renderBookmarks(mode = "current") {
 
 function addBookmark() {
   if (!currentBookId) {
-    alert("本を開いてください");
+    alert(t("openBookPrompt"));
     return;
   }
   
-  const bookmark = reader.addBookmark("しおり");
+  const bookmark = reader.addBookmark(t("bookmarkDefault"));
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
     renderBookmarks(bookmarkMenuMode);
@@ -953,7 +1119,7 @@ function renderLibrary() {
   
   if (!books.length) {
     const empty = document.createElement("p");
-    empty.textContent = "ライブラリが空です";
+    empty.textContent = t("libraryEmpty");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     empty.style.gridColumn = "1 / -1";
@@ -992,7 +1158,7 @@ function renderHistory() {
   
   if (!history.length) {
     const empty = document.createElement("li");
-    empty.textContent = "履歴がありません";
+    empty.textContent = t("historyEmpty");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.historyList.appendChild(empty);
@@ -1023,10 +1189,22 @@ function renderHistory() {
     // 進捗情報を追加
     const progress = storage.getProgress(book.id);
     const progressText = progress ? `${progress.percentage}%` : "0%";
-    meta.textContent = `${new Date(item.openedAt).toLocaleString()} / 進捗: ${progressText}`;
+    meta.textContent = `${new Date(item.openedAt).toLocaleString()} / ${t("progressLabel")}: ${progressText}`;
     
     info.append(title, meta);
-    historyItem.appendChild(info);
+    
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "history-delete";
+    deleteBtn.textContent = "🗑️";
+    deleteBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (confirm(t("historyDeleteConfirm"))) {
+        storage.removeHistory(item.bookId);
+        renderHistory();
+      }
+    };
+    
+    historyItem.append(info, deleteBtn);
     elements.historyList.appendChild(historyItem);
   });
 }
@@ -1041,7 +1219,7 @@ async function performSearch(query) {
   }
   
   if (elements.searchResults) {
-    elements.searchResults.innerHTML = '<div class="search-loading">検索中...</div>';
+    elements.searchResults.innerHTML = `<div class="search-loading">${t("searchLoading")}</div>`;
   }
   
   try {
@@ -1141,7 +1319,7 @@ function renderSearchResults(results, query) {
   if (!results.length) {
     const noResults = document.createElement('div');
     noResults.className = 'search-no-results';
-    noResults.textContent = '検索結果が見つかりませんでした';
+    noResults.textContent = t("searchNoResults");
     elements.searchResults.appendChild(noResults);
     return;
   }
@@ -1180,7 +1358,7 @@ function renderSearchResults(results, query) {
       locationText = `${result.percentage}%`;
     }
     
-    meta.textContent = `${locationText} / ${result.sectionLabel || `結果 ${index + 1}`}`;
+    meta.textContent = `${locationText} / ${result.sectionLabel || `${t("searchResultFallback")} ${index + 1}`}`;
     
     item.append(excerpt, meta);
     
@@ -1197,7 +1375,7 @@ function renderSearchResults(results, query) {
           closeModal(elements.searchModal);
         } catch (error) {
           console.error('Failed to navigate to search result:', error);
-          alert('検索結果への移動に失敗しました');
+          alert(t("searchNavigateFailed"));
         }
       }
     };
@@ -1248,12 +1426,100 @@ function applyUiLanguage(nextLanguage) {
   document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
   elements.langJa?.classList.toggle("active", uiLanguage === "ja");
   elements.langEn?.classList.toggle("active", uiLanguage === "en");
+
+  const strings = getUiStrings(nextLanguage);
+  document.title = strings.documentTitle;
+  const emptyTitle = elements.emptyState?.querySelector("h2");
+  const emptyDescription = elements.emptyState?.querySelector("p");
+  if (emptyTitle) emptyTitle.textContent = strings.emptyTitle;
+  if (emptyDescription) emptyDescription.textContent = strings.emptyDescription;
+
+  const setMenuLabel = (button, text) => {
+    const label = button?.querySelector("span:last-child");
+    if (label) label.textContent = text;
+  };
+  setMenuLabel(elements.menuOpen, strings.menuOpen);
+  setMenuLabel(elements.menuLibrary, strings.menuLibrary);
+  setMenuLabel(elements.menuSearch, strings.menuSearch);
+  setMenuLabel(elements.menuBookmarks, strings.menuBookmarks);
+  setMenuLabel(elements.menuHistory, strings.menuHistory);
+  setMenuLabel(elements.menuSettings, strings.menuSettings);
+  setMenuLabel(elements.menuLogout, strings.menuLogout);
+
+  if (elements.openToc) elements.openToc.textContent = strings.tocButton;
+  if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
+  if (elements.addBookmarkBtn) elements.addBookmarkBtn.textContent = strings.addBookmark;
+  if (elements.searchModalTitle) elements.searchModalTitle.textContent = strings.searchTitle;
+  if (elements.searchInput) elements.searchInput.placeholder = strings.searchPlaceholder;
+  if (elements.searchBtn) elements.searchBtn.textContent = strings.searchButton;
+  if (elements.tocModalTitle) elements.tocModalTitle.textContent = strings.tocTitle;
+  if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
+  if (elements.librarySectionTitle) elements.librarySectionTitle.textContent = strings.librarySectionTitle;
+  if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
+  if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
+  if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
+  if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
+  if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
+  if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
+  if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
+  if (elements.settingsCloudTitle) elements.settingsCloudTitle.textContent = strings.settingsCloudTitle;
+  if (elements.autoSyncLabel) {
+    const input = elements.autoSyncLabel.querySelector("input");
+    elements.autoSyncLabel.textContent = strings.autoSyncLabel;
+    if (input) {
+      elements.autoSyncLabel.prepend(input);
+      elements.autoSyncLabel.insertBefore(document.createTextNode(" "), input.nextSibling);
+    }
+  }
+  if (elements.autoSyncHint) elements.autoSyncHint.textContent = strings.autoSyncHint;
+  if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
+  if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
+  if (elements.importDataLabel) {
+    const input = elements.importDataLabel.querySelector("input");
+    elements.importDataLabel.textContent = strings.importData;
+    if (input) {
+      elements.importDataLabel.appendChild(input);
+    }
+  }
+
+  if (elements.themeSelect) {
+    const options = elements.themeSelect.options;
+    if (options[0]) options[0].textContent = strings.themeDark;
+    if (options[1]) options[1].textContent = strings.themeLight;
+  }
+  if (elements.writingModeSelect) {
+    const options = elements.writingModeSelect.options;
+    if (options[0]) options[0].textContent = strings.writingModeHorizontal;
+    if (options[1]) options[1].textContent = strings.writingModeVertical;
+  }
+  if (elements.pageDirectionSelect) {
+    const options = elements.pageDirectionSelect.options;
+    if (options[0]) options[0].textContent = strings.pageDirectionLtr;
+    if (options[1]) options[1].textContent = strings.pageDirectionRtl;
+  }
+  if (elements.progressDisplayModeSelect) {
+    const options = elements.progressDisplayModeSelect.options;
+    if (options[0]) options[0].textContent = strings.progressDisplayPage;
+    if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
+  }
+
+  updateWritingModeToggleLabel();
+  if (uiInitialized) {
+    renderLibrary();
+    renderHistory();
+    renderBookmarks(bookmarkMenuMode);
+    renderToc(currentToc);
+    updateProgressBarDisplay();
+    updateSearchButtonState();
+  }
 }
 
 function updateWritingModeToggleLabel() {
   if (!elements.toggleWritingMode) return;
   const isVertical = writingMode === "vertical";
-  elements.toggleWritingMode.textContent = isVertical ? "縦" : "横";
+  elements.toggleWritingMode.textContent = isVertical
+    ? t("writingModeToggleVertical")
+    : t("writingModeToggleHorizontal");
   elements.toggleWritingMode.setAttribute("aria-pressed", isVertical ? "true" : "false");
 }
 
@@ -1349,7 +1615,7 @@ function setupEvents() {
   
   elements.menuSearch?.addEventListener('click', () => {
     if (!currentBookId || currentBookInfo?.type !== 'epub') {
-      alert('EPUB形式の本を開いている時のみ検索できます');
+      alert(t("searchEpubOnly"));
       return;
     }
     openModal(elements.searchModal);
@@ -1397,6 +1663,11 @@ function setupEvents() {
     if (elements.writingModeSelect) {
       elements.writingModeSelect.value = writingMode;
     }
+  });
+
+  elements.openToc?.addEventListener('click', () => {
+    if (!currentBookInfo || currentBookInfo.type !== "epub") return;
+    openModal(elements.tocModal);
   });
   
   // ファイル選択
@@ -1490,13 +1761,14 @@ function setupEvents() {
   elements.closeSettingsModal?.addEventListener('click', () => closeModal(elements.settingsModal));
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
+  elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
   elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
   
   // 検索機能
   const executeSearch = async () => {
     const query = elements.searchInput?.value?.trim();
     if (!query) {
-      alert('検索キーワードを入力してください');
+      alert(t("searchMissingQuery"));
       return;
     }
     
@@ -1513,7 +1785,7 @@ function setupEvents() {
   });
   
   // モーダルバックドロップクリック
-  [elements.openFileModal, elements.historyModal, elements.settingsModal, elements.imageModal, elements.searchModal].forEach(modal => {
+  [elements.openFileModal, elements.historyModal, elements.settingsModal, elements.imageModal, elements.searchModal, elements.tocModal].forEach(modal => {
     modal?.addEventListener('click', (e) => {
       if (e.target.classList.contains('modal-backdrop') || e.target === modal) {
         closeModal(modal);

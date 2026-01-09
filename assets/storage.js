@@ -122,6 +122,11 @@ export class StorageService {
     this.save();
   }
 
+  removeHistory(bookId) {
+    this.data.history = this.data.history.filter((item) => item.bookId !== bookId);
+    this.save();
+  }
+
   setSettings(settings) {
     this.data.settings = { ...this.data.settings, ...settings };
     this.save();

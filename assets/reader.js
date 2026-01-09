@@ -477,10 +477,68 @@ export class ReaderController {
     return matchIndex >= 0 ? matchIndex : fallbackSpineIndex;
   }
 
+  getEdgePadding() {
+    const width = this.viewer?.clientWidth || window.innerWidth;
+    const height = this.viewer?.clientHeight || window.innerHeight;
+    const inlinePadding = Math.round(width * 0.04);
+    const blockPadding = Math.round(height * 0.05);
+    return Math.max(16, inlinePadding, blockPadding);
+  }
+
+  computeSegmentIndexForFragment(htmlString, fragmentId) {
+    if (!htmlString || !fragmentId) return 0;
+
+    const doc = new DOMParser().parseFromString(htmlString, "text/html");
+    const body = doc.body;
+    const escapedId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(fragmentId) : fragmentId;
+    const target =
+      body.querySelector(`#${escapedId}`) ||
+      body.querySelector(`[name="${escapedId}"]`);
+    if (!target) return 0;
+
+    const segments = [];
+    const walker = doc.createTreeWalker(
+      body,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName?.toLowerCase();
+            if (tag === "img" || tag === "svg" || tag === "video" || tag === "iframe") {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+          return NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+
+    let node = walker.nextNode();
+    while (node) {
+      segments.push(node);
+      node = walker.nextNode();
+    }
+
+    const index = segments.findIndex((segment) => target.contains(segment));
+    return index >= 0 ? index : 0;
+  }
+
   navigateToHref(href, fallbackSpineIndex = 0) {
     if (!href || !this.pagination?.pages?.length) return;
-    const spineIndex = this.resolveSpineIndexFromHref(href, fallbackSpineIndex);
-    let pageIndex = this.pagination.locatePage?.(spineIndex, "s:0") ?? -1;
+    const [pathPart, fragPart] = href.split("#");
+    const spineIndex = this.resolveSpineIndexFromHref(pathPart || href, fallbackSpineIndex);
+    let within = "s:0";
+    if (fragPart) {
+      const spineItem = this.spineItems?.[spineIndex];
+      const segmentIndex = this.computeSegmentIndexForFragment(spineItem?.htmlString, fragPart);
+      within = `s:${Math.max(0, segmentIndex)}`;
+    }
+
+    let pageIndex = this.pagination.locatePage?.(spineIndex, within) ?? -1;
     if (pageIndex < 0) {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
@@ -553,11 +611,34 @@ export class ReaderController {
         const attrName = isSvgImage
           ? (img.getAttribute("href") ? "href" : "xlink:href")
           : "src";
-        const src = img.getAttribute(attrName);
+        const fallbackSrc = !isSvgImage
+          ? (img.getAttribute("data-src") || img.getAttribute("data-original") || img.getAttribute("data-lazy-src"))
+          : null;
+        const src = img.getAttribute(attrName) || fallbackSrc;
         if (!src || src.startsWith("blob:")) return;
         try {
           const resolved = await this.resourceLoader(src, spineItem);
-          if (resolved) img.setAttribute(attrName, resolved);
+          if (resolved) {
+            img.setAttribute(attrName, resolved);
+            if (!isSvgImage && attrName !== "src") {
+              img.setAttribute("src", resolved);
+            }
+          }
+          if (!isSvgImage) {
+            const srcset = img.getAttribute("srcset");
+            if (srcset) {
+              const parts = await Promise.all(
+                srcset.split(",").map(async (part) => {
+                  const trimmed = part.trim();
+                  if (!trimmed) return "";
+                  const [url, descriptor] = trimmed.split(/\s+/, 2);
+                  const resolvedUrl = await this.resourceLoader(url, spineItem);
+                  return descriptor ? `${resolvedUrl} ${descriptor}` : resolvedUrl;
+                })
+              );
+              img.setAttribute("srcset", parts.filter(Boolean).join(", "));
+            }
+          }
         } catch (error) {
           // ignore
         }
@@ -582,6 +663,7 @@ export class ReaderController {
       window.getComputedStyle(this.viewer || document.body)?.fontSize
     ) || 16;
     const writingMode = this.writingMode === "vertical" ? "vertical-rl" : "horizontal-tb";
+    const edgePadding = this.getEdgePadding();
 
     this.paginationPromise = (async () => {
       const spineItems = [];
@@ -667,7 +749,7 @@ export class ReaderController {
         fontSize: baseFontSize,
         lineHeight: 1.8,
         writingMode,
-        padding: 24,
+        padding: edgePadding,
       });
 
       const pagination = await this.paginator.paginate();
@@ -1086,7 +1168,8 @@ export class ReaderController {
       this.viewer.style.height = "100%";
     }
     if (this.pageContainer) {
-      this.pageContainer.style.padding = "24px";
+      const edgePadding = this.getEdgePadding();
+      this.pageContainer.style.padding = `${edgePadding}px`;
       this.pageContainer.style.lineHeight = "1.8";
       this.pageContainer.style.maxWidth = "900px";
       this.pageContainer.style.margin = "0 auto";
