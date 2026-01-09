@@ -869,25 +869,30 @@ export class ReaderController {
         }
         try {
           const resourceItem = this.book?.resources?.get?.(resolvedUrl) || this.book?.resources?.get?.(url);
-          if (resourceItem) {
-            if (resourceItem.mediaType?.startsWith("image/")) {
-              const blob = await resourceItem.getBlob();
-              const objectUrl = URL.createObjectURL(blob);
-              this.resourceUrlCache.set(resolvedUrl, objectUrl);
-              return objectUrl;
-            }
-            const text = await resourceItem.getText();
-            if (typeof text === "string") return text;
+          if (!resourceItem) {
+            console.warn("Resource not found in EPUB:", resolvedUrl);
+            return url;
           }
-          const loaded = await this.book.load(resolvedUrl);
-          if (!loaded) return url;
-          if (typeof loaded === "string") return loaded;
-          const blob = loaded instanceof Blob ? loaded : new Blob([loaded]);
-          const objectUrl = URL.createObjectURL(blob);
-          this.resourceUrlCache.set(resolvedUrl, objectUrl);
-          return objectUrl;
+          const type = resourceItem.mediaType || resourceItem.type || "";
+          if (type.startsWith("image/") || type.includes("font")) {
+            const blob = await resourceItem.getBlob();
+            const objectUrl = URL.createObjectURL(blob);
+            this.resourceUrlCache.set(resolvedUrl, objectUrl);
+            return objectUrl;
+          }
+          if (resourceItem.getText) {
+            return await resourceItem.getText();
+          }
+          if (resourceItem.getBlob) {
+            const blob = await resourceItem.getBlob();
+            const objectUrl = URL.createObjectURL(blob);
+            this.resourceUrlCache.set(resolvedUrl, objectUrl);
+            return objectUrl;
+          }
+          console.warn("Unknown resource API:", resourceItem);
+          return url;
         } catch (error) {
-          console.warn("Failed to resolve resource:", resolvedUrl, error);
+          console.error("Failed to load resource:", resolvedUrl, error);
           return url;
         }
       };
