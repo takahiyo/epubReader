@@ -607,14 +607,8 @@ function handleBookReady(payload) {
 
 function updateEpubScrollMode() {
   if (currentBookInfo?.type !== 'epub' || !elements.fullscreenReader) return;
-  const isHorizontal = writingMode === 'horizontal';
-  if (isHorizontal) {
-    console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
-    elements.fullscreenReader.classList.add('epub-scroll');
-  } else {
-    console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
-    elements.fullscreenReader.classList.remove('epub-scroll');
-  }
+  console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
+  elements.fullscreenReader.classList.add('epub-scroll');
 }
 
 // ========================================
