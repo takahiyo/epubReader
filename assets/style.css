@@ -50,6 +50,14 @@ body {
   color: var(--reader-text);
 }
 
+#fullscreenReader {
+  z-index: 10;
+}
+
+#fullscreenReader iframe {
+  pointer-events: auto;
+}
+
 .viewer {
   position: absolute;
   inset: 0;
@@ -96,7 +104,7 @@ body {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.25s ease;
-  z-index: 999;
+  z-index: 999999;
 }
 
 #floatOverlay.visible {
