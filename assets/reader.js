@@ -343,8 +343,8 @@ export class ReaderController {
     this.rendition = this.book.renderTo(this.viewer, {
       width: "100%",
       height: "100%",
-      flow: "scrolled",
-      manager: "continuous",
+      flow: isVertical ? "paginated" : "scrolled",
+      manager: isVertical ? "default" : "continuous",
       allowScriptedContent: true,
       spread: "none",
       snap: false,
@@ -780,6 +780,8 @@ export class ReaderController {
     const current = this.rendition.currentLocation();
     const currentCfi = current?.start?.cfi;
     
+    const isVertical = this.writingMode === "vertical";
+
     // テーマとスタイルを更新（表示前に適用）
     this.updateEpubTheme();
 
