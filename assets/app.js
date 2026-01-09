@@ -1377,6 +1377,11 @@ async function performSearch(query) {
           for (const match of matches) {
             // CFIを生成（セクションの開始位置を使用）
             const cfi = item.cfiBase;
+            const spineItem = reader.spineItems?.[i];
+            const segmentIndex = reader.computeSegmentIndexForTextOffset(
+              spineItem?.htmlString,
+              match.matchIndex
+            );
             
             // パーセンテージを計算
             let percentage = 0;
@@ -1395,6 +1400,8 @@ async function performSearch(query) {
               sectionLabel: item.href,
               percentage,
               sectionIndex: i,
+              spineIndex: i,
+              segmentIndex,
             });
           }
         }
@@ -1466,7 +1473,15 @@ function renderSearchResults(results, query) {
     item.append(excerpt, meta);
     
     item.onclick = async () => {
-      seekToPercentage(result.percentage);
+      if (
+        typeof result.spineIndex === "number" &&
+        typeof result.segmentIndex === "number" &&
+        typeof reader?.goToSegment === "function"
+      ) {
+        reader.goToSegment(result.spineIndex, result.segmentIndex);
+      } else {
+        seekToPercentage(result.percentage);
+      }
       closeModal(elements.searchModal);
     };
     

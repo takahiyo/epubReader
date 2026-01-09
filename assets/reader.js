@@ -434,18 +434,40 @@ export class ReaderController {
   }
 
   resolveStartPageIndex(startLocation, totalPages) {
+    const maxIndex = Math.max(0, totalPages - 1);
     if (typeof startLocation === "number") {
-      return Math.max(0, Math.min(startLocation, totalPages - 1));
+      return Math.max(0, Math.min(startLocation, maxIndex));
     }
     if (startLocation && typeof startLocation === "object") {
+      const directLocator = startLocation.location;
+      const locator =
+        directLocator &&
+        typeof directLocator === "object" &&
+        typeof directLocator.spineIndex === "number" &&
+        typeof directLocator.segmentIndex === "number"
+          ? directLocator
+          : startLocation;
+      if (
+        typeof locator.spineIndex === "number" &&
+        typeof locator.segmentIndex === "number"
+      ) {
+        const pageIndex = this.findPageContaining(
+          locator.spineIndex,
+          locator.segmentIndex,
+          this.pagination?.pages ?? []
+        );
+        if (pageIndex >= 0) {
+          return pageIndex;
+        }
+      }
       const explicitLocation = startLocation.location;
       if (typeof explicitLocation === "number") {
-        return Math.max(0, Math.min(explicitLocation, totalPages - 1));
+        return Math.max(0, Math.min(explicitLocation, maxIndex));
       }
       const percentage = startLocation.percentage;
       if (typeof percentage === "number") {
         const index = Math.round((percentage / 100) * totalPages) - 1;
-        return Math.max(0, Math.min(index, totalPages - 1));
+        return Math.max(0, Math.min(index, maxIndex));
       }
     }
     return 0;
@@ -536,8 +558,72 @@ export class ReaderController {
     return index >= 0 ? index : 0;
   }
 
-  locatePageContaining(spineIndex, segmentIndex) {
-    const pages = this.pagination?.pages ?? [];
+  computeSegmentIndexForTextOffset(htmlString, targetOffset) {
+    if (!htmlString || typeof targetOffset !== "number" || targetOffset < 0) return 0;
+
+    const doc = new DOMParser().parseFromString(htmlString, "text/html");
+    const body = doc.body;
+    const segments = [];
+    const walker = doc.createTreeWalker(
+      body,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName?.toLowerCase();
+            if (tag === "img" || tag === "svg" || tag === "video" || tag === "iframe") {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+          return NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+
+    let textOffset = 0;
+    let node = walker.nextNode();
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || "";
+        const length = text.length;
+        let start = 0;
+        while (start < length) {
+          const end = Math.min(length, start + TEXT_SEGMENT_STEP);
+          segments.push({
+            type: "text",
+            node,
+            start,
+            end,
+            globalStart: textOffset + start,
+            globalEnd: textOffset + end
+          });
+          start = end;
+        }
+        textOffset += length;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        segments.push({ type: "element", node });
+      }
+      node = walker.nextNode();
+    }
+
+    if (!segments.length) return 0;
+
+    const index = segments.findIndex(
+      (segment) =>
+        segment.type === "text" &&
+        targetOffset >= segment.globalStart &&
+        targetOffset < segment.globalEnd
+    );
+    if (index >= 0) return index;
+    if (targetOffset >= textOffset) return segments.length - 1;
+    return 0;
+  }
+
+  findPageContaining(spineIndex, segmentIndex, pages = this.pagination?.pages ?? []) {
     for (let i = 0; i < pages.length; i += 1) {
       const page = pages[i];
       if (page.spineIndex !== spineIndex) continue;
@@ -554,21 +640,43 @@ export class ReaderController {
     return -1;
   }
 
+  getPageLocator(pageIndex) {
+    const pages = this.pagination?.pages ?? [];
+    const page = pages[pageIndex];
+    if (!page || page.spineIndex == null || page.spineIndex < 0) return null;
+    const segmentIndex = Number(String(page.withinSpineOffset).replace("s:", ""));
+    if (Number.isNaN(segmentIndex)) return null;
+    return { spineIndex: page.spineIndex, segmentIndex };
+  }
+
+  getFallbackLocator() {
+    const pages = this.pagination?.pages ?? [];
+    const first = pages.find((page) => page.spineIndex >= 0);
+    if (!first) return null;
+    const segmentIndex = Number(String(first.withinSpineOffset).replace("s:", ""));
+    if (Number.isNaN(segmentIndex)) return null;
+    return { spineIndex: first.spineIndex, segmentIndex };
+  }
+
+  goToSegment(spineIndex, segmentIndex) {
+    if (!this.pagination?.pages?.length) return;
+    const pageIndex = this.findPageContaining(spineIndex, segmentIndex);
+    if (pageIndex >= 0) {
+      this.pageController.goTo(pageIndex);
+    }
+  }
+
   navigateToHref(href, fallbackSpineIndex = 0) {
     if (!href || !this.pagination?.pages?.length) return;
     const [pathPart, fragPart] = href.split("#");
     const spineIndex = this.resolveSpineIndexFromHref(pathPart || href, fallbackSpineIndex);
-    let within = "s:0";
     let segmentIndex = 0;
     if (fragPart) {
       const spineItem = this.spineItems?.[spineIndex];
       segmentIndex = this.computeSegmentIndexForFragment(spineItem?.htmlString, fragPart);
-      within = `s:${Math.max(0, segmentIndex)}`;
     }
 
-    let pageIndex = fragPart
-      ? this.locatePageContaining(spineIndex, segmentIndex)
-      : this.pagination.locatePage?.(spineIndex, within) ?? -1;
+    let pageIndex = this.findPageContaining(spineIndex, segmentIndex);
     if (pageIndex < 0) {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
@@ -621,8 +729,10 @@ export class ReaderController {
   updateProgressFromPagination(totalPages) {
     if (!totalPages) return;
     const percentage = Math.round(((this.currentPageIndex + 1) / totalPages) * 100);
+    const locator = this.getPageLocator(this.currentPageIndex);
+    const fallbackLocator = locator ? null : this.getFallbackLocator();
     this.onProgress?.({
-      location: this.currentPageIndex,
+      location: locator ?? fallbackLocator ?? null,
       percentage,
     });
   }
@@ -758,6 +868,17 @@ export class ReaderController {
           return this.resourceUrlCache.get(resolvedUrl);
         }
         try {
+          const resourceItem = this.book?.resources?.get?.(resolvedUrl) || this.book?.resources?.get?.(url);
+          if (resourceItem) {
+            if (resourceItem.mediaType?.startsWith("image/")) {
+              const blob = await resourceItem.getBlob();
+              const objectUrl = URL.createObjectURL(blob);
+              this.resourceUrlCache.set(resolvedUrl, objectUrl);
+              return objectUrl;
+            }
+            const text = await resourceItem.getText();
+            if (typeof text === "string") return text;
+          }
           const loaded = await this.book.load(resolvedUrl);
           if (!loaded) return url;
           if (typeof loaded === "string") return loaded;
@@ -1105,9 +1226,10 @@ export class ReaderController {
     if (this.type === "epub") {
       if (!this.pagination?.pages?.length) return null;
       const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
+      const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
       return {
         label,
-        location: this.currentPageIndex,
+        location: locator,
         percentage,
         createdAt: Date.now(),
         type: "epub",
@@ -1126,6 +1248,15 @@ export class ReaderController {
   async goTo(bookmark) {
     if (!bookmark) return;
     if (bookmark.type === "epub") {
+      if (
+        bookmark.location &&
+        typeof bookmark.location === "object" &&
+        typeof bookmark.location.spineIndex === "number" &&
+        typeof bookmark.location.segmentIndex === "number"
+      ) {
+        this.goToSegment(bookmark.location.spineIndex, bookmark.location.segmentIndex);
+        return;
+      }
       if (typeof bookmark.location === "number" && this.pagination?.pages?.length) {
         this.pageController.goTo(bookmark.location);
         return;
