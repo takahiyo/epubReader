@@ -300,6 +300,13 @@
             </div>
             <p class="setting-hint" id="autoSyncHint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
           </div>
+
+          <div class="settings-section">
+            <h4>アカウント</h4>
+            <div class="setting-actions">
+              <button id="logoutBtn" class="secondary-btn" type="button">ログアウト</button>
+            </div>
+          </div>
           
         </div>
       </div>
@@ -323,6 +330,16 @@
       </div>
 
       <div class="float-buttons">
+        <div class="float-main-menu">
+          <button id="floatOpen" type="button">📂 開く</button>
+          <button id="floatLibrary" type="button">📚 ライブラリ</button>
+          <button id="floatSearch" type="button">🔍 検索</button>
+          <button id="floatBookmarks" type="button">🔖 しおり</button>
+          <button id="floatHistory" type="button">🕘 履歴</button>
+        </div>
+
+        <button id="floatSettings" class="float-settings" type="button">⚙</button>
+
         <!-- 右上 -->
         <button id="toggleWritingMode" type="button">縦</button>
         <button id="openToc" type="button">目次</button>
@@ -342,8 +359,17 @@
         </button>
       </div>
 
-      <div id="floatProgressBar"></div>
+      <div id="floatProgress">
+        <div id="floatProgressPercent">0%</div>
+        <div id="floatProgressTrack">
+          <div id="floatProgressMarks"></div>
+          <div id="floatProgressFill"></div>
+          <div id="floatProgressThumb"></div>
+        </div>
+      </div>
     </div>
+
+    <div id="modalOverlay"></div>
 
     <script type="module" src="./assets/app.js"></script>
   </body>

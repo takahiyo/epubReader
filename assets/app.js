@@ -192,7 +192,20 @@ const elements = {
   pageImage: document.getElementById("pageImage"),
   emptyState: document.getElementById("emptyState"),
   floatOverlay: document.getElementById("floatOverlay"),
-  floatProgressBar: document.getElementById("floatProgressBar"),
+  floatBackdrop: document.querySelector("#floatOverlay .float-backdrop"),
+  floatOpen: document.getElementById("floatOpen"),
+  floatLibrary: document.getElementById("floatLibrary"),
+  floatSearch: document.getElementById("floatSearch"),
+  floatBookmarks: document.getElementById("floatBookmarks"),
+  floatHistory: document.getElementById("floatHistory"),
+  floatSettings: document.getElementById("floatSettings"),
+  floatProgress: document.getElementById("floatProgress"),
+  floatProgressPercent: document.getElementById("floatProgressPercent"),
+  floatProgressTrack: document.getElementById("floatProgressTrack"),
+  floatProgressMarks: document.getElementById("floatProgressMarks"),
+  floatProgressFill: document.getElementById("floatProgressFill"),
+  floatProgressThumb: document.getElementById("floatProgressThumb"),
+  modalOverlay: document.getElementById("modalOverlay"),
   fontPlus: document.getElementById("fontPlus"),
   fontMinus: document.getElementById("fontMinus"),
   toggleTheme: document.getElementById("toggleTheme"),
@@ -258,6 +271,7 @@ const elements = {
   pageDirectionSelect: document.getElementById("pageDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   autoSyncEnabled: document.getElementById("autoSyncEnabled"),
+  logoutBtn: document.getElementById("logoutBtn"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
   
@@ -413,6 +427,14 @@ const progressBarHandler = new ProgressBarHandler({
   },
 });
 
+const floatProgressHandler = new ProgressBarHandler({
+  container: elements.floatProgressTrack,
+  thumb: elements.floatProgressThumb,
+  onSeek: (percentage) => {
+    seekToPercentage(percentage);
+  },
+});
+
 // ========================================
 // ユーザー情報表示
 // ========================================
@@ -432,6 +454,9 @@ function updateSearchButtonState() {
   if (elements.openToc) {
     elements.openToc.disabled = !isEpubOpen;
   }
+  if (elements.floatSearch) {
+    elements.floatSearch.disabled = !isEpubOpen;
+  }
 }
 
 function toggleFloatOverlay(forceVisible) {
@@ -443,9 +468,17 @@ function toggleFloatOverlay(forceVisible) {
 }
 
 function updateFloatProgressBar(percentage) {
-  if (!elements.floatProgressBar || !floatVisible) return;
+  if (!elements.floatProgress || !floatVisible) return;
   const clamped = Math.min(100, Math.max(0, percentage));
-  elements.floatProgressBar.style.setProperty("--progress", `${clamped}%`);
+  if (elements.floatProgressFill) {
+    elements.floatProgressFill.style.width = `${clamped}%`;
+  }
+  if (elements.floatProgressThumb) {
+    elements.floatProgressThumb.style.left = `${clamped}%`;
+  }
+  if (elements.floatProgressPercent) {
+    elements.floatProgressPercent.textContent = `${Math.floor(clamped)}%`;
+  }
 }
 
 function formatRelativeTime(timestamp) {
@@ -635,6 +668,9 @@ async function handleFile(file) {
     updateProgressBarDisplay();
     updateSearchButtonState();
     closeModal(elements.openFileModal);
+    if (floatVisible) {
+      toggleFloatOverlay(false);
+    }
     
     // 自動同期が有効なら保存
     if (autoSyncEnabled) {
@@ -722,6 +758,9 @@ async function openFromLibrary(bookId, options = {}) {
     updateProgressBarDisplay();
     updateSearchButtonState();
     closeModal(elements.openFileModal);
+    if (floatVisible) {
+      toggleFloatOverlay(false);
+    }
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
@@ -941,6 +980,31 @@ function renderBookmarkMarkers() {
       ui.closeAllMenus();
     });
     elements.progressTrack.appendChild(marker);
+  });
+
+  renderFloatBookmarkMarkers();
+}
+
+function renderFloatBookmarkMarkers() {
+  if (!elements.floatProgressMarks) return;
+  elements.floatProgressMarks.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
+  if (!currentBookId) return;
+
+  const bookmarks = storage.getBookmarks(currentBookId);
+  if (!bookmarks.length) return;
+
+  bookmarks.forEach((bookmark) => {
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "bookmark-marker";
+    const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
+    marker.style.left = `${percentage}%`;
+    marker.title = bookmark.label ?? t("bookmarkDefault");
+    marker.addEventListener("click", (event) => {
+      event.stopPropagation();
+      reader.goTo(bookmark);
+    });
+    elements.floatProgressMarks.appendChild(marker);
   });
 }
 
@@ -1576,17 +1640,59 @@ function renderSearchResults(results, query) {
 // モーダル制御
 // ========================================
 
-function openModal(modal) {
-  if (modal) {
-    modal.classList.remove('hidden');
-    updateActivity();
+function isModalVisible(modal) {
+  if (!modal) return false;
+  if (modal.classList.contains("bookmark-menu")) {
+    return modal.classList.contains("visible");
   }
+  return !modal.classList.contains("hidden");
+}
+
+function openModal(modal) {
+  if (!modal) return;
+  if (elements.modalOverlay && modal.parentElement !== elements.modalOverlay) {
+    elements.modalOverlay.appendChild(modal);
+  }
+  if (elements.modalOverlay) {
+    elements.modalOverlay.classList.add("visible");
+  }
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.add("visible");
+    ui.bookmarkMenuVisible = true;
+  } else {
+    modal.classList.remove("hidden");
+  }
+  updateActivity();
 }
 
 function closeModal(modal) {
-  if (modal) {
-    modal.classList.add('hidden');
+  if (!modal) return;
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.remove("visible");
+    ui.bookmarkMenuVisible = false;
+  } else {
+    modal.classList.add("hidden");
   }
+  if (!elements.modalOverlay) return;
+  const hasVisibleModal = Array.from(elements.modalOverlay.children).some((child) => {
+    if (!(child instanceof HTMLElement)) return false;
+    return isModalVisible(child);
+  });
+  if (!hasVisibleModal) {
+    elements.modalOverlay.classList.remove("visible");
+  }
+}
+
+function closeExclusiveMenus() {
+  closeModal(elements.bookmarkMenu);
+  closeModal(elements.historyModal);
+  closeModal(elements.searchModal);
+  closeModal(elements.settingsModal);
+}
+
+function openExclusiveMenu(modal) {
+  closeExclusiveMenus();
+  openModal(modal);
 }
 
 function openImageModal(src) {
@@ -1647,6 +1753,10 @@ function applyUiLanguage(nextLanguage) {
     const label = button?.querySelector("span:last-child");
     if (label) label.textContent = text;
   };
+  const setFloatLabel = (button, icon, text) => {
+    if (!button) return;
+    button.textContent = `${icon} ${text}`;
+  };
   setMenuLabel(elements.menuOpen, strings.menuOpen);
   setMenuLabel(elements.menuLibrary, strings.menuLibrary);
   setMenuLabel(elements.menuSearch, strings.menuSearch);
@@ -1654,6 +1764,11 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuHistory, strings.menuHistory);
   setMenuLabel(elements.menuSettings, strings.menuSettings);
   setMenuLabel(elements.menuLogout, strings.menuLogout);
+  setFloatLabel(elements.floatOpen, "📂", strings.menuOpen);
+  setFloatLabel(elements.floatLibrary, "📚", strings.menuLibrary);
+  setFloatLabel(elements.floatSearch, "🔍", strings.menuSearch);
+  setFloatLabel(elements.floatBookmarks, "🔖", strings.menuBookmarks);
+  setFloatLabel(elements.floatHistory, "🕘", strings.menuHistory);
 
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
@@ -1675,6 +1790,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsCloudTitle) elements.settingsCloudTitle.textContent = strings.settingsCloudTitle;
+  if (elements.logoutBtn) elements.logoutBtn.textContent = strings.menuLogout;
   if (elements.autoSyncLabel) {
     const input = elements.autoSyncLabel.querySelector("input");
     elements.autoSyncLabel.textContent = strings.autoSyncLabel;
@@ -1811,6 +1927,50 @@ async function importData(file) {
   }
 }
 
+function openFileDialog() {
+  elements.fileInput?.click();
+}
+
+function showLibrary() {
+  openModal(elements.openFileModal);
+  renderLibrary();
+}
+
+function showSearch() {
+  if (!currentBookId || currentBookInfo?.type !== 'epub') {
+    alert(t("searchEpubOnly"));
+    return;
+  }
+  openExclusiveMenu(elements.searchModal);
+  if (elements.searchInput) {
+    elements.searchInput.value = '';
+    elements.searchInput.focus();
+  }
+  if (elements.searchResults) {
+    elements.searchResults.innerHTML = '';
+  }
+}
+
+function showBookmarks() {
+  bookmarkMenuMode = "all";
+  renderBookmarks(bookmarkMenuMode);
+  openExclusiveMenu(elements.bookmarkMenu);
+}
+
+function showHistory() {
+  openExclusiveMenu(elements.historyModal);
+  renderHistory();
+}
+
+function showSettings() {
+  openExclusiveMenu(elements.settingsModal);
+  if (elements.themeSelect) elements.themeSelect.value = theme;
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+}
+
 // ========================================
 // イベントハンドラー
 // ========================================
@@ -1818,50 +1978,60 @@ async function importData(file) {
 function setupEvents() {
   // メニューアクション
   elements.menuOpen?.addEventListener('click', () => {
-    elements.fileInput?.click();
+    openFileDialog();
   });
   
   elements.menuLibrary?.addEventListener('click', () => {
-    openModal(elements.openFileModal);
-    renderLibrary();
+    showLibrary();
   });
   
   elements.menuSearch?.addEventListener('click', () => {
-    if (!currentBookId || currentBookInfo?.type !== 'epub') {
-      alert(t("searchEpubOnly"));
-      return;
-    }
-    openModal(elements.searchModal);
-    if (elements.searchInput) {
-      elements.searchInput.value = '';
-      elements.searchInput.focus();
-    }
-    if (elements.searchResults) {
-      elements.searchResults.innerHTML = '';
-    }
+    showSearch();
   });
   
   elements.menuBookmarks?.addEventListener('click', () => {
-    bookmarkMenuMode = "all";
-    ui.showBookmarkMenu();
+    showBookmarks();
   });
   
   elements.menuHistory?.addEventListener('click', () => {
-    openModal(elements.historyModal);
-    renderHistory();
+    showHistory();
+  });
+
+  elements.floatOpen?.addEventListener('click', () => {
+    openFileDialog();
+  });
+
+  elements.floatLibrary?.addEventListener('click', () => {
+    showLibrary();
+  });
+
+  elements.floatSearch?.addEventListener('click', () => {
+    showSearch();
+  });
+
+  elements.floatBookmarks?.addEventListener('click', () => {
+    showBookmarks();
+  });
+
+  elements.floatHistory?.addEventListener('click', () => {
+    showHistory();
+  });
+
+  elements.floatSettings?.addEventListener('click', () => {
+    showSettings();
   });
   
   elements.menuSettings?.addEventListener('click', () => {
-    openModal(elements.settingsModal);
-    // 現在の設定値を反映
-    if (elements.themeSelect) elements.themeSelect.value = theme;
-    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-    if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
-    if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+    showSettings();
   });
   
   elements.menuLogout?.addEventListener('click', () => {
+    if (confirm("ログアウトしますか？")) {
+      logout();
+    }
+  });
+
+  elements.logoutBtn?.addEventListener('click', () => {
     if (confirm("ログアウトしますか？")) {
       logout();
     }
@@ -1892,6 +2062,11 @@ function setupEvents() {
 
   elements.toggleLanguage?.addEventListener('click', () => {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
+  });
+
+  elements.floatBackdrop?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFloatOverlay(false);
   });
 
   elements.openToc?.addEventListener('click', () => {
@@ -1991,7 +2166,7 @@ function setupEvents() {
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
-  elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
+  elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
   
   // 検索機能
   const executeSearch = async () => {
@@ -2021,12 +2196,22 @@ function setupEvents() {
       }
     });
   });
+
+  elements.modalOverlay?.addEventListener('click', (e) => {
+    if (e.target !== elements.modalOverlay) return;
+    e.stopPropagation();
+    Array.from(elements.modalOverlay.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        closeModal(child);
+      }
+    });
+  });
   
   // しおりメニューのバックドロップクリック
   elements.bookmarkMenu?.addEventListener('click', (e) => {
     // bookmarkMenuの直接クリック（背景部分）の場合は閉じる
     if (e.target === elements.bookmarkMenu) {
-      ui.closeAllMenus();
+      closeModal(elements.bookmarkMenu);
     }
   });
   
