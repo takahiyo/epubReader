@@ -47,7 +47,7 @@ const UI_STRINGS = {
   ja: {
     documentTitle: "Epub Reader",
     emptyTitle: "本が選択されていません",
-    emptyDescription: "画面左端をクリックしてメニューを開き、本を選択してください",
+    emptyDescription: "右下のメニューから本を選択してください",
     menuOpen: "開く",
     menuLibrary: "ライブラリ",
     menuSearch: "テキスト検索",
@@ -110,7 +110,7 @@ const UI_STRINGS = {
   en: {
     documentTitle: "Epub Reader",
     emptyTitle: "No book selected",
-    emptyDescription: "Click the left edge to open the menu and choose a book.",
+    emptyDescription: "Choose a book from the menu in the lower right.",
     menuOpen: "Open",
     menuLibrary: "Library",
     menuSearch: "Text Search",
