@@ -23,6 +23,7 @@ export class UIController {
     this.onBookmarkMenu = options.onBookmarkMenu;
     this.onPagePrev = options.onPagePrev;
     this.onPageNext = options.onPageNext;
+    this.onFloatToggle = options.onFloatToggle;
     this.isBookOpen = options.isBookOpen || (() => false);
     this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
@@ -120,8 +121,8 @@ export class UIController {
     
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
-      // メニュー内のクリックは無視
-      if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu')) {
+      // メニューやボタン内のクリックは無視
+      if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgressBar')) {
         return;
       }
       
@@ -133,7 +134,7 @@ export class UIController {
       
       isProcessing = true;
       
-      const baseElement = e.currentTarget || reader || document.documentElement;
+      const baseElement = e.currentTarget || document.documentElement;
       const area = this.getClickArea(e.clientX, e.clientY, baseElement);
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
       
@@ -145,16 +146,8 @@ export class UIController {
       }, 100);
     };
     
-    // fullscreenReader全体にイベントリスナーを追加
-    const reader = document.getElementById('fullscreenReader');
-    if (reader) {
-      reader.addEventListener('click', clickHandler);
-      console.log('Click handler attached to fullscreenReader');
-    } else {
-      // フォールバック: ドキュメント全体
-      document.addEventListener('click', clickHandler);
-      console.log('Click handler attached to document');
-    }
+    document.addEventListener('click', clickHandler);
+    console.log('Click handler attached to document');
   }
 
   /**
@@ -199,15 +192,15 @@ export class UIController {
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
         const mode = this.getWritingMode?.() || "horizontal";
         if (mode === "vertical") {
-          if (absDeltaY >= minSwipeDistance && (absDeltaY - absDeltaX) >= axisDifference) {
-            if (deltaY > 0) {
+          if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+            if (deltaX > 0) {
               this.onPagePrev?.();
             } else {
               this.onPageNext?.();
             }
           }
-        } else if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
-          if (deltaX > 0) {
+        } else if (absDeltaY >= minSwipeDistance && (absDeltaY - absDeltaX) >= axisDifference) {
+          if (deltaY > 0) {
             this.onPagePrev?.();
           } else {
             this.onPageNext?.();
@@ -235,78 +228,13 @@ export class UIController {
       bookmarkMenuVisible: this.bookmarkMenuVisible
     });
     
-    // メニューが開いている場合は閉じる（本が開いている時のみ）
-    if ((this.leftMenuVisible || this.progressBarVisible || this.bookmarkMenuVisible) && this.isBookOpen()) {
-      console.log('Closing menus...');
-      this.closeAllMenus();
+    if (area === 'M3') {
+      console.log('Toggling float overlay...');
+      this.onFloatToggle?.();
       return;
     }
-    
-    const mode = this.getWritingMode?.() || "horizontal";
 
-    // エリア別の処理
-    switch (area) {
-      case 'U1':
-      case 'M1':
-      case 'B1':
-        // 左端 → 左メニュー表示
-        console.log('Showing left menu...');
-        this.showLeftMenu();
-        break;
-        
-      case 'U2':
-        if (mode === "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
-          console.log('Previous page (vertical)...');
-          this.onPagePrev?.();
-        }
-        break;
-        
-      case 'M2':
-        // 中央左 → 前ページ（本が開いている時のみ）
-        if (mode !== "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
-          console.log('Previous page...');
-          this.onPagePrev?.();
-        }
-        break;
-        
-      case 'M3':
-        // 中央 → しおりメニュー表示（本が開いている時のみ）
-        if (this.isBookOpen()) {
-          console.log('Showing bookmark menu...');
-          this.showBookmarkMenu();
-        } else {
-          console.log('No book open, bookmark menu not shown');
-        }
-        break;
-        
-      case 'M4':
-        // 中央右 → 次ページ（本が開いている時のみ）
-        if (mode !== "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
-          console.log('Next page...');
-          this.onPageNext?.();
-        }
-        break;
-        
-      case 'B2':
-        // 下端 → 進捗バー表示（本が開いている時のみ）
-        if (mode === "vertical" && this.isBookOpen() && this.isPageNavigationEnabled()) {
-          console.log('Next page (vertical)...');
-          this.onPageNext?.();
-          break;
-        }
-        if (this.isBookOpen() && this.isProgressBarAvailable()) {
-          console.log('Showing progress bar...');
-          this.showProgressBar();
-        } else {
-          console.log('No book open, progress bar not shown');
-        }
-        break;
-        
-      default:
-        // その他のエリアは何もしない
-        console.log('Area ignored:', area);
-        break;
-    }
+    console.log('Area ignored:', area);
   }
   
   /**
