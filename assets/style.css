@@ -86,6 +86,130 @@ body {
   pointer-events: none;
 }
 
+/* ========================================
+   フロートUI
+======================================== */
+
+#floatOverlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 999;
+}
+
+#floatOverlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.float-backdrop {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+.float-title {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.float-title img {
+  width: min(240px, 60vw);
+  height: auto;
+}
+
+.float-buttons {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.float-buttons button {
+  pointer-events: auto;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.85);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.float-buttons button:hover {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+#toggleWritingMode {
+  position: absolute;
+  top: 20px;
+  right: 100px;
+}
+
+#openToc {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+}
+
+.font-buttons {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#toggleTheme {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+}
+
+#toggleLanguage {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  padding: 8px 10px;
+}
+
+#toggleLanguage img {
+  width: 28px;
+  height: auto;
+  display: block;
+}
+
+#floatProgressBar {
+  position: absolute;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  width: min(720px, 80vw);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  background-image: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  background-repeat: no-repeat;
+  background-size: var(--progress, 0%) 100%;
+  pointer-events: auto;
+  z-index: 3;
+}
+
 /* スクロール時のメニューボタン */
 .floating-menu-button {
   position: absolute;
@@ -183,6 +307,12 @@ body {
   font-size: 5rem;
   margin-bottom: 1.5rem;
   opacity: 0.5;
+}
+
+.empty-book-icon {
+  width: 72px;
+  opacity: 0.85;
+  margin-bottom: 1.5rem;
 }
 
 .empty-state h2 {

@@ -22,6 +22,7 @@ let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
 let uiLanguage = settings.uiLanguage ?? "ja";
 let progressDisplayMode = settings.progressDisplayMode ?? "page";
+let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
   if (legacyDirection === "rtl") {
@@ -40,12 +41,13 @@ let autoSyncInterval = null;
 let bookmarkMenuMode = "current";
 let currentToc = [];
 let uiInitialized = false;
+let floatVisible = false;
 
 const UI_STRINGS = {
   ja: {
     documentTitle: "Epub Reader",
     emptyTitle: "本が選択されていません",
-    emptyDescription: "画面左端をクリックしてメニューを開き、本を選択してください",
+    emptyDescription: "右下のメニューから本を選択してください",
     menuOpen: "開く",
     menuLibrary: "ライブラリ",
     menuSearch: "テキスト検索",
@@ -108,7 +110,7 @@ const UI_STRINGS = {
   en: {
     documentTitle: "Epub Reader",
     emptyTitle: "No book selected",
-    emptyDescription: "Click the left edge to open the menu and choose a book.",
+    emptyDescription: "Choose a book from the menu in the lower right.",
     menuOpen: "Open",
     menuLibrary: "Library",
     menuSearch: "Text Search",
@@ -189,6 +191,13 @@ const elements = {
   imageViewer: document.getElementById("imageViewer"),
   pageImage: document.getElementById("pageImage"),
   emptyState: document.getElementById("emptyState"),
+  floatOverlay: document.getElementById("floatOverlay"),
+  floatProgressBar: document.getElementById("floatProgressBar"),
+  fontPlus: document.getElementById("fontPlus"),
+  fontMinus: document.getElementById("fontMinus"),
+  toggleTheme: document.getElementById("toggleTheme"),
+  toggleLanguage: document.getElementById("toggleLanguage"),
+  langIcon: document.getElementById("langIcon"),
   
   // メニュー
   leftMenu: document.getElementById("leftMenu"),
@@ -308,6 +317,9 @@ const ui = new UIController({
   isPageNavigationEnabled: () => currentBookId !== null,
   isProgressBarAvailable: () => currentBookId !== null,
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
+  onFloatToggle: () => {
+    toggleFloatOverlay();
+  },
   onLeftMenu: (action) => {
     if (action === 'show') {
       updateActivity();
@@ -368,6 +380,20 @@ function updateSearchButtonState() {
   if (elements.openToc) {
     elements.openToc.disabled = !isEpubOpen;
   }
+}
+
+function toggleFloatOverlay(forceVisible) {
+  if (!elements.floatOverlay) return;
+  const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
+  floatVisible = nextVisible;
+  elements.floatOverlay.classList.toggle("visible", floatVisible);
+  updateProgressBarDisplay();
+}
+
+function updateFloatProgressBar(percentage) {
+  if (!elements.floatProgressBar || !floatVisible) return;
+  const clamped = Math.min(100, Math.max(0, percentage));
+  elements.floatProgressBar.style.setProperty("--progress", `${clamped}%`);
 }
 
 function formatRelativeTime(timestamp) {
@@ -711,6 +737,12 @@ async function applyReadingState(progress) {
     }
     await applyReadingSettings(writingMode, pageDirection);
   }
+  if (progress.theme && progress.theme !== theme) {
+    applyTheme(progress.theme);
+  }
+  if (Number.isFinite(progress.fontSize) && progress.fontSize !== fontSize) {
+    applyFontSize(progress.fontSize);
+  }
   if (progress.uiLanguage && progress.uiLanguage !== uiLanguage) {
     applyUiLanguage(progress.uiLanguage);
   }
@@ -723,6 +755,8 @@ function handleProgress(progress) {
   storage.setProgress(currentBookId, {
     ...progress,
     writingMode,
+    fontSize,
+    theme,
     uiLanguage,
   });
   updateProgressBarDisplay();
@@ -739,18 +773,16 @@ function getEpubPaginationTotal() {
 function updateProgressBarDisplay() {
   if (!currentBookId) return;
   
-  // 進捗バーパネルを表示（EPUB/画像書籍の場合）
-  if (currentBookInfo?.type === 'epub' || currentBookInfo?.type === 'image') {
-    if (elements.progressBarPanel) {
-      elements.progressBarPanel.classList.remove('hidden');
-    }
-    if (elements.progressBarBackdrop) {
-      elements.progressBarBackdrop.classList.remove('hidden');
-    }
+  if (elements.progressBarPanel) {
+    elements.progressBarPanel.classList.add('hidden');
+  }
+  if (elements.progressBarBackdrop) {
+    elements.progressBarBackdrop.classList.add('hidden');
   }
   
   const progress = storage.getProgress(currentBookId);
   const percentage = progress?.percentage || 0;
+  updateFloatProgressBar(percentage);
   
   // 進捗バーの更新
   if (elements.progressFill) {
@@ -903,7 +935,6 @@ function handleBookReady(payload) {
   storage.upsertBook({ ...currentBookInfo, title });
   renderLibrary();
   renderToc(currentToc);
-  ui.showProgressBar({ persistent: true });
   
   // EPUBスクロールモードのクラスを設定（横書きのみ縦スクロール）
   const scheduleEpubScrollModeUpdate = (attempt = 0) => {
@@ -1522,6 +1553,23 @@ function applyTheme(newTheme) {
   document.body.dataset.theme = theme;
   reader.applyTheme(theme);
   storage.setSettings({ theme });
+  persistReadingState({ theme });
+  updateThemeToggleIcon();
+}
+
+function updateThemeToggleIcon() {
+  if (!elements.toggleTheme) return;
+  elements.toggleTheme.textContent = theme === "dark" ? "🌙" : "☀️";
+  elements.toggleTheme.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+}
+
+function applyFontSize(nextSize) {
+  if (!Number.isFinite(nextSize)) return;
+  const clamped = Math.min(28, Math.max(12, Math.round(nextSize)));
+  fontSize = clamped;
+  reader.applyFontSize(fontSize);
+  storage.setSettings({ fontSize });
+  persistReadingState({ fontSize });
 }
 
 function applyUiLanguage(nextLanguage) {
@@ -1531,6 +1579,9 @@ function applyUiLanguage(nextLanguage) {
   document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
   elements.langJa?.classList.toggle("active", uiLanguage === "ja");
   elements.langEn?.classList.toggle("active", uiLanguage === "en");
+  if (elements.langIcon) {
+    elements.langIcon.src = uiLanguage === "ja" ? "assets/Flag_Japan.svg" : "assets/Flag_America.svg";
+  }
   persistReadingState({ uiLanguage });
 
   const strings = getUiStrings(nextLanguage);
@@ -1775,6 +1826,22 @@ function setupEvents() {
     }
   });
 
+  elements.fontPlus?.addEventListener('click', () => {
+    applyFontSize((fontSize ?? 16) + 1);
+  });
+
+  elements.fontMinus?.addEventListener('click', () => {
+    applyFontSize((fontSize ?? 16) - 1);
+  });
+
+  elements.toggleTheme?.addEventListener('click', () => {
+    applyTheme(theme === "dark" ? "light" : "dark");
+  });
+
+  elements.toggleLanguage?.addEventListener('click', () => {
+    applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
+  });
+
   elements.openToc?.addEventListener('click', () => {
     if (!currentBookInfo || currentBookInfo.type !== "epub") return;
     openModal(elements.tocModal);
@@ -2017,6 +2084,13 @@ function init() {
   
   // テーマ適用
   applyTheme(theme);
+  if (!Number.isFinite(fontSize)) {
+    const baseFont = Number.parseFloat(
+      window.getComputedStyle(elements.viewer || document.body)?.fontSize
+    );
+    fontSize = Number.isFinite(baseFont) ? baseFont : 16;
+  }
+  applyFontSize(fontSize);
   applyReadingSettings(writingMode, pageDirection);
   applyLibraryViewMode(libraryViewMode);
   applyProgressDisplayMode(progressDisplayMode);

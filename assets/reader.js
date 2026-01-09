@@ -71,6 +71,7 @@ export class ReaderController {
     this.resourceUrlCache = new Map();
     this.resourceLoader = null;
     this.pageContainer = null;
+    this.fontSize = null;
     this.spineItems = [];
     this.pageController = new PageController((index) => {
       this.renderEpubPage(index);
@@ -1291,6 +1292,20 @@ export class ReaderController {
     this.theme = theme;
     this.updateEpubTheme();
     document.body.dataset.theme = theme;
+  }
+
+  async applyFontSize(fontSize) {
+    if (!Number.isFinite(fontSize)) return;
+    this.fontSize = fontSize;
+    if (this.viewer) {
+      this.viewer.style.fontSize = `${fontSize}px`;
+    }
+    if (this.type !== "epub") {
+      return;
+    }
+    this.pagination = null;
+    await this.buildPagination();
+    this.pageController.goTo(this.currentPageIndex);
   }
 
   async applyReadingDirection(writingMode, pageDirection) {
