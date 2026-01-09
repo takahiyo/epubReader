@@ -416,6 +416,14 @@ function handleProgress(progress) {
   updateProgressBarDisplay();
 }
 
+function getEpubPaginationTotal() {
+  const totalPages = reader.pagination?.pages?.length;
+  if (totalPages) return totalPages;
+  const totalLocations = reader.rendition?.book?.locations?.total;
+  if (totalLocations) return totalLocations;
+  return null;
+}
+
 function updateProgressBarDisplay() {
   if (!currentBookId) return;
   
@@ -445,14 +453,22 @@ function updateProgressBarDisplay() {
   if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
     if (progressDisplayMode === "page") {
       // ページ数モード
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        // EPUBの場合はlocationインデックスを表示
-        const totalLocations = reader.rendition.book.locations.total;
-        const currentLocation = Math.round((percentage / 100) * totalLocations);
-        elements.currentPageInput.value = currentLocation;
-        
-        if (elements.totalPages) {
-          elements.totalPages.textContent = totalLocations.toString();
+      if (currentBookInfo?.type === 'epub') {
+        // EPUBの場合はページ数を表示
+        const totalPages = getEpubPaginationTotal();
+        if (totalPages) {
+          const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
+          elements.currentPageInput.value = currentPage;
+          
+          if (elements.totalPages) {
+            elements.totalPages.textContent = totalPages.toString();
+          }
+        } else {
+          // ページ数が未生成の場合はパーセンテージ表示
+          elements.currentPageInput.value = Math.round(percentage);
+          if (elements.totalPages) {
+            elements.totalPages.textContent = '100';
+          }
         }
       } else if (currentBookInfo?.type === 'image') {
         // 画像書籍の場合はページ数
@@ -502,10 +518,14 @@ function renderBookmarkMarkers() {
     let tooltipText = bookmark.label ?? "しおり";
     if (progressDisplayMode === "page") {
       // ページ数モードの場合
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
-        const locationIndex = Math.round((percentage / 100) * totalLocations);
-        tooltipText += ` (${locationIndex}/${totalLocations})`;
+      if (currentBookInfo?.type === 'epub') {
+        const totalPages = getEpubPaginationTotal();
+        if (totalPages) {
+          const pageIndex = Math.max(1, Math.round((percentage / 100) * totalPages));
+          tooltipText += ` (${pageIndex}/${totalPages})`;
+        } else {
+          tooltipText += ` (${percentage}%)`;
+        }
       } else if (currentBookInfo?.type === 'image') {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
@@ -613,6 +633,15 @@ function handleBookReady(payload) {
       clearInterval(checkLocations);
       console.log('[handleBookReady] Locations check timeout');
     }, 10000);
+
+    reader.buildPagination?.().then((pagination) => {
+      if (pagination?.pages?.length) {
+        console.log('[handleBookReady] Pagination ready:', pagination.pages.length);
+        updateProgressBarDisplay();
+      }
+    }).catch((error) => {
+      console.warn('[handleBookReady] Pagination failed:', error);
+    });
   }
 }
 
@@ -829,10 +858,14 @@ function renderBookmarks(mode = "current") {
     // メタ情報を進捗表示モードに合わせて表示
     let metaText = new Date(bookmark.createdAt).toLocaleString();
     if (progressDisplayMode === "page") {
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
-        const locationIndex = Math.round((bookmark.percentage / 100) * totalLocations);
-        metaText += ` / ${locationIndex}/${totalLocations}`;
+      if (currentBookInfo?.type === 'epub') {
+        const totalPages = getEpubPaginationTotal();
+        if (totalPages) {
+          const pageIndex = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
+          metaText += ` / ${pageIndex}/${totalPages}`;
+        } else {
+          metaText += ` / ${bookmark.percentage}%`;
+        }
       } else if (currentBookInfo?.type === 'image') {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
@@ -1109,10 +1142,18 @@ function renderSearchResults(results, query) {
     
     // パーセンテージまたはページ情報を表示
     let locationText = '';
-    if (progressDisplayMode === "page" && reader.rendition?.book?.locations) {
-      const totalLocations = reader.rendition.book.locations.total;
-      const locationIndex = Math.round((result.percentage / 100) * totalLocations);
-      locationText = `${locationIndex}/${totalLocations}`;
+    if (progressDisplayMode === "page") {
+      const totalPages = getEpubPaginationTotal();
+      if (totalPages) {
+        const pageIndex = Math.max(1, Math.round((result.percentage / 100) * totalPages));
+        locationText = `${pageIndex}/${totalPages}`;
+      } else if (reader.rendition?.book?.locations) {
+        const totalLocations = reader.rendition.book.locations.total;
+        const locationIndex = Math.round((result.percentage / 100) * totalLocations);
+        locationText = `${locationIndex}/${totalLocations}`;
+      } else {
+        locationText = `${result.percentage}%`;
+      }
     } else {
       locationText = `${result.percentage}%`;
     }
@@ -1334,11 +1375,15 @@ function setupEvents() {
       if (!isNaN(value)) {
         if (progressDisplayMode === "page") {
           // ページ数モード
-          if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-            // EPUBの場合はlocationインデックスとして扱う
-            const totalLocations = reader.rendition.book.locations.total;
-            const percentage = (value / totalLocations) * 100;
-            seekToPercentage(Math.max(0, Math.min(percentage, 100)));
+          if (currentBookInfo?.type === 'epub') {
+            // EPUBの場合はページ数として扱う
+            const totalPages = getEpubPaginationTotal();
+            if (totalPages) {
+              const percentage = (value / totalPages) * 100;
+              seekToPercentage(Math.max(0, Math.min(percentage, 100)));
+            } else {
+              seekToPercentage(Math.max(0, Math.min(value, 100)));
+            }
           } else if (currentBookInfo?.type === 'image') {
             // 画像書籍の場合はページ数として扱う
             const totalPages = reader.imagePages?.length || 1;
