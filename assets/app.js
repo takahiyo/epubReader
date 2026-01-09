@@ -37,6 +37,7 @@ let autoSyncEnabled = settings.autoSyncEnabled ?? false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 let bookmarkMenuMode = "current";
+let currentToc = [];
 
 // ========================================
 // DOM要素
