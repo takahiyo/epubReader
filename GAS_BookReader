@@ -1,5 +1,17 @@
 function doPost(e) {
   try {
+    // Raw request debugging
+    console.log({
+      timestamp: new Date().toISOString(),
+      hasEvent: !!e,
+      hasPostData: !!(e && e.postData),
+      hasContents: !!(e && e.postData && e.postData.contents),
+      contentType: e && e.postData ? e.postData.type : 'no-postData',
+      contentsLength: e && e.postData && e.postData.contents ? e.postData.contents.length : 0,
+      contentsPreview: e && e.postData && e.postData.contents ? e.postData.contents.substring(0, 200) : 'no-contents',
+      pathInfo: e && e.pathInfo ? e.pathInfo : 'no-pathInfo',
+    });
+    
     // Parse request details
     const payload = parsePayload(e);
     const path = getPath(e);
@@ -80,10 +92,37 @@ function doGet(e) {
 }
 
 function parsePayload(e) {
-  if (!e || !e.postData || !e.postData.contents) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      console.log({ parsePayloadError: 'Missing e or postData or contents' });
+      return {};
+    }
+    
+    const contents = e.postData.contents;
+    console.log({ 
+      parsingContents: true,
+      contentsType: typeof contents,
+      contentsLength: contents ? contents.length : 0,
+      firstChars: contents ? contents.substring(0, 100) : 'empty'
+    });
+    
+    const parsed = JSON.parse(contents);
+    console.log({
+      parsedSuccessfully: true,
+      parsedKeys: Object.keys(parsed),
+      hasIdToken: !!parsed.idToken,
+      idTokenLength: parsed.idToken ? parsed.idToken.length : 0,
+    });
+    
+    return parsed;
+  } catch (error) {
+    console.error({ 
+      parsePayloadException: error.message,
+      stack: error.stack,
+      rawContents: e && e.postData ? e.postData.contents : 'no-contents'
+    });
     return {};
   }
-  return JSON.parse(e.postData.contents);
 }
 
 function getPath(e) {
