@@ -14,14 +14,10 @@ const AUTH_CONFIG = {
   get clientId() {
     return resolveClientId();
   },
-  redirectUri: window.location.origin + '/index.html',
-  scope: 'openid profile email',
-  driveScope: 'https://www.googleapis.com/auth/drive.file',
   tokenExpiry: 60 * 60 * 1000, // 1時間（ミリ秒）
 };
 
 const AUTH_STORAGE_KEYS = {
-  accessToken: 'epub_reader_google_token',
   idToken: 'epub_reader_google_id_token',
   tokenExpiry: 'epub_reader_token_expiry',
   userId: 'epub_reader_user_id',
@@ -30,7 +26,6 @@ const AUTH_STORAGE_KEYS = {
   lastActivity: 'epub_reader_last_activity',
 };
 
-let googleTokenClient = null;
 let googleLoginInitialized = false;
 let googleButtonRendered = false;
 
@@ -47,7 +42,7 @@ export function initGoogleLogin(options = {}) {
     );
   }
   
-  if (!window.google?.accounts?.id || !window.google?.accounts?.oauth2) {
+  if (!window.google?.accounts?.id) {
     throw new Error('Google Identity Services が読み込まれていません。');
   }
 
@@ -89,28 +84,7 @@ export function captureGoogleToken(credentialResponse) {
 
   saveIdToken(idToken);
   fetchUserInfo(idToken);
-  requestBasicAccessToken();
-  setTimeout(() => {
-    const accessToken = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
-    if (!accessToken) {
-      window.location.href = 'index.html';
-    }
-  }, 800);
   return true;
-}
-
-/**
- * 認証トークンを保存
- */
-function saveAuthToken(token, expiresInSeconds) {
-  const now = Date.now();
-  const expiry = expiresInSeconds
-    ? now + expiresInSeconds * 1000
-    : now + AUTH_CONFIG.tokenExpiry;
-
-  localStorage.setItem(AUTH_STORAGE_KEYS.accessToken, token);
-  localStorage.setItem(AUTH_STORAGE_KEYS.tokenExpiry, expiry.toString());
-  localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, now.toString());
 }
 
 /**
@@ -158,73 +132,6 @@ async function fetchUserInfo(idToken) {
   }
 }
 
-function requestBasicAccessToken() {
-  if (!window.google?.accounts?.oauth2) {
-    console.error('Google OAuth2 client が利用できません。');
-    return;
-  }
-
-  if (!googleTokenClient) {
-    googleTokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: AUTH_CONFIG.clientId,
-      scope: AUTH_CONFIG.scope,
-      callback: (tokenResponse) => {
-        if (!tokenResponse?.access_token) {
-          console.error('アクセストークンの取得に失敗しました。', tokenResponse);
-          return;
-        }
-        saveAuthToken(tokenResponse.access_token, tokenResponse.expires_in);
-        setTimeout(() => {
-          window.location.href = 'index.html';
-        }, 500);
-      },
-    });
-  }
-
-  googleTokenClient.requestAccessToken({ prompt: 'consent' });
-}
-
-/**
- * Google Drive 用の追加スコープを要求
- */
-export function requestDriveScope() {
-  return new Promise((resolve, reject) => {
-    if (!window.google?.accounts?.oauth2) {
-      reject(new Error('Google OAuth2 client が利用できません。'));
-      return;
-    }
-
-    const clientId = AUTH_CONFIG.clientId;
-    if (!clientId) {
-      reject(
-        new Error(
-          'Google ログインのクライアントIDが設定されていません。' +
-            'assets/config.js で data-client-id を設定してください。'
-        )
-      );
-      return;
-    }
-
-    const tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: AUTH_CONFIG.driveScope,
-      callback: (tokenResponse) => {
-        if (!tokenResponse?.access_token) {
-          reject(new Error('Google Drive の認証に失敗しました。'));
-          return;
-        }
-        const expiresIn = tokenResponse.expires_in ? tokenResponse.expires_in * 1000 : AUTH_CONFIG.tokenExpiry;
-        resolve({
-          accessToken: tokenResponse.access_token,
-          tokenType: tokenResponse.token_type || 'Bearer',
-          expiresAt: Date.now() + expiresIn,
-        });
-      },
-    });
-    tokenClient.requestAccessToken({ prompt: 'consent' });
-  });
-}
-
 /**
  * 現在の認証状態をチェック
  */
@@ -242,12 +149,9 @@ export function checkAuthStatus() {
     };
   }
   
-  const accessToken = localStorage.getItem(AUTH_STORAGE_KEYS.accessToken);
   const idToken = localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
-  const token = accessToken || idToken;
-  const expiry = accessToken
-    ? parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.tokenExpiry) || '0', 10)
-    : parseIdTokenExpiry(idToken) || 0;
+  const token = idToken;
+  const expiry = parseIdTokenExpiry(idToken) || 0;
   const lastActivity = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.lastActivity) || '0', 10);
   const now = Date.now();
   
@@ -330,4 +234,11 @@ export function getCurrentUserId() {
 export function getAccessToken() {
   const authStatus = checkAuthStatus();
   return authStatus.authenticated ? authStatus.token : null;
+}
+
+/**
+ * 現在のIDトークンを取得
+ */
+export function getIdToken() {
+  return localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
 }

@@ -1,4 +1,3 @@
-import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
 const DB_NAME = "epubReader-files";
@@ -6,9 +5,6 @@ const STORE = "files";
 const VERSION = 1;
 const STORAGE_KEY = "epubReader:data";
 const EMPTY_DATA = { library: {}, bookmarks: {}, progress: {}, history: [], settings: {} };
-const DRIVE_AUTH_REQUIRED_MESSAGE =
-  "Google Drive の認証が必要です。設定の「Google Drive と同期」ボタンから認証してください。";
-
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -35,7 +31,7 @@ function persistSettings(partialSettings) {
 function resolveSource(source) {
   const settings = getStoredSettings();
   const selected = source || settings?.saveDestination || settings?.source || "local";
-  if (["local", "drive", "onedrive", "pcloud"].includes(selected)) {
+  if (["local", "onedrive", "pcloud"].includes(selected)) {
     return selected;
   }
   return "local";
@@ -49,9 +45,6 @@ function isPCloudConfigured(settings) {
 }
 
 function ensureCloudLoggedIn(source, settings) {
-  if (source === "drive" && !isDriveTokenValid(settings?.driveToken)) {
-    throw new Error(DRIVE_AUTH_REQUIRED_MESSAGE);
-  }
   if (source === "onedrive" && !isOneDriveTokenValid(settings?.onedriveToken)) {
     throw new Error("OneDrive にログインしてください。");
   }
@@ -146,10 +139,6 @@ async function notImplemented(source) {
   throw new Error(`${source} での保存先はまだ設定されていません`);
 }
 
-function driveHeaders(token) {
-  return { Authorization: `Bearer ${token}` };
-}
-
 function pCloudHeaders(settings) {
   const headers = {};
   if (settings?.apiKey) {
@@ -158,89 +147,9 @@ function pCloudHeaders(settings) {
   return headers;
 }
 
-async function ensureDriveToken() {
-  const settings = getStoredSettings();
-  if (isDriveTokenValid(settings?.driveToken)) {
-    return settings.driveToken.accessToken;
-  }
-  throw new Error(DRIVE_AUTH_REQUIRED_MESSAGE);
-}
-
 async function ensureOneDriveToken() {
   const settings = getStoredSettings();
   return await ensureOneDriveAccessToken(settings, (onedriveToken) => persistSettings({ onedriveToken }));
-}
-
-function buildDriveQueryForId(id) {
-  return encodeURIComponent(`appProperties has { key='bookId' and value='${id}' } and trashed=false`);
-}
-
-async function findDriveFile(accessToken, id) {
-  const url = `https://www.googleapis.com/drive/v3/files?q=${buildDriveQueryForId(id)}&fields=files(id,name,mimeType,appProperties)`;
-  const response = await fetch(url, { headers: driveHeaders(accessToken) });
-  if (!response.ok) {
-    throw new Error(`Drive のファイル検索に失敗しました (${response.status})`);
-  }
-  const json = await response.json();
-  return json?.files?.[0] ?? null;
-}
-
-async function uploadDriveFile(accessToken, id, buffer, meta, settings) {
-  const existing = await findDriveFile(accessToken, id).catch(() => null);
-  const boundary = `-------drive-upload-${Math.random().toString(16).slice(2)}`;
-  const metadata = {
-    name: `book-${id}-${meta?.fileName || "book.bin"}`,
-    mimeType: meta?.mime || "application/octet-stream",
-    appProperties: {
-      bookId: id,
-      originalName: meta?.fileName || "",
-      mime: meta?.mime || "",
-      updatedAt: Date.now().toString(),
-    },
-  };
-  if (settings?.driveFolderId) {
-    metadata.parents = [settings.driveFolderId];
-  }
-  const body = new Blob([
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
-    JSON.stringify(metadata),
-    `\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`,
-    new Uint8Array(buffer),
-    `\r\n--${boundary}--`,
-  ]);
-  const url = existing
-    ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart`
-    : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
-  const method = existing ? "PATCH" : "POST";
-  const response = await fetch(url, {
-    method,
-    headers: { ...driveHeaders(accessToken), "Content-Type": `multipart/related; boundary=${boundary}` },
-    body,
-  });
-  if (!response.ok) {
-    throw new Error(`Drive への保存に失敗しました (${response.status})`);
-  }
-  const json = await response.json();
-  return json.id;
-}
-
-async function downloadDriveRecord(accessToken, file) {
-  const meta = file;
-  const dataResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-    headers: driveHeaders(accessToken),
-  });
-  if (!dataResponse.ok) {
-    throw new Error(`Drive からのダウンロードに失敗しました (${dataResponse.status})`);
-  }
-  const buffer = await dataResponse.arrayBuffer();
-  return {
-    id: meta.id,
-    buffer,
-    meta: {
-      fileName: meta?.appProperties?.originalName || meta?.name || `drive-${meta.id}.bin`,
-      mime: meta?.mimeType || meta?.appProperties?.mime || "application/octet-stream",
-    },
-  };
 }
 
 const ONEDRIVE_BASE_FOLDER = "epub-reader";
@@ -327,20 +236,6 @@ function buildPCloudUrl(settings, id) {
 }
 
 const externalSourceHandlers = {
-  drive: {
-    save: async (id, buffer, meta) => {
-      const settings = getStoredSettings();
-      const accessToken = await ensureDriveToken(settings);
-      await uploadDriveFile(accessToken, id, buffer, meta, settings);
-    },
-    load: async (id) => {
-      const settings = getStoredSettings();
-      const accessToken = await ensureDriveToken(settings);
-      const found = await findDriveFile(accessToken, id);
-      if (!found?.id) return null;
-      return downloadDriveRecord(accessToken, found);
-    },
-  },
   onedrive: {
     save: async (id, buffer, meta) => {
       const accessToken = await ensureOneDriveToken();

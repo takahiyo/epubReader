@@ -6,15 +6,13 @@ const defaultData = {
   progress: {},
   history: [],
   settings: {
-    endpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
+    gasEndpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
+    syncEnabled: false,
+    lastSyncAt: null,
     apiKey: "<必要ならキー>",
+    endpoint: "",
     source: "local",
     saveDestination: "local",
-    driveClientId: "",
-    driveFileId: "",
-    driveFolderId: "",
-    driveFileName: "epub-reader-data.json",
-    driveToken: null,
     onedriveClientId: "",
     onedriveRedirectUri: "",
     onedriveFilePath: "epub-reader-data.json",
@@ -22,6 +20,7 @@ const defaultData = {
     onedriveToken: null,
     uiLanguage: "en",
     fontSize: 16,
+    autoSyncEnabled: null,
   },
 };
 
@@ -40,6 +39,8 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const normalizedSource = settings.source === "drive" ? "local" : settings.source;
+      const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
       return {
         ...defaultData,
         ...parsed,
@@ -49,20 +50,19 @@ export class StorageService {
         history: parsed.history ?? [],
         settings: {
           ...settings,
-          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
+          syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
-          source: settings.source || defaultData.settings.source,
-          saveDestination: settings.saveDestination || settings.source || defaultData.settings.saveDestination,
-          driveClientId: settings.driveClientId || defaultData.settings.driveClientId,
-          driveFileId: settings.driveFileId || defaultData.settings.driveFileId,
-          driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
-          driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
-          driveToken: settings.driveToken || defaultData.settings.driveToken,
+          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          source: normalizedSource || defaultData.settings.source,
+          saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
           onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
           onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
           onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
+          autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
     } catch (error) {
@@ -101,6 +101,11 @@ export class StorageService {
     this.save();
   }
 
+  setBookmarks(bookId, bookmarks) {
+    this.data.bookmarks[bookId] = Array.isArray(bookmarks) ? bookmarks : [];
+    this.save();
+  }
+
   getBookmarks(bookId) {
     return this.data.bookmarks[bookId] ?? [];
   }
@@ -128,6 +133,15 @@ export class StorageService {
     this.save();
   }
 
+  setHistoryEntries(bookId, entries) {
+    const filtered = this.data.history.filter((item) => item.bookId !== bookId);
+    const normalized = Array.isArray(entries)
+      ? entries.map((entry) => ({ bookId, openedAt: entry?.openedAt ?? Date.now() }))
+      : [];
+    this.data.history = [...normalized, ...filtered].slice(0, 30);
+    this.save();
+  }
+
   setSettings(settings) {
     this.data.settings = { ...this.data.settings, ...settings };
     this.save();
@@ -152,6 +166,8 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const normalizedSource = settings.source === "drive" ? "local" : settings.source;
+      const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
       this.data = {
         ...defaultData,
         ...parsed,
@@ -161,20 +177,19 @@ export class StorageService {
         history: parsed.history ?? [],
         settings: {
           ...settings,
-          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
+          syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
-          source: settings.source || defaultData.settings.source,
-          saveDestination: settings.saveDestination || settings.source || defaultData.settings.saveDestination,
-          driveClientId: settings.driveClientId || defaultData.settings.driveClientId,
-          driveFileId: settings.driveFileId || defaultData.settings.driveFileId,
-          driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
-          driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
-          driveToken: settings.driveToken || defaultData.settings.driveToken,
+          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          source: normalizedSource || defaultData.settings.source,
+          saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
           onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
           onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
           onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
+          autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
       this.save();
