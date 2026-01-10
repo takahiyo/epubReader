@@ -399,9 +399,17 @@ function setupViewerIframeClickBridge() {
 
   const handleIframeClick = (iframe, event) => {
     const rect = iframe.getBoundingClientRect();
-    const x = rect.left + event.clientX;
-    const y = rect.top + event.clientY;
+    const cx = typeof event.clientX === "number" ? event.clientX : 0;
+    const cy = typeof event.clientY === "number" ? event.clientY : 0;
+    const isLikelyLocal =
+      cx >= 0 &&
+      cy >= 0 &&
+      cx <= rect.width + 1 &&
+      cy <= rect.height + 1;
+    const x = isLikelyLocal ? rect.left + cx : cx;
+    const y = isLikelyLocal ? rect.top + cy : cy;
     const area = ui.getClickArea(x, y, elements.fullscreenReader);
+    if (!area) return;
     ui.handleAreaClick(area, event);
   };
 
@@ -413,7 +421,17 @@ function setupViewerIframeClickBridge() {
       try {
         const doc = iframe.contentDocument;
         if (!doc) return;
-        doc.addEventListener("click", (event) => handleIframeClick(iframe, event));
+        doc.addEventListener("click", (event) => handleIframeClick(iframe, event), { passive: true });
+        doc.addEventListener("pointerup", (event) => handleIframeClick(iframe, event), { passive: true });
+        doc.addEventListener(
+          "touchend",
+          (event) => {
+            const t = event.changedTouches?.[0];
+            if (!t) return;
+            handleIframeClick(iframe, { clientX: t.clientX, clientY: t.clientY });
+          },
+          { passive: true }
+        );
       } catch (error) {
         console.warn("Failed to attach iframe click bridge:", error);
       }
