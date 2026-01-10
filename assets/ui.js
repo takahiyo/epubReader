@@ -125,6 +125,9 @@ export class UIController {
     
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
+      if (document.body.classList.contains("google-auth-active")) {
+        return;
+      }
       // メニューやボタン内のクリックは無視
       if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgressBar')) {
         return;

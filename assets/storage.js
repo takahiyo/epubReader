@@ -1,12 +1,16 @@
 const STORAGE_KEY = "epubReader:data";
 
+const defaultGasEndpoint =
+  (typeof window !== "undefined" && window.APP_CONFIG?.GAS_SYNC_ENDPOINT) ||
+  "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec";
+
 const defaultData = {
   library: {},
   bookmarks: {},
   progress: {},
   history: [],
   settings: {
-    gasEndpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
+    gasEndpoint: defaultGasEndpoint,
     syncEnabled: false,
     lastSyncAt: null,
     apiKey: "<必要ならキー>",

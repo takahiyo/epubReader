@@ -274,12 +274,6 @@
               </div>
               <p id="userInfo" class="setting-hint">未ログイン</p>
             </div>
-            <div class="setting-item">
-              <div class="setting-actions">
-                <button id="syncToggleButton" class="secondary-btn" type="button">同期を有効にする</button>
-              </div>
-              <p id="syncStatus" class="setting-hint">最終同期: 未実施</p>
-            </div>
           </div>
 
         </div>
@@ -348,6 +342,7 @@
     <div id="modalOverlay"></div>
 
     <script src="./assets/config.js"></script>
+    <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
     <script type="module" src="./assets/app.js"></script>
   </body>
 </html>
