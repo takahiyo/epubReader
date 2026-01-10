@@ -114,6 +114,14 @@ export function onGoogleLoginEnd() {
   restoreBlurLayers();
 }
 
+export function onGoogleLoginStart() {
+  document.body.classList.add("oauth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("oauth-active");
+}
+
 /**
  * Google Identity Services からのトークン取得
  */
