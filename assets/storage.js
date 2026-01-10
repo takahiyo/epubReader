@@ -1,26 +1,34 @@
 const STORAGE_KEY = "epubReader:data";
 
+const defaultGasEndpoint =
+  (typeof window !== "undefined" && window.APP_CONFIG?.GAS_SYNC_ENDPOINT) ||
+  "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec";
+
 const defaultData = {
   library: {},
   bookmarks: {},
   progress: {},
   history: [],
+  cloudIndex: {},
+  cloudStates: {},
+  cloudIndexUpdatedAt: null,
+  bookLinkMap: {},
   settings: {
-    endpoint: "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec",
+    gasEndpoint: defaultGasEndpoint,
+    syncEnabled: false,
+    lastSyncAt: null,
     apiKey: "<必要ならキー>",
+    endpoint: "",
     source: "local",
     saveDestination: "local",
-    driveClientId: "",
-    driveFileId: "",
-    driveFolderId: "",
-    driveFileName: "epub-reader-data.json",
-    driveToken: null,
     onedriveClientId: "",
     onedriveRedirectUri: "",
     onedriveFilePath: "epub-reader-data.json",
     onedriveFileId: "",
     onedriveToken: null,
-    uiLanguage: "ja",
+    uiLanguage: "en",
+    fontSize: 16,
+    autoSyncEnabled: null,
   },
 };
 
@@ -39,6 +47,8 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const normalizedSource = settings.source === "drive" ? "local" : settings.source;
+      const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
       return {
         ...defaultData,
         ...parsed,
@@ -46,22 +56,25 @@ export class StorageService {
         bookmarks: parsed.bookmarks ?? {},
         progress: parsed.progress ?? {},
         history: parsed.history ?? [],
+        cloudIndex: parsed.cloudIndex ?? {},
+        cloudStates: parsed.cloudStates ?? {},
+        cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
+        bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
-          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
+          syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
-          source: settings.source || defaultData.settings.source,
-          saveDestination: settings.saveDestination || settings.source || defaultData.settings.saveDestination,
-          driveClientId: settings.driveClientId || defaultData.settings.driveClientId,
-          driveFileId: settings.driveFileId || defaultData.settings.driveFileId,
-          driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
-          driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
-          driveToken: settings.driveToken || defaultData.settings.driveToken,
+          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          source: normalizedSource || defaultData.settings.source,
+          saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
           onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
           onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
           onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
+          autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
     } catch (error) {
@@ -100,6 +113,11 @@ export class StorageService {
     this.save();
   }
 
+  setBookmarks(bookId, bookmarks) {
+    this.data.bookmarks[bookId] = Array.isArray(bookmarks) ? bookmarks : [];
+    this.save();
+  }
+
   getBookmarks(bookId) {
     return this.data.bookmarks[bookId] ?? [];
   }
@@ -119,6 +137,20 @@ export class StorageService {
   removeBookmark(bookId, createdAt) {
     const list = this.data.bookmarks[bookId] ?? [];
     this.data.bookmarks[bookId] = list.filter((b) => b.createdAt !== createdAt);
+    this.save();
+  }
+
+  removeHistory(bookId) {
+    this.data.history = this.data.history.filter((item) => item.bookId !== bookId);
+    this.save();
+  }
+
+  setHistoryEntries(bookId, entries) {
+    const filtered = this.data.history.filter((item) => item.bookId !== bookId);
+    const normalized = Array.isArray(entries)
+      ? entries.map((entry) => ({ bookId, openedAt: entry?.openedAt ?? Date.now() }))
+      : [];
+    this.data.history = [...normalized, ...filtered].slice(0, 30);
     this.save();
   }
 
@@ -146,6 +178,8 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const normalizedSource = settings.source === "drive" ? "local" : settings.source;
+      const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
       this.data = {
         ...defaultData,
         ...parsed,
@@ -153,22 +187,25 @@ export class StorageService {
         bookmarks: parsed.bookmarks ?? {},
         progress: parsed.progress ?? {},
         history: parsed.history ?? [],
+        cloudIndex: parsed.cloudIndex ?? {},
+        cloudStates: parsed.cloudStates ?? {},
+        cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
+        bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
-          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
+          syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
-          source: settings.source || defaultData.settings.source,
-          saveDestination: settings.saveDestination || settings.source || defaultData.settings.saveDestination,
-          driveClientId: settings.driveClientId || defaultData.settings.driveClientId,
-          driveFileId: settings.driveFileId || defaultData.settings.driveFileId,
-          driveFolderId: settings.driveFolderId || defaultData.settings.driveFolderId,
-          driveFileName: settings.driveFileName || defaultData.settings.driveFileName,
-          driveToken: settings.driveToken || defaultData.settings.driveToken,
+          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          source: normalizedSource || defaultData.settings.source,
+          saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
           onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
           onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
           onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
+          autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
       this.save();
@@ -186,6 +223,10 @@ export class StorageService {
       bookmarks: parsed?.bookmarks ?? {},
       progress: parsed?.progress ?? {},
       history: parsed?.history ?? [],
+      cloudIndex: parsed?.cloudIndex ?? {},
+      cloudStates: parsed?.cloudStates ?? {},
+      cloudIndexUpdatedAt: parsed?.cloudIndexUpdatedAt ?? null,
+      bookLinkMap: parsed?.bookLinkMap ?? {},
     };
 
     const mergedLibrary = { ...this.data.library };
@@ -241,14 +282,95 @@ export class StorageService {
       }
     });
 
+    const mergedCloudIndex = { ...this.data.cloudIndex };
+    Object.entries(normalized.cloudIndex ?? {}).forEach(([cloudBookId, incomingMeta]) => {
+      const existing = mergedCloudIndex[cloudBookId];
+      const incomingUpdatedAt = incomingMeta?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedCloudIndex[cloudBookId] = { ...existing, ...incomingMeta };
+      } else {
+        mergedCloudIndex[cloudBookId] = { ...incomingMeta, ...existing };
+      }
+    });
+
+    const mergedCloudStates = { ...this.data.cloudStates };
+    Object.entries(normalized.cloudStates ?? {}).forEach(([cloudBookId, incomingState]) => {
+      const existing = mergedCloudStates[cloudBookId];
+      const incomingUpdatedAt = incomingState?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedCloudStates[cloudBookId] = { ...existing, ...incomingState };
+      } else {
+        mergedCloudStates[cloudBookId] = { ...incomingState, ...existing };
+      }
+    });
+
+    const mergedBookLinkMap = { ...this.data.bookLinkMap, ...normalized.bookLinkMap };
+
     this.data = {
       ...this.data,
       library: mergedLibrary,
       bookmarks: mergedBookmarks,
       progress: mergedProgress,
       history: mergedHistory,
+      cloudIndex: mergedCloudIndex,
+      cloudStates: mergedCloudStates,
+      cloudIndexUpdatedAt: normalized.cloudIndexUpdatedAt ?? this.data.cloudIndexUpdatedAt,
+      bookLinkMap: mergedBookLinkMap,
       settings: this.data.settings,
     };
     this.save();
+  }
+
+  getCloudBookId(localBookId) {
+    return this.data.bookLinkMap?.[localBookId] ?? null;
+  }
+
+  setBookLink(localBookId, cloudBookId) {
+    if (!localBookId || !cloudBookId) return;
+    this.data.bookLinkMap = {
+      ...(this.data.bookLinkMap ?? {}),
+      [localBookId]: cloudBookId,
+    };
+    this.save();
+  }
+
+  mergeCloudIndex(index, updatedAt = null) {
+    if (!index || typeof index !== "object") return;
+    const merged = { ...(this.data.cloudIndex ?? {}) };
+    Object.entries(index).forEach(([cloudBookId, meta]) => {
+      const existing = merged[cloudBookId];
+      const incomingUpdatedAt = meta?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        merged[cloudBookId] = { ...existing, ...meta };
+      } else {
+        merged[cloudBookId] = { ...meta, ...existing };
+      }
+    });
+    this.data.cloudIndex = merged;
+    if (updatedAt) {
+      this.data.cloudIndexUpdatedAt = updatedAt;
+    }
+    this.save();
+  }
+
+  setCloudState(cloudBookId, state) {
+    if (!cloudBookId || !state) return;
+    const existing = this.data.cloudStates?.[cloudBookId];
+    const incomingUpdatedAt = state?.updatedAt ?? 0;
+    const existingUpdatedAt = existing?.updatedAt ?? 0;
+    if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+      this.data.cloudStates = {
+        ...(this.data.cloudStates ?? {}),
+        [cloudBookId]: state,
+      };
+      this.save();
+    }
+  }
+
+  getCloudState(cloudBookId) {
+    return this.data.cloudStates?.[cloudBookId] ?? null;
   }
 }

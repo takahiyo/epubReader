@@ -4,7 +4,14 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, logout, getCurrentUserId, checkAuthStatus } from "./auth.js";
+import {
+  updateActivity,
+  checkAuthStatus,
+  initGoogleLogin,
+  logout,
+  onGoogleLoginStart as startGoogleLoginUi,
+  onGoogleLoginEnd as endGoogleLoginUi,
+} from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -14,13 +21,18 @@ import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 const storage = new StorageService();
 const cloudSync = new CloudSync(storage);
 const settings = storage.getSettings();
+const initialAuthStatus = checkAuthStatus();
 
 let currentBookId = null;
 let currentBookInfo = null;
+let currentCloudBookId = null;
+let pendingCloudBookId = null;
 let theme = settings.theme ?? "dark";
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
+let uiLanguage = settings.uiLanguage ?? "en";
 let progressDisplayMode = settings.progressDisplayMode ?? "page";
+let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
   if (legacyDirection === "rtl") {
@@ -33,11 +45,180 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = "horizontal";
 if (!pageDirection) pageDirection = "ltr";
-let autoSyncEnabled = settings.autoSyncEnabled ?? false;
+let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
+let autoSyncTimeout = null;
 let bookmarkMenuMode = "current";
 let currentToc = [];
+let uiInitialized = false;
+let floatVisible = false;
+let googleLoginReady = false;
+
+const UI_STRINGS = {
+  ja: {
+    documentTitle: "Epub Reader",
+    emptyTitle: "本が選択されていません",
+    emptyDescription: "画面中央をクリックしてメニューを表示",
+    menuOpen: "開く",
+    menuLibrary: "ライブラリ",
+    menuSearch: "テキスト検索",
+    menuBookmarks: "しおり",
+    menuHistory: "履歴",
+    menuSettings: "設定",
+    tocButton: "目次",
+    bookmarkTitle: "しおり",
+    bookmarkDefault: "しおり",
+    addBookmark: "✚ 現在位置にしおりを追加",
+    searchTitle: "テキスト検索",
+    searchPlaceholder: "検索キーワードを入力...",
+    searchButton: "🔍 検索",
+    tocTitle: "目次",
+    tocUntitled: "無題",
+    openFileTitle: "ライブラリ",
+    librarySectionTitle: "ライブラリ",
+    historyTitle: "履歴",
+    settingsTitle: "設定",
+    settingsDisplayTitle: "表示設定",
+    themeLabel: "テーマ",
+    themeDark: "ダークモード",
+    themeLight: "ライトモード",
+    writingModeLabel: "書字方向",
+    writingModeHorizontal: "横書き",
+    writingModeVertical: "縦書き",
+    pageDirectionLabel: "開き方向",
+    pageDirectionLtr: "左開き",
+    pageDirectionRtl: "右開き",
+    progressDisplayModeLabel: "進捗表示形式",
+    progressDisplayPage: "ページ数",
+    progressDisplayPercentage: "パーセンテージ",
+    settingsAccountTitle: "アカウント",
+    googleLoginLabel: "Googleログイン",
+    googleLogoutLabel: "ログオフ",
+    googleLoginStatusSignedOut: "未ログイン",
+    googleLoginStatusSignedIn: "ログイン済み: {user}",
+    googleLoginStatusSignedInShort: "ログイン済み",
+    googleLoginFailed: "ログインに失敗しました",
+    syncToggleLabel: "同期を有効にする",
+    syncToggleOff: "同期を無効にする",
+    syncStatusLabel: "最終同期: {time}",
+    syncStatusNever: "最終同期: 未実施",
+    syncNeedsLogin: "同期には Google ログインが必要です。",
+    settingsDataTitle: "データ管理",
+    exportData: "設定・データを書き出す",
+    importData: "設定・データを読み込む",
+    libraryEmpty: "ライブラリが空です",
+    historyEmpty: "履歴がありません",
+    historyDeleteConfirm: "この履歴を削除しますか？",
+    progressLabel: "進捗",
+    bookmarkEmpty: "しおりがありません",
+    bookmarkDeleteConfirm: "このしおりを削除しますか？",
+    openBookPrompt: "本を開いてください",
+    searchMissingQuery: "検索キーワードを入力してください",
+    searchNoResults: "検索結果が見つかりませんでした",
+    searchLoading: "検索中...",
+    searchEpubOnly: "EPUB形式の本を開いている時のみ検索できます",
+    searchNavigateFailed: "検索結果への移動に失敗しました",
+    searchResultFallback: "結果",
+    writingModeToggleVertical: "縦",
+    writingModeToggleHorizontal: "横",
+    syncPromptTitle: "同期の確認",
+    syncPromptMessage: "他の端末で、より新しい読書位置があります。",
+    syncPromptLocalMessage: "この端末の状態が新しいようです。アップロードしますか？",
+    syncPromptRemote: "他端末の続きから読む（{time}）",
+    syncPromptLocal: "この端末の位置から読む",
+    syncPromptUpload: "この端末の状態をアップロード",
+    libraryCloudMissingBadge: "この端末に未保存",
+    libraryAttachFile: "ファイルを追加して紐づけ",
+    cloudOnlyTitle: "クラウドの読書データのみ表示中",
+    cloudOnlyDescription: "ファイルを追加すると続きから読めます",
+  },
+  en: {
+    documentTitle: "Epub Reader",
+    emptyTitle: "No book selected",
+    emptyDescription: "Tap center of the screen to open menu",
+    menuOpen: "Open",
+    menuLibrary: "Library",
+    menuSearch: "Text Search",
+    menuBookmarks: "Bookmarks",
+    menuHistory: "History",
+    menuSettings: "Settings",
+    tocButton: "TOC",
+    bookmarkTitle: "Bookmarks",
+    bookmarkDefault: "Bookmark",
+    addBookmark: "✚ Add bookmark at current location",
+    searchTitle: "Text Search",
+    searchPlaceholder: "Enter a search keyword...",
+    searchButton: "🔍 Search",
+    tocTitle: "Table of Contents",
+    tocUntitled: "Untitled",
+    openFileTitle: "Library",
+    librarySectionTitle: "Library",
+    historyTitle: "History",
+    settingsTitle: "Settings",
+    settingsDisplayTitle: "Display",
+    themeLabel: "Theme",
+    themeDark: "Dark mode",
+    themeLight: "Light mode",
+    writingModeLabel: "Writing mode",
+    writingModeHorizontal: "Horizontal",
+    writingModeVertical: "Vertical",
+    pageDirectionLabel: "Page direction",
+    pageDirectionLtr: "Left binding",
+    pageDirectionRtl: "Right binding",
+    progressDisplayModeLabel: "Progress format",
+    progressDisplayPage: "Pages",
+    progressDisplayPercentage: "Percentage",
+    settingsAccountTitle: "Account",
+    googleLoginLabel: "Sign in with Google",
+    googleLogoutLabel: "Sign out",
+    googleLoginStatusSignedOut: "Signed out",
+    googleLoginStatusSignedIn: "Signed in: {user}",
+    googleLoginStatusSignedInShort: "Signed in",
+    googleLoginFailed: "Failed to sign in",
+    syncToggleLabel: "Enable sync",
+    syncToggleOff: "Disable sync",
+    syncStatusLabel: "Last sync: {time}",
+    syncStatusNever: "Last sync: never",
+    syncNeedsLogin: "Sign in with Google to enable sync.",
+    settingsDataTitle: "Data",
+    exportData: "Export settings & data",
+    importData: "Import settings & data",
+    libraryEmpty: "Your library is empty",
+    historyEmpty: "No history yet",
+    historyDeleteConfirm: "Delete this history entry?",
+    progressLabel: "Progress",
+    bookmarkEmpty: "No bookmarks",
+    bookmarkDeleteConfirm: "Delete this bookmark?",
+    openBookPrompt: "Please open a book.",
+    searchMissingQuery: "Please enter a search keyword.",
+    searchNoResults: "No results found.",
+    searchLoading: "Searching...",
+    searchEpubOnly: "Search is available only when an EPUB is open.",
+    searchNavigateFailed: "Failed to navigate to the search result.",
+    searchResultFallback: "Result",
+    writingModeToggleVertical: "V",
+    writingModeToggleHorizontal: "H",
+    syncPromptTitle: "Sync available",
+    syncPromptMessage: "A newer reading position is available on another device.",
+    syncPromptLocalMessage: "This device has newer data. Upload it?",
+    syncPromptRemote: "Continue from other device ({time})",
+    syncPromptLocal: "Keep this device's position",
+    syncPromptUpload: "Upload this device's state",
+    libraryCloudMissingBadge: "Not on this device",
+    libraryAttachFile: "Attach file to link",
+    cloudOnlyTitle: "Viewing cloud reading data",
+    cloudOnlyDescription: "Attach the file to continue reading.",
+  },
+};
+
+function getUiStrings(language = uiLanguage) {
+  return UI_STRINGS[language] ?? UI_STRINGS.ja;
+}
+
+function t(key) {
+  return getUiStrings()[key] ?? key;
+}
 
 // ========================================
 // DOM要素
@@ -50,6 +231,30 @@ const elements = {
   imageViewer: document.getElementById("imageViewer"),
   pageImage: document.getElementById("pageImage"),
   emptyState: document.getElementById("emptyState"),
+  cloudEmptyState: document.getElementById("cloudEmptyState"),
+  cloudEmptyTitle: document.getElementById("cloudEmptyTitle"),
+  cloudEmptyMeta: document.getElementById("cloudEmptyMeta"),
+  cloudAttachButton: document.getElementById("cloudAttachButton"),
+  floatOverlay: document.getElementById("floatOverlay"),
+  floatBackdrop: document.querySelector("#floatOverlay .float-backdrop"),
+  floatOpen: document.getElementById("floatOpen"),
+  floatLibrary: document.getElementById("floatLibrary"),
+  floatSearch: document.getElementById("floatSearch"),
+  floatBookmarks: document.getElementById("floatBookmarks"),
+  floatHistory: document.getElementById("floatHistory"),
+  floatSettings: document.getElementById("floatSettings"),
+  floatProgress: document.getElementById("floatProgress"),
+  floatProgressPercent: document.getElementById("floatProgressPercent"),
+  floatProgressTrack: document.getElementById("floatProgressTrack"),
+  floatProgressMarks: document.getElementById("floatProgressMarks"),
+  floatProgressFill: document.getElementById("floatProgressFill"),
+  floatProgressThumb: document.getElementById("floatProgressThumb"),
+  modalOverlay: document.getElementById("modalOverlay"),
+  fontPlus: document.getElementById("fontPlus"),
+  fontMinus: document.getElementById("fontMinus"),
+  toggleTheme: document.getElementById("toggleTheme"),
+  toggleLanguage: document.getElementById("toggleLanguage"),
+  langIcon: document.getElementById("langIcon"),
   
   // メニュー
   leftMenu: document.getElementById("leftMenu"),
@@ -59,11 +264,24 @@ const elements = {
   menuBookmarks: document.getElementById("menuBookmarks"),
   menuHistory: document.getElementById("menuHistory"),
   menuSettings: document.getElementById("menuSettings"),
-  menuLogout: document.getElementById("menuLogout"),
-  userInfo: document.getElementById("userInfo"),
+  tocSection: document.getElementById("tocSection"),
+  tocList: document.getElementById("tocList"),
+  langJa: document.getElementById("langJa"),
+  langEn: document.getElementById("langEn"),
+  toggleWritingMode: document.getElementById("toggleWritingMode"),
+  openToc: document.getElementById("openToc"),
+  tocModal: document.getElementById("tocModal"),
+  tocModalList: document.getElementById("tocModalList"),
+  closeTocModal: document.getElementById("closeTocModal"),
+  syncModal: document.getElementById("syncModal"),
+  syncModalTitle: document.getElementById("syncModalTitle"),
+  syncModalMessage: document.getElementById("syncModalMessage"),
+  syncUseRemote: document.getElementById("syncUseRemote"),
+  syncUseLocal: document.getElementById("syncUseLocal"),
   
   // 進捗バー
   progressBarPanel: document.getElementById("progressBarPanel"),
+  progressBarBackdrop: document.getElementById("progressBarBackdrop"),
   progressFill: document.getElementById("progressFill"),
   progressThumb: document.getElementById("progressThumb"),
   progressTrack: document.querySelector(".progress-track"),
@@ -94,7 +312,6 @@ const elements = {
   writingModeSelect: document.getElementById("writingMode"),
   pageDirectionSelect: document.getElementById("pageDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
-  autoSyncEnabled: document.getElementById("autoSyncEnabled"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
   
@@ -107,6 +324,27 @@ const elements = {
   searchInput: document.getElementById("searchInput"),
   searchBtn: document.getElementById("searchBtn"),
   searchResults: document.getElementById("searchResults"),
+
+  // UIラベル
+  bookmarkMenuTitle: document.getElementById("bookmarkMenuTitle"),
+  searchModalTitle: document.getElementById("searchModalTitle"),
+  tocModalTitle: document.getElementById("tocModalTitle"),
+  openFileModalTitle: document.getElementById("openFileModalTitle"),
+  librarySectionTitle: document.getElementById("librarySectionTitle"),
+  historyModalTitle: document.getElementById("historyModalTitle"),
+  settingsModalTitle: document.getElementById("settingsModalTitle"),
+  settingsDisplayTitle: document.getElementById("settingsDisplayTitle"),
+  themeLabel: document.getElementById("themeLabel"),
+  writingModeLabel: document.getElementById("writingModeLabel"),
+  pageDirectionLabel: document.getElementById("pageDirectionLabel"),
+  progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
+  settingsAccountTitle: document.getElementById("settingsAccountTitle"),
+  googleLoginButton: document.getElementById("googleLoginButton"),
+  syncToggleButton: document.getElementById("syncToggleButton"),
+  userInfo: document.getElementById("userInfo"),
+  syncStatus: document.getElementById("syncStatus"),
+  settingsDataTitle: document.getElementById("settingsDataTitle"),
+  importDataLabel: document.getElementById("importDataLabel"),
 };
 
 // ========================================
@@ -132,6 +370,13 @@ reader.applyReadingDirection(writingMode, pageDirection);
 
 const ui = new UIController({
   isBookOpen: () => currentBookId !== null,
+  isPageNavigationEnabled: () => currentBookId !== null,
+  isProgressBarAvailable: () => currentBookId !== null,
+  isFloatVisible: () => floatVisible,
+  getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
+  onFloatToggle: () => {
+    toggleFloatOverlay();
+  },
   onLeftMenu: (action) => {
     if (action === 'show') {
       updateActivity();
@@ -160,6 +405,61 @@ const ui = new UIController({
   },
 });
 
+uiInitialized = true;
+applyUiLanguage(uiLanguage);
+
+function setupViewerIframeClickBridge() {
+  if (!elements.viewer || !elements.fullscreenReader) return;
+
+  const handleIframeClick = (iframe, event) => {
+    const rect = iframe.getBoundingClientRect();
+    const x = rect.left + event.clientX;
+    const y = rect.top + event.clientY;
+    const area = ui.getClickArea(x, y, elements.fullscreenReader);
+    ui.handleAreaClick(area, event);
+  };
+
+  const bindIframe = (iframe) => {
+    if (!iframe || iframe.dataset.clickBridgeBound === "true") return;
+    iframe.dataset.clickBridgeBound = "true";
+
+    const attachClickListener = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+        doc.addEventListener("click", (event) => handleIframeClick(iframe, event));
+      } catch (error) {
+        console.warn("Failed to attach iframe click bridge:", error);
+      }
+    };
+
+    if (iframe.contentDocument?.readyState === "complete") {
+      attachClickListener();
+    } else {
+      iframe.addEventListener("load", attachClickListener, { once: true });
+    }
+  };
+
+  elements.viewer.querySelectorAll("iframe").forEach(bindIframe);
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        if (node.tagName === "IFRAME") {
+          bindIframe(node);
+          return;
+        }
+        node.querySelectorAll?.("iframe").forEach(bindIframe);
+      });
+    });
+  });
+
+  observer.observe(elements.viewer, { childList: true, subtree: true });
+}
+
+setupViewerIframeClickBridge();
+
 // 進捗バーのドラッグハンドラー
 const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector('.progress-track'),
@@ -170,22 +470,451 @@ const progressBarHandler = new ProgressBarHandler({
   },
 });
 
-// ========================================
-// ユーザー情報表示
-// ========================================
-
-function updateUserInfo() {
-  const authStatus = checkAuthStatus();
-  if (authStatus.authenticated && elements.userInfo) {
-    elements.userInfo.textContent = authStatus.userEmail || authStatus.userId || '';
-  }
-}
+const floatProgressHandler = new ProgressBarHandler({
+  container: elements.floatProgressTrack,
+  thumb: elements.floatProgressThumb,
+  onSeek: (percentage) => {
+    seekToPercentage(percentage);
+  },
+});
 
 function updateSearchButtonState() {
   if (!elements.menuSearch) return;
   
   const isEpubOpen = currentBookId && currentBookInfo?.type === 'epub';
   elements.menuSearch.disabled = !isEpubOpen;
+  if (elements.openToc) {
+    elements.openToc.disabled = !isEpubOpen;
+  }
+  if (elements.floatSearch) {
+    elements.floatSearch.disabled = !isEpubOpen;
+  }
+}
+
+function updateAuthStatusDisplay() {
+  if (!elements.userInfo) return;
+  const authStatus = checkAuthStatus();
+  if (authStatus.authenticated) {
+    const userLabel = authStatus.userEmail || authStatus.userName;
+    elements.userInfo.textContent = userLabel
+      ? t("googleLoginStatusSignedIn").replace("{user}", userLabel)
+      : t("googleLoginStatusSignedInShort");
+  } else {
+    elements.userInfo.textContent = t("googleLoginStatusSignedOut");
+  }
+  if (elements.googleLoginButton) {
+    elements.googleLoginButton.textContent = authStatus.authenticated
+      ? t("googleLogoutLabel")
+      : t("googleLoginLabel");
+  }
+  updateSyncStatusDisplay(authStatus);
+  syncAutoSyncPolicy(authStatus);
+}
+
+function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
+  if (elements.syncStatus) {
+    if (!authStatus.authenticated) {
+      elements.syncStatus.textContent = t("syncNeedsLogin");
+      return;
+    }
+    const lastSyncAt = storage.getSettings().lastSyncAt;
+    if (!lastSyncAt) {
+      elements.syncStatus.textContent = t("syncStatusNever");
+      return;
+    }
+    const timeText = uiLanguage === "en"
+      ? formatRelativeTimeEn(lastSyncAt)
+      : formatRelativeTime(lastSyncAt);
+    elements.syncStatus.textContent = t("syncStatusLabel").replace("{time}", timeText || "--");
+  }
+}
+
+function toggleFloatOverlay(forceVisible) {
+  if (!elements.floatOverlay) return;
+  const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
+  floatVisible = nextVisible;
+  elements.floatOverlay.classList.toggle("visible", floatVisible);
+  updateProgressBarDisplay();
+}
+
+function updateFloatProgressBar(percentage) {
+  if (!elements.floatProgress || !floatVisible) return;
+  const clamped = Math.min(100, Math.max(0, percentage));
+  if (elements.floatProgressFill) {
+    elements.floatProgressFill.style.width = `${clamped}%`;
+  }
+  if (elements.floatProgressThumb) {
+    elements.floatProgressThumb.style.left = `${clamped}%`;
+  }
+  if (elements.floatProgressPercent) {
+    elements.floatProgressPercent.textContent = `${Math.floor(clamped)}%`;
+  }
+}
+
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return "";
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMinutes < 1) return "1分未満";
+  if (diffMinutes < 60) return `${diffMinutes}分前`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}時間前`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays}日前`;
+}
+
+function formatRelativeTimeEn(timestamp) {
+  if (!timestamp) return "";
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMinutes < 1) return "less than a minute ago";
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} days ago`;
+}
+
+function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
+  if (!authStatus.authenticated) {
+    return false;
+  }
+  const settings = storage.getSettings();
+  return Boolean(settings.gasEndpoint);
+}
+
+function formatLibraryMeta({ progressPercentage, timestamp }) {
+  const clampedProgress = Math.max(0, Math.min(100, Math.round(progressPercentage ?? 0)));
+  const relativeTime = uiLanguage === "en" ? formatRelativeTimeEn(timestamp) : formatRelativeTime(timestamp);
+  if (!relativeTime) {
+    return `${clampedProgress}%`;
+  }
+  return `${clampedProgress}% / ${relativeTime}`;
+}
+
+function buildLibraryEntries() {
+  const cloudIndex = storage.data.cloudIndex ?? {};
+  const cloudStates = storage.data.cloudStates ?? {};
+  const localLibrary = storage.data.library ?? {};
+  const entries = [];
+  const linkedLocalIds = new Set(Object.keys(storage.data.bookLinkMap ?? {}));
+  const localByCloudId = Object.entries(storage.data.bookLinkMap ?? {}).reduce((acc, [localId, cloudId]) => {
+    acc[cloudId] = localId;
+    return acc;
+  }, {});
+
+  Object.entries(cloudIndex).forEach(([cloudBookId, meta]) => {
+    if (!cloudBookId || !meta) return;
+    const normalizedMeta = { ...meta, cloudBookId: meta.cloudBookId ?? cloudBookId };
+    const localBookId = localByCloudId[cloudBookId] ?? null;
+    const localInfo = localBookId ? localLibrary[localBookId] : null;
+    const cloudState = cloudStates[cloudBookId];
+    const localProgress = localBookId ? storage.getProgress(localBookId) : null;
+    const progressPercentage = cloudState?.progress ?? localProgress?.percentage ?? 0;
+    const lastTimestamp =
+      cloudState?.updatedAt ?? normalizedMeta.lastReadAt ?? normalizedMeta.updatedAt ?? localInfo?.lastOpened ?? 0;
+    entries.push({
+      type: "cloud",
+      cloudBookId,
+      localBookId,
+      title: normalizedMeta.title || localInfo?.title || "Untitled",
+      author: normalizedMeta.author || "",
+      progressPercentage,
+      lastTimestamp,
+      hasLocalFile: Boolean(localInfo),
+    });
+  });
+
+  Object.values(localLibrary).forEach((book) => {
+    if (!book?.id) return;
+    if (linkedLocalIds.has(book.id)) return;
+    const progress = storage.getProgress(book.id);
+    entries.push({
+      type: "local",
+      cloudBookId: null,
+      localBookId: book.id,
+      title: book.title,
+      author: book.author || "",
+      progressPercentage: progress?.percentage ?? 0,
+      lastTimestamp: book.lastOpened ?? progress?.updatedAt ?? 0,
+      hasLocalFile: true,
+    });
+  });
+
+  entries.sort((a, b) => (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0));
+  return entries;
+}
+
+function showCloudEmptyState({ cloudBookId, title, progressPercentage, lastTimestamp }) {
+  if (elements.cloudEmptyState) {
+    elements.cloudEmptyState.classList.remove("hidden");
+  }
+  if (elements.cloudEmptyTitle) {
+    elements.cloudEmptyTitle.textContent = `${t("cloudOnlyTitle")}：${title ?? ""}`;
+  }
+  if (elements.cloudEmptyMeta) {
+    const metaText = formatLibraryMeta({
+      progressPercentage,
+      timestamp: lastTimestamp,
+    });
+    elements.cloudEmptyMeta.textContent = `${t("cloudOnlyDescription")} (${metaText})`;
+  }
+  if (elements.cloudAttachButton) {
+    elements.cloudAttachButton.textContent = t("libraryAttachFile");
+    elements.cloudAttachButton.onclick = () => {
+      pendingCloudBookId = cloudBookId;
+      openFileDialog();
+    };
+  }
+}
+
+function hideCloudEmptyState() {
+  if (elements.cloudEmptyState) {
+    elements.cloudEmptyState.classList.add("hidden");
+  }
+}
+
+async function syncAllBooksFromCloud() {
+  if (!isCloudSyncEnabled()) return;
+  try {
+    const remote = await cloudSync.pullIndex();
+    const index = remote?.index ?? {};
+    const updatedAt = remote?.updatedAt ?? Date.now();
+    storage.mergeCloudIndex(index, updatedAt);
+    const recentList = Object.values(index)
+      .sort((a, b) => (b.lastReadAt ?? b.updatedAt ?? 0) - (a.lastReadAt ?? a.updatedAt ?? 0))
+      .slice(0, 5);
+    for (const item of recentList) {
+      if (!item?.cloudBookId) continue;
+      try {
+        const stateResponse = await cloudSync.pullState(item.cloudBookId);
+        if (stateResponse?.state) {
+          storage.setCloudState(item.cloudBookId, stateResponse.state);
+        }
+      } catch (error) {
+        console.warn("クラウド状態の取得に失敗しました:", error);
+      }
+    }
+    storage.setSettings({ lastSyncAt: Date.now() });
+    updateSyncStatusDisplay();
+    if (uiInitialized) {
+      renderLibrary();
+      renderHistory();
+      renderBookmarks(bookmarkMenuMode);
+    }
+  } catch (error) {
+    console.warn("クラウドの同期に失敗しました:", error);
+  }
+}
+
+async function handleAuthLogin() {
+  updateAuthStatusDisplay();
+  syncAutoSyncPolicy();
+  await syncAllBooksFromCloud();
+}
+
+function buildSyncRemoteLabel(timestamp) {
+  const timeText = uiLanguage === "en"
+    ? formatRelativeTimeEn(timestamp)
+    : formatRelativeTime(timestamp);
+  return t("syncPromptRemote").replace("{time}", timeText || "--");
+}
+
+function promptSyncChoice({ mode, remoteProgress }) {
+  return new Promise((resolve) => {
+    if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
+      resolve("local");
+      return;
+    }
+
+    if (elements.syncModalTitle) {
+      elements.syncModalTitle.textContent = t("syncPromptTitle");
+    }
+    if (elements.syncModalMessage) {
+      elements.syncModalMessage.textContent =
+        mode === "local" ? t("syncPromptLocalMessage") : t("syncPromptMessage");
+    }
+    if (mode === "local") {
+      elements.syncUseRemote.textContent = t("syncPromptUpload");
+      elements.syncUseLocal.textContent = t("syncPromptLocal");
+    } else {
+      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteProgress?.updatedAt);
+      elements.syncUseLocal.textContent = t("syncPromptLocal");
+    }
+
+    const cleanup = () => {
+      elements.syncUseRemote.removeEventListener("click", onRemote);
+      elements.syncUseLocal.removeEventListener("click", onLocal);
+    };
+    const onRemote = () => {
+      cleanup();
+      closeModal(elements.syncModal);
+      resolve(mode === "local" ? "upload" : "remote");
+    };
+    const onLocal = () => {
+      cleanup();
+      closeModal(elements.syncModal);
+      resolve("local");
+    };
+
+    elements.syncUseRemote.addEventListener("click", onRemote, { once: true });
+    elements.syncUseLocal.addEventListener("click", onLocal, { once: true });
+    openModal(elements.syncModal);
+  });
+}
+
+function buildCloudStatePayload(localBookId, cloudBookId) {
+  const progress = storage.getProgress(localBookId) ?? {};
+  const bookmarks = storage.getBookmarks(localBookId) ?? [];
+  const history = (storage.data.history ?? []).filter((entry) => entry.bookId === localBookId);
+  const updatedAt = Math.max(
+    progress?.updatedAt ?? 0,
+    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0),
+    ...history.map((entry) => entry?.updatedAt ?? entry?.openedAt ?? 0),
+  );
+  const state = {
+    progress: progress?.percentage ?? 0,
+    lastCfi: progress?.location ?? null,
+    bookmarks: bookmarks.map((bookmark) => ({
+      ...bookmark,
+      updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
+    })),
+    history: history.map((entry) => ({
+      ...entry,
+      updatedAt: entry?.updatedAt ?? entry?.openedAt ?? Date.now(),
+    })),
+    updatedAt,
+  };
+  return { cloudBookId, state, updatedAt };
+}
+
+function isEmptyCloudState(state) {
+  if (!state) return true;
+  const hasBookmarks = Array.isArray(state.bookmarks) && state.bookmarks.length > 0;
+  const hasHistory = Array.isArray(state.history) && state.history.length > 0;
+  const hasProgress = typeof state.progress === "number" && state.progress > 0;
+  const hasLocation = Boolean(state.lastCfi);
+  const hasUpdatedAt = (state.updatedAt ?? 0) > 0;
+  return !(hasBookmarks || hasHistory || hasProgress || hasLocation || hasUpdatedAt);
+}
+
+function applyCloudStateToLocal(localBookId, cloudBookId, state) {
+  if (!state || !localBookId) return;
+  if (state.bookmarks) {
+    storage.setBookmarks(localBookId, state.bookmarks);
+  }
+  if (state.history) {
+    const normalizedHistory = state.history.map((entry) => ({
+      openedAt: entry?.openedAt ?? entry?.updatedAt ?? Date.now(),
+    }));
+    storage.setHistoryEntries(localBookId, normalizedHistory);
+  }
+  if (state.lastCfi || typeof state.progress === "number") {
+    const existing = storage.getProgress(localBookId) ?? {};
+    storage.setProgress(localBookId, {
+      ...existing,
+      location: state.lastCfi ?? existing.location,
+      percentage: typeof state.progress === "number" ? state.progress : existing.percentage,
+      updatedAt: state.updatedAt ?? Date.now(),
+    });
+  }
+  if (cloudBookId) {
+    storage.setCloudState(cloudBookId, state);
+  }
+}
+
+async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloudBookId(localBookId)) {
+  const localProgress = storage.getProgress(localBookId);
+  if (!isCloudSyncEnabled() || !cloudBookId) {
+    return localProgress;
+  }
+
+  try {
+    const remote = await cloudSync.pullState(cloudBookId);
+    const remoteState = remote?.state;
+    const localPayload = buildCloudStatePayload(localBookId, cloudBookId);
+    const localUpdatedAt = localPayload.updatedAt ?? 0;
+
+    if (isEmptyCloudState(remoteState)) {
+      if (localUpdatedAt > 0) {
+        await cloudSync.pushState(cloudBookId, localPayload.state, localPayload.updatedAt);
+        storage.setSettings({ lastSyncAt: Date.now() });
+      }
+      return localProgress;
+    }
+
+    const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
+    if (remoteUpdatedAt > localUpdatedAt) {
+      const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteState });
+      if (choice === "remote") {
+        applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
+        storage.setSettings({ lastSyncAt: Date.now() });
+        return storage.getProgress(localBookId);
+      }
+      return localProgress;
+    }
+
+    if (localUpdatedAt > remoteUpdatedAt) {
+      const choice = await promptSyncChoice({ mode: "local" });
+      if (choice === "upload") {
+        await cloudSync.pushState(cloudBookId, localPayload.state, localPayload.updatedAt);
+        storage.setSettings({ lastSyncAt: Date.now() });
+      }
+      return localProgress;
+    }
+  } catch (error) {
+    console.warn("同期情報の取得に失敗しました:", error);
+  }
+
+  return localProgress;
+}
+
+function generateCloudBookId() {
+  if (crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `cloud-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildCloudMeta({ cloudBookId, info, fingerprint, overrides = {} }) {
+  const existing = storage.data.cloudIndex?.[cloudBookId] ?? {};
+  const fingerprints = new Set([
+    ...(existing.fingerprints ?? []),
+    ...(overrides.fingerprints ?? []),
+  ]);
+  if (fingerprint) fingerprints.add(fingerprint);
+  return {
+    cloudBookId,
+    title: overrides.title ?? info?.title ?? existing.title ?? "Untitled",
+    author: overrides.author ?? info?.author ?? existing.author ?? "",
+    identifiers: overrides.identifiers ?? existing.identifiers ?? [],
+    fingerprints: Array.from(fingerprints),
+    lastReadAt: overrides.lastReadAt ?? Date.now(),
+    updatedAt: Date.now(),
+    createdAt: existing.createdAt ?? overrides.createdAt ?? Date.now(),
+  };
+}
+
+async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, overrides = {}) {
+  if (!cloudBookId) return null;
+  const meta = buildCloudMeta({ cloudBookId, info, fingerprint, overrides });
+  storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
+  if (isCloudSyncEnabled()) {
+    try {
+      await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
+    } catch (error) {
+      console.warn("クラウドインデックスの更新に失敗しました:", error);
+    }
+  }
+  return meta;
+}
+
+function buildMatchMeta(info) {
+  return {
+    title: info?.title ?? "",
+    author: info?.author ?? "",
+    identifiers: info?.identifiers ?? [],
+  };
 }
 
 // ========================================
@@ -227,10 +956,39 @@ async function handleFile(file) {
     storage.upsertBook(info);
     currentBookId = id;
     currentBookInfo = info;
+
+    let cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
+    if (cloudBookId) {
+      storage.setBookLink(id, cloudBookId);
+    }
+    if (isCloudSyncEnabled()) {
+      if (!cloudBookId) {
+        try {
+          const matchResult = await cloudSync.matchBook(contentHash, buildMatchMeta(info));
+          if (matchResult?.cloudBookId) {
+            cloudBookId = matchResult.cloudBookId;
+          }
+        } catch (error) {
+          console.warn("クラウドの照合に失敗しました:", error);
+        }
+      }
+      if (!cloudBookId) {
+        cloudBookId = generateCloudBookId();
+      }
+      if (cloudBookId) {
+        storage.setBookLink(id, cloudBookId);
+        await upsertCloudIndexEntry(cloudBookId, info, contentHash);
+      }
+    }
+    pendingCloudBookId = null;
+    currentCloudBookId = cloudBookId;
     
-    const savedProgress = storage.getProgress(id);
-    const startLocation = savedProgress?.location;
+    const syncedProgress = await resolveSyncedProgress(id, cloudBookId);
+    await applyReadingState(syncedProgress);
+    const startLocation = syncedProgress?.location;
+    const startProgress = syncedProgress?.percentage;
     
+    hideCloudEmptyState();
     if (info.type === "epub") {
       console.log("Opening EPUB...");
       
@@ -241,12 +999,15 @@ async function handleFile(file) {
         elements.viewer.classList.remove('hidden');
         elements.viewer.classList.add('visible');
       }
-      // EPUBスクロールモードを設定
+      // EPUBスクロールモードを解除（ページ分割描画のため）
       if (elements.fullscreenReader) {
-        elements.fullscreenReader.classList.add('epub-scroll');
+        elements.fullscreenReader.classList.remove('epub-scroll');
       }
       
-      await reader.openEpub(new File([buffer], file.name, { type: mime }), startLocation);
+      await reader.openEpub(new File([buffer], file.name, { type: mime }), {
+        location: startLocation,
+        percentage: startProgress,
+      });
     } else {
       console.log("Opening image book...");
       console.log(`Start location: ${startLocation}`);
@@ -271,10 +1032,13 @@ async function handleFile(file) {
     updateProgressBarDisplay();
     updateSearchButtonState();
     closeModal(elements.openFileModal);
+    if (floatVisible) {
+      toggleFloatOverlay(false);
+    }
     
     // 自動同期が有効なら保存
-    if (autoSyncEnabled) {
-      await cloudSync.push();
+    if (syncAutoSyncPolicy(checkAuthStatus())) {
+      await pushCurrentBookSync();
     }
   } catch (error) {
     console.error("Error in handleFile:", error);
@@ -302,6 +1066,35 @@ async function handleFile(file) {
   }
 }
 
+function openCloudOnlyBook(cloudBookId) {
+  const meta = storage.data.cloudIndex?.[cloudBookId];
+  const state = storage.getCloudState(cloudBookId);
+  currentBookId = null;
+  currentBookInfo = null;
+  currentCloudBookId = cloudBookId;
+
+  if (elements.viewer) {
+    elements.viewer.classList.add("hidden");
+    elements.viewer.classList.remove("visible");
+  }
+  if (elements.imageViewer) elements.imageViewer.classList.add("hidden");
+  if (elements.emptyState) elements.emptyState.classList.remove("hidden");
+  if (elements.progressBarPanel) elements.progressBarPanel.classList.add("hidden");
+  if (elements.progressBarBackdrop) elements.progressBarBackdrop.classList.add("hidden");
+  showCloudEmptyState({
+    cloudBookId,
+    title: meta?.title ?? t("cloudOnlyTitle"),
+    progressPercentage: state?.progress ?? 0,
+    lastTimestamp: state?.updatedAt ?? meta?.lastReadAt ?? meta?.updatedAt ?? 0,
+  });
+  updateProgressBarDisplay();
+  updateSearchButtonState();
+  closeModal(elements.openFileModal);
+  if (floatVisible) {
+    toggleFloatOverlay(false);
+  }
+}
+
 async function openFromLibrary(bookId, options = {}) {
   try {
     updateActivity();
@@ -309,6 +1102,11 @@ async function openFromLibrary(bookId, options = {}) {
     const record = await loadFile(bookId, source);
     
     if (!record) {
+      const cloudBookId = storage.getCloudBookId(bookId);
+      if (cloudBookId) {
+        openCloudOnlyBook(cloudBookId);
+        return;
+      }
       alert("保存済みファイルが見つかりません。再度アップロードしてください。");
       return;
     }
@@ -319,13 +1117,31 @@ async function openFromLibrary(bookId, options = {}) {
     
     currentBookId = bookId;
     currentBookInfo = info;
+    currentCloudBookId = storage.getCloudBookId(bookId);
+    if (isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
+      try {
+        const matchResult = await cloudSync.matchBook(info.contentHash, buildMatchMeta(info));
+        if (matchResult?.cloudBookId) {
+          currentCloudBookId = matchResult.cloudBookId;
+          storage.setBookLink(bookId, currentCloudBookId);
+        }
+      } catch (error) {
+        console.warn("クラウドの照合に失敗しました:", error);
+      }
+    }
+    if (currentCloudBookId) {
+      await upsertCloudIndexEntry(currentCloudBookId, info, info.contentHash, { lastReadAt: Date.now() });
+    }
     
     const bookmarks = storage.getBookmarks(bookId);
-    const progress = storage.getProgress(bookId);
+    const progress = await resolveSyncedProgress(bookId, currentCloudBookId);
+    await applyReadingState(progress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
     const start = startFromBookmark ?? progress?.location;
+    const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
     
+    hideCloudEmptyState();
     if (info.type === "epub") {
       // 空の状態を非表示、ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
@@ -334,12 +1150,12 @@ async function openFromLibrary(bookId, options = {}) {
         elements.viewer.classList.remove('hidden');
         elements.viewer.classList.add('visible');
       }
-      // EPUBスクロールモードを設定
+      // EPUBスクロールモードを解除（ページ分割描画のため）
       if (elements.fullscreenReader) {
-        elements.fullscreenReader.classList.add('epub-scroll');
+        elements.fullscreenReader.classList.remove('epub-scroll');
       }
       
-      await reader.openEpub(file, start);
+      await reader.openEpub(file, { location: start, percentage: startProgress });
     } else {
       // 空の状態を非表示、画像ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
@@ -352,10 +1168,15 @@ async function openFromLibrary(bookId, options = {}) {
       await reader.openImageBook(file, typeof start === "number" ? start : 0);
     }
     
+    storage.addHistory(bookId);
+    scheduleAutoSyncPush();
     renderBookmarkMarkers();
     updateProgressBarDisplay();
     updateSearchButtonState();
     closeModal(elements.openFileModal);
+    if (floatVisible) {
+      toggleFloatOverlay(false);
+    }
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
@@ -408,29 +1229,68 @@ function findBookByContentHash(library, contentHash) {
 // 進捗管理
 // ========================================
 
+function persistReadingState(update) {
+  if (!currentBookId) return;
+  const existing = storage.getProgress(currentBookId) ?? {};
+  storage.setProgress(currentBookId, { ...existing, ...update });
+}
+
+async function applyReadingState(progress) {
+  if (!progress) return;
+  if (progress.writingMode && progress.writingMode !== writingMode) {
+    writingMode = progress.writingMode;
+    if (elements.writingModeSelect) {
+      elements.writingModeSelect.value = writingMode;
+    }
+    await applyReadingSettings(writingMode, pageDirection);
+  }
+  if (progress.theme && progress.theme !== theme) {
+    applyTheme(progress.theme);
+  }
+  if (Number.isFinite(progress.fontSize) && progress.fontSize !== fontSize) {
+    applyFontSize(progress.fontSize);
+  }
+  if (progress.uiLanguage && progress.uiLanguage !== uiLanguage) {
+    applyUiLanguage(progress.uiLanguage);
+  }
+}
+
 function handleProgress(progress) {
   if (!currentBookId) return;
   updateActivity();
   
-  storage.setProgress(currentBookId, progress);
+  storage.setProgress(currentBookId, {
+    ...progress,
+    writingMode,
+    fontSize,
+    theme,
+    uiLanguage,
+  });
+  scheduleAutoSyncPush();
   updateProgressBarDisplay();
+}
+
+function getEpubPaginationTotal() {
+  const totalPages = reader.pagination?.pages?.length;
+  if (totalPages) return totalPages;
+  const totalLocations = reader.book?.locations?.total;
+  if (totalLocations) return totalLocations;
+  return null;
 }
 
 function updateProgressBarDisplay() {
   if (!currentBookId) return;
   
-  // 進捗バーパネルを表示（EPUB/画像書籍の場合）
-  if (currentBookInfo?.type === 'epub' || currentBookInfo?.type === 'image') {
-    if (elements.progressBarPanel) {
-      elements.progressBarPanel.classList.remove('hidden');
-    }
-    if (elements.progressBarBackdrop) {
-      elements.progressBarBackdrop.classList.remove('hidden');
-    }
+  if (elements.progressBarPanel) {
+    elements.progressBarPanel.classList.add('hidden');
+  }
+  if (elements.progressBarBackdrop) {
+    elements.progressBarBackdrop.classList.add('hidden');
   }
   
   const progress = storage.getProgress(currentBookId);
   const percentage = progress?.percentage || 0;
+  updateFloatProgressBar(percentage);
   
   // 進捗バーの更新
   if (elements.progressFill) {
@@ -445,14 +1305,22 @@ function updateProgressBarDisplay() {
   if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
     if (progressDisplayMode === "page") {
       // ページ数モード
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        // EPUBの場合はlocationインデックスを表示
-        const totalLocations = reader.rendition.book.locations.total;
-        const currentLocation = Math.round((percentage / 100) * totalLocations);
-        elements.currentPageInput.value = currentLocation;
-        
-        if (elements.totalPages) {
-          elements.totalPages.textContent = totalLocations.toString();
+      if (currentBookInfo?.type === 'epub') {
+        // EPUBの場合はページ数を表示
+        const totalPages = getEpubPaginationTotal();
+        if (totalPages) {
+          const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
+          elements.currentPageInput.value = currentPage;
+          
+          if (elements.totalPages) {
+            elements.totalPages.textContent = totalPages.toString();
+          }
+        } else {
+          // ページ数が未生成の場合はパーセンテージ表示
+          elements.currentPageInput.value = Math.round(percentage);
+          if (elements.totalPages) {
+            elements.totalPages.textContent = '100';
+          }
         }
       } else if (currentBookInfo?.type === 'image') {
         // 画像書籍の場合はページ数
@@ -499,13 +1367,17 @@ function renderBookmarkMarkers() {
     marker.style.left = `${percentage}%`;
     
     // ツールチップの表示内容を進捗表示モードに合わせる
-    let tooltipText = bookmark.label ?? "しおり";
+    let tooltipText = bookmark.label ?? t("bookmarkDefault");
     if (progressDisplayMode === "page") {
       // ページ数モードの場合
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
-        const locationIndex = Math.round((percentage / 100) * totalLocations);
-        tooltipText += ` (${locationIndex}/${totalLocations})`;
+      if (currentBookInfo?.type === 'epub') {
+        const totalPages = getEpubPaginationTotal();
+        if (totalPages) {
+          const pageIndex = Math.max(1, Math.round((percentage / 100) * totalPages));
+          tooltipText += ` (${pageIndex}/${totalPages})`;
+        } else {
+          tooltipText += ` (${percentage}%)`;
+        }
       } else if (currentBookInfo?.type === 'image') {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
@@ -526,6 +1398,31 @@ function renderBookmarkMarkers() {
     });
     elements.progressTrack.appendChild(marker);
   });
+
+  renderFloatBookmarkMarkers();
+}
+
+function renderFloatBookmarkMarkers() {
+  if (!elements.floatProgressMarks) return;
+  elements.floatProgressMarks.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
+  if (!currentBookId) return;
+
+  const bookmarks = storage.getBookmarks(currentBookId);
+  if (!bookmarks.length) return;
+
+  bookmarks.forEach((bookmark) => {
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "bookmark-marker";
+    const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
+    marker.style.left = `${percentage}%`;
+    marker.title = bookmark.label ?? t("bookmarkDefault");
+    marker.addEventListener("click", (event) => {
+      event.stopPropagation();
+      reader.goTo(bookmark);
+    });
+    elements.floatProgressMarks.appendChild(marker);
+  });
 }
 
 async function seekToPercentage(percentage) {
@@ -536,26 +1433,17 @@ async function seekToPercentage(percentage) {
     console.log(`Seeking to ${percentage}%`);
     
     try {
-      // EPUB.jsのrendition.locationsを使用
-      if (reader.rendition && reader.rendition.book && reader.rendition.book.locations) {
-        const locations = reader.rendition.book.locations;
-        
-        // パーセンテージからlocationインデックスを計算
-        const totalLocations = locations.total;
-        const targetIndex = Math.floor((percentage / 100) * totalLocations);
-        
-        // locationインデックスからCFIを取得
-        const cfi = locations.cfiFromPercentage(percentage / 100);
-        
-        if (cfi) {
-          console.log(`Jumping to CFI: ${cfi}`);
-          await reader.rendition.display(cfi);
+      if (reader.usingPaginator && reader.pagination?.pages?.length) {
+        const totalPages = reader.pagination.pages.length;
+        const pageIndex = Math.max(0, Math.min(Math.round((percentage / 100) * totalPages) - 1, totalPages - 1));
+        if (reader.pageController) {
+          reader.pageController.goTo(pageIndex);
         } else {
-          console.warn('Could not get CFI for percentage:', percentage);
+          reader.renderEpubPage(pageIndex);
         }
-      } else {
-        console.warn('Locations not generated yet');
+        return;
       }
+      console.warn('Locations not generated yet');
     } catch (error) {
       console.error('Error seeking to percentage:', error);
     }
@@ -578,21 +1466,38 @@ function handleBookReady(payload) {
   const title = metadata.title || currentBookInfo.title;
   currentBookInfo.title = title;
   storage.upsertBook({ ...currentBookInfo, title });
+  if (currentCloudBookId) {
+    const author = metadata.creator || metadata.author || "";
+    upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
+      title,
+      author,
+    }).catch((error) => {
+      console.warn("クラウドメタデータの更新に失敗しました:", error);
+    });
+  }
   renderLibrary();
   renderToc(currentToc);
   
-  // EPUBスクロールモードのクラスを設定（縦書き・横書きともに縦スクロール）
-  if (currentBookInfo.type === 'epub' && elements.fullscreenReader) {
-    console.log('[handleBookReady] Setting epub-scroll class for vertical scrolling');
-    elements.fullscreenReader.classList.add('epub-scroll');
-  }
+  // EPUBスクロールモードのクラスを設定（横書きのみ縦スクロール）
+  const scheduleEpubScrollModeUpdate = (attempt = 0) => {
+    if (reader?.writingMode != null) {
+      updateEpubScrollMode();
+      return;
+    }
+    if (attempt >= 5) {
+      console.warn("[handleBookReady] Writing mode not resolved, skipping epub-scroll update");
+      return;
+    }
+    setTimeout(() => scheduleEpubScrollModeUpdate(attempt + 1), 100);
+  };
+  scheduleEpubScrollModeUpdate();
   
   // locations生成完了時に進捗バーを更新
   if (currentBookInfo.type === 'epub') {
     console.log('[handleBookReady] Setting up locations listener for progress updates');
     // locations生成完了を監視
     const checkLocations = setInterval(() => {
-      const locations = reader.book?.locations ?? reader.rendition?.book?.locations;
+      const locations = reader.book?.locations;
       if (locations?.total > 0) {
         console.log('[handleBookReady] Locations available, updating progress bar');
         clearInterval(checkLocations);
@@ -605,6 +1510,25 @@ function handleBookReady(payload) {
       clearInterval(checkLocations);
       console.log('[handleBookReady] Locations check timeout');
     }, 10000);
+
+  }
+}
+
+function updateEpubScrollMode() {
+  if (currentBookInfo?.type !== 'epub' || !elements.fullscreenReader) return;
+  if (reader?.usingPaginator) {
+    elements.fullscreenReader.classList.remove('epub-scroll');
+    return;
+  }
+  const resolvedWritingMode = reader?.writingMode ?? currentBookInfo?.writingMode ?? writingMode;
+  if (resolvedWritingMode === "vertical") {
+    console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
+    elements.fullscreenReader.classList.remove('epub-scroll');
+    return;
+  }
+  if (resolvedWritingMode === "horizontal") {
+    console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
+    elements.fullscreenReader.classList.add('epub-scroll');
   }
 }
 
@@ -613,27 +1537,30 @@ function handleBookReady(payload) {
 // ========================================
 
 function renderToc(tocItems = []) {
-  if (!elements.tocSection || !elements.tocList) return;
+  if (!elements.tocModalList) return;
 
-  elements.tocList.innerHTML = "";
+  if (elements.tocList) {
+    elements.tocList.innerHTML = "";
+  }
+  elements.tocModalList.innerHTML = "";
   const isEpub = currentBookInfo?.type === "epub";
 
   if (!isEpub || !tocItems.length) {
-    elements.tocSection.classList.add("hidden");
+    elements.tocSection?.classList.add("hidden");
     console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocItems.length });
     return;
   }
 
   console.log('[renderToc] Showing TOC section with', tocItems.length, 'items');
-  elements.tocSection.classList.remove("hidden");
-  renderTocEntries(tocItems, elements.tocList, 0);
+  elements.tocSection?.classList.add("hidden");
+  renderTocEntries(tocItems, elements.tocModalList, 0);
 }
 
 function renderTocEntries(items, container, depth) {
   if (!Array.isArray(items)) return;
 
   items.forEach((item) => {
-    const label = (item.label ?? item.title ?? "無題").toString().trim() || "無題";
+    const label = (item.label ?? item.title ?? t("tocUntitled")).toString().trim() || t("tocUntitled");
     const li = document.createElement("li");
     li.className = "toc-item";
 
@@ -644,15 +1571,12 @@ function renderTocEntries(items, container, depth) {
     button.style.paddingLeft = `${Math.min(depth, 6) * 12}px`;
 
     button.addEventListener("click", async () => {
-      if (!reader?.rendition) return;
-      const cfi = resolveTocCfi(item);
       try {
-        if (cfi) {
-          await reader.rendition.display(cfi);
-        } else if (item.href) {
-          await reader.rendition.display(item.href);
+        if (reader?.usingPaginator && item.href) {
+          reader.navigateToHref(item.href);
         }
         ui.closeAllMenus();
+        closeModal(elements.tocModal);
       } catch (error) {
         console.warn("目次移動に失敗しました:", error);
       }
@@ -665,15 +1589,6 @@ function renderTocEntries(items, container, depth) {
       renderTocEntries(item.subitems, container, depth + 1);
     }
   });
-}
-
-function resolveTocCfi(item) {
-  const href = item?.href;
-  if (!href) {
-    return item?.cfi ?? null;
-  }
-  const cfiFromHref = reader?.book?.locations?.cfiFromHref?.(href);
-  return cfiFromHref ?? item?.cfi ?? null;
 }
 
 // ========================================
@@ -702,7 +1617,7 @@ function renderBookmarks(mode = "current") {
 
     if (!entries.length) {
       const empty = document.createElement("li");
-      empty.textContent = "しおりがありません";
+      empty.textContent = t("bookmarkEmpty");
       empty.style.textAlign = "center";
       empty.style.color = "var(--muted)";
       elements.bookmarkList.appendChild(empty);
@@ -727,7 +1642,7 @@ function renderBookmarks(mode = "current") {
       
       const label = document.createElement("div");
       label.className = "bookmark-label";
-      label.textContent = `${book.title} / ${bookmark.label || "しおり"}`;
+      label.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
       
       const meta = document.createElement("div");
       meta.className = "bookmark-meta";
@@ -749,10 +1664,11 @@ function renderBookmarks(mode = "current") {
       deleteBtn.textContent = "🗑️";
       deleteBtn.onclick = (e) => {
         e.stopPropagation();
-        if (confirm("このしおりを削除しますか？")) {
+        if (confirm(t("bookmarkDeleteConfirm"))) {
           storage.removeBookmark(bookId, bookmark.createdAt);
           renderBookmarks(mode);
           renderBookmarkMarkers();
+          scheduleAutoSyncPush();
         }
       };
       
@@ -766,7 +1682,7 @@ function renderBookmarks(mode = "current") {
 
   if (!currentBookId) {
     const empty = document.createElement("li");
-    empty.textContent = "本を開いてください";
+    empty.textContent = t("openBookPrompt");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.bookmarkList.appendChild(empty);
@@ -778,7 +1694,7 @@ function renderBookmarks(mode = "current") {
 
   if (!bookmarks.length) {
     const empty = document.createElement("li");
-    empty.textContent = "しおりがありません";
+    empty.textContent = t("bookmarkEmpty");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.bookmarkList.appendChild(empty);
@@ -799,7 +1715,7 @@ function renderBookmarks(mode = "current") {
 
     const label = document.createElement("div");
     label.className = "bookmark-label";
-    label.textContent = bookmark.label || "しおり";
+    label.textContent = bookmark.label || t("bookmarkDefault");
 
     const meta = document.createElement("div");
     meta.className = "bookmark-meta";
@@ -807,10 +1723,14 @@ function renderBookmarks(mode = "current") {
     // メタ情報を進捗表示モードに合わせて表示
     let metaText = new Date(bookmark.createdAt).toLocaleString();
     if (progressDisplayMode === "page") {
-      if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-        const totalLocations = reader.rendition.book.locations.total;
-        const locationIndex = Math.round((bookmark.percentage / 100) * totalLocations);
-        metaText += ` / ${locationIndex}/${totalLocations}`;
+      if (currentBookInfo?.type === 'epub') {
+        const totalPages = getEpubPaginationTotal();
+        if (totalPages) {
+          const pageIndex = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
+          metaText += ` / ${pageIndex}/${totalPages}`;
+        } else {
+          metaText += ` / ${bookmark.percentage}%`;
+        }
       } else if (currentBookInfo?.type === 'image') {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
@@ -830,10 +1750,11 @@ function renderBookmarks(mode = "current") {
     deleteBtn.textContent = "🗑️";
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
-      if (confirm("このしおりを削除しますか？")) {
+      if (confirm(t("bookmarkDeleteConfirm"))) {
         storage.removeBookmark(currentBookId, bookmark.createdAt);
         renderBookmarks(mode);
         renderBookmarkMarkers();
+        scheduleAutoSyncPush();
       }
     };
 
@@ -846,20 +1767,18 @@ function renderBookmarks(mode = "current") {
 
 function addBookmark() {
   if (!currentBookId) {
-    alert("本を開いてください");
+    alert(t("openBookPrompt"));
     return;
   }
   
-  const bookmark = reader.addBookmark("しおり");
+  const bookmark = reader.addBookmark(t("bookmarkDefault"));
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
     renderBookmarks(bookmarkMenuMode);
     renderBookmarkMarkers();
     
     // 自動同期
-    if (autoSyncEnabled) {
-      cloudSync.push();
-    }
+    scheduleAutoSyncPush();
   }
 }
 
@@ -871,12 +1790,11 @@ function renderLibrary() {
   if (!elements.libraryGrid) return;
   
   elements.libraryGrid.innerHTML = "";
-  const library = storage.data.library;
-  const books = Object.values(library).sort((a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0));
+  const entries = buildLibraryEntries();
   
-  if (!books.length) {
+  if (!entries.length) {
     const empty = document.createElement("p");
-    empty.textContent = "ライブラリが空です";
+    empty.textContent = t("libraryEmpty");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     empty.style.gridColumn = "1 / -1";
@@ -884,25 +1802,56 @@ function renderLibrary() {
     return;
   }
   
-  books.forEach((book) => {
+  entries.forEach((entry) => {
     const card = document.createElement("div");
     card.className = "library-card";
-    card.onclick = () => openFromLibrary(book.id);
+    card.onclick = () => {
+      if (entry.hasLocalFile && entry.localBookId) {
+        openFromLibrary(entry.localBookId);
+      } else if (entry.cloudBookId) {
+        openCloudOnlyBook(entry.cloudBookId);
+      }
+    };
     
     const cover = document.createElement("div");
     cover.className = "library-cover";
-    cover.textContent = book.title.slice(0, 2) || "📖";
+    cover.textContent = entry.title?.slice(0, 2) || "📖";
     
     const title = document.createElement("div");
     title.className = "library-title";
-    title.textContent = book.title;
+    title.textContent = entry.title;
     
-    const progress = storage.getProgress(book.id);
     const meta = document.createElement("div");
     meta.className = "library-meta";
-    meta.textContent = `${progress?.percentage ?? 0}%`;
+    meta.textContent = formatLibraryMeta({
+      progressPercentage: entry.progressPercentage,
+      timestamp: entry.lastTimestamp,
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "library-actions";
+
+    if (!entry.hasLocalFile) {
+      const badge = document.createElement("span");
+      badge.className = "library-badge";
+      badge.textContent = t("libraryCloudMissingBadge");
+      actions.appendChild(badge);
+    }
+
+    if (!entry.hasLocalFile && entry.cloudBookId) {
+      const attachButton = document.createElement("button");
+      attachButton.type = "button";
+      attachButton.className = "library-attach";
+      attachButton.textContent = t("libraryAttachFile");
+      attachButton.onclick = (event) => {
+        event.stopPropagation();
+        pendingCloudBookId = entry.cloudBookId;
+        openFileDialog();
+      };
+      actions.appendChild(attachButton);
+    }
     
-    card.append(cover, title, meta);
+    card.append(cover, title, meta, actions);
     elements.libraryGrid.appendChild(card);
   });
 }
@@ -915,7 +1864,7 @@ function renderHistory() {
   
   if (!history.length) {
     const empty = document.createElement("li");
-    empty.textContent = "履歴がありません";
+    empty.textContent = t("historyEmpty");
     empty.style.textAlign = "center";
     empty.style.color = "var(--muted)";
     elements.historyList.appendChild(empty);
@@ -946,10 +1895,22 @@ function renderHistory() {
     // 進捗情報を追加
     const progress = storage.getProgress(book.id);
     const progressText = progress ? `${progress.percentage}%` : "0%";
-    meta.textContent = `${new Date(item.openedAt).toLocaleString()} / 進捗: ${progressText}`;
+    meta.textContent = `${new Date(item.openedAt).toLocaleString()} / ${t("progressLabel")}: ${progressText}`;
     
     info.append(title, meta);
-    historyItem.appendChild(info);
+    
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "history-delete";
+    deleteBtn.textContent = "🗑️";
+    deleteBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (confirm(t("historyDeleteConfirm"))) {
+        storage.removeHistory(item.bookId);
+        renderHistory();
+      }
+    };
+    
+    historyItem.append(info, deleteBtn);
     elements.historyList.appendChild(historyItem);
   });
 }
@@ -964,7 +1925,7 @@ async function performSearch(query) {
   }
   
   if (elements.searchResults) {
-    elements.searchResults.innerHTML = '<div class="search-loading">検索中...</div>';
+    elements.searchResults.innerHTML = `<div class="search-loading">${t("searchLoading")}</div>`;
   }
   
   try {
@@ -1019,6 +1980,11 @@ async function performSearch(query) {
           for (const match of matches) {
             // CFIを生成（セクションの開始位置を使用）
             const cfi = item.cfiBase;
+            const spineItem = reader.spineItems?.[i];
+            const segmentIndex = reader.computeSegmentIndexForTextOffset(
+              spineItem?.htmlString,
+              match.matchIndex
+            );
             
             // パーセンテージを計算
             let percentage = 0;
@@ -1037,6 +2003,8 @@ async function performSearch(query) {
               sectionLabel: item.href,
               percentage,
               sectionIndex: i,
+              spineIndex: i,
+              segmentIndex,
             });
           }
         }
@@ -1064,7 +2032,7 @@ function renderSearchResults(results, query) {
   if (!results.length) {
     const noResults = document.createElement('div');
     noResults.className = 'search-no-results';
-    noResults.textContent = '検索結果が見つかりませんでした';
+    noResults.textContent = t("searchNoResults");
     elements.searchResults.appendChild(noResults);
     return;
   }
@@ -1087,29 +2055,37 @@ function renderSearchResults(results, query) {
     
     // パーセンテージまたはページ情報を表示
     let locationText = '';
-    if (progressDisplayMode === "page" && reader.rendition?.book?.locations) {
-      const totalLocations = reader.rendition.book.locations.total;
-      const locationIndex = Math.round((result.percentage / 100) * totalLocations);
-      locationText = `${locationIndex}/${totalLocations}`;
+    if (progressDisplayMode === "page") {
+      const totalPages = getEpubPaginationTotal();
+      if (totalPages) {
+        const pageIndex = Math.max(1, Math.round((result.percentage / 100) * totalPages));
+        locationText = `${pageIndex}/${totalPages}`;
+      } else if (reader.book?.locations) {
+        const totalLocations = reader.book.locations.total;
+        const locationIndex = Math.round((result.percentage / 100) * totalLocations);
+        locationText = `${locationIndex}/${totalLocations}`;
+      } else {
+        locationText = `${result.percentage}%`;
+      }
     } else {
       locationText = `${result.percentage}%`;
     }
     
-    meta.textContent = `${locationText} / ${result.sectionLabel || `結果 ${index + 1}`}`;
+    meta.textContent = `${locationText} / ${result.sectionLabel || `${t("searchResultFallback")} ${index + 1}`}`;
     
     item.append(excerpt, meta);
     
     item.onclick = async () => {
-      if (result.cfi && reader.rendition) {
-        try {
-          console.log('Navigating to CFI:', result.cfi);
-          await reader.rendition.display(result.cfi);
-          closeModal(elements.searchModal);
-        } catch (error) {
-          console.error('Failed to navigate to search result:', error);
-          alert('検索結果への移動に失敗しました');
-        }
+      if (
+        typeof result.spineIndex === "number" &&
+        typeof result.segmentIndex === "number" &&
+        typeof reader?.goToSegment === "function"
+      ) {
+        reader.goToSegment(result.spineIndex, result.segmentIndex);
+      } else {
+        seekToPercentage(result.percentage);
       }
+      closeModal(elements.searchModal);
     };
     
     elements.searchResults.appendChild(item);
@@ -1120,17 +2096,61 @@ function renderSearchResults(results, query) {
 // モーダル制御
 // ========================================
 
-function openModal(modal) {
-  if (modal) {
-    modal.classList.remove('hidden');
-    updateActivity();
+function isModalVisible(modal) {
+  if (!modal) return false;
+  if (modal.classList.contains("bookmark-menu")) {
+    return modal.classList.contains("visible");
   }
+  return !modal.classList.contains("hidden");
+}
+
+function openModal(modal) {
+  if (!modal) return;
+  // floatOverlay(blur) がモーダルより前面に残るのを防ぐ
+  toggleFloatOverlay(false);
+  if (elements.modalOverlay && modal.parentElement !== elements.modalOverlay) {
+    elements.modalOverlay.appendChild(modal);
+  }
+  if (elements.modalOverlay) {
+    elements.modalOverlay.classList.add("visible");
+  }
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.add("visible");
+    ui.bookmarkMenuVisible = true;
+  } else {
+    modal.classList.remove("hidden");
+  }
+  updateActivity();
 }
 
 function closeModal(modal) {
-  if (modal) {
-    modal.classList.add('hidden');
+  if (!modal) return;
+  if (modal.classList.contains("bookmark-menu")) {
+    modal.classList.remove("visible");
+    ui.bookmarkMenuVisible = false;
+  } else {
+    modal.classList.add("hidden");
   }
+  if (!elements.modalOverlay) return;
+  const hasVisibleModal = Array.from(elements.modalOverlay.children).some((child) => {
+    if (!(child instanceof HTMLElement)) return false;
+    return isModalVisible(child);
+  });
+  if (!hasVisibleModal) {
+    elements.modalOverlay.classList.remove("visible");
+  }
+}
+
+function closeExclusiveMenus() {
+  closeModal(elements.bookmarkMenu);
+  closeModal(elements.historyModal);
+  closeModal(elements.searchModal);
+  closeModal(elements.settingsModal);
+}
+
+function openExclusiveMenu(modal) {
+  closeExclusiveMenus();
+  openModal(modal);
 }
 
 function openImageModal(src) {
@@ -1149,6 +2169,149 @@ function applyTheme(newTheme) {
   document.body.dataset.theme = theme;
   reader.applyTheme(theme);
   storage.setSettings({ theme });
+  persistReadingState({ theme });
+  updateThemeToggleIcon();
+}
+
+function updateThemeToggleIcon() {
+  if (!elements.toggleTheme) return;
+  elements.toggleTheme.textContent = theme === "dark" ? "🌙" : "☀️";
+  elements.toggleTheme.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+}
+
+function applyFontSize(nextSize) {
+  if (!Number.isFinite(nextSize)) return;
+  const clamped = Math.min(28, Math.max(12, Math.round(nextSize)));
+  fontSize = clamped;
+  reader.applyFontSize(fontSize);
+  storage.setSettings({ fontSize });
+  persistReadingState({ fontSize });
+}
+
+function applyUiLanguage(nextLanguage) {
+  if (!nextLanguage) return;
+  uiLanguage = nextLanguage;
+  storage.setSettings({ uiLanguage });
+  document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
+  elements.langJa?.classList.toggle("active", uiLanguage === "ja");
+  elements.langEn?.classList.toggle("active", uiLanguage === "en");
+  if (elements.langIcon) {
+    elements.langIcon.src = uiLanguage === "ja" ? "assets/Flag_Japan.svg" : "assets/Flag_America.svg";
+  }
+  persistReadingState({ uiLanguage });
+
+  const strings = getUiStrings(nextLanguage);
+  document.title = strings.documentTitle;
+  const emptyTitle = elements.emptyState?.querySelector("h2");
+  const emptyDescription = elements.emptyState?.querySelector("p");
+  if (emptyTitle) emptyTitle.textContent = strings.emptyTitle;
+  if (emptyDescription) emptyDescription.textContent = strings.emptyDescription;
+  if (elements.cloudAttachButton) elements.cloudAttachButton.textContent = strings.libraryAttachFile;
+  if (!currentBookId && currentCloudBookId) {
+    const meta = storage.data.cloudIndex?.[currentCloudBookId];
+    const state = storage.getCloudState(currentCloudBookId);
+    showCloudEmptyState({
+      cloudBookId: currentCloudBookId,
+      title: meta?.title ?? strings.cloudOnlyTitle,
+      progressPercentage: state?.progress ?? 0,
+      lastTimestamp: state?.updatedAt ?? meta?.lastReadAt ?? meta?.updatedAt ?? 0,
+    });
+  }
+
+  const setMenuLabel = (button, text) => {
+    const label = button?.querySelector("span:last-child");
+    if (label) label.textContent = text;
+  };
+  const setFloatLabel = (button, icon, text) => {
+    if (!button) return;
+    button.textContent = `${icon} ${text}`;
+  };
+  setMenuLabel(elements.menuOpen, strings.menuOpen);
+  setMenuLabel(elements.menuLibrary, strings.menuLibrary);
+  setMenuLabel(elements.menuSearch, strings.menuSearch);
+  setMenuLabel(elements.menuBookmarks, strings.menuBookmarks);
+  setMenuLabel(elements.menuHistory, strings.menuHistory);
+  setMenuLabel(elements.menuSettings, strings.menuSettings);
+  setFloatLabel(elements.floatOpen, "📂", strings.menuOpen);
+  setFloatLabel(elements.floatLibrary, "📚", strings.menuLibrary);
+  setFloatLabel(elements.floatSearch, "🔍", strings.menuSearch);
+  setFloatLabel(elements.floatBookmarks, "🔖", strings.menuBookmarks);
+  setFloatLabel(elements.floatHistory, "🕘", strings.menuHistory);
+
+  if (elements.openToc) elements.openToc.textContent = strings.tocButton;
+  if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
+  if (elements.addBookmarkBtn) elements.addBookmarkBtn.textContent = strings.addBookmark;
+  if (elements.searchModalTitle) elements.searchModalTitle.textContent = strings.searchTitle;
+  if (elements.searchInput) elements.searchInput.placeholder = strings.searchPlaceholder;
+  if (elements.searchBtn) elements.searchBtn.textContent = strings.searchButton;
+  if (elements.tocModalTitle) elements.tocModalTitle.textContent = strings.tocTitle;
+  if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
+  if (elements.syncModalMessage) elements.syncModalMessage.textContent = strings.syncPromptMessage;
+  if (elements.syncUseLocal) elements.syncUseLocal.textContent = strings.syncPromptLocal;
+  if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
+  if (elements.librarySectionTitle) elements.librarySectionTitle.textContent = strings.librarySectionTitle;
+  if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
+  if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
+  if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
+  if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
+  if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
+  if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
+  if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
+  if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
+  if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
+  if (elements.syncStatus) {
+    updateSyncStatusDisplay();
+  }
+  if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
+  if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
+  if (elements.importDataLabel) {
+    const input = elements.importDataLabel.querySelector("input");
+    elements.importDataLabel.textContent = strings.importData;
+    if (input) {
+      elements.importDataLabel.appendChild(input);
+    }
+  }
+
+  if (elements.themeSelect) {
+    const options = elements.themeSelect.options;
+    if (options[0]) options[0].textContent = strings.themeDark;
+    if (options[1]) options[1].textContent = strings.themeLight;
+  }
+  if (elements.writingModeSelect) {
+    const options = elements.writingModeSelect.options;
+    if (options[0]) options[0].textContent = strings.writingModeHorizontal;
+    if (options[1]) options[1].textContent = strings.writingModeVertical;
+  }
+  if (elements.pageDirectionSelect) {
+    const options = elements.pageDirectionSelect.options;
+    if (options[0]) options[0].textContent = strings.pageDirectionLtr;
+    if (options[1]) options[1].textContent = strings.pageDirectionRtl;
+  }
+  if (elements.progressDisplayModeSelect) {
+    const options = elements.progressDisplayModeSelect.options;
+    if (options[0]) options[0].textContent = strings.progressDisplayPage;
+    if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
+  }
+
+  updateWritingModeToggleLabel();
+  if (uiInitialized) {
+    renderLibrary();
+    renderHistory();
+    renderBookmarks(bookmarkMenuMode);
+    renderToc(currentToc);
+    updateProgressBarDisplay();
+    updateSearchButtonState();
+    updateAuthStatusDisplay();
+  }
+}
+
+function updateWritingModeToggleLabel() {
+  if (!elements.toggleWritingMode) return;
+  const isVertical = writingMode === "vertical";
+  elements.toggleWritingMode.textContent = isVertical
+    ? t("writingModeToggleVertical")
+    : t("writingModeToggleHorizontal");
+  elements.toggleWritingMode.setAttribute("aria-pressed", isVertical ? "true" : "false");
 }
 
 async function applyReadingSettings(nextWritingMode, nextPageDirection) {
@@ -1159,7 +2322,10 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
     pageDirection = nextPageDirection;
   }
   await reader.applyReadingDirection(writingMode, pageDirection);
+  updateEpubScrollMode();
   storage.setSettings({ writingMode, pageDirection });
+  persistReadingState({ writingMode });
+  updateWritingModeToggleLabel();
 }
 
 function applyLibraryViewMode(mode) {
@@ -1179,6 +2345,15 @@ function applyProgressDisplayMode(mode) {
   renderBookmarkMarkers();
 }
 
+async function pushCurrentBookSync() {
+  if (!currentBookId || !currentCloudBookId) return;
+  if (!isCloudSyncEnabled()) return;
+  const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
+  await cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
+  storage.setSettings({ lastSyncAt: Date.now() });
+  updateSyncStatusDisplay();
+}
+
 function toggleAutoSync(enabled) {
   autoSyncEnabled = enabled;
   storage.setSettings({ autoSyncEnabled: enabled });
@@ -1187,18 +2362,58 @@ function toggleAutoSync(enabled) {
     clearInterval(autoSyncInterval);
     autoSyncInterval = null;
   }
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+    autoSyncTimeout = null;
+  }
   
   if (enabled) {
     // 30秒ごとに自動同期
     autoSyncInterval = setInterval(async () => {
       try {
-        await cloudSync.push();
+        await pushCurrentBookSync();
         console.log('Auto-sync completed');
       } catch (error) {
         console.error('Auto-sync failed:', error);
       }
     }, 30000);
   }
+}
+
+function shouldEnableAutoSync(authStatus = checkAuthStatus()) {
+  return isCloudSyncEnabled(authStatus);
+}
+
+function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
+  const shouldEnable = shouldEnableAutoSync(authStatus);
+  if (shouldEnable) {
+    if (!autoSyncEnabled || !autoSyncInterval) {
+      toggleAutoSync(true);
+    }
+  } else if (autoSyncEnabled) {
+    toggleAutoSync(false);
+  }
+  return shouldEnable;
+}
+
+function scheduleAutoSyncPush() {
+  if (!autoSyncEnabled || !currentCloudBookId) return;
+  const authStatus = checkAuthStatus();
+  if (!shouldEnableAutoSync(authStatus)) {
+    syncAutoSyncPolicy(authStatus);
+    return;
+  }
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+  }
+  autoSyncTimeout = setTimeout(async () => {
+    autoSyncTimeout = null;
+    try {
+      await pushCurrentBookSync();
+    } catch (error) {
+      console.error("Auto-sync failed:", error);
+    }
+  }, 1500);
 }
 
 function exportData() {
@@ -1224,6 +2439,50 @@ async function importData(file) {
   }
 }
 
+function openFileDialog() {
+  elements.fileInput?.click();
+}
+
+function showLibrary() {
+  openModal(elements.openFileModal);
+  renderLibrary();
+}
+
+function showSearch() {
+  if (!currentBookId || currentBookInfo?.type !== 'epub') {
+    alert(t("searchEpubOnly"));
+    return;
+  }
+  openExclusiveMenu(elements.searchModal);
+  if (elements.searchInput) {
+    elements.searchInput.value = '';
+    elements.searchInput.focus();
+  }
+  if (elements.searchResults) {
+    elements.searchResults.innerHTML = '';
+  }
+}
+
+function showBookmarks() {
+  bookmarkMenuMode = "all";
+  renderBookmarks(bookmarkMenuMode);
+  openExclusiveMenu(elements.bookmarkMenu);
+}
+
+function showHistory() {
+  openExclusiveMenu(elements.historyModal);
+  renderHistory();
+}
+
+function showSettings() {
+  openExclusiveMenu(elements.settingsModal);
+  if (elements.themeSelect) elements.themeSelect.value = theme;
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  updateAuthStatusDisplay();
+}
+
 // ========================================
 // イベントハンドラー
 // ========================================
@@ -1231,59 +2490,100 @@ async function importData(file) {
 function setupEvents() {
   // メニューアクション
   elements.menuOpen?.addEventListener('click', () => {
-    elements.fileInput?.click();
+    openFileDialog();
   });
   
   elements.menuLibrary?.addEventListener('click', () => {
-    openModal(elements.openFileModal);
-    renderLibrary();
+    showLibrary();
   });
   
   elements.menuSearch?.addEventListener('click', () => {
-    if (!currentBookId || currentBookInfo?.type !== 'epub') {
-      alert('EPUB形式の本を開いている時のみ検索できます');
-      return;
-    }
-    openModal(elements.searchModal);
-    if (elements.searchInput) {
-      elements.searchInput.value = '';
-      elements.searchInput.focus();
-    }
-    if (elements.searchResults) {
-      elements.searchResults.innerHTML = '';
-    }
+    showSearch();
   });
   
   elements.menuBookmarks?.addEventListener('click', () => {
-    bookmarkMenuMode = "all";
-    ui.showBookmarkMenu();
+    showBookmarks();
   });
   
   elements.menuHistory?.addEventListener('click', () => {
-    openModal(elements.historyModal);
-    renderHistory();
+    showHistory();
+  });
+
+  elements.floatOpen?.addEventListener('click', () => {
+    openFileDialog();
+  });
+
+  elements.floatLibrary?.addEventListener('click', () => {
+    showLibrary();
+  });
+
+  elements.floatSearch?.addEventListener('click', () => {
+    showSearch();
+  });
+
+  elements.floatBookmarks?.addEventListener('click', () => {
+    showBookmarks();
+  });
+
+  elements.floatHistory?.addEventListener('click', () => {
+    showHistory();
+  });
+
+  elements.floatSettings?.addEventListener('click', () => {
+    showSettings();
   });
   
   elements.menuSettings?.addEventListener('click', () => {
-    openModal(elements.settingsModal);
-    // 現在の設定値を反映
-    if (elements.themeSelect) elements.themeSelect.value = theme;
-    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-    if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
-    if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+    showSettings();
   });
   
-  elements.menuLogout?.addEventListener('click', () => {
-    if (confirm("ログアウトしますか？")) {
-      logout();
+
+  elements.langJa?.addEventListener('click', () => applyUiLanguage("ja"));
+  elements.langEn?.addEventListener('click', () => applyUiLanguage("en"));
+
+  elements.toggleWritingMode?.addEventListener('click', async () => {
+    const nextMode = writingMode === "vertical" ? "horizontal" : "vertical";
+    await applyReadingSettings(nextMode, null);
+    if (elements.writingModeSelect) {
+      elements.writingModeSelect.value = writingMode;
     }
+  });
+
+  elements.fontPlus?.addEventListener('click', () => {
+    applyFontSize((fontSize ?? 16) + 1);
+  });
+
+  elements.fontMinus?.addEventListener('click', () => {
+    applyFontSize((fontSize ?? 16) - 1);
+  });
+
+  elements.toggleTheme?.addEventListener('click', () => {
+    applyTheme(theme === "dark" ? "light" : "dark");
+  });
+
+  elements.toggleLanguage?.addEventListener('click', () => {
+    applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
+  });
+
+  elements.floatBackdrop?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFloatOverlay(false);
+  });
+
+  elements.openToc?.addEventListener('click', () => {
+    if (!currentBookInfo || currentBookInfo.type !== "epub") return;
+    openModal(elements.tocModal);
   });
   
   // ファイル選択
   elements.fileInput?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) {
+      handleFile(file);
+    } else {
+      pendingCloudBookId = null;
+    }
+    e.target.value = "";
   });
   
   // しおり追加
@@ -1311,11 +2611,15 @@ function setupEvents() {
       if (!isNaN(value)) {
         if (progressDisplayMode === "page") {
           // ページ数モード
-          if (currentBookInfo?.type === 'epub' && reader.rendition?.book?.locations) {
-            // EPUBの場合はlocationインデックスとして扱う
-            const totalLocations = reader.rendition.book.locations.total;
-            const percentage = (value / totalLocations) * 100;
-            seekToPercentage(Math.max(0, Math.min(percentage, 100)));
+          if (currentBookInfo?.type === 'epub') {
+            // EPUBの場合はページ数として扱う
+            const totalPages = getEpubPaginationTotal();
+            if (totalPages) {
+              const percentage = (value / totalPages) * 100;
+              seekToPercentage(Math.max(0, Math.min(percentage, 100)));
+            } else {
+              seekToPercentage(Math.max(0, Math.min(value, 100)));
+            }
           } else if (currentBookInfo?.type === 'image') {
             // 画像書籍の場合はページ数として扱う
             const totalPages = reader.imagePages?.length || 1;
@@ -1349,9 +2653,34 @@ function setupEvents() {
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
     applyProgressDisplayMode(e.target.value);
   });
-  
-  elements.autoSyncEnabled?.addEventListener('change', (e) => {
-    toggleAutoSync(e.target.checked);
+
+  elements.googleLoginButton?.addEventListener('click', () => {
+    const authStatus = checkAuthStatus();
+    if (authStatus.authenticated) {
+      logout();
+      return;
+    }
+    try {
+      if (!googleLoginReady) {
+        initializeGoogleLogin();
+      }
+      startGoogleLoginUi();
+      window.google?.accounts?.id?.prompt((notification) => {
+        if (
+          notification.isNotDisplayed?.() ||
+          notification.isSkippedMoment?.() ||
+          notification.isDismissedMoment?.()
+        ) {
+          endGoogleLoginUi();
+        }
+      });
+    } catch (error) {
+      endGoogleLoginUi();
+      console.error("Google login failed:", error);
+      if (elements.userInfo) {
+        elements.userInfo.textContent = t("googleLoginFailed");
+      }
+    }
   });
   
   elements.exportDataBtn?.addEventListener('click', exportData);
@@ -1367,13 +2696,14 @@ function setupEvents() {
   elements.closeSettingsModal?.addEventListener('click', () => closeModal(elements.settingsModal));
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
-  elements.closeBookmarkMenu?.addEventListener('click', () => ui.closeAllMenus());
+  elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
+  elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
   
   // 検索機能
   const executeSearch = async () => {
     const query = elements.searchInput?.value?.trim();
     if (!query) {
-      alert('検索キーワードを入力してください');
+      alert(t("searchMissingQuery"));
       return;
     }
     
@@ -1390,10 +2720,20 @@ function setupEvents() {
   });
   
   // モーダルバックドロップクリック
-  [elements.openFileModal, elements.historyModal, elements.settingsModal, elements.imageModal, elements.searchModal].forEach(modal => {
+  [elements.openFileModal, elements.historyModal, elements.settingsModal, elements.imageModal, elements.searchModal, elements.tocModal].forEach(modal => {
     modal?.addEventListener('click', (e) => {
       if (e.target.classList.contains('modal-backdrop') || e.target === modal) {
         closeModal(modal);
+      }
+    });
+  });
+
+  elements.modalOverlay?.addEventListener('click', (e) => {
+    if (e.target !== elements.modalOverlay) return;
+    e.stopPropagation();
+    Array.from(elements.modalOverlay.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        closeModal(child);
       }
     });
   });
@@ -1402,7 +2742,7 @@ function setupEvents() {
   elements.bookmarkMenu?.addEventListener('click', (e) => {
     // bookmarkMenuの直接クリック（背景部分）の場合は閉じる
     if (e.target === elements.bookmarkMenu) {
-      ui.closeAllMenus();
+      closeModal(elements.bookmarkMenu);
     }
   });
   
@@ -1427,7 +2767,8 @@ function setupEvents() {
         !elements.historyModal?.classList.contains('hidden') ||
         !elements.settingsModal?.classList.contains('hidden') ||
         !elements.imageModal?.classList.contains('hidden') ||
-        !elements.searchModal?.classList.contains('hidden')) {
+        !elements.searchModal?.classList.contains('hidden') ||
+        !elements.syncModal?.classList.contains('hidden')) {
       return;
     }
 
@@ -1490,6 +2831,18 @@ function setupEvents() {
         break;
     }
   });
+
+  window.addEventListener('pagehide', () => {
+    if (!autoSyncEnabled) return;
+    const authStatus = checkAuthStatus();
+    if (!authStatus.authenticated) {
+      syncAutoSyncPolicy(authStatus);
+      return;
+    }
+    pushCurrentBookSync().catch((error) => {
+      console.error("Auto-sync failed:", error);
+    });
+  });
 }
 
 // ========================================
@@ -1503,22 +2856,24 @@ function init() {
   console.log("JSZip:", typeof JSZip !== "undefined" ? "✓" : "✗");
   console.log("ePub:", typeof ePub !== "undefined" ? "✓" : "✗");
   
-  // ユーザー情報表示
-  updateUserInfo();
-  
   // イベント設定
   setupEvents();
-  
+
   // テーマ適用
   applyTheme(theme);
+  if (!Number.isFinite(fontSize)) {
+    const baseFont = Number.parseFloat(
+      window.getComputedStyle(elements.viewer || document.body)?.fontSize
+    );
+    fontSize = Number.isFinite(baseFont) ? baseFont : 16;
+  }
+  applyFontSize(fontSize);
   applyReadingSettings(writingMode, pageDirection);
   applyLibraryViewMode(libraryViewMode);
   applyProgressDisplayMode(progressDisplayMode);
   
-  // 自動同期設定
-  if (autoSyncEnabled) {
-    toggleAutoSync(true);
-  }
+  // 自動同期設定（ログイン時のみ有効）
+  syncAutoSyncPolicy();
   
   // ライブラリレンダリング
   renderLibrary();
@@ -1529,9 +2884,39 @@ function init() {
   console.log("Epub Reader initialized");
 }
 
+function initializeGoogleLogin() {
+  try {
+    initGoogleLogin({ prompt: false });
+    googleLoginReady = true;
+  } catch (error) {
+    console.error("Google login initialization failed:", error);
+  }
+}
+
+function startApp() {
+  init();
+}
+
+function startAfterDomReady() {
+  initializeGoogleLogin();
+  startApp();
+}
+
+window.addEventListener("auth:login", () => {
+  handleAuthLogin().catch((error) => {
+    console.error("同期データの取得に失敗しました:", error);
+  });
+});
+
+window.addEventListener("load", () => {
+  if (!googleLoginReady) {
+    initializeGoogleLogin();
+  }
+});
+
 // DOMContentLoadedイベントを待ってから初期化
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", startAfterDomReady);
 } else {
-  init();
+  startAfterDomReady();
 }
