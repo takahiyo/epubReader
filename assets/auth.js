@@ -69,16 +69,26 @@ export function initGoogleLogin(options = {}) {
   }
 }
 
+export function onGoogleLoginStart() {
+  document.body.classList.add("oauth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("oauth-active");
+}
+
 /**
  * Google Identity Services からのトークン取得
  */
 export function captureGoogleToken(credentialResponse) {
   const idToken = credentialResponse?.credential;
   if (!idToken) {
+    onGoogleLoginEnd();
     return false;
   }
 
   saveIdToken(idToken);
+  onGoogleLoginEnd();
   fetchUserInfo(idToken);
   return true;
 }
@@ -198,6 +208,7 @@ export function clearAuth() {
  * ログアウト処理
  */
 export function logout() {
+  onGoogleLoginEnd();
   clearAuth();
   window.location.href = 'index.html';
 }

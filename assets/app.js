@@ -4,7 +4,14 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, checkAuthStatus, initGoogleLogin, logout } from "./auth.js";
+import {
+  updateActivity,
+  checkAuthStatus,
+  initGoogleLogin,
+  logout,
+  onGoogleLoginStart,
+  onGoogleLoginEnd,
+} from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -2349,8 +2356,18 @@ function setupEvents() {
       if (!googleLoginReady) {
         initializeGoogleLogin();
       }
-      window.google?.accounts?.id?.prompt();
+      onGoogleLoginStart();
+      window.google?.accounts?.id?.prompt((notification) => {
+        if (
+          notification.isNotDisplayed?.() ||
+          notification.isSkippedMoment?.() ||
+          notification.isDismissedMoment?.()
+        ) {
+          onGoogleLoginEnd();
+        }
+      });
     } catch (error) {
+      onGoogleLoginEnd();
       console.error("Google login failed:", error);
       if (elements.userInfo) {
         elements.userInfo.textContent = t("googleLoginFailed");
