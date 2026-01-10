@@ -1,131 +1,7 @@
-:root {
-  --bg: #0f172a;
-  --card: #111827;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --accent: #8b5cf6;
-  --accent-strong: #7c3aed;
-  --border: #1f2937;
-  --reader-bg: #0b1020;
-  --reader-text: #e5e7eb;
-  --reader-safe-inline: clamp(12px, 4vw, 36px);
-  --reader-safe-block: clamp(12px, 5vh, 48px);
-}
+/* ==== 既存CSSは全て保持 ==== */
+/* ここから下を style.css の一番最後に追記する */
 
-[data-theme="light"] {
-  --bg: #f6f8fa;
-  --card: #ffffff;
-  --text: #0f172a;
-  --muted: #4b5563;
-  --accent: #6366f1;
-  --accent-strong: #4f46e5;
-  --border: #e5e7eb;
-  --reader-bg: #ffffff;
-  --reader-text: #111827;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* ========================================
-   全画面リーダー
-======================================== */
-
-.fullscreen-reader {
-  position: fixed;
-  inset: 0;
-  background: var(--reader-bg);
-  color: var(--reader-text);
-}
-
-#fullscreenReader {
-  z-index: 10;
-}
-
-#fullscreenReader iframe {
-  pointer-events: auto;
-}
-
-.viewer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* EPUBスクロールモード */
-.fullscreen-reader.epub-scroll .viewer {
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* クリック検知用オーバーレイ */
-.click-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  pointer-events: all;
-  background: transparent;
-  display: none;
-}
-
-.viewer.visible ~ .click-overlay {
-  display: block;
-}
-
-.fullscreen-reader.epub-scroll .click-overlay {
-  display: none;
-  pointer-events: none;
-}
-
-/* ========================================
-   フロートUI
-======================================== */
-
-#floatOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: none;
-  pointer-events: none;
-}
-
-#floatOverlay.visible {
-  display: block;
-  pointer-events: auto;
-}
-
-/* Google Identity iframe は常に最上位 */
-iframe[src*="accounts.google.com"],
-div[id^="g_id_"] {
-  z-index: 2147483647 !important;
-  position: fixed !important;
-}
-
-/* OAuth時は floatUI を殺す */
-body.google-auth-active #floatOverlay,
-body.google-auth-active .float-backdrop,
-body.google-auth-active .float-buttons {
-  display: none !important;
-  pointer-events: none !important;
-}
-
-/* OAuth 用ブラー（UIより下、モーダルより上） */
+/* ===== Google OAuth ブラー層 ===== */
 body.google-auth-active::before {
   content: "";
   position: fixed;
@@ -133,92 +9,35 @@ body.google-auth-active::before {
   backdrop-filter: blur(12px);
   background: rgba(0,0,0,0.5);
   z-index: 5000;
-}
-
-/* 既存 float backdrop */
-.float-backdrop {
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(10px);
-  background: rgba(0, 0, 0, 0.5);
   pointer-events: auto;
-  z-index: 1;
 }
 
-.float-title {
-  position: absolute;
-  top: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: auto;
-  z-index: 2;
+/* Google iframe は最上位 */
+iframe[src*="accounts.google.com"],
+div[id^="g_id_"] {
+  z-index: 2147483647 !important;
+  position: fixed !important;
 }
 
-/* （以降 float / reader / menu / progress / bookmark / etc は元のまま） */
-
-/* ========================================
-   しおりメニュー（モーダル）
-======================================== */
-
-.bookmark-menu {
-  position: fixed;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  z-index: 10000;
-}
-
-.bookmark-menu.visible {
-  display: flex;
-}
-
-/* ========================================
-   モーダル共通（最優先レイヤー）
-======================================== */
-
+/* ===== モーダルは常に最前面 ===== */
 #modalOverlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  display: none;
+  z-index: 10000 !important;
   pointer-events: auto;
 }
 
-#modalOverlay.visible {
-  display: block;
+#modalOverlay .modal,
+.bookmark-menu {
+  z-index: 10001 !important;
 }
 
-.modal {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
+.modal .modal-content,
+.bookmark-menu .modal-content {
+  z-index: 10002 !important;
 }
 
-.modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(6px);
+/* ===== floatOverlay はその下 ===== */
+#floatOverlay {
+  z-index: 1000 !important;
 }
-
-.modal .modal-content {
-  position: relative;
-  z-index: 10002;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.5rem;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
-}
-
-/* ===== 以下は元のCSSそのまま ===== */
-/* 左メニュー、進捗バー、履歴、検索、設定 etc */
-/* （あなたの貼った残りは一切変更不要） */
