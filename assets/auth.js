@@ -162,3 +162,7 @@ export function getCurrentUserId() {
 export function getIdToken() {
   return localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
 }
+// app.js が待っているフック（互換用）
+export function onGoogleLoginEnd() {
+  // 何もしなくてよい（ログイン完了は captureGoogleToken で処理済み）
+}
