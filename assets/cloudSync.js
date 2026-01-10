@@ -1,6 +1,8 @@
 import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
-import { requestDriveScope } from "./auth.js";
+
+const DRIVE_AUTH_REQUIRED_MESSAGE =
+  "Google Drive の認証が必要です。設定の「Google Drive と同期」ボタンから認証してください。";
 
 export class CloudSync {
   constructor(storage) {
@@ -206,9 +208,7 @@ export class CloudSync {
     if (isDriveTokenValid(settings?.driveToken)) {
       return settings.driveToken.accessToken;
     }
-    const driveToken = await requestDriveScope();
-    this.storage.setSettings({ driveToken });
-    return driveToken.accessToken;
+    throw new Error(DRIVE_AUTH_REQUIRED_MESSAGE);
   }
 
   async resolveDriveFileId(accessToken, settings) {

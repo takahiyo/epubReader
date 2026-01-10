@@ -1,12 +1,13 @@
 import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
-import { requestDriveScope } from "./auth.js";
 
 const DB_NAME = "epubReader-files";
 const STORE = "files";
 const VERSION = 1;
 const STORAGE_KEY = "epubReader:data";
 const EMPTY_DATA = { library: {}, bookmarks: {}, progress: {}, history: [], settings: {} };
+const DRIVE_AUTH_REQUIRED_MESSAGE =
+  "Google Drive の認証が必要です。設定の「Google Drive と同期」ボタンから認証してください。";
 
 function getStoredData() {
   try {
@@ -48,6 +49,9 @@ function isPCloudConfigured(settings) {
 }
 
 function ensureCloudLoggedIn(source, settings) {
+  if (source === "drive" && !isDriveTokenValid(settings?.driveToken)) {
+    throw new Error(DRIVE_AUTH_REQUIRED_MESSAGE);
+  }
   if (source === "onedrive" && !isOneDriveTokenValid(settings?.onedriveToken)) {
     throw new Error("OneDrive にログインしてください。");
   }
@@ -159,9 +163,7 @@ async function ensureDriveToken() {
   if (isDriveTokenValid(settings?.driveToken)) {
     return settings.driveToken.accessToken;
   }
-  const driveToken = await requestDriveScope();
-  persistSettings({ driveToken });
-  return driveToken.accessToken;
+  throw new Error(DRIVE_AUTH_REQUIRED_MESSAGE);
 }
 
 async function ensureOneDriveToken() {
