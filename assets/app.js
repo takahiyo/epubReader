@@ -2363,12 +2363,6 @@ function init() {
   // イベント設定
   setupEvents();
 
-  try {
-    initGoogleLogin({ prompt: false });
-  } catch (error) {
-    console.error("Google login initialization failed:", error);
-  }
-  
   // テーマ適用
   applyTheme(theme);
   if (!Number.isFinite(fontSize)) {
@@ -2394,9 +2388,19 @@ function init() {
   console.log("Epub Reader initialized");
 }
 
+function startApp() {
+  try {
+    initGoogleLogin({ prompt: false });
+  } catch (error) {
+    console.error("Google login initialization failed:", error);
+  }
+
+  init();
+}
+
 // DOMContentLoadedイベントを待ってから初期化
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", startApp);
 } else {
-  init();
+  startApp();
 }
