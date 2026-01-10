@@ -9,6 +9,10 @@ const defaultData = {
   bookmarks: {},
   progress: {},
   history: [],
+  cloudIndex: {},
+  cloudStates: {},
+  cloudIndexUpdatedAt: null,
+  bookLinkMap: {},
   settings: {
     gasEndpoint: defaultGasEndpoint,
     syncEnabled: false,
@@ -52,6 +56,10 @@ export class StorageService {
         bookmarks: parsed.bookmarks ?? {},
         progress: parsed.progress ?? {},
         history: parsed.history ?? [],
+        cloudIndex: parsed.cloudIndex ?? {},
+        cloudStates: parsed.cloudStates ?? {},
+        cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
+        bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
           gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
@@ -179,6 +187,10 @@ export class StorageService {
         bookmarks: parsed.bookmarks ?? {},
         progress: parsed.progress ?? {},
         history: parsed.history ?? [],
+        cloudIndex: parsed.cloudIndex ?? {},
+        cloudStates: parsed.cloudStates ?? {},
+        cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
+        bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
           gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
@@ -211,6 +223,10 @@ export class StorageService {
       bookmarks: parsed?.bookmarks ?? {},
       progress: parsed?.progress ?? {},
       history: parsed?.history ?? [],
+      cloudIndex: parsed?.cloudIndex ?? {},
+      cloudStates: parsed?.cloudStates ?? {},
+      cloudIndexUpdatedAt: parsed?.cloudIndexUpdatedAt ?? null,
+      bookLinkMap: parsed?.bookLinkMap ?? {},
     };
 
     const mergedLibrary = { ...this.data.library };
@@ -266,14 +282,95 @@ export class StorageService {
       }
     });
 
+    const mergedCloudIndex = { ...this.data.cloudIndex };
+    Object.entries(normalized.cloudIndex ?? {}).forEach(([cloudBookId, incomingMeta]) => {
+      const existing = mergedCloudIndex[cloudBookId];
+      const incomingUpdatedAt = incomingMeta?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedCloudIndex[cloudBookId] = { ...existing, ...incomingMeta };
+      } else {
+        mergedCloudIndex[cloudBookId] = { ...incomingMeta, ...existing };
+      }
+    });
+
+    const mergedCloudStates = { ...this.data.cloudStates };
+    Object.entries(normalized.cloudStates ?? {}).forEach(([cloudBookId, incomingState]) => {
+      const existing = mergedCloudStates[cloudBookId];
+      const incomingUpdatedAt = incomingState?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedCloudStates[cloudBookId] = { ...existing, ...incomingState };
+      } else {
+        mergedCloudStates[cloudBookId] = { ...incomingState, ...existing };
+      }
+    });
+
+    const mergedBookLinkMap = { ...this.data.bookLinkMap, ...normalized.bookLinkMap };
+
     this.data = {
       ...this.data,
       library: mergedLibrary,
       bookmarks: mergedBookmarks,
       progress: mergedProgress,
       history: mergedHistory,
+      cloudIndex: mergedCloudIndex,
+      cloudStates: mergedCloudStates,
+      cloudIndexUpdatedAt: normalized.cloudIndexUpdatedAt ?? this.data.cloudIndexUpdatedAt,
+      bookLinkMap: mergedBookLinkMap,
       settings: this.data.settings,
     };
     this.save();
+  }
+
+  getCloudBookId(localBookId) {
+    return this.data.bookLinkMap?.[localBookId] ?? null;
+  }
+
+  setBookLink(localBookId, cloudBookId) {
+    if (!localBookId || !cloudBookId) return;
+    this.data.bookLinkMap = {
+      ...(this.data.bookLinkMap ?? {}),
+      [localBookId]: cloudBookId,
+    };
+    this.save();
+  }
+
+  mergeCloudIndex(index, updatedAt = null) {
+    if (!index || typeof index !== "object") return;
+    const merged = { ...(this.data.cloudIndex ?? {}) };
+    Object.entries(index).forEach(([cloudBookId, meta]) => {
+      const existing = merged[cloudBookId];
+      const incomingUpdatedAt = meta?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        merged[cloudBookId] = { ...existing, ...meta };
+      } else {
+        merged[cloudBookId] = { ...meta, ...existing };
+      }
+    });
+    this.data.cloudIndex = merged;
+    if (updatedAt) {
+      this.data.cloudIndexUpdatedAt = updatedAt;
+    }
+    this.save();
+  }
+
+  setCloudState(cloudBookId, state) {
+    if (!cloudBookId || !state) return;
+    const existing = this.data.cloudStates?.[cloudBookId];
+    const incomingUpdatedAt = state?.updatedAt ?? 0;
+    const existingUpdatedAt = existing?.updatedAt ?? 0;
+    if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+      this.data.cloudStates = {
+        ...(this.data.cloudStates ?? {}),
+        [cloudBookId]: state,
+      };
+      this.save();
+    }
+  }
+
+  getCloudState(cloudBookId) {
+    return this.data.cloudStates?.[cloudBookId] ?? null;
   }
 }

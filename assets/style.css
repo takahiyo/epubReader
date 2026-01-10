@@ -423,6 +423,24 @@ body.google-auth-active .modal-backdrop {
   font-size: 1rem;
 }
 
+.cloud-empty {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cloud-empty-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cloud-empty-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .hidden {
   display: none !important;
 }
@@ -1153,6 +1171,42 @@ body.google-auth-active .modal-backdrop {
 
 .library-grid[data-view="list"] .library-meta {
   margin-left: auto;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.library-grid[data-view="list"] .library-actions {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+.library-badge {
+  font-size: 0.65rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.library-attach {
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.library-attach:hover {
+  border-color: var(--accent);
 }
 
 /* ========================================
