@@ -67,6 +67,78 @@ export function initGoogleLogin(options = {}) {
   if (options.prompt === true) {
     window.google.accounts.id.prompt();
   }
+
+  removedBlurLayers = Array.from(document.querySelectorAll(BLUR_LAYER_SELECTORS))
+    .map((node) => ({
+      node,
+      parent: node.parentNode,
+      nextSibling: node.nextSibling,
+    }))
+    .filter((entry) => entry.parent);
+
+  removedBlurLayers.forEach(({ node }) => {
+    node.remove();
+  });
+}
+
+function restoreBlurLayers() {
+  removedBlurLayers.forEach(({ node, parent, nextSibling }) => {
+    if (!node.isConnected) {
+      parent.insertBefore(node, nextSibling);
+    }
+  });
+  removedBlurLayers = [];
+}
+
+export function onGoogleLoginStart() {
+  hideAllBlurLayers();
+}
+
+export function onGoogleLoginEnd() {
+  restoreBlurLayers();
+}
+
+export function onGoogleLoginStart() {
+  document.body.classList.add("oauth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("oauth-active");
+}
+
+function setOAuthMode(active) {
+  const layers = document.querySelectorAll(BLUR_LAYER_SELECTORS);
+  layers.forEach((element) => {
+    if (active) {
+      element.dataset.prevDisplay = element.style.display || "";
+      element.dataset.prevPointer = element.style.pointerEvents || "";
+      element.style.display = "none";
+      element.style.pointerEvents = "none";
+    } else {
+      element.style.display = element.dataset.prevDisplay || "";
+      element.style.pointerEvents = element.dataset.prevPointer || "";
+      delete element.dataset.prevDisplay;
+      delete element.dataset.prevPointer;
+    }
+  });
+}
+
+export function onGoogleLoginStart() {
+  document.body.classList.add("oauth-active");
+  setOAuthMode(true);
+}
+
+export function onGoogleLoginEnd() {
+  setOAuthMode(false);
+  document.body.classList.remove("oauth-active");
+}
+
+export function onGoogleLoginStart() {
+  document.body.classList.add("google-auth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("google-auth-active");
 }
 
 export function onGoogleLoginStart() {
