@@ -397,71 +397,32 @@ applyUiLanguage(uiLanguage);
 function setupViewerIframeClickBridge() {
   if (!elements.viewer || !elements.fullscreenReader) return;
 
-  const handleIframePoint = (iframe, clientX, clientY, originalEvent) => {
+  const handleIframeClick = (iframe, event) => {
     const rect = iframe.getBoundingClientRect();
-    const cx = typeof clientX === "number" ? clientX : 0;
-    const cy = typeof clientY === "number" ? clientY : 0;
-    const isLikelyLocal =
-      cx >= 0 &&
-      cy >= 0 &&
-      cx <= rect.width + 1 &&
-      cy <= rect.height + 1;
-    const x = isLikelyLocal ? rect.left + cx : cx;
-    const y = isLikelyLocal ? rect.top + cy : cy;
+    const x = rect.left + event.clientX;
+    const y = rect.top + event.clientY;
     const area = ui.getClickArea(x, y, elements.fullscreenReader);
-    if (!area) return;
-    ui.handleAreaClick(area, originalEvent || { clientX: x, clientY: y });
+    ui.handleAreaClick(area, event);
   };
 
   const bindIframe = (iframe) => {
     if (!iframe || iframe.dataset.clickBridgeBound === "true") return;
     iframe.dataset.clickBridgeBound = "true";
 
-    const attach = () => {
+    const attachClickListener = () => {
       try {
         const doc = iframe.contentDocument;
         if (!doc) return;
-
-        try {
-          if (doc.documentElement) doc.documentElement.style.touchAction = "manipulation";
-          if (doc.body) doc.body.style.touchAction = "manipulation";
-        } catch (_) {}
-
-        const onPointerDown = (event) => {
-          if (event.pointerType === "touch") {
-            event.preventDefault();
-          }
-        };
-
-        const onPointerUp = (event) => {
-          handleIframePoint(iframe, event.clientX, event.clientY, event);
-        };
-
-        doc.addEventListener("pointerdown", onPointerDown, { capture: true, passive: false });
-        doc.addEventListener("pointerup", onPointerUp, { capture: true, passive: true });
-        doc.addEventListener(
-          "click",
-          (event) => handleIframePoint(iframe, event.clientX, event.clientY, event),
-          { capture: true, passive: true }
-        );
-        doc.addEventListener(
-          "touchend",
-          (event) => {
-            const t = event.changedTouches?.[0];
-            if (!t) return;
-            handleIframePoint(iframe, t.clientX, t.clientY, event);
-          },
-          { capture: true, passive: true }
-        );
+        doc.addEventListener("click", (event) => handleIframeClick(iframe, event));
       } catch (error) {
         console.warn("Failed to attach iframe click bridge:", error);
       }
     };
 
     if (iframe.contentDocument?.readyState === "complete") {
-      attach();
+      attachClickListener();
     } else {
-      iframe.addEventListener("load", attach, { once: true });
+      iframe.addEventListener("load", attachClickListener, { once: true });
     }
   };
 
