@@ -454,6 +454,14 @@ function updateSearchButtonState() {
 function updateAuthStatusDisplay() {
   if (!elements.userInfo) return;
   const authStatus = checkAuthStatus();
+  const { source, saveDestination } = storage.getSettings();
+  if (authStatus.authenticated) {
+    if (source !== "drive" || saveDestination !== "drive") {
+      storage.setSettings({ source: "drive", saveDestination: "drive" });
+    }
+  } else if (source === "drive" || saveDestination === "drive") {
+    storage.setSettings({ source: "local", saveDestination: "local" });
+  }
   if (authStatus.authenticated) {
     const userLabel = authStatus.userEmail || authStatus.userName;
     elements.userInfo.textContent = userLabel
