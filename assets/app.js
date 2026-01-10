@@ -4,7 +4,7 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, checkAuthStatus, initGoogleLogin } from "./auth.js";
+import { updateActivity, checkAuthStatus, initGoogleLogin, logout } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -84,6 +84,7 @@ const UI_STRINGS = {
     progressDisplayPercentage: "パーセンテージ",
     settingsAccountTitle: "アカウント",
     googleLoginLabel: "Googleログイン",
+    googleLogoutLabel: "ログオフ",
     googleLoginStatusSignedOut: "未ログイン",
     googleLoginStatusSignedIn: "ログイン済み: {user}",
     googleLoginStatusSignedInShort: "ログイン済み",
@@ -149,6 +150,7 @@ const UI_STRINGS = {
     progressDisplayPercentage: "Percentage",
     settingsAccountTitle: "Account",
     googleLoginLabel: "Sign in with Google",
+    googleLogoutLabel: "Sign out",
     googleLoginStatusSignedOut: "Signed out",
     googleLoginStatusSignedIn: "Signed in: {user}",
     googleLoginStatusSignedInShort: "Signed in",
@@ -469,6 +471,11 @@ function updateAuthStatusDisplay() {
       : t("googleLoginStatusSignedInShort");
   } else {
     elements.userInfo.textContent = t("googleLoginStatusSignedOut");
+  }
+  if (elements.googleLoginButton) {
+    elements.googleLoginButton.textContent = authStatus.authenticated
+      ? t("googleLogoutLabel")
+      : t("googleLoginLabel");
   }
   syncAutoSyncPolicy(authStatus);
 }
@@ -2182,6 +2189,11 @@ function setupEvents() {
   });
 
   elements.googleLoginButton?.addEventListener('click', () => {
+    const authStatus = checkAuthStatus();
+    if (authStatus.authenticated) {
+      logout();
+      return;
+    }
     try {
       initGoogleLogin();
     } catch (error) {
