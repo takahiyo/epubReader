@@ -109,6 +109,12 @@ body {
   display: block;
 }
 
+iframe[src*="accounts.google.com"],
+div[id^="g_id_"] {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+}
+
 .float-backdrop {
   position: absolute;
   inset: 0;
