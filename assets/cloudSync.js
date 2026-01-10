@@ -54,6 +54,37 @@ export class CloudSync {
     return { Authorization: `Bearer ${apiKey}` };
   }
 
+  getGasEndpoint(settings = this.storage.getSettings()) {
+    if (!settings.gasEndpoint) {
+      throw new Error("GAS エンドポイントが設定されていません");
+    }
+    return settings.gasEndpoint.replace(/\/$/, "");
+  }
+
+  getIdTokenOrThrow() {
+    const idToken = getIdToken();
+    if (!idToken) {
+      throw new Error(GAS_AUTH_REQUIRED_MESSAGE);
+    }
+    return idToken;
+  }
+
+  async postGas(path, payload, settings = this.storage.getSettings()) {
+    const endpoint = this.getGasEndpoint(settings);
+    const response = await fetch(`${endpoint}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`同期に失敗しました (${response.status})`);
+    }
+    return response.json().catch(() => ({}));
+  }
+
   async push(source) {
     const { settings, resolvedSource } = this.getSettings(source);
     if (resolvedSource === "local") {
@@ -131,27 +162,8 @@ export class CloudSync {
     if (resolvedSource !== "gas") {
       return { source: resolvedSource, status: "skipped" };
     }
-    if (!settings.gasEndpoint) {
-      throw new Error("GAS エンドポイントが設定されていません");
-    }
-    const idToken = getIdToken();
-    if (!idToken) {
-      throw new Error(GAS_AUTH_REQUIRED_MESSAGE);
-    }
-
-    const response = await fetch(`${settings.gasEndpoint.replace(/\/$/, "")}/sync/pull`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      },
-      body: JSON.stringify({ bookId, idToken }),
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(`同期データの取得に失敗しました (${response.status})`);
-    }
-    const json = await response.json();
-    return json;
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas("/sync/pull", { bookId, idToken }, settings);
   }
 
   async pushBookData(bookId, payload, settings = this.storage.getSettings()) {
@@ -159,32 +171,62 @@ export class CloudSync {
     if (resolvedSource !== "gas") {
       return { source: resolvedSource, status: "skipped" };
     }
-    if (!settings.gasEndpoint) {
-      throw new Error("GAS エンドポイントが設定されていません");
-    }
-    const idToken = getIdToken();
-    if (!idToken) {
-      throw new Error(GAS_AUTH_REQUIRED_MESSAGE);
-    }
-
-    const response = await fetch(`${settings.gasEndpoint.replace(/\/$/, "")}/sync/push`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      },
-      body: JSON.stringify({
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas(
+      "/sync/push",
+      {
         bookId,
         data: payload.data,
         updatedAt: payload.updatedAt,
         idToken,
-      }),
-      cache: "no-store",
-    });
+      },
+      settings,
+    );
+  }
 
-    if (!response.ok) {
-      throw new Error(`同期データの保存に失敗しました (${response.status})`);
+  async pullIndex(settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("gas", settings);
+    if (resolvedSource !== "gas") {
+      return { source: resolvedSource, status: "skipped" };
     }
-    return response.json().catch(() => ({}));
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas("/sync/index/pull", { idToken }, settings);
+  }
+
+  async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("gas", settings);
+    if (resolvedSource !== "gas") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas("/sync/index/push", { idToken, indexDelta, updatedAt }, settings);
+  }
+
+  async pullState(cloudBookId, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("gas", settings);
+    if (resolvedSource !== "gas") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas("/sync/state/pull", { idToken, cloudBookId }, settings);
+  }
+
+  async pushState(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("gas", settings);
+    if (resolvedSource !== "gas") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas("/sync/state/push", { idToken, cloudBookId, state, updatedAt }, settings);
+  }
+
+  async matchBook(fingerprint, meta, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("gas", settings);
+    if (resolvedSource !== "gas") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    const idToken = this.getIdTokenOrThrow();
+    return this.postGas("/sync/match", { idToken, fingerprint, meta }, settings);
   }
 
   async pushToEndpoint(settings) {

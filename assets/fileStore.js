@@ -4,7 +4,17 @@ const DB_NAME = "epubReader-files";
 const STORE = "files";
 const VERSION = 1;
 const STORAGE_KEY = "epubReader:data";
-const EMPTY_DATA = { library: {}, bookmarks: {}, progress: {}, history: [], settings: {} };
+const EMPTY_DATA = {
+  library: {},
+  bookmarks: {},
+  progress: {},
+  history: [],
+  cloudIndex: {},
+  cloudStates: {},
+  cloudIndexUpdatedAt: null,
+  bookLinkMap: {},
+  settings: {},
+};
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

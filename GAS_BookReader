@@ -1,25 +1,220 @@
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  const user = Session.getActiveUser().getEmail();
+  try {
+    const payload = parsePayload(e);
+    const path = getPath(e);
+    const auth = verifyIdToken(payload.idToken);
+    const userKey = auth.sub;
 
-  const key = user + ":" + data.bookId;
-
-  const props = PropertiesService.getScriptProperties();
-  props.setProperty(key, JSON.stringify(data));
-
-  return ContentService.createTextOutput(
-    JSON.stringify({ ok: true, ts: Date.now() })
-  ).setMimeType(ContentService.MimeType.JSON);
+    if (path === "/sync/index/pull") {
+      return jsonResponse(handleIndexPull(userKey));
+    }
+    if (path === "/sync/index/push") {
+      return jsonResponse(handleIndexPush(userKey, payload));
+    }
+    if (path === "/sync/state/pull") {
+      return jsonResponse(handleStatePull(userKey, payload));
+    }
+    if (path === "/sync/state/push") {
+      return jsonResponse(handleStatePush(userKey, payload));
+    }
+    if (path === "/sync/match") {
+      return jsonResponse(handleMatch(userKey, payload));
+    }
+    if (path === "/sync/pull") {
+      return jsonResponse(handleLegacyPull(userKey, payload));
+    }
+    if (path === "/sync/push") {
+      return jsonResponse(handleLegacyPush(userKey, payload));
+    }
+    return jsonResponse({ ok: false, error: "Unknown path" });
+  } catch (error) {
+    return jsonResponse({ ok: false, error: error.message });
+  }
 }
 
-function doGet(e) {
-  const user = Session.getActiveUser().getEmail();
-  const bookId = e.parameter.bookId;
-  const key = user + ":" + bookId;
+function doGet() {
+  return jsonResponse({ ok: true, timestamp: Date.now() });
+}
 
+function parsePayload(e) {
+  if (!e || !e.postData || !e.postData.contents) {
+    return {};
+  }
+  return JSON.parse(e.postData.contents);
+}
+
+function getPath(e) {
+  const raw = e && e.pathInfo ? e.pathInfo : "";
+  const normalized = raw.replace(/\/+$/, "");
+  return normalized || "";
+}
+
+function jsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(
+    ContentService.MimeType.JSON,
+  );
+}
+
+function verifyIdToken(idToken) {
+  if (!idToken) {
+    throw new Error("idToken が必要です");
+  }
+  const clientId = PropertiesService.getScriptProperties().getProperty("GOOGLE_CLIENT_ID");
+  if (!clientId) {
+    throw new Error("GOOGLE_CLIENT_ID が設定されていません");
+  }
+  const response = UrlFetchApp.fetch(
+    "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken),
+  );
+  if (response.getResponseCode() !== 200) {
+    throw new Error("トークンの検証に失敗しました");
+  }
+  const payload = JSON.parse(response.getContentText());
+  if (payload.aud !== clientId) {
+    throw new Error("トークンの対象が不正です");
+  }
+  if (!payload.sub) {
+    throw new Error("ユーザー情報が取得できませんでした");
+  }
+  return payload;
+}
+
+function handleIndexPull(userKey) {
   const props = PropertiesService.getScriptProperties();
-  const data = props.getProperty(key);
+  const indexKey = "index:" + userKey;
+  const updatedKey = "indexUpdatedAt:" + userKey;
+  const indexRaw = props.getProperty(indexKey);
+  const updatedAt = Number(props.getProperty(updatedKey)) || 0;
+  const index = indexRaw ? JSON.parse(indexRaw) : {};
+  return { ok: true, index: index, updatedAt: updatedAt };
+}
 
-  return ContentService.createTextOutput(data || "{}")
-    .setMimeType(ContentService.MimeType.JSON);
+function handleIndexPush(userKey, payload) {
+  const props = PropertiesService.getScriptProperties();
+  const indexKey = "index:" + userKey;
+  const updatedKey = "indexUpdatedAt:" + userKey;
+  const existingRaw = props.getProperty(indexKey);
+  const existing = existingRaw ? JSON.parse(existingRaw) : {};
+  const delta = payload.indexDelta || {};
+
+  Object.keys(delta).forEach(function (cloudBookId) {
+    const incoming = delta[cloudBookId];
+    if (!incoming) return;
+    const existingItem = existing[cloudBookId];
+    const incomingUpdatedAt = incoming.updatedAt || 0;
+    const existingUpdatedAt = existingItem ? existingItem.updatedAt || 0 : 0;
+    if (!existingItem || incomingUpdatedAt >= existingUpdatedAt) {
+      existing[cloudBookId] = incoming;
+    }
+  });
+
+  props.setProperty(indexKey, JSON.stringify(existing));
+  const incomingUpdatedAt = payload.updatedAt || Date.now();
+  props.setProperty(updatedKey, String(incomingUpdatedAt));
+  return { ok: true };
+}
+
+function handleStatePull(userKey, payload) {
+  const cloudBookId = payload.cloudBookId;
+  if (!cloudBookId) {
+    throw new Error("cloudBookId が必要です");
+  }
+  const props = PropertiesService.getScriptProperties();
+  const stateKey = "state:" + userKey + ":" + cloudBookId;
+  const stateRaw = props.getProperty(stateKey);
+  const state = stateRaw ? JSON.parse(stateRaw) : null;
+  return { ok: true, state: state };
+}
+
+function handleStatePush(userKey, payload) {
+  const cloudBookId = payload.cloudBookId;
+  const incomingState = payload.state;
+  if (!cloudBookId || !incomingState) {
+    throw new Error("cloudBookId と state が必要です");
+  }
+  const props = PropertiesService.getScriptProperties();
+  const stateKey = "state:" + userKey + ":" + cloudBookId;
+  const stateRaw = props.getProperty(stateKey);
+  const existing = stateRaw ? JSON.parse(stateRaw) : null;
+  const incomingUpdatedAt = payload.updatedAt || incomingState.updatedAt || 0;
+  const existingUpdatedAt = existing ? existing.updatedAt || 0 : 0;
+
+  if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+    props.setProperty(stateKey, JSON.stringify({ ...incomingState, updatedAt: incomingUpdatedAt }));
+  }
+  return { ok: true };
+}
+
+function handleMatch(userKey, payload) {
+  const fingerprint = payload.fingerprint;
+  const meta = payload.meta || {};
+  const props = PropertiesService.getScriptProperties();
+  const indexKey = "index:" + userKey;
+  const existingRaw = props.getProperty(indexKey);
+  const index = existingRaw ? JSON.parse(existingRaw) : {};
+
+  var matched = null;
+  var candidates = [];
+
+  Object.keys(index).forEach(function (cloudBookId) {
+    var item = index[cloudBookId];
+    var fingerprints = item && item.fingerprints ? item.fingerprints : [];
+    if (fingerprint && fingerprints.indexOf(fingerprint) !== -1) {
+      matched = cloudBookId;
+      return;
+    }
+    if (isMetaCandidate(meta, item)) {
+      candidates.push({ cloudBookId: cloudBookId, meta: item });
+    }
+  });
+
+  return { ok: true, cloudBookId: matched, candidates: candidates };
+}
+
+function handleLegacyPull(userKey, payload) {
+  const bookId = payload.bookId;
+  if (!bookId) {
+    throw new Error("bookId が必要です");
+  }
+  const props = PropertiesService.getScriptProperties();
+  const key = "legacy:" + userKey + ":" + bookId;
+  const data = props.getProperty(key);
+  return data ? JSON.parse(data) : {};
+}
+
+function handleLegacyPush(userKey, payload) {
+  const bookId = payload.bookId;
+  if (!bookId) {
+    throw new Error("bookId が必要です");
+  }
+  const key = "legacy:" + userKey + ":" + bookId;
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(key, JSON.stringify(payload));
+  return { ok: true, ts: Date.now() };
+}
+
+function isMetaCandidate(requestMeta, itemMeta) {
+  if (!requestMeta || !itemMeta) return false;
+  var requestTitle = normalizeText(requestMeta.title);
+  var requestAuthor = normalizeText(requestMeta.author);
+  var itemTitle = normalizeText(itemMeta.title);
+  var itemAuthor = normalizeText(itemMeta.author);
+  var titleMatch = requestTitle && itemTitle && requestTitle === itemTitle;
+  var authorMatch = requestAuthor && itemAuthor && requestAuthor === itemAuthor;
+  var identifierMatch = hasIdentifierMatch(requestMeta.identifiers, itemMeta.identifiers);
+  return (titleMatch && authorMatch) || identifierMatch;
+}
+
+function normalizeText(value) {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
+}
+
+function hasIdentifierMatch(left, right) {
+  if (!left || !right) return false;
+  var leftList = Array.isArray(left) ? left : [left];
+  var rightList = Array.isArray(right) ? right : [right];
+  return leftList.some(function (value) {
+    return rightList.indexOf(value) !== -1;
+  });
 }
