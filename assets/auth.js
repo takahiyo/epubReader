@@ -1,4 +1,4 @@
-// Google OAuth 2.0 認証管理モジュール（正規化版）
+// Google OAuth 2.0 認証管理モジュール（正規化・app.js互換版）
 
 let googleLoginInitialized = false;
 let oauthActive = false;
@@ -72,17 +72,17 @@ export function initGoogleLogin({ prompt = false } = {}) {
 // Login / Logout
 // -------------------------
 export function startGoogleLogin() {
-  setOAuthMode(true);
+  onGoogleLoginStart();
   window.google.accounts.id.prompt((notification) => {
     if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      setOAuthMode(false);
+      onGoogleLoginEnd();
     }
   });
 }
 
 export function logout() {
   clearAuth();
-  setOAuthMode(false);
+  onGoogleLoginEnd();
   window.location.reload();
 }
 
@@ -92,12 +92,12 @@ export function logout() {
 export function captureGoogleToken(credentialResponse) {
   const idToken = credentialResponse?.credential;
   if (!idToken) {
-    setOAuthMode(false);
+    onGoogleLoginEnd();
     return;
   }
 
   saveIdToken(idToken);
-  setOAuthMode(false);
+  onGoogleLoginEnd();
   fetchUserInfo(idToken);
 }
 
@@ -162,7 +162,14 @@ export function getCurrentUserId() {
 export function getIdToken() {
   return localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
 }
-// app.js が待っているフック（互換用）
+
+// -------------------------
+// app.js 互換フック（必須）
+// -------------------------
+export function onGoogleLoginStart() {
+  setOAuthMode(true);
+}
+
 export function onGoogleLoginEnd() {
-  // 何もしなくてよい（ログイン完了は captureGoogleToken で処理済み）
+  setOAuthMode(false);
 }
