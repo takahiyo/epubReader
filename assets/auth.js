@@ -149,6 +149,14 @@ export function onGoogleLoginEnd() {
   document.body.classList.remove("google-auth-active");
 }
 
+export function onGoogleLoginStart() {
+  document.body.classList.add("google-auth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("google-auth-active");
+}
+
 /**
  * Google Identity Services からのトークン取得
  */
