@@ -4,7 +4,8 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, checkAuthStatus, initGoogleLogin, logout } from "./auth.js";
+import { updateActivity, checkAuthStatus, initGoogleLogin, logout, requestDriveScope } from "./auth.js";
+import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -89,6 +90,9 @@ const UI_STRINGS = {
     googleLoginStatusSignedIn: "ログイン済み: {user}",
     googleLoginStatusSignedInShort: "ログイン済み",
     googleLoginFailed: "ログインに失敗しました",
+    driveSyncLabel: "Google Drive と同期",
+    driveSyncHint: "Drive 同期を有効にするにはここで認証します。",
+    driveSyncHintReady: "Google Drive の認証が完了しています。",
     settingsDataTitle: "データ管理",
     exportData: "設定・データを書き出す",
     importData: "設定・データを読み込む",
@@ -155,6 +159,9 @@ const UI_STRINGS = {
     googleLoginStatusSignedIn: "Signed in: {user}",
     googleLoginStatusSignedInShort: "Signed in",
     googleLoginFailed: "Failed to sign in",
+    driveSyncLabel: "Sync with Google Drive",
+    driveSyncHint: "Authenticate here to enable Drive sync.",
+    driveSyncHintReady: "Google Drive authorization is complete.",
     settingsDataTitle: "Data",
     exportData: "Export settings & data",
     importData: "Import settings & data",
@@ -304,7 +311,9 @@ const elements = {
   progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
   settingsAccountTitle: document.getElementById("settingsAccountTitle"),
   googleLoginButton: document.getElementById("googleLoginButton"),
+  driveSyncButton: document.getElementById("driveSyncButton"),
   userInfo: document.getElementById("userInfo"),
+  driveSyncHint: document.getElementById("driveSyncHint"),
   settingsDataTitle: document.getElementById("settingsDataTitle"),
   importDataLabel: document.getElementById("importDataLabel"),
 };
@@ -456,12 +465,10 @@ function updateSearchButtonState() {
 function updateAuthStatusDisplay() {
   if (!elements.userInfo) return;
   const authStatus = checkAuthStatus();
-  const { source, saveDestination } = storage.getSettings();
-  if (authStatus.authenticated) {
-    if (source !== "drive" || saveDestination !== "drive") {
-      storage.setSettings({ source: "drive", saveDestination: "drive" });
-    }
-  } else if (source === "drive" || saveDestination === "drive") {
+  const settings = storage.getSettings();
+  const { source, saveDestination } = settings;
+  const driveTokenValid = isDriveTokenValid(settings?.driveToken);
+  if (!authStatus.authenticated && (source === "drive" || saveDestination === "drive")) {
     storage.setSettings({ source: "local", saveDestination: "local" });
   }
   if (authStatus.authenticated) {
@@ -477,7 +484,13 @@ function updateAuthStatusDisplay() {
       ? t("googleLogoutLabel")
       : t("googleLoginLabel");
   }
+  updateDriveSyncHint(driveTokenValid);
   syncAutoSyncPolicy(authStatus);
+}
+
+function updateDriveSyncHint(isReady) {
+  if (!elements.driveSyncHint) return;
+  elements.driveSyncHint.textContent = isReady ? t("driveSyncHintReady") : t("driveSyncHint");
 }
 
 function toggleFloatOverlay(forceVisible) {
@@ -1814,6 +1827,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
+  if (elements.driveSyncButton) elements.driveSyncButton.textContent = strings.driveSyncLabel;
+  if (elements.driveSyncHint) elements.driveSyncHint.textContent = strings.driveSyncHint;
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
   if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
   if (elements.importDataLabel) {
@@ -1923,8 +1938,20 @@ function toggleAutoSync(enabled) {
   }
 }
 
+function shouldEnableAutoSync(authStatus = checkAuthStatus()) {
+  if (!authStatus.authenticated) {
+    return false;
+  }
+  const settings = storage.getSettings();
+  const resolvedSource = cloudSync.resolveSource(null, settings);
+  if (resolvedSource === "drive") {
+    return isDriveTokenValid(settings?.driveToken);
+  }
+  return true;
+}
+
 function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
-  const shouldEnable = authStatus.authenticated;
+  const shouldEnable = shouldEnableAutoSync(authStatus);
   if (shouldEnable) {
     if (!autoSyncEnabled || !autoSyncInterval) {
       toggleAutoSync(true);
@@ -1938,7 +1965,7 @@ function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
 function scheduleAutoSyncPush() {
   if (!autoSyncEnabled) return;
   const authStatus = checkAuthStatus();
-  if (!authStatus.authenticated) {
+  if (!shouldEnableAutoSync(authStatus)) {
     syncAutoSyncPolicy(authStatus);
     return;
   }
@@ -2201,6 +2228,17 @@ function setupEvents() {
       if (elements.userInfo) {
         elements.userInfo.textContent = t("googleLoginFailed");
       }
+    }
+  });
+
+  elements.driveSyncButton?.addEventListener("click", async () => {
+    try {
+      const driveToken = await requestDriveScope();
+      storage.setSettings({ driveToken, source: "drive", saveDestination: "drive" });
+      updateAuthStatusDisplay();
+    } catch (error) {
+      console.error("Google Drive auth failed:", error);
+      alert(error?.message || "Google Drive の認証に失敗しました");
     }
   });
   
