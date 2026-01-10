@@ -468,11 +468,7 @@ function updateAuthStatusDisplay() {
   const settings = storage.getSettings();
   const { source, saveDestination } = settings;
   const driveTokenValid = isDriveTokenValid(settings?.driveToken);
-  if (authStatus.authenticated && driveTokenValid) {
-    if (source !== "drive" || saveDestination !== "drive") {
-      storage.setSettings({ source: "drive", saveDestination: "drive" });
-    }
-  } else if (!authStatus.authenticated && (source === "drive" || saveDestination === "drive")) {
+  if (!authStatus.authenticated && (source === "drive" || saveDestination === "drive")) {
     storage.setSettings({ source: "local", saveDestination: "local" });
   }
   if (authStatus.authenticated) {
@@ -2238,7 +2234,7 @@ function setupEvents() {
   elements.driveSyncButton?.addEventListener("click", async () => {
     try {
       const driveToken = await requestDriveScope();
-      storage.setSettings({ driveToken });
+      storage.setSettings({ driveToken, source: "drive", saveDestination: "drive" });
       updateAuthStatusDisplay();
     } catch (error) {
       console.error("Google Drive auth failed:", error);
