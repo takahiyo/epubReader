@@ -1,4 +1,4 @@
-// Google OAuth 2.0 認証管理モジュール（正規化・app.js互換版）
+// Google OAuth 2.0 認証管理モジュール（正規化版）
 
 let googleLoginInitialized = false;
 let oauthActive = false;
@@ -17,7 +17,7 @@ const AUTH_CONFIG = {
   get clientId() {
     return resolveClientId();
   },
-  tokenExpiry: 60 * 60 * 1000,
+  tokenExpiry: 60 * 60 * 1000, // 1 hour
 };
 
 const AUTH_STORAGE_KEYS = {
@@ -30,7 +30,7 @@ const AUTH_STORAGE_KEYS = {
 };
 
 // -------------------------
-// OAuth UI Control
+// OAuth UI Control (Z-layer fix)
 // -------------------------
 function setOAuthMode(active) {
   oauthActive = active;
@@ -38,13 +38,17 @@ function setOAuthMode(active) {
 }
 
 // -------------------------
-// GIS init
+// Google Identity Services init
 // -------------------------
 export function initGoogleLogin({ prompt = false } = {}) {
   const clientId = AUTH_CONFIG.clientId;
+
   if (!clientId) {
-    throw new Error("googleClientId が設定されていません。assets/config.js を確認してください。");
+    throw new Error(
+      "Google ログインのクライアントIDが設定されていません。assets/config.js に googleClientId を設定してください。",
+    );
   }
+
   if (!window.google?.accounts?.id) {
     throw new Error("Google Identity Services が読み込まれていません。");
   }
@@ -54,56 +58,46 @@ export function initGoogleLogin({ prompt = false } = {}) {
       client_id: clientId,
       callback: captureGoogleToken,
       auto_select: false,
-      cancel_on_tap_outside: false,
+      cancel_on_tap_outside: false, // iOS対策
     });
     googleLoginInitialized = true;
   }
-  if (prompt) startGoogleLogin();
+
+  if (prompt) {
+    startGoogleLogin();
+  }
 }
 
 // -------------------------
 // Login / Logout
 // -------------------------
 export function startGoogleLogin() {
-  onGoogleLoginStart();
-
-  let finished = false;
-  const timeout = setTimeout(() => {
-    if (!finished) {
-      console.warn("Google login timed out");
-      onGoogleLoginEnd();
-    }
-  }, 8000);
-
+  setOAuthMode(true);
   window.google.accounts.id.prompt((notification) => {
-    if (
-      notification.isNotDisplayed() ||
-      notification.isSkippedMoment() ||
-      notification.isDismissedMoment()
-    ) {
-      finished = true;
-      clearTimeout(timeout);
-      onGoogleLoginEnd();
+    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+      setOAuthMode(false);
     }
   });
 }
 
 export function logout() {
   clearAuth();
-  onGoogleLoginEnd();
+  setOAuthMode(false);
   window.location.reload();
 }
 
 // -------------------------
-// Token
+// Token handling
 // -------------------------
 export function captureGoogleToken(credentialResponse) {
-  onGoogleLoginEnd();
-
   const idToken = credentialResponse?.credential;
-  if (!idToken) return;
+  if (!idToken) {
+    setOAuthMode(false);
+    return;
+  }
 
   saveIdToken(idToken);
+  setOAuthMode(false);
   fetchUserInfo(idToken);
 }
 
@@ -135,7 +129,7 @@ async function fetchUserInfo(idToken) {
 }
 
 // -------------------------
-// Status
+// Auth status
 // -------------------------
 export function checkAuthStatus() {
   const idToken = localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
@@ -167,15 +161,4 @@ export function getCurrentUserId() {
 
 export function getIdToken() {
   return localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
-}
-
-// -------------------------
-// app.js 互換フック
-// -------------------------
-export function onGoogleLoginStart() {
-  setOAuthMode(true);
-}
-
-export function onGoogleLoginEnd() {
-  setOAuthMode(false);
 }
