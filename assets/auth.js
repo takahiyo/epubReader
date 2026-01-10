@@ -1,9 +1,9 @@
 // Google OAuth 2.0 認証管理モジュール
 
 function resolveClientId() {
-  const configuredClientId = window.EPUB_READER_CONFIG?.googleClientId || '';
-  const htmlClientId = document.documentElement?.dataset?.clientId || '';
-  const bodyClientId = document.body?.dataset?.clientId || '';
+  const configuredClientId = window.EPUB_READER_CONFIG?.googleClientId || "";
+  const htmlClientId = document.documentElement?.dataset?.clientId || "";
+  const bodyClientId = document.body?.dataset?.clientId || "";
 
   return (configuredClientId || htmlClientId || bodyClientId).trim();
 }
@@ -18,20 +18,20 @@ const AUTH_CONFIG = {
 };
 
 const AUTH_STORAGE_KEYS = {
-  idToken: 'epub_reader_google_id_token',
-  tokenExpiry: 'epub_reader_token_expiry',
-  userId: 'epub_reader_user_id',
-  userEmail: 'epub_reader_user_email',
-  userName: 'epub_reader_user_name',
-  lastActivity: 'epub_reader_last_activity',
+  idToken: "epub_reader_google_id_token",
+  tokenExpiry: "epub_reader_token_expiry",
+  userId: "epub_reader_user_id",
+  userEmail: "epub_reader_user_email",
+  userName: "epub_reader_user_name",
+  lastActivity: "epub_reader_last_activity",
 };
-
-let googleLoginInitialized = false;
 
 const AUTH_EVENTS = {
   login: "auth:login",
   logout: "auth:logout",
 };
+
+let googleLoginInitialized = false;
 
 function emitAuthEvent(type, detail) {
   window.dispatchEvent(new CustomEvent(type, { detail }));
@@ -42,16 +42,16 @@ function emitAuthEvent(type, detail) {
  */
 export function initGoogleLogin(options = {}) {
   const clientId = AUTH_CONFIG.clientId;
-  
+
   if (!clientId) {
     throw new Error(
-      'Google ログインのクライアントIDが設定されていません。' +
-      'assets/config.js で data-client-id を設定してください。'
+      "Google ログインのクライアントIDが設定されていません。" +
+        "assets/config.js で data-client-id を設定してください。",
     );
   }
-  
+
   if (!window.google?.accounts?.id) {
-    throw new Error('Google Identity Services が読み込まれていません。');
+    throw new Error("Google Identity Services が読み込まれていません。");
   }
 
   if (!googleLoginInitialized) {
@@ -157,6 +157,14 @@ export function onGoogleLoginEnd() {
   document.body.classList.remove("google-auth-active");
 }
 
+export function onGoogleLoginStart() {
+  document.body.classList.add("google-auth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("google-auth-active");
+}
+
 /**
  * Google Identity Services からのトークン取得
  */
@@ -192,10 +200,10 @@ function parseIdTokenExpiry(idToken) {
     return 0;
   }
   try {
-    const payload = JSON.parse(atob(idToken.split('.')[1]));
+    const payload = JSON.parse(atob(idToken.split(".")[1]));
     return payload?.exp ? payload.exp * 1000 : 0;
   } catch (error) {
-    console.error('Failed to parse id token expiry:', error);
+    console.error("Failed to parse id token expiry:", error);
     return 0;
   }
 }
@@ -206,20 +214,20 @@ function parseIdTokenExpiry(idToken) {
 async function fetchUserInfo(idToken) {
   try {
     // ID トークンをデコード（簡易版）
-    const payload = JSON.parse(atob(idToken.split('.')[1]));
-    
-    const userId = payload.sub || '';
-    const userEmail = payload.email || '';
-    const userName = payload.name || '';
+    const payload = JSON.parse(atob(idToken.split(".")[1]));
+
+    const userId = payload.sub || "";
+    const userEmail = payload.email || "";
+    const userName = payload.name || "";
 
     localStorage.setItem(AUTH_STORAGE_KEYS.userId, userId);
     localStorage.setItem(AUTH_STORAGE_KEYS.userEmail, userEmail);
     localStorage.setItem(AUTH_STORAGE_KEYS.userName, userName);
 
     emitAuthEvent(AUTH_EVENTS.login, { userId, userEmail, userName });
-    console.log('User logged in:', payload.email);
+    console.log("User logged in:", payload.email);
   } catch (error) {
-    console.error('Failed to parse user info:', error);
+    console.error("Failed to parse user info:", error);
   }
 }
 
@@ -228,44 +236,47 @@ async function fetchUserInfo(idToken) {
  */
 export function checkAuthStatus() {
   // 開発モード: DEV_MODE=true をlocalStorageに設定すると認証をスキップ
-  const devMode = localStorage.getItem('DEV_MODE') === 'true';
+  const devMode = localStorage.getItem("DEV_MODE") === "true";
   if (devMode) {
     return {
       authenticated: true,
-      token: 'dev-token',
-      userId: 'dev-user',
-      userEmail: 'dev@example.com',
-      userName: 'Development User',
+      token: "dev-token",
+      userId: "dev-user",
+      userEmail: "dev@example.com",
+      userName: "Development User",
       devMode: true,
     };
   }
-  
+
   const idToken = localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
   const token = idToken;
   const expiry = parseIdTokenExpiry(idToken) || 0;
-  const lastActivity = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.lastActivity) || '0', 10);
+  const lastActivity = parseInt(
+    localStorage.getItem(AUTH_STORAGE_KEYS.lastActivity) || "0",
+    10,
+  );
   const now = Date.now();
-  
+
   // トークンが存在しない
   if (!token) {
-    return { authenticated: false, reason: 'no_token' };
+    return { authenticated: false, reason: "no_token" };
   }
-  
+
   // トークンの有効期限切れ
   if (now > expiry) {
     clearAuth();
-    return { authenticated: false, reason: 'expired' };
+    return { authenticated: false, reason: "expired" };
   }
-  
+
   // 最終アクティビティから1時間以上経過
   if (now - lastActivity > AUTH_CONFIG.tokenExpiry) {
     clearAuth();
-    return { authenticated: false, reason: 'inactive' };
+    return { authenticated: false, reason: "inactive" };
   }
-  
+
   // 最終アクティビティを更新
   localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, now.toString());
-  
+
   return {
     authenticated: true,
     token,
@@ -279,7 +290,7 @@ export function checkAuthStatus() {
  * 認証情報をクリア（ログアウト）
  */
 export function clearAuth() {
-  Object.values(AUTH_STORAGE_KEYS).forEach(key => {
+  Object.values(AUTH_STORAGE_KEYS).forEach((key) => {
     localStorage.removeItem(key);
   });
 }
@@ -290,7 +301,7 @@ export function clearAuth() {
 export function logout() {
   onGoogleLoginEnd();
   clearAuth();
-  window.location.href = 'index.html';
+  window.location.href = "index.html";
 }
 
 /**
@@ -301,15 +312,6 @@ export function updateActivity() {
   if (authStatus.authenticated) {
     localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, Date.now().toString());
   }
-}
-
-/**
- * Nonce生成（セキュリティ用）
- */
-function generateNonce() {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /**
