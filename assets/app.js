@@ -9,8 +9,8 @@ import {
   checkAuthStatus,
   initGoogleLogin,
   logout,
-  onGoogleLoginStart,
-  onGoogleLoginEnd,
+  onGoogleLoginStart as startGoogleLoginUi,
+  onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
@@ -2380,18 +2380,18 @@ function setupEvents() {
       if (!googleLoginReady) {
         initializeGoogleLogin();
       }
-      onGoogleLoginStart();
+      startGoogleLoginUi();
       window.google?.accounts?.id?.prompt((notification) => {
         if (
           notification.isNotDisplayed?.() ||
           notification.isSkippedMoment?.() ||
           notification.isDismissedMoment?.()
         ) {
-          onGoogleLoginEnd();
+          endGoogleLoginUi();
         }
       });
     } catch (error) {
-      onGoogleLoginEnd();
+      endGoogleLoginUi();
       console.error("Google login failed:", error);
       if (elements.userInfo) {
         elements.userInfo.textContent = t("googleLoginFailed");
