@@ -28,6 +28,7 @@ export class UIController {
     this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
     this.getWritingMode = options.getWritingMode || (() => "horizontal");
+    this.isFloatVisible = options.isFloatVisible || (() => false);
     
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -234,6 +235,8 @@ export class UIController {
       progressBarVisible: this.progressBarVisible,
       bookmarkMenuVisible: this.bookmarkMenuVisible
     });
+
+    if (this.isFloatVisible?.()) return;
     
     if (area === 'M3') {
       console.log('Toggling float overlay...');
@@ -241,7 +244,15 @@ export class UIController {
       return;
     }
 
-    console.log('Area ignored:', area);
+    const writingMode = this.getWritingMode?.() || "horizontal";
+    if (writingMode === "vertical") {
+      if (area === "U2") this.onPagePrev?.();
+      if (area === "B2") this.onPageNext?.();
+      return;
+    }
+
+    if (area === "M2") this.onPagePrev?.();
+    if (area === "M4") this.onPageNext?.();
   }
   
   /**

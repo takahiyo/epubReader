@@ -331,6 +331,7 @@ const ui = new UIController({
   isBookOpen: () => currentBookId !== null,
   isPageNavigationEnabled: () => currentBookId !== null,
   isProgressBarAvailable: () => currentBookId !== null,
+  isFloatVisible: () => floatVisible,
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
   onFloatToggle: () => {
     toggleFloatOverlay();
