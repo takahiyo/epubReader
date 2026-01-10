@@ -28,15 +28,6 @@ const AUTH_STORAGE_KEYS = {
 
 let googleLoginInitialized = false;
 
-const BLUR_LAYER_SELECTORS = [
-  "#floatOverlay",
-  ".float-backdrop",
-  ".menu-backdrop",
-  ".bookmark-menu",
-  ".modal-backdrop",
-  ".progress-bar-panel",
-].join(", ");
-
 const AUTH_EVENTS = {
   login: "auth:login",
   logout: "auth:logout",
@@ -140,6 +131,14 @@ export function onGoogleLoginStart() {
 export function onGoogleLoginEnd() {
   setOAuthMode(false);
   document.body.classList.remove("oauth-active");
+}
+
+export function onGoogleLoginStart() {
+  document.body.classList.add("google-auth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("google-auth-active");
 }
 
 /**

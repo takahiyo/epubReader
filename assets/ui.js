@@ -125,7 +125,7 @@ export class UIController {
     
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
-      if (document.body.classList.contains("oauth-active")) {
+      if (document.body.classList.contains("google-auth-active")) {
         return;
       }
       // メニューやボタン内のクリックは無視
