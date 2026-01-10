@@ -71,7 +71,9 @@ export class CloudSync {
 
   async postGas(path, payload, settings = this.storage.getSettings()) {
     const endpoint = this.getGasEndpoint(settings);
-    const response = await fetch(`${endpoint}${path}`, {
+    // GASではURLにパスを付けられないため、クエリパラメータとして送る
+    const url = `${endpoint}?path=${encodeURIComponent(path)}`;
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
