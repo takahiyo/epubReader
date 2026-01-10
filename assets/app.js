@@ -2175,10 +2175,7 @@ function setupEvents() {
 
   elements.googleLoginButton?.addEventListener('click', () => {
     try {
-      if (!window.google?.accounts?.id) {
-        throw new Error("Google Identity Services が読み込まれていません。");
-      }
-      window.google.accounts.id.prompt();
+      initGoogleLogin();
     } catch (error) {
       console.error("Google login failed:", error);
       if (elements.userInfo) {
@@ -2393,6 +2390,17 @@ function startApp() {
     initGoogleLogin({ prompt: false });
   } catch (error) {
     console.error("Google login initialization failed:", error);
+    window.addEventListener(
+      "load",
+      () => {
+        try {
+          initGoogleLogin({ prompt: false });
+        } catch (loadError) {
+          console.error("Google login initialization failed on load:", loadError);
+        }
+      },
+      { once: true }
+    );
   }
 
   init();
