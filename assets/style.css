@@ -109,6 +109,18 @@ body {
   display: block;
 }
 
+iframe[src*="accounts.google.com"],
+div[id^="g_id_"] {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+}
+
+body.oauth-active * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+
 .float-backdrop {
   position: absolute;
   inset: 0;
