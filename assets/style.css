@@ -132,6 +132,24 @@ body {
   height: auto;
 }
 
+[data-theme="light"] #floatOverlay .float-backdrop {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="light"] #floatOverlay button {
+  background: #f0f0f0;
+  color: #111;
+  border: 1px solid #ccc;
+}
+
+[data-theme="light"] #floatOverlay button:hover {
+  background: #e6e6e6;
+}
+
+[data-theme="light"] #floatOverlay .float-title img {
+  filter: none;
+}
+
 .float-buttons {
   position: absolute;
   inset: 0;
