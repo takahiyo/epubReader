@@ -142,9 +142,10 @@ export class CloudSync {
     const response = await fetch(`${settings.gasEndpoint.replace(/\/$/, "")}/sync/pull`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain;charset=utf-8",
       },
       body: JSON.stringify({ bookId, idToken }),
+      cache: "no-store",
     });
     if (!response.ok) {
       throw new Error(`同期データの取得に失敗しました (${response.status})`);
@@ -169,7 +170,7 @@ export class CloudSync {
     const response = await fetch(`${settings.gasEndpoint.replace(/\/$/, "")}/sync/push`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain;charset=utf-8",
       },
       body: JSON.stringify({
         bookId,
@@ -177,6 +178,7 @@ export class CloudSync {
         updatedAt: payload.updatedAt,
         idToken,
       }),
+      cache: "no-store",
     });
 
     if (!response.ok) {
