@@ -37,7 +37,7 @@ let googleButtonRendered = false;
 /**
  * Google OAuth認証を開始
  */
-export function initGoogleLogin() {
+export function initGoogleLogin(options = {}) {
   const clientId = AUTH_CONFIG.clientId;
   
   if (!clientId) {
@@ -73,7 +73,9 @@ export function initGoogleLogin() {
     googleButtonRendered = true;
   }
 
-  window.google.accounts.id.prompt();
+  if (options.prompt !== false) {
+    window.google.accounts.id.prompt();
+  }
 }
 
 /**
