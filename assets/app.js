@@ -2175,7 +2175,10 @@ function setupEvents() {
 
   elements.googleLoginButton?.addEventListener('click', () => {
     try {
-      initGoogleLogin();
+      if (!window.google?.accounts?.id) {
+        throw new Error("Google Identity Services が読み込まれていません。");
+      }
+      window.google.accounts.id.prompt();
     } catch (error) {
       console.error("Google login failed:", error);
       if (elements.userInfo) {
@@ -2359,6 +2362,12 @@ function init() {
   
   // イベント設定
   setupEvents();
+
+  try {
+    initGoogleLogin({ prompt: false });
+  } catch (error) {
+    console.error("Google login initialization failed:", error);
+  }
   
   // テーマ適用
   applyTheme(theme);
