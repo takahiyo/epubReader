@@ -879,7 +879,7 @@ body.google-auth-active .modal-backdrop {
 #modalOverlay {
   position: fixed;
   inset: 0;
-  z-index: 800;
+  z-index: 10000; /* > #floatOverlay(900). 追加ブラー層が増えてもモーダルを最前面に */
   display: none;
 }
 
