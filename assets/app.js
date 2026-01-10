@@ -4,7 +4,7 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity } from "./auth.js";
+import { updateActivity, checkAuthStatus, initGoogleLogin } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -84,6 +84,12 @@ const UI_STRINGS = {
     settingsCloudTitle: "クラウド同期",
     autoSyncLabel: "Google Drive 自動同期を有効にする",
     autoSyncHint: "※ しおり、履歴、進捗が30秒ごとに自動保存されます",
+    settingsAccountTitle: "アカウント",
+    googleLoginLabel: "Googleログイン",
+    googleLoginStatusSignedOut: "未ログイン",
+    googleLoginStatusSignedIn: "ログイン済み: {user}",
+    googleLoginStatusSignedInShort: "ログイン済み",
+    googleLoginFailed: "ログインに失敗しました",
     settingsDataTitle: "データ管理",
     exportData: "設定・データを書き出す",
     importData: "設定・データを読み込む",
@@ -146,6 +152,12 @@ const UI_STRINGS = {
     settingsCloudTitle: "Cloud Sync",
     autoSyncLabel: "Enable Google Drive auto sync",
     autoSyncHint: "* Bookmarks, history, and progress are saved every 30 seconds.",
+    settingsAccountTitle: "Account",
+    googleLoginLabel: "Sign in with Google",
+    googleLoginStatusSignedOut: "Signed out",
+    googleLoginStatusSignedIn: "Signed in: {user}",
+    googleLoginStatusSignedInShort: "Signed in",
+    googleLoginFailed: "Failed to sign in",
     settingsDataTitle: "Data",
     exportData: "Export settings & data",
     importData: "Import settings & data",
@@ -297,6 +309,9 @@ const elements = {
   settingsCloudTitle: document.getElementById("settingsCloudTitle"),
   autoSyncLabel: document.getElementById("autoSyncLabel"),
   autoSyncHint: document.getElementById("autoSyncHint"),
+  settingsAccountTitle: document.getElementById("settingsAccountTitle"),
+  googleLoginButton: document.getElementById("googleLoginButton"),
+  userInfo: document.getElementById("userInfo"),
   settingsDataTitle: document.getElementById("settingsDataTitle"),
   importDataLabel: document.getElementById("importDataLabel"),
 };
@@ -442,6 +457,19 @@ function updateSearchButtonState() {
   }
   if (elements.floatSearch) {
     elements.floatSearch.disabled = !isEpubOpen;
+  }
+}
+
+function updateAuthStatusDisplay() {
+  if (!elements.userInfo) return;
+  const authStatus = checkAuthStatus();
+  if (authStatus.authenticated) {
+    const userLabel = authStatus.userEmail || authStatus.userName;
+    elements.userInfo.textContent = userLabel
+      ? t("googleLoginStatusSignedIn").replace("{user}", userLabel)
+      : t("googleLoginStatusSignedInShort");
+  } else {
+    elements.userInfo.textContent = t("googleLoginStatusSignedOut");
   }
 }
 
@@ -1787,6 +1815,8 @@ function applyUiLanguage(nextLanguage) {
     }
   }
   if (elements.autoSyncHint) elements.autoSyncHint.textContent = strings.autoSyncHint;
+  if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
+  if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
   if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
   if (elements.importDataLabel) {
@@ -1826,6 +1856,7 @@ function applyUiLanguage(nextLanguage) {
     renderToc(currentToc);
     updateProgressBarDisplay();
     updateSearchButtonState();
+    updateAuthStatusDisplay();
   }
 }
 
@@ -1975,6 +2006,7 @@ function showSettings() {
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
   if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
+  updateAuthStatusDisplay();
 }
 
 // ========================================
@@ -2145,6 +2177,17 @@ function setupEvents() {
   
   elements.autoSyncEnabled?.addEventListener('change', (e) => {
     toggleAutoSync(e.target.checked);
+  });
+
+  elements.googleLoginButton?.addEventListener('click', () => {
+    try {
+      initGoogleLogin();
+    } catch (error) {
+      console.error("Google login failed:", error);
+      if (elements.userInfo) {
+        elements.userInfo.textContent = t("googleLoginFailed");
+      }
+    }
   });
   
   elements.exportDataBtn?.addEventListener('click', exportData);
