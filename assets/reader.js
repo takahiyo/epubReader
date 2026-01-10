@@ -844,18 +844,55 @@ export class ReaderController {
         if (!url || /^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
+        
+        // Try book.resolve first (ePub.js built-in)
         if (this.book?.resolve) {
           try {
-            return this.book.resolve(url, spineItem?.href);
+            const resolved = this.book.resolve(url, spineItem?.href);
+            if (resolved) return resolved;
           } catch (error) {
             // ignore and fallback
           }
         }
+        
+        // Manual resolution with ".." normalization
         if (spineItem?.href) {
+          // Get base directory from spine item href
           const baseParts = spineItem.href.split("/").slice(0, -1);
-          const base = baseParts.length ? `${baseParts.join("/")}/` : "";
-          return `${base}${url}`.replace(/\/{2,}/g, "/");
+          const base = baseParts.join("/");
+          
+          // Combine base and url
+          const combined = base ? `${base}/${url}` : url;
+          
+          // Normalize backslashes to forward slashes
+          const normalized = combined.replace(/\\/g, "/");
+          
+          // Remove query and hash
+          const withoutQuery = normalized.split(/[?#]/)[0];
+          
+          // Use URL constructor to normalize ".." and "."
+          try {
+            // Prepend a dummy base to use URL API
+            const dummyBase = "http://dummy";
+            const fullUrl = new URL(withoutQuery, dummyBase);
+            // Extract pathname and remove leading slash
+            const result = fullUrl.pathname.replace(/^\//, "");
+            return result;
+          } catch (error) {
+            // Fallback: manual ".." removal
+            const parts = withoutQuery.split("/").filter(p => p && p !== ".");
+            const result = [];
+            for (const part of parts) {
+              if (part === ".." && result.length > 0) {
+                result.pop();
+              } else if (part !== "..") {
+                result.push(part);
+              }
+            }
+            return result.join("/");
+          }
         }
+        
         return url;
       };
 
@@ -864,17 +901,51 @@ export class ReaderController {
         if (/^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
+        
         const resolvedUrl = resolveResourceUrl(url, spineItem);
+        
         if (this.resourceUrlCache.has(resolvedUrl)) {
           return this.resourceUrlCache.get(resolvedUrl);
         }
+        
         try {
-          let resourceItem = this.book?.resources?.get?.(resolvedUrl) || this.book?.resources?.get?.(url);
+          // Try multiple candidate keys to find the resource
+          const candidates = [
+            resolvedUrl,
+            resolvedUrl.replace(/^\//, ""), // without leading slash
+            `/${resolvedUrl}`, // with leading slash
+            decodeURIComponent(resolvedUrl), // decoded
+            encodeURI(resolvedUrl), // encoded
+            url // original
+          ];
+          
+          let resourceItem = null;
+          let foundKey = null;
+          
+          for (const candidate of candidates) {
+            try {
+              const item = this.book?.resources?.get?.(candidate);
+              if (item) {
+                resourceItem = item;
+                foundKey = candidate;
+                break;
+              }
+            } catch (e) {
+              // try next candidate
+            }
+          }
+          
           if (resourceItem?.then) {
             resourceItem = await resourceItem;
           }
+          
           if (!resourceItem) {
-            console.warn("Resource not found in EPUB:", resolvedUrl);
+            console.warn("[EPUB Resource] Not found:", {
+              originalUrl: url,
+              resolvedUrl: resolvedUrl,
+              spineHref: spineItem?.href,
+              triedCandidates: candidates
+            });
             return url;
           }
           if (typeof resourceItem === "string") {
