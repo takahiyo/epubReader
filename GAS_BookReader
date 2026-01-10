@@ -1,0 +1,347 @@
+function doPost(e) {
+  try {
+    // Raw request debugging
+    console.log({
+      timestamp: new Date().toISOString(),
+      hasEvent: !!e,
+      hasPostData: !!(e && e.postData),
+      hasContents: !!(e && e.postData && e.postData.contents),
+      contentType: e && e.postData ? e.postData.type : 'no-postData',
+      contentsLength: e && e.postData && e.postData.contents ? e.postData.contents.length : 0,
+      contentsPreview: e && e.postData && e.postData.contents ? e.postData.contents.substring(0, 200) : 'no-contents',
+      pathInfo: e && e.pathInfo ? e.pathInfo : 'no-pathInfo',
+    });
+    
+    // Parse request details
+    const payload = parsePayload(e);
+    const path = getPath(e);
+    
+    // Debug logging
+    console.log({
+      timestamp: new Date().toISOString(),
+      path: path,
+      hasPayload: !!payload,
+      hasToken: !!(payload && payload.idToken),
+      payloadKeys: payload ? Object.keys(payload) : [],
+    });
+    
+    // Verify authentication
+    const auth = verifyIdToken(payload.idToken);
+    const userKey = auth.sub;
+    
+    console.log({
+      authenticated: true,
+      userKey: userKey,
+      email: auth.email || 'no-email',
+    });
+
+    // Route to handlers
+    if (path === "/sync/index/pull") {
+      return jsonResponse(handleIndexPull(userKey));
+    }
+    if (path === "/sync/index/push") {
+      return jsonResponse(handleIndexPush(userKey, payload));
+    }
+    if (path === "/sync/state/pull") {
+      return jsonResponse(handleStatePull(userKey, payload));
+    }
+    if (path === "/sync/state/push") {
+      return jsonResponse(handleStatePush(userKey, payload));
+    }
+    if (path === "/sync/match") {
+      return jsonResponse(handleMatch(userKey, payload));
+    }
+    if (path === "/sync/pull") {
+      return jsonResponse(handleLegacyPull(userKey, payload));
+    }
+    if (path === "/sync/push") {
+      return jsonResponse(handleLegacyPush(userKey, payload));
+    }
+    
+    // Unknown path
+    console.log({ error: "Unknown path", path: path });
+    return jsonResponse({ ok: false, error: "Unknown path: " + path });
+  } catch (error) {
+    console.error({
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+    return jsonResponse({ 
+      ok: false, 
+      error: error.message,
+      errorType: error.name || 'Error',
+    });
+  }
+}
+
+function doGet(e) {
+  const path = getPath(e);
+  console.log({
+    method: 'GET',
+    path: path,
+    timestamp: new Date().toISOString(),
+  });
+  return jsonResponse({ 
+    ok: true, 
+    timestamp: Date.now(),
+    message: "GAS BookReader Sync API",
+    version: "2.0",
+    path: path,
+  });
+}
+
+function parsePayload(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      console.log({ parsePayloadError: 'Missing e or postData or contents' });
+      return {};
+    }
+    
+    const contents = e.postData.contents;
+    console.log({ 
+      parsingContents: true,
+      contentsType: typeof contents,
+      contentsLength: contents ? contents.length : 0,
+      firstChars: contents ? contents.substring(0, 100) : 'empty'
+    });
+    
+    const parsed = JSON.parse(contents);
+    console.log({
+      parsedSuccessfully: true,
+      parsedKeys: Object.keys(parsed),
+      hasIdToken: !!parsed.idToken,
+      idTokenLength: parsed.idToken ? parsed.idToken.length : 0,
+    });
+    
+    return parsed;
+  } catch (error) {
+    console.error({ 
+      parsePayloadException: error.message,
+      stack: error.stack,
+      rawContents: e && e.postData ? e.postData.contents : 'no-contents'
+    });
+    return {};
+  }
+}
+
+function getPath(e) {
+  // Handle both direct pathInfo and possible /exec prefix
+  const raw = e && e.pathInfo ? e.pathInfo : "";
+  // Remove trailing slashes
+  const normalized = raw.replace(/\/+$/, "");
+  // Remove leading /exec if present (some deployments add this)
+  const cleaned = normalized.replace(/^\/exec/, "");
+  return cleaned || "";
+}
+
+function jsonResponse(data) {
+  const output = ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+  
+  // Add CORS headers for browser access
+  // Note: GAS doesn't support setHeaders on TextOutput, but this is documented
+  // The actual CORS handling depends on deployment settings
+  return output;
+}
+
+function verifyIdToken(idToken) {
+  if (!idToken) {
+    console.error({ authError: "No idToken provided" });
+    throw new Error("認証エラー: idToken が必要です");
+  }
+  
+  const clientId = PropertiesService.getScriptProperties().getProperty("GOOGLE_CLIENT_ID");
+  if (!clientId) {
+    console.error({ configError: "GOOGLE_CLIENT_ID not set" });
+    throw new Error("設定エラー: GOOGLE_CLIENT_ID が設定されていません");
+  }
+  
+  try {
+    const url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken);
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const statusCode = response.getResponseCode();
+    
+    if (statusCode !== 200) {
+      const errorText = response.getContentText();
+      console.error({ 
+        tokenVerifyError: true,
+        statusCode: statusCode,
+        response: errorText,
+      });
+      throw new Error("認証エラー: トークンの検証に失敗しました (" + statusCode + ")");
+    }
+    
+    const payload = JSON.parse(response.getContentText());
+    
+    // Verify audience
+    if (payload.aud !== clientId) {
+      console.error({ 
+        audienceError: true,
+        expected: clientId,
+        received: payload.aud,
+      });
+      throw new Error("認証エラー: トークンの対象が不正です");
+    }
+    
+    // Verify user info
+    if (!payload.sub) {
+      console.error({ subError: "No sub in token payload" });
+      throw new Error("認証エラー: ユーザー情報が取得できませんでした");
+    }
+    
+    console.log({
+      tokenVerified: true,
+      sub: payload.sub,
+      email: payload.email || 'no-email',
+    });
+    
+    return payload;
+  } catch (error) {
+    console.error({ 
+      verifyException: error.message,
+      stack: error.stack,
+    });
+    throw error;
+  }
+}
+
+function handleIndexPull(userKey) {
+  const props = PropertiesService.getScriptProperties();
+  const indexKey = "index:" + userKey;
+  const updatedKey = "indexUpdatedAt:" + userKey;
+  const indexRaw = props.getProperty(indexKey);
+  const updatedAt = Number(props.getProperty(updatedKey)) || 0;
+  const index = indexRaw ? JSON.parse(indexRaw) : {};
+  return { ok: true, index: index, updatedAt: updatedAt };
+}
+
+function handleIndexPush(userKey, payload) {
+  const props = PropertiesService.getScriptProperties();
+  const indexKey = "index:" + userKey;
+  const updatedKey = "indexUpdatedAt:" + userKey;
+  const existingRaw = props.getProperty(indexKey);
+  const existing = existingRaw ? JSON.parse(existingRaw) : {};
+  const delta = payload.indexDelta || {};
+
+  Object.keys(delta).forEach(function (cloudBookId) {
+    const incoming = delta[cloudBookId];
+    if (!incoming) return;
+    const existingItem = existing[cloudBookId];
+    const incomingUpdatedAt = incoming.updatedAt || 0;
+    const existingUpdatedAt = existingItem ? existingItem.updatedAt || 0 : 0;
+    if (!existingItem || incomingUpdatedAt >= existingUpdatedAt) {
+      existing[cloudBookId] = incoming;
+    }
+  });
+
+  props.setProperty(indexKey, JSON.stringify(existing));
+  const incomingUpdatedAt = payload.updatedAt || Date.now();
+  props.setProperty(updatedKey, String(incomingUpdatedAt));
+  return { ok: true };
+}
+
+function handleStatePull(userKey, payload) {
+  const cloudBookId = payload.cloudBookId;
+  if (!cloudBookId) {
+    throw new Error("cloudBookId が必要です");
+  }
+  const props = PropertiesService.getScriptProperties();
+  const stateKey = "state:" + userKey + ":" + cloudBookId;
+  const stateRaw = props.getProperty(stateKey);
+  const state = stateRaw ? JSON.parse(stateRaw) : null;
+  return { ok: true, state: state };
+}
+
+function handleStatePush(userKey, payload) {
+  const cloudBookId = payload.cloudBookId;
+  const incomingState = payload.state;
+  if (!cloudBookId || !incomingState) {
+    throw new Error("cloudBookId と state が必要です");
+  }
+  const props = PropertiesService.getScriptProperties();
+  const stateKey = "state:" + userKey + ":" + cloudBookId;
+  const stateRaw = props.getProperty(stateKey);
+  const existing = stateRaw ? JSON.parse(stateRaw) : null;
+  const incomingUpdatedAt = payload.updatedAt || incomingState.updatedAt || 0;
+  const existingUpdatedAt = existing ? existing.updatedAt || 0 : 0;
+
+  if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+    props.setProperty(stateKey, JSON.stringify({ ...incomingState, updatedAt: incomingUpdatedAt }));
+  }
+  return { ok: true };
+}
+
+function handleMatch(userKey, payload) {
+  const fingerprint = payload.fingerprint;
+  const meta = payload.meta || {};
+  const props = PropertiesService.getScriptProperties();
+  const indexKey = "index:" + userKey;
+  const existingRaw = props.getProperty(indexKey);
+  const index = existingRaw ? JSON.parse(existingRaw) : {};
+
+  var matched = null;
+  var candidates = [];
+
+  Object.keys(index).forEach(function (cloudBookId) {
+    var item = index[cloudBookId];
+    var fingerprints = item && item.fingerprints ? item.fingerprints : [];
+    if (fingerprint && fingerprints.indexOf(fingerprint) !== -1) {
+      matched = cloudBookId;
+      return;
+    }
+    if (isMetaCandidate(meta, item)) {
+      candidates.push({ cloudBookId: cloudBookId, meta: item });
+    }
+  });
+
+  return { ok: true, cloudBookId: matched, candidates: candidates };
+}
+
+function handleLegacyPull(userKey, payload) {
+  const bookId = payload.bookId;
+  if (!bookId) {
+    throw new Error("bookId が必要です");
+  }
+  const props = PropertiesService.getScriptProperties();
+  const key = "legacy:" + userKey + ":" + bookId;
+  const data = props.getProperty(key);
+  return data ? JSON.parse(data) : {};
+}
+
+function handleLegacyPush(userKey, payload) {
+  const bookId = payload.bookId;
+  if (!bookId) {
+    throw new Error("bookId が必要です");
+  }
+  const key = "legacy:" + userKey + ":" + bookId;
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(key, JSON.stringify(payload));
+  return { ok: true, ts: Date.now() };
+}
+
+function isMetaCandidate(requestMeta, itemMeta) {
+  if (!requestMeta || !itemMeta) return false;
+  var requestTitle = normalizeText(requestMeta.title);
+  var requestAuthor = normalizeText(requestMeta.author);
+  var itemTitle = normalizeText(itemMeta.title);
+  var itemAuthor = normalizeText(itemMeta.author);
+  var titleMatch = requestTitle && itemTitle && requestTitle === itemTitle;
+  var authorMatch = requestAuthor && itemAuthor && requestAuthor === itemAuthor;
+  var identifierMatch = hasIdentifierMatch(requestMeta.identifiers, itemMeta.identifiers);
+  return (titleMatch && authorMatch) || identifierMatch;
+}
+
+function normalizeText(value) {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
+}
+
+function hasIdentifierMatch(left, right) {
+  if (!left || !right) return false;
+  var leftList = Array.isArray(left) ? left : [left];
+  var rightList = Array.isArray(right) ? right : [right];
+  return leftList.some(function (value) {
+    return rightList.indexOf(value) !== -1;
+  });
+}

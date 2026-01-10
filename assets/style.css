@@ -8,6 +8,8 @@
   --border: #1f2937;
   --reader-bg: #0b1020;
   --reader-text: #e5e7eb;
+  --reader-safe-inline: clamp(12px, 4vw, 36px);
+  --reader-safe-block: clamp(12px, 5vh, 48px);
 }
 
 [data-theme="light"] {
@@ -48,6 +50,14 @@ body {
   color: var(--reader-text);
 }
 
+#fullscreenReader {
+  z-index: 10;
+}
+
+#fullscreenReader iframe {
+  pointer-events: auto;
+}
+
 .viewer {
   position: absolute;
   inset: 0;
@@ -64,20 +74,6 @@ body {
   overflow-x: hidden;
 }
 
-.viewer iframe {
-  width: 100% !important;
-  height: 100% !important;
-  border: none;
-  display: block;
-  background: transparent;
-}
-
-/* スクロール表示のためのiframe設定（縦書き・横書き共通） */
-.fullscreen-reader.epub-scroll .viewer iframe {
-  min-height: 100vh;
-  height: auto !important;
-  width: 100% !important;
-}
 
 /* クリック検知用オーバーレイ */
 .click-overlay {
@@ -96,6 +92,219 @@ body {
 .fullscreen-reader.epub-scroll .click-overlay {
   display: none;
   pointer-events: none;
+}
+
+/* ========================================
+   フロートUI
+======================================== */
+
+#floatOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: none;
+  pointer-events: none;
+}
+
+#floatOverlay.visible {
+  display: block;
+  pointer-events: auto;
+}
+
+iframe[src*="accounts.google.com"],
+div[id^="g_id_"] {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+}
+
+body.google-auth-active * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+
+body.google-auth-active #floatOverlay,
+body.google-auth-active .float-backdrop,
+body.google-auth-active .float-buttons,
+body.google-auth-active .modal-backdrop {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.float-backdrop {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.float-title {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.float-title img {
+  width: min(240px, 60vw);
+  height: auto;
+}
+
+[data-theme="light"] #floatOverlay .float-backdrop {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="light"] #floatOverlay button {
+  background: #f0f0f0;
+  color: #111;
+  border: 1px solid #ccc;
+}
+
+[data-theme="light"] #floatOverlay button:hover {
+  background: #e6e6e6;
+}
+
+[data-theme="light"] #floatOverlay .float-title img {
+  filter: none;
+}
+
+.float-buttons {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.float-main-menu {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.float-settings {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+}
+
+.float-buttons button {
+  pointer-events: auto;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.85);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.float-buttons button:hover {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+.float-top-right {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.float-top-right button {
+  pointer-events: auto;
+}
+
+.font-buttons {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+#toggleTheme {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+}
+
+#toggleLanguage {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  padding: 8px 10px;
+  pointer-events: auto;
+}
+
+#toggleLanguage img {
+  width: 28px;
+  height: auto;
+  display: block;
+}
+
+#floatProgress {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 60%);
+  pointer-events: auto;
+  z-index: 3;
+}
+
+#floatProgressPercent {
+  text-align: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+#floatProgressTrack {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+#floatProgressMarks {
+  position: absolute;
+  inset: 0;
+}
+
+#floatProgressFill {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  border-radius: 3px;
+}
+
+#floatProgressThumb {
+  position: absolute;
+  top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(17, 24, 39, 0.8);
 }
 
 /* スクロール時のメニューボタン */
@@ -121,6 +330,39 @@ body {
   background: rgba(15, 23, 42, 0.8);
 }
 
+.reader-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 95;
+}
+
+.control-btn {
+  min-width: 56px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.75);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.control-btn:hover {
+  background: rgba(17, 24, 39, 0.9);
+}
+
+.control-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* メニューが開いている時はオーバーレイを非表示 */
 .left-menu.visible ~ .fullscreen-reader .click-overlay,
 .progress-bar-panel.visible ~ .fullscreen-reader .click-overlay,
@@ -137,6 +379,7 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--reader-bg);
+  padding: var(--reader-safe-block) var(--reader-safe-inline);
 }
 
 .image-viewer img {
@@ -163,6 +406,12 @@ body {
   opacity: 0.5;
 }
 
+.empty-book-icon {
+  width: 140px;
+  opacity: 0.85;
+  margin-bottom: 1.5rem;
+}
+
 .empty-state h2 {
   font-size: 1.5rem;
   margin-bottom: 0.75rem;
@@ -172,6 +421,24 @@ body {
 .empty-state p {
   color: var(--muted);
   font-size: 1rem;
+}
+
+.cloud-empty {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cloud-empty-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cloud-empty-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .hidden {
@@ -513,6 +780,7 @@ body {
 
 .toc-section {
   margin-bottom: 1rem;
+  padding: 0 1.5rem 0.5rem;
 }
 
 .toc-title {
@@ -626,6 +894,17 @@ body {
    モーダル共通
 ======================================== */
 
+#modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000; /* > #floatOverlay(900). 追加ブラー層が増えてもモーダルを最前面に */
+  display: none;
+}
+
+#modalOverlay.visible {
+  display: block;
+}
+
 .modal {
   position: fixed;
   inset: 0;
@@ -701,6 +980,42 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.sync-message {
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.sync-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sync-action-btn {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.75);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.sync-action-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.sync-action-btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none;
+}
+
+.sync-action-btn.primary:hover {
+  transform: translateY(-1px);
 }
 
 /* ========================================
@@ -858,6 +1173,42 @@ body {
   margin-left: auto;
 }
 
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.library-grid[data-view="list"] .library-actions {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+.library-badge {
+  font-size: 0.65rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.library-attach {
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.library-attach:hover {
+  border-color: var(--accent);
+}
+
 /* ========================================
    履歴リスト
 ======================================== */
@@ -887,6 +1238,15 @@ body {
 
 .history-info {
   flex: 1;
+}
+
+.history-delete {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
 }
 
 .history-title {
