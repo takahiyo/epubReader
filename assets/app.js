@@ -14,6 +14,7 @@ import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 const storage = new StorageService();
 const cloudSync = new CloudSync(storage);
 const settings = storage.getSettings();
+const initialAuthStatus = checkAuthStatus();
 
 let currentBookId = null;
 let currentBookInfo = null;
@@ -35,7 +36,7 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = "horizontal";
 if (!pageDirection) pageDirection = "ltr";
-let autoSyncEnabled = settings.autoSyncEnabled ?? false;
+let autoSyncEnabled = initialAuthStatus.authenticated;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 let autoSyncTimeout = null;
@@ -81,9 +82,6 @@ const UI_STRINGS = {
     progressDisplayModeLabel: "進捗表示形式",
     progressDisplayPage: "ページ数",
     progressDisplayPercentage: "パーセンテージ",
-    settingsCloudTitle: "クラウド同期",
-    autoSyncLabel: "Google Drive 自動同期を有効にする",
-    autoSyncHint: "※ しおり、履歴、進捗が30秒ごとに自動保存されます",
     settingsAccountTitle: "アカウント",
     googleLoginLabel: "Googleログイン",
     googleLoginStatusSignedOut: "未ログイン",
@@ -149,9 +147,6 @@ const UI_STRINGS = {
     progressDisplayModeLabel: "Progress format",
     progressDisplayPage: "Pages",
     progressDisplayPercentage: "Percentage",
-    settingsCloudTitle: "Cloud Sync",
-    autoSyncLabel: "Enable Google Drive auto sync",
-    autoSyncHint: "* Bookmarks, history, and progress are saved every 30 seconds.",
     settingsAccountTitle: "Account",
     googleLoginLabel: "Sign in with Google",
     googleLoginStatusSignedOut: "Signed out",
@@ -279,7 +274,6 @@ const elements = {
   writingModeSelect: document.getElementById("writingMode"),
   pageDirectionSelect: document.getElementById("pageDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
-  autoSyncEnabled: document.getElementById("autoSyncEnabled"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
   
@@ -306,9 +300,6 @@ const elements = {
   writingModeLabel: document.getElementById("writingModeLabel"),
   pageDirectionLabel: document.getElementById("pageDirectionLabel"),
   progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
-  settingsCloudTitle: document.getElementById("settingsCloudTitle"),
-  autoSyncLabel: document.getElementById("autoSyncLabel"),
-  autoSyncHint: document.getElementById("autoSyncHint"),
   settingsAccountTitle: document.getElementById("settingsAccountTitle"),
   googleLoginButton: document.getElementById("googleLoginButton"),
   userInfo: document.getElementById("userInfo"),
@@ -471,6 +462,7 @@ function updateAuthStatusDisplay() {
   } else {
     elements.userInfo.textContent = t("googleLoginStatusSignedOut");
   }
+  syncAutoSyncPolicy(authStatus);
 }
 
 function toggleFloatOverlay(forceVisible) {
@@ -687,7 +679,7 @@ async function handleFile(file) {
     }
     
     // 自動同期が有効なら保存
-    if (autoSyncEnabled) {
+    if (syncAutoSyncPolicy(checkAuthStatus())) {
       await cloudSync.push();
     }
   } catch (error) {
@@ -1805,16 +1797,6 @@ function applyUiLanguage(nextLanguage) {
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
-  if (elements.settingsCloudTitle) elements.settingsCloudTitle.textContent = strings.settingsCloudTitle;
-  if (elements.autoSyncLabel) {
-    const input = elements.autoSyncLabel.querySelector("input");
-    elements.autoSyncLabel.textContent = strings.autoSyncLabel;
-    if (input) {
-      elements.autoSyncLabel.prepend(input);
-      elements.autoSyncLabel.insertBefore(document.createTextNode(" "), input.nextSibling);
-    }
-  }
-  if (elements.autoSyncHint) elements.autoSyncHint.textContent = strings.autoSyncHint;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
@@ -1926,8 +1908,25 @@ function toggleAutoSync(enabled) {
   }
 }
 
+function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
+  const shouldEnable = authStatus.authenticated;
+  if (shouldEnable) {
+    if (!autoSyncEnabled || !autoSyncInterval) {
+      toggleAutoSync(true);
+    }
+  } else if (autoSyncEnabled) {
+    toggleAutoSync(false);
+  }
+  return shouldEnable;
+}
+
 function scheduleAutoSyncPush() {
   if (!autoSyncEnabled) return;
+  const authStatus = checkAuthStatus();
+  if (!authStatus.authenticated) {
+    syncAutoSyncPolicy(authStatus);
+    return;
+  }
   if (autoSyncTimeout) {
     clearTimeout(autoSyncTimeout);
   }
@@ -2005,7 +2004,6 @@ function showSettings() {
   if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
-  if (elements.autoSyncEnabled) elements.autoSyncEnabled.checked = autoSyncEnabled;
   updateAuthStatusDisplay();
 }
 
@@ -2174,10 +2172,6 @@ function setupEvents() {
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
     applyProgressDisplayMode(e.target.value);
   });
-  
-  elements.autoSyncEnabled?.addEventListener('change', (e) => {
-    toggleAutoSync(e.target.checked);
-  });
 
   elements.googleLoginButton?.addEventListener('click', () => {
     try {
@@ -2341,6 +2335,11 @@ function setupEvents() {
 
   window.addEventListener('pagehide', () => {
     if (!autoSyncEnabled) return;
+    const authStatus = checkAuthStatus();
+    if (!authStatus.authenticated) {
+      syncAutoSyncPolicy(authStatus);
+      return;
+    }
     cloudSync.push().catch((error) => {
       console.error("Auto-sync failed:", error);
     });
@@ -2374,10 +2373,8 @@ function init() {
   applyLibraryViewMode(libraryViewMode);
   applyProgressDisplayMode(progressDisplayMode);
   
-  // 自動同期設定
-  if (autoSyncEnabled) {
-    toggleAutoSync(true);
-  }
+  // 自動同期設定（ログイン時のみ有効）
+  syncAutoSyncPolicy();
   
   // ライブラリレンダリング
   renderLibrary();
