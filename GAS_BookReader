@@ -1,10 +1,29 @@
 function doPost(e) {
   try {
+    // Parse request details
     const payload = parsePayload(e);
     const path = getPath(e);
+    
+    // Debug logging
+    console.log({
+      timestamp: new Date().toISOString(),
+      path: path,
+      hasPayload: !!payload,
+      hasToken: !!(payload && payload.idToken),
+      payloadKeys: payload ? Object.keys(payload) : [],
+    });
+    
+    // Verify authentication
     const auth = verifyIdToken(payload.idToken);
     const userKey = auth.sub;
+    
+    console.log({
+      authenticated: true,
+      userKey: userKey,
+      email: auth.email || 'no-email',
+    });
 
+    // Route to handlers
     if (path === "/sync/index/pull") {
       return jsonResponse(handleIndexPull(userKey));
     }
@@ -26,14 +45,38 @@ function doPost(e) {
     if (path === "/sync/push") {
       return jsonResponse(handleLegacyPush(userKey, payload));
     }
-    return jsonResponse({ ok: false, error: "Unknown path" });
+    
+    // Unknown path
+    console.log({ error: "Unknown path", path: path });
+    return jsonResponse({ ok: false, error: "Unknown path: " + path });
   } catch (error) {
-    return jsonResponse({ ok: false, error: error.message });
+    console.error({
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+    return jsonResponse({ 
+      ok: false, 
+      error: error.message,
+      errorType: error.name || 'Error',
+    });
   }
 }
 
-function doGet() {
-  return jsonResponse({ ok: true, timestamp: Date.now() });
+function doGet(e) {
+  const path = getPath(e);
+  console.log({
+    method: 'GET',
+    path: path,
+    timestamp: new Date().toISOString(),
+  });
+  return jsonResponse({ 
+    ok: true, 
+    timestamp: Date.now(),
+    message: "GAS BookReader Sync API",
+    version: "2.0",
+    path: path,
+  });
 }
 
 function parsePayload(e) {
@@ -44,39 +87,84 @@ function parsePayload(e) {
 }
 
 function getPath(e) {
+  // Handle both direct pathInfo and possible /exec prefix
   const raw = e && e.pathInfo ? e.pathInfo : "";
+  // Remove trailing slashes
   const normalized = raw.replace(/\/+$/, "");
-  return normalized || "";
+  // Remove leading /exec if present (some deployments add this)
+  const cleaned = normalized.replace(/^\/exec/, "");
+  return cleaned || "";
 }
 
 function jsonResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(
-    ContentService.MimeType.JSON,
-  );
+  const output = ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+  
+  // Add CORS headers for browser access
+  // Note: GAS doesn't support setHeaders on TextOutput, but this is documented
+  // The actual CORS handling depends on deployment settings
+  return output;
 }
 
 function verifyIdToken(idToken) {
   if (!idToken) {
-    throw new Error("idToken が必要です");
+    console.error({ authError: "No idToken provided" });
+    throw new Error("認証エラー: idToken が必要です");
   }
+  
   const clientId = PropertiesService.getScriptProperties().getProperty("GOOGLE_CLIENT_ID");
   if (!clientId) {
-    throw new Error("GOOGLE_CLIENT_ID が設定されていません");
+    console.error({ configError: "GOOGLE_CLIENT_ID not set" });
+    throw new Error("設定エラー: GOOGLE_CLIENT_ID が設定されていません");
   }
-  const response = UrlFetchApp.fetch(
-    "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken),
-  );
-  if (response.getResponseCode() !== 200) {
-    throw new Error("トークンの検証に失敗しました");
+  
+  try {
+    const url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken);
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const statusCode = response.getResponseCode();
+    
+    if (statusCode !== 200) {
+      const errorText = response.getContentText();
+      console.error({ 
+        tokenVerifyError: true,
+        statusCode: statusCode,
+        response: errorText,
+      });
+      throw new Error("認証エラー: トークンの検証に失敗しました (" + statusCode + ")");
+    }
+    
+    const payload = JSON.parse(response.getContentText());
+    
+    // Verify audience
+    if (payload.aud !== clientId) {
+      console.error({ 
+        audienceError: true,
+        expected: clientId,
+        received: payload.aud,
+      });
+      throw new Error("認証エラー: トークンの対象が不正です");
+    }
+    
+    // Verify user info
+    if (!payload.sub) {
+      console.error({ subError: "No sub in token payload" });
+      throw new Error("認証エラー: ユーザー情報が取得できませんでした");
+    }
+    
+    console.log({
+      tokenVerified: true,
+      sub: payload.sub,
+      email: payload.email || 'no-email',
+    });
+    
+    return payload;
+  } catch (error) {
+    console.error({ 
+      verifyException: error.message,
+      stack: error.stack,
+    });
+    throw error;
   }
-  const payload = JSON.parse(response.getContentText());
-  if (payload.aud !== clientId) {
-    throw new Error("トークンの対象が不正です");
-  }
-  if (!payload.sub) {
-    throw new Error("ユーザー情報が取得できませんでした");
-  }
-  return payload;
 }
 
 function handleIndexPull(userKey) {
