@@ -27,7 +27,15 @@ const AUTH_STORAGE_KEYS = {
 };
 
 let googleLoginInitialized = false;
-let googleButtonRendered = false;
+
+const AUTH_EVENTS = {
+  login: "auth:login",
+  logout: "auth:logout",
+};
+
+function emitAuthEvent(type, detail) {
+  window.dispatchEvent(new CustomEvent(type, { detail }));
+}
 
 /**
  * Google OAuth認証を開始
@@ -56,21 +64,17 @@ export function initGoogleLogin(options = {}) {
     googleLoginInitialized = true;
   }
 
-  const buttonContainer = document.getElementById('googleSignInButton');
-  if (buttonContainer && !googleButtonRendered) {
-    window.google.accounts.id.renderButton(buttonContainer, {
-      theme: 'outline',
-      size: 'large',
-      text: 'signin_with',
-      shape: 'pill',
-      width: 260,
-    });
-    googleButtonRendered = true;
-  }
-
-  if (options.prompt !== false) {
+  if (options.prompt === true) {
     window.google.accounts.id.prompt();
   }
+}
+
+export function onGoogleLoginStart() {
+  document.body.classList.add("oauth-active");
+}
+
+export function onGoogleLoginEnd() {
+  document.body.classList.remove("oauth-active");
 }
 
 /**
@@ -79,10 +83,12 @@ export function initGoogleLogin(options = {}) {
 export function captureGoogleToken(credentialResponse) {
   const idToken = credentialResponse?.credential;
   if (!idToken) {
+    onGoogleLoginEnd();
     return false;
   }
 
   saveIdToken(idToken);
+  onGoogleLoginEnd();
   fetchUserInfo(idToken);
   return true;
 }
@@ -122,10 +128,15 @@ async function fetchUserInfo(idToken) {
     // ID トークンをデコード（簡易版）
     const payload = JSON.parse(atob(idToken.split('.')[1]));
     
-    localStorage.setItem(AUTH_STORAGE_KEYS.userId, payload.sub || '');
-    localStorage.setItem(AUTH_STORAGE_KEYS.userEmail, payload.email || '');
-    localStorage.setItem(AUTH_STORAGE_KEYS.userName, payload.name || '');
-    
+    const userId = payload.sub || '';
+    const userEmail = payload.email || '';
+    const userName = payload.name || '';
+
+    localStorage.setItem(AUTH_STORAGE_KEYS.userId, userId);
+    localStorage.setItem(AUTH_STORAGE_KEYS.userEmail, userEmail);
+    localStorage.setItem(AUTH_STORAGE_KEYS.userName, userName);
+
+    emitAuthEvent(AUTH_EVENTS.login, { userId, userEmail, userName });
     console.log('User logged in:', payload.email);
   } catch (error) {
     console.error('Failed to parse user info:', error);
@@ -197,6 +208,7 @@ export function clearAuth() {
  * ログアウト処理
  */
 export function logout() {
+  onGoogleLoginEnd();
   clearAuth();
   window.location.href = 'index.html';
 }

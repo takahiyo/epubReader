@@ -4,7 +4,14 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, checkAuthStatus, initGoogleLogin, logout } from "./auth.js";
+import {
+  updateActivity,
+  checkAuthStatus,
+  initGoogleLogin,
+  logout,
+  onGoogleLoginStart,
+  onGoogleLoginEnd,
+} from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -36,7 +43,7 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = "horizontal";
 if (!pageDirection) pageDirection = "ltr";
-let autoSyncEnabled = Boolean(settings.syncEnabled && initialAuthStatus.authenticated);
+let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 let autoSyncTimeout = null;
@@ -44,6 +51,7 @@ let bookmarkMenuMode = "current";
 let currentToc = [];
 let uiInitialized = false;
 let floatVisible = false;
+let googleLoginReady = false;
 
 const UI_STRINGS = {
   ja: {
@@ -472,7 +480,6 @@ function updateSearchButtonState() {
 function updateAuthStatusDisplay() {
   if (!elements.userInfo) return;
   const authStatus = checkAuthStatus();
-  const settings = storage.getSettings();
   if (authStatus.authenticated) {
     const userLabel = authStatus.userEmail || authStatus.userName;
     elements.userInfo.textContent = userLabel
@@ -491,11 +498,6 @@ function updateAuthStatusDisplay() {
 }
 
 function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
-  if (elements.syncToggleButton) {
-    const isEnabled = Boolean(storage.getSettings().syncEnabled);
-    elements.syncToggleButton.textContent = isEnabled ? t("syncToggleOff") : t("syncToggleLabel");
-    elements.syncToggleButton.disabled = !authStatus.authenticated;
-  }
   if (elements.syncStatus) {
     if (!authStatus.authenticated) {
       elements.syncStatus.textContent = t("syncNeedsLogin");
@@ -557,6 +559,57 @@ function formatRelativeTimeEn(timestamp) {
   if (diffHours < 24) return `${diffHours} hr ago`;
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays} days ago`;
+}
+
+function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
+  if (!authStatus.authenticated) {
+    return false;
+  }
+  const settings = storage.getSettings();
+  return Boolean(settings.gasEndpoint);
+}
+
+async function syncAllBooksFromCloud() {
+  if (!isCloudSyncEnabled()) {
+    return;
+  }
+
+  const settings = storage.getSettings();
+  const bookIds = Object.keys(storage.data.library ?? {});
+  if (!bookIds.length) {
+    return;
+  }
+
+  for (const bookId of bookIds) {
+    try {
+      if (bookId === currentBookId) {
+        const syncedProgress = await resolveSyncedProgress(bookId);
+        if (syncedProgress && currentBookInfo) {
+          await applyReadingState(syncedProgress);
+        }
+      } else {
+        const remote = await cloudSync.pullBookData(bookId, settings);
+        if (remote?.data) {
+          applyBookSyncData(bookId, remote.data);
+        }
+      }
+    } catch (error) {
+      console.warn("同期情報の取得に失敗しました:", error);
+    }
+  }
+
+  storage.setSettings({ lastSyncAt: Date.now() });
+  updateSyncStatusDisplay();
+  if (uiInitialized) {
+    renderHistory();
+    renderBookmarks(bookmarkMenuMode);
+  }
+}
+
+async function handleAuthLogin() {
+  updateAuthStatusDisplay();
+  syncAutoSyncPolicy();
+  await syncAllBooksFromCloud();
 }
 
 function buildSyncRemoteLabel(timestamp) {
@@ -652,12 +705,12 @@ function applyBookSyncData(bookId, data) {
 
 async function resolveSyncedProgress(bookId) {
   const localProgress = storage.getProgress(bookId);
-  const settings = storage.getSettings();
-  if (!settings.syncEnabled) {
+  if (!isCloudSyncEnabled()) {
     return localProgress;
   }
 
   try {
+    const settings = storage.getSettings();
     const remote = await cloudSync.pullBookData(bookId, settings);
     const remoteData = remote?.data;
     const remoteUpdatedAt = remoteData?.updatedAt ?? 0;
@@ -1902,11 +1955,6 @@ function applyUiLanguage(nextLanguage) {
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
-  if (elements.syncToggleButton) {
-    elements.syncToggleButton.textContent = storage.getSettings().syncEnabled
-      ? strings.syncToggleOff
-      : strings.syncToggleLabel;
-  }
   if (elements.syncStatus) {
     updateSyncStatusDisplay();
   }
@@ -1995,8 +2043,8 @@ function applyProgressDisplayMode(mode) {
 
 async function pushCurrentBookSync() {
   if (!currentBookId) return;
+  if (!isCloudSyncEnabled()) return;
   const settings = storage.getSettings();
-  if (!settings.syncEnabled) return;
   const payload = buildBookSyncPayload(currentBookId);
   await cloudSync.pushBookData(currentBookId, payload, settings);
   storage.setSettings({ lastSyncAt: Date.now() });
@@ -2030,11 +2078,7 @@ function toggleAutoSync(enabled) {
 }
 
 function shouldEnableAutoSync(authStatus = checkAuthStatus()) {
-  if (!authStatus.authenticated) {
-    return false;
-  }
-  const settings = storage.getSettings();
-  return Boolean(settings.syncEnabled);
+  return isCloudSyncEnabled(authStatus);
 }
 
 function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
@@ -2309,25 +2353,26 @@ function setupEvents() {
       return;
     }
     try {
-      initGoogleLogin();
+      if (!googleLoginReady) {
+        initializeGoogleLogin();
+      }
+      onGoogleLoginStart();
+      window.google?.accounts?.id?.prompt((notification) => {
+        if (
+          notification.isNotDisplayed?.() ||
+          notification.isSkippedMoment?.() ||
+          notification.isDismissedMoment?.()
+        ) {
+          onGoogleLoginEnd();
+        }
+      });
     } catch (error) {
+      onGoogleLoginEnd();
       console.error("Google login failed:", error);
       if (elements.userInfo) {
         elements.userInfo.textContent = t("googleLoginFailed");
       }
     }
-  });
-
-  elements.syncToggleButton?.addEventListener("click", () => {
-    const authStatus = checkAuthStatus();
-    if (!authStatus.authenticated) {
-      alert(t("syncNeedsLogin"));
-      return;
-    }
-    const current = storage.getSettings().syncEnabled;
-    storage.setSettings({ syncEnabled: !current });
-    updateAuthStatusDisplay();
-    syncAutoSyncPolicy(authStatus);
   });
   
   elements.exportDataBtn?.addEventListener('click', exportData);
@@ -2531,30 +2576,39 @@ function init() {
   console.log("Epub Reader initialized");
 }
 
-function startApp() {
+function initializeGoogleLogin() {
   try {
     initGoogleLogin({ prompt: false });
+    googleLoginReady = true;
   } catch (error) {
     console.error("Google login initialization failed:", error);
-    window.addEventListener(
-      "load",
-      () => {
-        try {
-          initGoogleLogin({ prompt: false });
-        } catch (loadError) {
-          console.error("Google login initialization failed on load:", loadError);
-        }
-      },
-      { once: true }
-    );
   }
+}
 
+function startApp() {
   init();
 }
 
+function startAfterDomReady() {
+  initializeGoogleLogin();
+  startApp();
+}
+
+window.addEventListener("auth:login", () => {
+  handleAuthLogin().catch((error) => {
+    console.error("同期データの取得に失敗しました:", error);
+  });
+});
+
+window.addEventListener("load", () => {
+  if (!googleLoginReady) {
+    initializeGoogleLogin();
+  }
+});
+
 // DOMContentLoadedイベントを待ってから初期化
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", startApp);
+  document.addEventListener("DOMContentLoaded", startAfterDomReady);
 } else {
-  startApp();
+  startAfterDomReady();
 }
