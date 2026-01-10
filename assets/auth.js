@@ -27,7 +27,6 @@ const AUTH_STORAGE_KEYS = {
 };
 
 let googleLoginInitialized = false;
-let removedBlurLayers = [];
 
 const BLUR_LAYER_SELECTORS = [
   "#floatOverlay",
@@ -77,12 +76,6 @@ export function initGoogleLogin(options = {}) {
   if (options.prompt === true) {
     window.google.accounts.id.prompt();
   }
-}
-
-function hideAllBlurLayers() {
-  if (removedBlurLayers.length > 0) {
-    return;
-  }
 
   removedBlurLayers = Array.from(document.querySelectorAll(BLUR_LAYER_SELECTORS))
     .map((node) => ({
@@ -119,6 +112,33 @@ export function onGoogleLoginStart() {
 }
 
 export function onGoogleLoginEnd() {
+  document.body.classList.remove("oauth-active");
+}
+
+function setOAuthMode(active) {
+  const layers = document.querySelectorAll(BLUR_LAYER_SELECTORS);
+  layers.forEach((element) => {
+    if (active) {
+      element.dataset.prevDisplay = element.style.display || "";
+      element.dataset.prevPointer = element.style.pointerEvents || "";
+      element.style.display = "none";
+      element.style.pointerEvents = "none";
+    } else {
+      element.style.display = element.dataset.prevDisplay || "";
+      element.style.pointerEvents = element.dataset.prevPointer || "";
+      delete element.dataset.prevDisplay;
+      delete element.dataset.prevPointer;
+    }
+  });
+}
+
+export function onGoogleLoginStart() {
+  document.body.classList.add("oauth-active");
+  setOAuthMode(true);
+}
+
+export function onGoogleLoginEnd() {
+  setOAuthMode(false);
   document.body.classList.remove("oauth-active");
 }
 
