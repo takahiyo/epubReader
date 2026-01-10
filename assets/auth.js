@@ -1,111 +1,88 @@
-// auth.js
-// app.js と完全互換な Google OAuth 2.0 管理レイヤー
-// Google Identity Services (GIS) 使用
+// Google OAuth 2.0 認証管理モジュール（正規化・app.js互換版）
 
-let googleInitialized = false;
-let oauthUiActive = false;
+let googleLoginInitialized = false;
+let oauthActive = false;
 
-// ===============================
+// -------------------------
 // Config
-// ===============================
+// -------------------------
 function resolveClientId() {
-  return (
-    window.EPUB_READER_CONFIG?.googleClientId ||
-    document.documentElement?.dataset?.clientId ||
-    document.body?.dataset?.clientId ||
-    ""
-  ).trim();
+  const configuredClientId = window.EPUB_READER_CONFIG?.googleClientId || "";
+  const htmlClientId = document.documentElement?.dataset?.clientId || "";
+  const bodyClientId = document.body?.dataset?.clientId || "";
+  return (configuredClientId || htmlClientId || bodyClientId).trim();
 }
 
-const STORAGE = {
+const AUTH_CONFIG = {
+  get clientId() {
+    return resolveClientId();
+  },
+  tokenExpiry: 60 * 60 * 1000,
+};
+
+const AUTH_STORAGE_KEYS = {
   idToken: "epub_reader_google_id_token",
-  expiry: "epub_reader_token_expiry",
+  tokenExpiry: "epub_reader_token_expiry",
   userId: "epub_reader_user_id",
   userEmail: "epub_reader_user_email",
   userName: "epub_reader_user_name",
   lastActivity: "epub_reader_last_activity",
 };
 
-// ===============================
-// UI Layer Hook (used by app.js)
-// ===============================
-export function onGoogleLoginStart() {
-  oauthUiActive = true;
-  document.body.classList.add("google-auth-active");
+// -------------------------
+// OAuth UI Control
+// -------------------------
+function setOAuthMode(active) {
+  oauthActive = active;
+  document.body.classList.toggle("google-auth-active", active);
 }
 
-export function onGoogleLoginEnd() {
-  oauthUiActive = false;
-  document.body.classList.remove("google-auth-active");
-}
-
-// ===============================
-// Auth State
-// ===============================
-export function checkAuthStatus() {
-  const token = localStorage.getItem(STORAGE.idToken);
-  if (!token) return { authenticated: false };
-
-  const exp = parseExpiry(token);
-  if (!exp || Date.now() > exp) {
-    clearAuth();
-    return { authenticated: false };
-  }
-
-  return {
-    authenticated: true,
-    token,
-    userId: localStorage.getItem(STORAGE.userId),
-    userEmail: localStorage.getItem(STORAGE.userEmail),
-    userName: localStorage.getItem(STORAGE.userName),
-  };
-}
-
-export function getIdToken() {
-  return localStorage.getItem(STORAGE.idToken);
-}
-
-export function getCurrentUserId() {
-  const s = checkAuthStatus();
-  return s.authenticated ? s.userId : null;
-}
-
-// ===============================
-// Google Identity Services
-// ===============================
-export function initGoogleLogin() {
-  const clientId = resolveClientId();
+// -------------------------
+// GIS init
+// -------------------------
+export function initGoogleLogin({ prompt = false } = {}) {
+  const clientId = AUTH_CONFIG.clientId;
   if (!clientId) {
-    throw new Error("Google Client ID が設定されていません");
+    throw new Error("googleClientId が設定されていません。assets/config.js を確認してください。");
   }
-
   if (!window.google?.accounts?.id) {
-    throw new Error("Google Identity Services が読み込まれていません");
+    throw new Error("Google Identity Services が読み込まれていません。");
   }
 
-  if (googleInitialized) return;
-
-  window.google.accounts.id.initialize({
-    client_id: clientId,
-    callback: onGoogleCredential,
-    auto_select: false,
-    cancel_on_tap_outside: false,
-  });
-
-  googleInitialized = true;
+  if (!googleLoginInitialized) {
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: captureGoogleToken,
+      auto_select: false,
+      cancel_on_tap_outside: false,
+    });
+    googleLoginInitialized = true;
+  }
+  if (prompt) startGoogleLogin();
 }
 
-// ===============================
+// -------------------------
 // Login / Logout
-// ===============================
+// -------------------------
 export function startGoogleLogin() {
   onGoogleLoginStart();
-  window.google.accounts.id.prompt((n) => {
+
+  let finished = false;
+  const timeout = setTimeout(() => {
+    if (!finished) {
+      console.warn("Google login timed out");
+      onGoogleLoginEnd();
+    }
+  }, 8000);
+
+  window.google.accounts.id.prompt((notification) => {
     if (
-      n.isNotDisplayed?.() ||
-      n.isSkippedMoment?.() ||
-      n.isDismissedMoment?.()
+      notification.isNotDisplayed() ||
+      notification.isSkippedMoment() ||
+      notification.isDismissedMoment()
     ) {
+      finished = true;
+      clearTimeout(timeout);
       onGoogleLoginEnd();
     }
   });
@@ -117,64 +94,88 @@ export function logout() {
   window.location.reload();
 }
 
-// ===============================
-// Credential handler
-// ===============================
-function onGoogleCredential(response) {
-  const idToken = response?.credential;
-  if (!idToken) {
-    onGoogleLoginEnd();
-    return;
-  }
-
-  saveToken(idToken);
+// -------------------------
+// Token
+// -------------------------
+export function captureGoogleToken(credentialResponse) {
   onGoogleLoginEnd();
 
-  // ★ app.js が待っているイベント
-  window.dispatchEvent(new Event("auth:login"));
+  const idToken = credentialResponse?.credential;
+  if (!idToken) return;
+
+  saveIdToken(idToken);
+  fetchUserInfo(idToken);
 }
 
-// ===============================
-// Token storage
-// ===============================
-function saveToken(idToken) {
-  const payload = parseJwt(idToken);
-
-  localStorage.setItem(STORAGE.idToken, idToken);
-  localStorage.setItem(STORAGE.lastActivity, Date.now().toString());
-
-  if (payload?.exp) {
-    localStorage.setItem(STORAGE.expiry, String(payload.exp * 1000));
-  }
-  if (payload?.sub) localStorage.setItem(STORAGE.userId, payload.sub);
-  if (payload?.email) localStorage.setItem(STORAGE.userEmail, payload.email);
-  if (payload?.name) localStorage.setItem(STORAGE.userName, payload.name);
+function saveIdToken(idToken) {
+  const expiry = parseIdTokenExpiry(idToken);
+  localStorage.setItem(AUTH_STORAGE_KEYS.idToken, idToken);
+  localStorage.setItem(AUTH_STORAGE_KEYS.lastActivity, Date.now().toString());
+  if (expiry) localStorage.setItem(AUTH_STORAGE_KEYS.tokenExpiry, expiry.toString());
 }
 
-function clearAuth() {
-  Object.values(STORAGE).forEach((k) => localStorage.removeItem(k));
-}
-
-function parseExpiry(token) {
+function parseIdTokenExpiry(idToken) {
   try {
-    const payload = parseJwt(token);
+    const payload = JSON.parse(atob(idToken.split(".")[1]));
     return payload?.exp ? payload.exp * 1000 : 0;
   } catch {
     return 0;
   }
 }
 
-function parseJwt(token) {
+async function fetchUserInfo(idToken) {
   try {
-    return JSON.parse(atob(token.split(".")[1]));
-  } catch {
-    return null;
+    const payload = JSON.parse(atob(idToken.split(".")[1]));
+    localStorage.setItem(AUTH_STORAGE_KEYS.userId, payload.sub || "");
+    localStorage.setItem(AUTH_STORAGE_KEYS.userEmail, payload.email || "");
+    localStorage.setItem(AUTH_STORAGE_KEYS.userName, payload.name || "");
+  } catch (e) {
+    console.error("Failed to parse user info:", e);
   }
 }
 
-// ===============================
-// Activity ping (app.js imports this)
-// ===============================
-export function updateActivity() {
-  localStorage.setItem(STORAGE.lastActivity, Date.now().toString());
+// -------------------------
+// Status
+// -------------------------
+export function checkAuthStatus() {
+  const idToken = localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
+  if (!idToken) return { authenticated: false };
+
+  const expiry = parseIdTokenExpiry(idToken);
+  if (Date.now() > expiry) {
+    clearAuth();
+    return { authenticated: false };
+  }
+
+  return {
+    authenticated: true,
+    token: idToken,
+    userId: localStorage.getItem(AUTH_STORAGE_KEYS.userId),
+    userEmail: localStorage.getItem(AUTH_STORAGE_KEYS.userEmail),
+    userName: localStorage.getItem(AUTH_STORAGE_KEYS.userName),
+  };
+}
+
+export function clearAuth() {
+  Object.values(AUTH_STORAGE_KEYS).forEach((k) => localStorage.removeItem(k));
+}
+
+export function getCurrentUserId() {
+  const s = checkAuthStatus();
+  return s.authenticated ? s.userId : null;
+}
+
+export function getIdToken() {
+  return localStorage.getItem(AUTH_STORAGE_KEYS.idToken);
+}
+
+// -------------------------
+// app.js 互換フック
+// -------------------------
+export function onGoogleLoginStart() {
+  setOAuthMode(true);
+}
+
+export function onGoogleLoginEnd() {
+  setOAuthMode(false);
 }
