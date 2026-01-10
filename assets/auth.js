@@ -27,6 +27,16 @@ const AUTH_STORAGE_KEYS = {
 };
 
 let googleLoginInitialized = false;
+let removedBlurLayers = [];
+
+const BLUR_LAYER_SELECTORS = [
+  "#floatOverlay",
+  ".float-backdrop",
+  ".menu-backdrop",
+  ".bookmark-menu",
+  ".modal-backdrop",
+  ".progress-bar-panel",
+].join(", ");
 
 const AUTH_EVENTS = {
   login: "auth:login",
@@ -67,6 +77,41 @@ export function initGoogleLogin(options = {}) {
   if (options.prompt === true) {
     window.google.accounts.id.prompt();
   }
+}
+
+function hideAllBlurLayers() {
+  if (removedBlurLayers.length > 0) {
+    return;
+  }
+
+  removedBlurLayers = Array.from(document.querySelectorAll(BLUR_LAYER_SELECTORS))
+    .map((node) => ({
+      node,
+      parent: node.parentNode,
+      nextSibling: node.nextSibling,
+    }))
+    .filter((entry) => entry.parent);
+
+  removedBlurLayers.forEach(({ node }) => {
+    node.remove();
+  });
+}
+
+function restoreBlurLayers() {
+  removedBlurLayers.forEach(({ node, parent, nextSibling }) => {
+    if (!node.isConnected) {
+      parent.insertBefore(node, nextSibling);
+    }
+  });
+  removedBlurLayers = [];
+}
+
+export function onGoogleLoginStart() {
+  hideAllBlurLayers();
+}
+
+export function onGoogleLoginEnd() {
+  restoreBlurLayers();
 }
 
 export function onGoogleLoginStart() {

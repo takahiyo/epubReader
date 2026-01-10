@@ -589,8 +589,14 @@ async function syncAllBooksFromCloud() {
         }
       } else {
         const remote = await cloudSync.pullBookData(bookId, settings);
-        if (remote?.data) {
-          applyBookSyncData(bookId, remote.data);
+        const remoteData = remote?.data;
+        if (isEmptyBookSyncData(remoteData)) {
+          const localPayload = buildBookSyncPayload(bookId);
+          if (localPayload.updatedAt > 0) {
+            await cloudSync.pushBookData(bookId, localPayload, settings);
+          }
+        } else if (remoteData) {
+          applyBookSyncData(bookId, remoteData);
         }
       }
     } catch (error) {
@@ -684,6 +690,16 @@ function buildBookSyncPayload(bookId) {
   };
 }
 
+function isEmptyBookSyncData(data) {
+  if (!data) return true;
+  const hasBookmarks = Array.isArray(data.bookmarks) && data.bookmarks.length > 0;
+  const hasHistory = Array.isArray(data.history) && data.history.length > 0;
+  const hasProgress = typeof data.progress === "number" && data.progress > 0;
+  const hasLocation = Boolean(data.lastCfi);
+  const hasUpdatedAt = (data.updatedAt ?? 0) > 0;
+  return !(hasBookmarks || hasHistory || hasProgress || hasLocation || hasUpdatedAt);
+}
+
 function applyBookSyncData(bookId, data) {
   if (!data) return;
   if (data.bookmarks) {
@@ -713,10 +729,18 @@ async function resolveSyncedProgress(bookId) {
     const settings = storage.getSettings();
     const remote = await cloudSync.pullBookData(bookId, settings);
     const remoteData = remote?.data;
-    const remoteUpdatedAt = remoteData?.updatedAt ?? 0;
     const localPayload = buildBookSyncPayload(bookId);
     const localUpdatedAt = localPayload.updatedAt ?? 0;
 
+    if (isEmptyBookSyncData(remoteData)) {
+      if (localUpdatedAt > 0) {
+        await cloudSync.pushBookData(bookId, localPayload, settings);
+        storage.setSettings({ lastSyncAt: Date.now() });
+      }
+      return localProgress;
+    }
+
+    const remoteUpdatedAt = remoteData?.updatedAt ?? 0;
     if (remoteUpdatedAt > localUpdatedAt) {
       const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteData });
       if (choice === "remote") {
