@@ -4,8 +4,7 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, checkAuthStatus, initGoogleLogin, logout, requestDriveScope } from "./auth.js";
-import { isTokenValid as isDriveTokenValid } from "./driveAuth.js";
+import { updateActivity, checkAuthStatus, initGoogleLogin, logout } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -37,7 +36,7 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = "horizontal";
 if (!pageDirection) pageDirection = "ltr";
-let autoSyncEnabled = initialAuthStatus.authenticated;
+let autoSyncEnabled = Boolean(settings.syncEnabled && initialAuthStatus.authenticated);
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
 let autoSyncTimeout = null;
@@ -90,9 +89,11 @@ const UI_STRINGS = {
     googleLoginStatusSignedIn: "ログイン済み: {user}",
     googleLoginStatusSignedInShort: "ログイン済み",
     googleLoginFailed: "ログインに失敗しました",
-    driveSyncLabel: "Google Drive と同期",
-    driveSyncHint: "Drive 同期を有効にするにはここで認証します。",
-    driveSyncHintReady: "Google Drive の認証が完了しています。",
+    syncToggleLabel: "同期を有効にする",
+    syncToggleOff: "同期を無効にする",
+    syncStatusLabel: "最終同期: {time}",
+    syncStatusNever: "最終同期: 未実施",
+    syncNeedsLogin: "同期には Google ログインが必要です。",
     settingsDataTitle: "データ管理",
     exportData: "設定・データを書き出す",
     importData: "設定・データを読み込む",
@@ -113,8 +114,10 @@ const UI_STRINGS = {
     writingModeToggleHorizontal: "横",
     syncPromptTitle: "同期の確認",
     syncPromptMessage: "他の端末で、より新しい読書位置があります。",
+    syncPromptLocalMessage: "この端末の状態が新しいようです。アップロードしますか？",
     syncPromptRemote: "他端末の続きから読む（{time}）",
     syncPromptLocal: "この端末の位置から読む",
+    syncPromptUpload: "この端末の状態をアップロード",
   },
   en: {
     documentTitle: "Epub Reader",
@@ -159,9 +162,11 @@ const UI_STRINGS = {
     googleLoginStatusSignedIn: "Signed in: {user}",
     googleLoginStatusSignedInShort: "Signed in",
     googleLoginFailed: "Failed to sign in",
-    driveSyncLabel: "Sync with Google Drive",
-    driveSyncHint: "Authenticate here to enable Drive sync.",
-    driveSyncHintReady: "Google Drive authorization is complete.",
+    syncToggleLabel: "Enable sync",
+    syncToggleOff: "Disable sync",
+    syncStatusLabel: "Last sync: {time}",
+    syncStatusNever: "Last sync: never",
+    syncNeedsLogin: "Sign in with Google to enable sync.",
     settingsDataTitle: "Data",
     exportData: "Export settings & data",
     importData: "Import settings & data",
@@ -182,8 +187,10 @@ const UI_STRINGS = {
     writingModeToggleHorizontal: "H",
     syncPromptTitle: "Sync available",
     syncPromptMessage: "A newer reading position is available on another device.",
+    syncPromptLocalMessage: "This device has newer data. Upload it?",
     syncPromptRemote: "Continue from other device ({time})",
     syncPromptLocal: "Keep this device's position",
+    syncPromptUpload: "Upload this device's state",
   },
 };
 
@@ -311,9 +318,9 @@ const elements = {
   progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
   settingsAccountTitle: document.getElementById("settingsAccountTitle"),
   googleLoginButton: document.getElementById("googleLoginButton"),
-  driveSyncButton: document.getElementById("driveSyncButton"),
+  syncToggleButton: document.getElementById("syncToggleButton"),
   userInfo: document.getElementById("userInfo"),
-  driveSyncHint: document.getElementById("driveSyncHint"),
+  syncStatus: document.getElementById("syncStatus"),
   settingsDataTitle: document.getElementById("settingsDataTitle"),
   importDataLabel: document.getElementById("importDataLabel"),
 };
@@ -466,11 +473,6 @@ function updateAuthStatusDisplay() {
   if (!elements.userInfo) return;
   const authStatus = checkAuthStatus();
   const settings = storage.getSettings();
-  const { source, saveDestination } = settings;
-  const driveTokenValid = isDriveTokenValid(settings?.driveToken);
-  if (!authStatus.authenticated && (source === "drive" || saveDestination === "drive")) {
-    storage.setSettings({ source: "local", saveDestination: "local" });
-  }
   if (authStatus.authenticated) {
     const userLabel = authStatus.userEmail || authStatus.userName;
     elements.userInfo.textContent = userLabel
@@ -484,13 +486,31 @@ function updateAuthStatusDisplay() {
       ? t("googleLogoutLabel")
       : t("googleLoginLabel");
   }
-  updateDriveSyncHint(driveTokenValid);
+  updateSyncStatusDisplay(authStatus);
   syncAutoSyncPolicy(authStatus);
 }
 
-function updateDriveSyncHint(isReady) {
-  if (!elements.driveSyncHint) return;
-  elements.driveSyncHint.textContent = isReady ? t("driveSyncHintReady") : t("driveSyncHint");
+function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
+  if (elements.syncToggleButton) {
+    const isEnabled = Boolean(storage.getSettings().syncEnabled);
+    elements.syncToggleButton.textContent = isEnabled ? t("syncToggleOff") : t("syncToggleLabel");
+    elements.syncToggleButton.disabled = !authStatus.authenticated;
+  }
+  if (elements.syncStatus) {
+    if (!authStatus.authenticated) {
+      elements.syncStatus.textContent = t("syncNeedsLogin");
+      return;
+    }
+    const lastSyncAt = storage.getSettings().lastSyncAt;
+    if (!lastSyncAt) {
+      elements.syncStatus.textContent = t("syncStatusNever");
+      return;
+    }
+    const timeText = uiLanguage === "en"
+      ? formatRelativeTimeEn(lastSyncAt)
+      : formatRelativeTime(lastSyncAt);
+    elements.syncStatus.textContent = t("syncStatusLabel").replace("{time}", timeText || "--");
+  }
 }
 
 function toggleFloatOverlay(forceVisible) {
@@ -546,7 +566,7 @@ function buildSyncRemoteLabel(timestamp) {
   return t("syncPromptRemote").replace("{time}", timeText || "--");
 }
 
-function promptSyncChoice(remoteProgress) {
+function promptSyncChoice({ mode, remoteProgress }) {
   return new Promise((resolve) => {
     if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
       resolve("local");
@@ -557,10 +577,16 @@ function promptSyncChoice(remoteProgress) {
       elements.syncModalTitle.textContent = t("syncPromptTitle");
     }
     if (elements.syncModalMessage) {
-      elements.syncModalMessage.textContent = t("syncPromptMessage");
+      elements.syncModalMessage.textContent =
+        mode === "local" ? t("syncPromptLocalMessage") : t("syncPromptMessage");
     }
-    elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteProgress?.updatedAt);
-    elements.syncUseLocal.textContent = t("syncPromptLocal");
+    if (mode === "local") {
+      elements.syncUseRemote.textContent = t("syncPromptUpload");
+      elements.syncUseLocal.textContent = t("syncPromptLocal");
+    } else {
+      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteProgress?.updatedAt);
+      elements.syncUseLocal.textContent = t("syncPromptLocal");
+    }
 
     const cleanup = () => {
       elements.syncUseRemote.removeEventListener("click", onRemote);
@@ -569,7 +595,7 @@ function promptSyncChoice(remoteProgress) {
     const onRemote = () => {
       cleanup();
       closeModal(elements.syncModal);
-      resolve("remote");
+      resolve(mode === "local" ? "upload" : "remote");
     };
     const onLocal = () => {
       cleanup();
@@ -583,29 +609,78 @@ function promptSyncChoice(remoteProgress) {
   });
 }
 
+function buildBookSyncPayload(bookId) {
+  const progress = storage.getProgress(bookId) ?? {};
+  const bookmarks = storage.getBookmarks(bookId) ?? [];
+  const history = (storage.data.history ?? []).filter((entry) => entry.bookId === bookId);
+  const updatedAt = Math.max(
+    progress?.updatedAt ?? 0,
+    ...bookmarks.map((bookmark) => bookmark?.createdAt ?? 0),
+    ...history.map((entry) => entry?.openedAt ?? 0),
+  );
+  return {
+    data: {
+      bookId,
+      lastCfi: progress?.location ?? null,
+      progress: progress?.percentage ?? 0,
+      bookmarks,
+      history,
+      updatedAt,
+    },
+    updatedAt,
+  };
+}
+
+function applyBookSyncData(bookId, data) {
+  if (!data) return;
+  if (data.bookmarks) {
+    storage.setBookmarks(bookId, data.bookmarks);
+  }
+  if (data.history) {
+    storage.setHistoryEntries(bookId, data.history);
+  }
+  if (data.lastCfi || typeof data.progress === "number") {
+    const existing = storage.getProgress(bookId) ?? {};
+    storage.setProgress(bookId, {
+      ...existing,
+      location: data.lastCfi ?? existing.location,
+      percentage: typeof data.progress === "number" ? data.progress : existing.percentage,
+      updatedAt: data.updatedAt ?? Date.now(),
+    });
+  }
+}
+
 async function resolveSyncedProgress(bookId) {
   const localProgress = storage.getProgress(bookId);
-  const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
-  if (resolvedSource === "local") {
+  const settings = storage.getSettings();
+  if (!settings.syncEnabled) {
     return localProgress;
   }
 
   try {
-    const remoteSnapshot = await cloudSync.fetchRemoteSnapshot(resolvedSource);
-    const remoteProgress = remoteSnapshot?.progress?.[bookId];
-    if (!remoteProgress?.updatedAt) {
+    const remote = await cloudSync.pullBookData(bookId, settings);
+    const remoteData = remote?.data;
+    const remoteUpdatedAt = remoteData?.updatedAt ?? 0;
+    const localPayload = buildBookSyncPayload(bookId);
+    const localUpdatedAt = localPayload.updatedAt ?? 0;
+
+    if (remoteUpdatedAt > localUpdatedAt) {
+      const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteData });
+      if (choice === "remote") {
+        applyBookSyncData(bookId, remoteData);
+        storage.setSettings({ lastSyncAt: Date.now() });
+        return storage.getProgress(bookId);
+      }
       return localProgress;
     }
 
-    const localUpdatedAt = localProgress?.updatedAt ?? 0;
-    if (remoteProgress.updatedAt <= localUpdatedAt) {
+    if (localUpdatedAt > remoteUpdatedAt) {
+      const choice = await promptSyncChoice({ mode: "local" });
+      if (choice === "upload") {
+        await cloudSync.pushBookData(bookId, localPayload, settings);
+        storage.setSettings({ lastSyncAt: Date.now() });
+      }
       return localProgress;
-    }
-
-    const choice = await promptSyncChoice(remoteProgress);
-    if (choice === "remote") {
-      storage.setProgress(bookId, remoteProgress);
-      return remoteProgress;
     }
   } catch (error) {
     console.warn("同期情報の取得に失敗しました:", error);
@@ -708,7 +783,7 @@ async function handleFile(file) {
     
     // 自動同期が有効なら保存
     if (syncAutoSyncPolicy(checkAuthStatus())) {
-      await cloudSync.push();
+      await pushCurrentBookSync();
     }
   } catch (error) {
     console.error("Error in handleFile:", error);
@@ -1827,8 +1902,14 @@ function applyUiLanguage(nextLanguage) {
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
-  if (elements.driveSyncButton) elements.driveSyncButton.textContent = strings.driveSyncLabel;
-  if (elements.driveSyncHint) elements.driveSyncHint.textContent = strings.driveSyncHint;
+  if (elements.syncToggleButton) {
+    elements.syncToggleButton.textContent = storage.getSettings().syncEnabled
+      ? strings.syncToggleOff
+      : strings.syncToggleLabel;
+  }
+  if (elements.syncStatus) {
+    updateSyncStatusDisplay();
+  }
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
   if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
   if (elements.importDataLabel) {
@@ -1912,6 +1993,16 @@ function applyProgressDisplayMode(mode) {
   renderBookmarkMarkers();
 }
 
+async function pushCurrentBookSync() {
+  if (!currentBookId) return;
+  const settings = storage.getSettings();
+  if (!settings.syncEnabled) return;
+  const payload = buildBookSyncPayload(currentBookId);
+  await cloudSync.pushBookData(currentBookId, payload, settings);
+  storage.setSettings({ lastSyncAt: Date.now() });
+  updateSyncStatusDisplay();
+}
+
 function toggleAutoSync(enabled) {
   autoSyncEnabled = enabled;
   storage.setSettings({ autoSyncEnabled: enabled });
@@ -1929,7 +2020,7 @@ function toggleAutoSync(enabled) {
     // 30秒ごとに自動同期
     autoSyncInterval = setInterval(async () => {
       try {
-        await cloudSync.push();
+        await pushCurrentBookSync();
         console.log('Auto-sync completed');
       } catch (error) {
         console.error('Auto-sync failed:', error);
@@ -1943,11 +2034,7 @@ function shouldEnableAutoSync(authStatus = checkAuthStatus()) {
     return false;
   }
   const settings = storage.getSettings();
-  const resolvedSource = cloudSync.resolveSource(null, settings);
-  if (resolvedSource === "drive") {
-    return isDriveTokenValid(settings?.driveToken);
-  }
-  return true;
+  return Boolean(settings.syncEnabled);
 }
 
 function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
@@ -1975,7 +2062,7 @@ function scheduleAutoSyncPush() {
   autoSyncTimeout = setTimeout(async () => {
     autoSyncTimeout = null;
     try {
-      await cloudSync.push();
+      await pushCurrentBookSync();
     } catch (error) {
       console.error("Auto-sync failed:", error);
     }
@@ -2231,15 +2318,16 @@ function setupEvents() {
     }
   });
 
-  elements.driveSyncButton?.addEventListener("click", async () => {
-    try {
-      const driveToken = await requestDriveScope();
-      storage.setSettings({ driveToken, source: "drive", saveDestination: "drive" });
-      updateAuthStatusDisplay();
-    } catch (error) {
-      console.error("Google Drive auth failed:", error);
-      alert(error?.message || "Google Drive の認証に失敗しました");
+  elements.syncToggleButton?.addEventListener("click", () => {
+    const authStatus = checkAuthStatus();
+    if (!authStatus.authenticated) {
+      alert(t("syncNeedsLogin"));
+      return;
     }
+    const current = storage.getSettings().syncEnabled;
+    storage.setSettings({ syncEnabled: !current });
+    updateAuthStatusDisplay();
+    syncAutoSyncPolicy(authStatus);
   });
   
   elements.exportDataBtn?.addEventListener('click', exportData);
@@ -2398,7 +2486,7 @@ function setupEvents() {
       syncAutoSyncPolicy(authStatus);
       return;
     }
-    cloudSync.push().catch((error) => {
+    pushCurrentBookSync().catch((error) => {
       console.error("Auto-sync failed:", error);
     });
   });
