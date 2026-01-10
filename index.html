@@ -38,23 +38,6 @@
         });
       })();
     </script>
-    <!-- 認証チェック（ページ読み込み後に実行） -->
-    <script type="module">
-      import { checkAuthStatus } from './assets/auth.js';
-      
-      // DOMが読み込まれてから認証チェック
-      window.addEventListener('DOMContentLoaded', () => {
-        const authStatus = checkAuthStatus();
-        
-        if (!authStatus.authenticated) {
-          console.log('Not authenticated, redirecting to login...');
-          // 開発中はコメントアウトして認証なしでテスト可能
-          // window.location.href = '/login.html';
-        } else {
-          console.log('Authenticated as:', authStatus.userEmail);
-        }
-      });
-    </script>
   </head>
   <body>
     <!-- 全画面リーダー -->
@@ -115,10 +98,6 @@
           <span class="menu-icon">⚙️</span>
           <span>設定</span>
         </button>
-        <button id="menuLogout" class="menu-item">
-          <span class="menu-icon">🚪</span>
-          <span>ログアウト</span>
-        </button>
       </nav>
 
       <div class="menu-language">
@@ -131,9 +110,6 @@
         <ul id="tocList" class="toc-list"></ul>
       </div>
       
-      <div class="menu-footer">
-        <p id="userInfo" class="user-info"></p>
-      </div>
     </div>
 
     <!-- 進捗バーバックドロップ -->
@@ -301,13 +277,6 @@
             <p class="setting-hint" id="autoSyncHint">※ しおり、履歴、進捗が30秒ごとに自動保存されます</p>
           </div>
 
-          <div class="settings-section">
-            <h4>アカウント</h4>
-            <div class="setting-actions">
-              <button id="logoutBtn" class="secondary-btn" type="button">ログアウト</button>
-            </div>
-          </div>
-          
         </div>
       </div>
     </div>

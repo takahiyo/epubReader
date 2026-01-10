@@ -4,7 +4,7 @@ import { StorageService } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
-import { updateActivity, logout, getCurrentUserId, checkAuthStatus } from "./auth.js";
+import { updateActivity } from "./auth.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -55,7 +55,6 @@ const UI_STRINGS = {
     menuBookmarks: "しおり",
     menuHistory: "履歴",
     menuSettings: "設定",
-    menuLogout: "ログアウト",
     tocButton: "目次",
     bookmarkTitle: "しおり",
     bookmarkDefault: "しおり",
@@ -118,7 +117,6 @@ const UI_STRINGS = {
     menuBookmarks: "Bookmarks",
     menuHistory: "History",
     menuSettings: "Settings",
-    menuLogout: "Log out",
     tocButton: "TOC",
     bookmarkTitle: "Bookmarks",
     bookmarkDefault: "Bookmark",
@@ -221,8 +219,6 @@ const elements = {
   menuBookmarks: document.getElementById("menuBookmarks"),
   menuHistory: document.getElementById("menuHistory"),
   menuSettings: document.getElementById("menuSettings"),
-  menuLogout: document.getElementById("menuLogout"),
-  userInfo: document.getElementById("userInfo"),
   tocSection: document.getElementById("tocSection"),
   tocList: document.getElementById("tocList"),
   langJa: document.getElementById("langJa"),
@@ -272,7 +268,6 @@ const elements = {
   pageDirectionSelect: document.getElementById("pageDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   autoSyncEnabled: document.getElementById("autoSyncEnabled"),
-  logoutBtn: document.getElementById("logoutBtn"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
   
@@ -436,17 +431,6 @@ const floatProgressHandler = new ProgressBarHandler({
     seekToPercentage(percentage);
   },
 });
-
-// ========================================
-// ユーザー情報表示
-// ========================================
-
-function updateUserInfo() {
-  const authStatus = checkAuthStatus();
-  if (authStatus.authenticated && elements.userInfo) {
-    elements.userInfo.textContent = authStatus.userEmail || authStatus.userId || '';
-  }
-}
 
 function updateSearchButtonState() {
   if (!elements.menuSearch) return;
@@ -1768,7 +1752,6 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuBookmarks, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, strings.menuHistory);
   setMenuLabel(elements.menuSettings, strings.menuSettings);
-  setMenuLabel(elements.menuLogout, strings.menuLogout);
   setFloatLabel(elements.floatOpen, "📂", strings.menuOpen);
   setFloatLabel(elements.floatLibrary, "📚", strings.menuLibrary);
   setFloatLabel(elements.floatSearch, "🔍", strings.menuSearch);
@@ -1795,7 +1778,6 @@ function applyUiLanguage(nextLanguage) {
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsCloudTitle) elements.settingsCloudTitle.textContent = strings.settingsCloudTitle;
-  if (elements.logoutBtn) elements.logoutBtn.textContent = strings.menuLogout;
   if (elements.autoSyncLabel) {
     const input = elements.autoSyncLabel.querySelector("input");
     elements.autoSyncLabel.textContent = strings.autoSyncLabel;
@@ -2049,17 +2031,6 @@ function setupEvents() {
     showSettings();
   });
   
-  elements.menuLogout?.addEventListener('click', () => {
-    if (confirm("ログアウトしますか？")) {
-      logout();
-    }
-  });
-
-  elements.logoutBtn?.addEventListener('click', () => {
-    if (confirm("ログアウトしますか？")) {
-      logout();
-    }
-  });
 
   elements.langJa?.addEventListener('click', () => applyUiLanguage("ja"));
   elements.langEn?.addEventListener('click', () => applyUiLanguage("en"));
@@ -2343,9 +2314,6 @@ function init() {
   // ライブラリ読み込み確認
   console.log("JSZip:", typeof JSZip !== "undefined" ? "✓" : "✗");
   console.log("ePub:", typeof ePub !== "undefined" ? "✓" : "✗");
-  
-  // ユーザー情報表示
-  updateUserInfo();
   
   // イベント設定
   setupEvents();

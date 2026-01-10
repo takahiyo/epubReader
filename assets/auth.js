@@ -14,7 +14,7 @@ const AUTH_CONFIG = {
   get clientId() {
     return resolveClientId();
   },
-  redirectUri: window.location.origin + '/login.html',
+  redirectUri: window.location.origin + '/index.html',
   scope: 'openid profile email',
   driveScope: 'https://www.googleapis.com/auth/drive.file',
   tokenExpiry: 60 * 60 * 1000, // 1時間（ミリ秒）
@@ -43,7 +43,7 @@ export function initGoogleLogin() {
   if (!clientId) {
     throw new Error(
       'Google ログインのクライアントIDが設定されていません。' +
-      'assets/config.js もしくは login.html の data-client-id を設定してください。'
+      'assets/config.js で data-client-id を設定してください。'
     );
   }
   
@@ -197,7 +197,7 @@ export function requestDriveScope() {
       reject(
         new Error(
           'Google ログインのクライアントIDが設定されていません。' +
-            'assets/config.js もしくは login.html の data-client-id を設定してください。'
+            'assets/config.js で data-client-id を設定してください。'
         )
       );
       return;
@@ -292,7 +292,7 @@ export function clearAuth() {
  */
 export function logout() {
   clearAuth();
-  window.location.href = 'login.html';
+  window.location.href = 'index.html';
 }
 
 /**
