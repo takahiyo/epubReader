@@ -2682,6 +2682,55 @@ function setupEvents() {
       }
     }
   });
+
+  // Manual sync button
+  const manualSyncButton = document.getElementById('manualSyncButton');
+  const syncStatus = document.getElementById('syncStatus');
+  
+  manualSyncButton?.addEventListener('click', async () => {
+    const authStatus = checkAuthStatus();
+    if (!authStatus.authenticated) {
+      if (syncStatus) {
+        syncStatus.textContent = 'Googleログインが必要です';
+        syncStatus.style.color = '#f44336';
+      }
+      return;
+    }
+
+    try {
+      manualSyncButton.disabled = true;
+      manualSyncButton.textContent = '同期中...';
+      if (syncStatus) {
+        syncStatus.textContent = '同期を開始しています...';
+        syncStatus.style.color = '#666';
+      }
+
+      // Pull index
+      await syncAllBooksFromCloud();
+      
+      // If a book is open, sync its state
+      if (currentReader && currentBook?.cloudBookId) {
+        await syncCurrentBookState();
+      }
+
+      if (syncStatus) {
+        syncStatus.textContent = '✓ 同期完了';
+        syncStatus.style.color = '#4caf50';
+        setTimeout(() => {
+          syncStatus.textContent = '';
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Manual sync failed:', error);
+      if (syncStatus) {
+        syncStatus.textContent = '✗ 同期に失敗しました: ' + error.message;
+        syncStatus.style.color = '#f44336';
+      }
+    } finally {
+      manualSyncButton.disabled = false;
+      manualSyncButton.textContent = '今すぐ同期';
+    }
+  });
   
   elements.exportDataBtn?.addEventListener('click', exportData);
   

@@ -3,6 +3,7 @@ function doPost(e) {
     // Raw request debugging
     console.log({
       timestamp: new Date().toISOString(),
+      method: 'POST',
       hasEvent: !!e,
       hasPostData: !!(e && e.postData),
       hasContents: !!(e && e.postData && e.postData.contents),
@@ -10,6 +11,8 @@ function doPost(e) {
       contentsLength: e && e.postData && e.postData.contents ? e.postData.contents.length : 0,
       contentsPreview: e && e.postData && e.postData.contents ? e.postData.contents.substring(0, 200) : 'no-contents',
       pathInfo: e && e.pathInfo ? e.pathInfo : 'no-pathInfo',
+      parameter: e && e.parameter ? Object.keys(e.parameter) : 'no-parameter',
+      parameters: e && e.parameters ? Object.keys(e.parameters) : 'no-parameters',
     });
     
     // Parse request details
@@ -20,6 +23,7 @@ function doPost(e) {
     console.log({
       timestamp: new Date().toISOString(),
       path: path,
+      pathSource: (e && e.parameter && e.parameter.path) ? 'query-parameter' : 'pathInfo',
       hasPayload: !!payload,
       hasToken: !!(payload && payload.idToken),
       payloadKeys: payload ? Object.keys(payload) : [],
@@ -81,6 +85,7 @@ function doGet(e) {
     method: 'GET',
     path: path,
     timestamp: new Date().toISOString(),
+    warning: 'GET request received - expecting POST for sync operations'
   });
   return jsonResponse({ 
     ok: true, 
@@ -88,7 +93,21 @@ function doGet(e) {
     message: "GAS BookReader Sync API",
     version: "2.0",
     path: path,
+    note: "Use POST requests for sync operations"
   });
+}
+
+function doOptions(e) {
+  // Handle CORS preflight requests
+  console.log({
+    method: 'OPTIONS',
+    timestamp: new Date().toISOString(),
+    note: 'CORS preflight request'
+  });
+  
+  // Return minimal response for OPTIONS
+  return ContentService.createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 function parsePayload(e) {
@@ -126,7 +145,12 @@ function parsePayload(e) {
 }
 
 function getPath(e) {
-  // Handle both direct pathInfo and possible /exec prefix
+  // Try to get path from query parameter first (recommended method)
+  if (e && e.parameter && e.parameter.path) {
+    return e.parameter.path;
+  }
+  
+  // Fallback to pathInfo (legacy method)
   const raw = e && e.pathInfo ? e.pathInfo : "";
   // Remove trailing slashes
   const normalized = raw.replace(/\/+$/, "");
