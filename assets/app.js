@@ -2721,7 +2721,7 @@ function setupEvents() {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
   });
 
-  // 言語メニュー（フロートUI用）
+  // 言語メニュー（フロートUI用・地球儀ボタン横）
   elements.openLangMenu?.addEventListener('click', () => {
     elements.floatLangMenu?.classList.toggle("hidden");
   });

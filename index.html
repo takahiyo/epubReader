@@ -342,10 +342,9 @@
       <!-- 右中央 -->
       <button id="toggleTheme" type="button">🌙</button>
 
-      <!-- 左下 -->
-      <button id="toggleLanguage" type="button">
-        <img id="langIcon" src="assets/Flag_Japan.svg" alt="言語" />
-      </button>
+      <!-- 左下 (言語メニュー) -->
+      <button id="openLangMenu" type="button"
+        style="position: absolute; left: 24px; bottom: 24px; font-size: 1.5rem; pointer-events: auto;">🌐</button>
     </div>
 
     <div id="floatProgress">
@@ -358,13 +357,13 @@
     </div>
   </div>
 
-  <!-- 言語選択メニュー（フロート用） -->
+  <!-- 言語選択メニュー（フロート用・地球儀ボタン横） -->
   <div id="floatLangMenu" class="float-lang-menu hidden">
     <button id="floatLangJa" class="lang-option-btn">
-      <img src="assets/Flag_Japan.svg" alt="JP" /> 日本語
+      <img src="assets/Flag_Japan.svg" alt="JP" />
     </button>
     <button id="floatLangEn" class="lang-option-btn">
-      <img src="assets/Flag_America.svg" alt="US" /> English
+      <img src="assets/Flag_America.svg" alt="US" />
     </button>
   </div>
 

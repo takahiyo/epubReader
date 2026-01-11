@@ -68,14 +68,14 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* EPUBスクロールモード（縦書き・横書きともに縦スクロール） */
+/* EPUBスクロールモード（縦書き�E横書きともに縦スクロール�E�E*/
 .fullscreen-reader.epub-scroll .viewer {
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 
-/* クリック検知用オーバーレイ */
+/* クリチE��検知用オーバ�Eレイ */
 .click-overlay {
   position: absolute;
   inset: 0;
@@ -95,7 +95,7 @@ body {
 }
 
 /* ========================================
-   フロートUI
+   フローチEI
 ======================================== */
 
 #floatOverlay {
@@ -134,7 +134,7 @@ body.google-auth-active .modal-backdrop {
 .float-backdrop {
   position: absolute;
   inset: 0;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(4px);
   background: rgba(0, 0, 0, 0.5);
   pointer-events: auto;
   z-index: 1;
@@ -311,7 +311,7 @@ body.google-auth-active .modal-backdrop {
   border: 2px solid rgba(17, 24, 39, 0.8);
 }
 
-/* スクロール時のメニューボタン */
+/* スクロール時�Eメニューボタン */
 .floating-menu-button {
   position: absolute;
   top: 1rem;
@@ -367,7 +367,7 @@ body.google-auth-active .modal-backdrop {
   cursor: not-allowed;
 }
 
-/* メニューが開いている時はオーバーレイを非表示 */
+/* メニューが開ぁE��ぁE��時�Eオーバ�Eレイを非表示 */
 .left-menu.visible~.fullscreen-reader .click-overlay,
 .progress-bar-panel.visible~.fullscreen-reader .click-overlay,
 .bookmark-menu.visible~.fullscreen-reader .click-overlay {
@@ -468,12 +468,12 @@ body.google-auth-active .modal-backdrop {
   opacity: 1;
 }
 
-/* 左メニュー用バックドロップ（左メニューの下） */
+/* 左メニュー用バックドロチE�E�E�左メニューの下！E*/
 #leftMenuBackdrop {
   z-index: 99;
 }
 
-/* 進捗バー用バックドロップ（進捗バーの下） */
+/* 進捗バー用バックドロチE�E�E�進捗バーの下！E*/
 #progressBarBackdrop {
   z-index: 85;
 }
@@ -655,7 +655,7 @@ body.google-auth-active .modal-backdrop {
 .progress-track {
   position: relative;
   height: 12px;
-  /* 濃いグレーで白背景でも確実に視認可能 */
+  /* 濁E��グレーで白背景でも確実に視認可能 */
   background: #374151;
   border: 2px solid #1f2937;
   border-radius: 999px;
@@ -683,7 +683,7 @@ body.google-auth-active .modal-backdrop {
   left: 2px;
   top: 2px;
   bottom: 2px;
-  /* 鮮やかなグラデーションで視認性向上 */
+  /* 鮮めE��なグラチE�Eションで視認性向丁E*/
   background: linear-gradient(90deg, #8b5cf6, #a855f7);
   border-radius: 999px;
   transition: width 0.2s ease;
@@ -752,7 +752,7 @@ body.google-auth-active .modal-backdrop {
   color: var(--muted);
 }
 
-/* しおりマーカー（進捗バー上） */
+/* しおり�Eーカー�E�進捗バー上！E*/
 .bookmark-marker {
   position: absolute;
   top: 50%;
@@ -774,7 +774,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   しおりメニュー（モーダル）
+   しおりメニュー�E�モーダル�E�E
 ======================================== */
 
 .bookmark-menu {
@@ -925,7 +925,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   モーダル共通
+   モーダル共送E
 ======================================== */
 
 #modalOverlay {
@@ -1054,7 +1054,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   ファイル選択・ライブラリ
+   ファイル選択�Eライブラリ
 ======================================== */
 
 .file-input-hidden {
@@ -1245,7 +1245,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   履歴リスト
+   履歴リスチE
 ======================================== */
 
 .history-list {
@@ -1295,7 +1295,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   テキスト検索
+   チE��スト検索
 ======================================== */
 
 .search-input-container {
@@ -1396,7 +1396,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   設定
+   設宁E
 ======================================== */
 
 .settings-section {
@@ -1475,7 +1475,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   レスポンシブ
+   レスポンシチE
 ======================================== */
 
 @media (max-width: 768px) {
@@ -1512,7 +1512,7 @@ body.google-auth-active .modal-backdrop {
   }
 }
 
-/* 候補リスト */
+/* 候補リスチE*/
 .candidate-list {
   display: flex;
   flex-direction: column;
@@ -1553,144 +1553,146 @@ body.google-auth-active .modal-backdrop {
   font-size: 0.75rem;
   color: var(--muted);
   margin-top: 0.25rem;
-}/ *   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =  
-       ]~m�]~|�]~�0E0]~s�g~p�g~b�]~]N�]~|�g~w�]~g�]~s� 
- = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =   * /  
-  
- . l o a d i n g - o v e r l a y   {  
-         p o s i t i o n :   f i x e d ;  
-         i n s e t :   0 ;  
-         b a c k g r o u n d :   v a r ( - - b g ) ;  
-         / *   ]~�0�0]~�i�!"��a� :~�n�0N�o��or�  * /  
-         z - i n d e x :   2 0 0 0 ;  
-         d i s p l a y :   f l e x ;  
-         f l e x - d i r e c t i o n :   c o l u m n ;  
-         a l i g n - i t e m s :   c e n t e r ;  
-         j u s t i f y - c o n t e n t :   c e n t e r ;  
-         t r a n s i t i o n :   o p a c i t y   0 . 3 s   e a s e ,   v i s i b i l i t y   0 . 3 s   e a s e ;  
-         o p a c i t y :   0 ;  
-         v i s i b i l i t y :   h i d d e n ;  
-         p o i n t e r - e v e n t s :   n o n e ;  
- }  
-  
- . l o a d i n g - o v e r l a y . v i s i b l e   {  
-         o p a c i t y :   1 ;  
-         v i s i b i l i t y :   v i s i b l e ;  
-         p o i n t e r - e v e n t s :   a u t o ;  
- }  
-  
- . b o o k - l o a d e r   {  
-         p o s i t i o n :   r e l a t i v e ;  
-         w i d t h :   6 0 p x ;  
-         h e i g h t :   4 5 p x ;  
-         m a r g i n - b o t t o m :   2 0 p x ;  
-         p e r s p e c t i v e :   1 0 0 0 p x ;  
- }  
-  
- . b o o k - l o a d e r   d i v   {  
-         p o s i t i o n :   a b s o l u t e ;  
-         t o p :   0 ;  
-         l e f t :   0 ;  
-         w i d t h :   1 0 0 % ;  
-         h e i g h t :   1 0 0 % ;  
-         b a c k g r o u n d :   v a r ( - - a c c e n t ) ;  
-         b o r d e r - r a d i u s :   4 p x ;  
-         t r a n s f o r m - o r i g i n :   0   5 0 % ;  
-         a n i m a t i o n :   f l i p   1 . 2 s   i n f i n i t e   e a s e - i n - o u t ;  
-         b o r d e r :   2 p x   s o l i d   v a r ( - - b o r d e r ) ;  
-         b o x - s h a d o w :   0   4 p x   6 p x   r g b a ( 0 ,   0 ,   0 ,   0 . 1 ) ;  
- }  
-  
- . b o o k - l o a d e r   d i v : n t h - c h i l d ( 1 )   {  
-         a n i m a t i o n - d e l a y :   0 s ;  
-         b a c k g r o u n d :   v a r ( - - c a r d ) ;  
- }  
-  
- . b o o k - l o a d e r   d i v : n t h - c h i l d ( 2 )   {  
-         a n i m a t i o n - d e l a y :   - 0 . 4 s ;  
-         b a c k g r o u n d :   v a r ( - - c a r d ) ;  
- }  
-  
- . b o o k - l o a d e r   d i v : n t h - c h i l d ( 3 )   {  
-         a n i m a t i o n - d e l a y :   - 0 . 8 s ;  
-         b a c k g r o u n d :   v a r ( - - a c c e n t ) ;  
- }  
-  
- @ k e y f r a m e s   f l i p   {  
-         0 %   {  
-                 t r a n s f o r m :   r o t a t e Y ( 0 d e g ) ;  
-         }  
-  
-         5 0 %   {  
-                 t r a n s f o r m :   r o t a t e Y ( - 1 8 0 d e g ) ;  
-         }  
-  
-         1 0 0 %   {  
-                 t r a n s f o r m :   r o t a t e Y ( - 1 8 0 d e g ) ;  
-         }  
- }  
-  
- . l o a d i n g - t e x t   {  
-         f o n t - s i z e :   1 . 1 r e m ;  
-         c o l o r :   v a r ( - - m u t e d ) ;  
-         f o n t - w e i g h t :   5 0 0 ;  
-         l e t t e r - s p a c i n g :   0 . 0 5 e m ;  
-         a n i m a t i o n :   p u l s e   1 . 5 s   i n f i n i t e   e a s e - i n - o u t ;  
- }  
-  
- @ k e y f r a m e s   p u l s e   {  
-  
-         0 % ,  
-         1 0 0 %   {  
-                 o p a c i t y :   0 . 6 ;  
-         }  
-  
-         5 0 %   {  
-                 o p a c i t y :   1 ;  
-         }  
- }  
- / *   ]~��]~|�]~��h�� ���i�]~]N�]~|�  * /  
- . f l o a t - l a n g - m e n u   {  
-         p o s i t i o n :   a b s o l u t e ;  
-         l e f t :   8 0 p x ;  
-         b o t t o m :   2 4 p x ;  
-         b a c k g r o u n d :   v a r ( - - c a r d ) ;  
-         b o r d e r :   1 p x   s o l i d   v a r ( - - b o r d e r ) ;  
-         b o r d e r - r a d i u s :   1 2 p x ;  
-         p a d d i n g :   8 p x ;  
-         d i s p l a y :   f l e x ;  
-         f l e x - d i r e c t i o n :   c o l u m n ;  
-         g a p :   8 p x ;  
-         b o x - s h a d o w :   0   4 p x   1 2 p x   r g b a ( 0 ,   0 ,   0 ,   0 . 3 ) ;  
-         z - i n d e x :   2 0 ;  
-         p o i n t e r - e v e n t s :   a u t o ;  
- }  
-  
- . f l o a t - l a n g - m e n u . h i d d e n   {  
-         d i s p l a y :   n o n e ;  
- }  
-  
- . l a n g - o p t i o n - b t n   {  
-         d i s p l a y :   f l e x ;  
-         a l i g n - i t e m s :   c e n t e r ;  
-         g a p :   1 2 p x ;  
-         p a d d i n g :   8 p x   1 2 p x ;  
-         b o r d e r :   n o n e ;  
-         b a c k g r o u n d :   t r a n s p a r e n t ;  
-         c o l o r :   v a r ( - - t e x t ) ;  
-         f o n t - s i z e :   1 r e m ;  
-         c u r s o r :   p o i n t e r ;  
-         b o r d e r - r a d i u s :   8 p x ;  
-         w h i t e - s p a c e :   n o w r a p ;  
- }  
-  
- . l a n g - o p t i o n - b t n : h o v e r   {  
-         b a c k g r o u n d :   r g b a ( 1 3 9 ,   9 2 ,   2 4 6 ,   0 . 1 ) ;  
- }  
-  
- . l a n g - o p t i o n - b t n   i m g   {  
-         w i d t h :   2 4 p x ;  
-         h e i g h t :   a u t o ;  
-         b o r d e r - r a d i u s :   2 p x ;  
- }  
- 
+}
+
+/* ========================================
+   ローディングオーバーレイ
+======================================== */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loading-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.book-loader {
+  position: relative;
+  width: 60px;
+  height: 45px;
+  margin-bottom: 20px;
+  perspective: 1000px;
+}
+
+.book-loader div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transform-origin: 0 50%;
+  animation: flip 1.2s infinite ease-in-out;
+  border: 2px solid var(--border);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.book-loader div:nth-child(1) {
+  animation-delay: 0s;
+  background: var(--card);
+}
+
+.book-loader div:nth-child(2) {
+  animation-delay: -0.4s;
+  background: var(--card);
+}
+
+.book-loader div:nth-child(3) {
+  animation-delay: -0.8s;
+  background: var(--accent);
+}
+
+@keyframes flip {
+  0% {
+    transform: rotateY(0deg);
+  }
+
+  50% {
+    transform: rotateY(-180deg);
+  }
+
+  100% {
+    transform: rotateY(-180deg);
+  }
+}
+
+.loading-text {
+  font-size: 1.1rem;
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   言語選択メニュー（フロートUI用・地球儀ボタン横）
+======================================== */
+
+.float-lang-menu {
+  position: absolute;
+  left: 76px;
+  bottom: 24px;
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  z-index: 910;
+  pointer-events: auto;
+}
+
+.float-lang-menu.hidden {
+  display: none;
+}
+
+.lang-option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.lang-option-btn:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+.lang-option-btn img {
+  width: 28px;
+  height: 28px;
+  border-radius: 2px;
+}
