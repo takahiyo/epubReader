@@ -80,7 +80,7 @@ body {
   position: absolute;
   inset: 0;
   z-index: 10;
-  pointer-events: none;
+  pointer-events: all;
   background: transparent;
   display: none;
 }

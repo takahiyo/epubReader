@@ -1572,6 +1572,13 @@ export class ReaderController {
 
   async prev(step = 1) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
+
+    // EPUBの場合はPageControllerを使用
+    if (this.type === "epub") {
+      this.pageController?.prev();
+      return;
+    }
+
     if (this.render && this.render.prev && !this.isImageBook()) {
       this.render.prev();
       return;
@@ -1591,6 +1598,36 @@ export class ReaderController {
       }
     } else {
       targetIndex = Math.max(0, this.currentImageIndex - 1);
+    }
+    await this.goTo(targetIndex);
+  }
+
+  async next(step = 1) {
+    if (this.imageZoomed) return; // ズーム中はページめくり無効
+
+    // EPUBの場合はPageControllerを使用
+    if (this.type === "epub") {
+      this.pageController?.next();
+      return;
+    }
+
+    if (this.render && this.render.next && !this.isImageBook()) {
+      this.render.next();
+      return;
+    }
+
+    let targetIndex;
+    if (this.imageViewMode === "spread") {
+      const increment = step === 1 ? 1 : 2;
+
+      // 画像がワイド（単ページ表示）の場合は1つ進むだけで良い
+      if (this.isCurrentPageWideSync()) {
+        targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + 1);
+      } else {
+        targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + increment);
+      }
+    } else {
+      targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + 1);
     }
     await this.goTo(targetIndex);
   }
