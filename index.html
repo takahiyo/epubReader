@@ -1,375 +1,388 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Epub Reader</title>
-    <link rel="stylesheet" href="./assets/style.css" />
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
-    <!-- JSZipとePubがグローバルに設定されていることを確認 -->
-    <script>
-      // EPUB.jsが必要とするグローバル変数を確実に設定
-      (function() {
-        // JSZipの確認と設定
-        if (typeof JSZip !== 'undefined') {
-          window.JSZip = JSZip;
-          console.log('[Init] JSZip loaded and set to window.JSZip');
-        } else {
-          console.error('[Init] JSZip NOT loaded from CDN!');
-        }
-        
-        // ePubの確認と設定
-        if (typeof ePub !== 'undefined') {
-          window.ePub = ePub;
-          console.log('[Init] ePub loaded and set to window.ePub');
-        } else {
-          console.error('[Init] ePub NOT loaded from CDN!');
-        }
-        
-        // デバッグ情報
-        console.log('[Init] Library status:', {
-          JSZip: typeof JSZip !== 'undefined' ? 'loaded' : 'missing',
-          'window.JSZip': typeof window.JSZip !== 'undefined' ? 'available' : 'missing',
-          ePub: typeof ePub !== 'undefined' ? 'loaded' : 'missing',
-          'window.ePub': typeof window.ePub !== 'undefined' ? 'available' : 'missing'
-        });
-      })();
-    </script>
-  </head>
-  <body>
-    <!-- 全画面リーダー -->
-    <div id="fullscreenReader" class="fullscreen-reader">
-      <!-- EPUB ビューア -->
-      <div id="viewer" class="viewer"></div>
-      
-      <!-- クリック検知用オーバーレイ -->
-      <div id="clickOverlay" class="click-overlay"></div>
 
-      <!-- 画像ビューア -->
-      <div id="imageViewer" class="image-viewer hidden">
-        <img id="pageImage" alt="ページ画像" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Epub Reader</title>
+  <link rel="stylesheet" href="./assets/style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+  <!-- JSZipとePubがグローバルに設定されていることを確認 -->
+  <script>
+    // EPUB.jsが必要とするグローバル変数を確実に設定
+    (function () {
+      // JSZipの確認と設定
+      if (typeof JSZip !== 'undefined') {
+        window.JSZip = JSZip;
+        console.log('[Init] JSZip loaded and set to window.JSZip');
+      } else {
+        console.error('[Init] JSZip NOT loaded from CDN!');
+      }
+
+      // ePubの確認と設定
+      if (typeof ePub !== 'undefined') {
+        window.ePub = ePub;
+        console.log('[Init] ePub loaded and set to window.ePub');
+      } else {
+        console.error('[Init] ePub NOT loaded from CDN!');
+      }
+
+      // デバッグ情報
+      console.log('[Init] Library status:', {
+        JSZip: typeof JSZip !== 'undefined' ? 'loaded' : 'missing',
+        'window.JSZip': typeof window.JSZip !== 'undefined' ? 'available' : 'missing',
+        ePub: typeof ePub !== 'undefined' ? 'loaded' : 'missing',
+        'window.ePub': typeof window.ePub !== 'undefined' ? 'available' : 'missing'
+      });
+    })();
+  </script>
+</head>
+
+<body>
+  <!-- 全画面リーダー -->
+  <div id="fullscreenReader" class="fullscreen-reader">
+    <!-- EPUB ビューア -->
+    <div id="viewer" class="viewer"></div>
+
+    <!-- クリック検知用オーバーレイ -->
+    <div id="clickOverlay" class="click-overlay"></div>
+
+    <!-- 画像ビューア -->
+    <div id="imageViewer" class="image-viewer hidden">
+      <img id="pageImage" alt="ページ画像" />
+    </div>
+
+    <!-- 空の状態（本が未選択） -->
+    <div id="emptyState" class="empty-state">
+      <img src="assets/bookreader.png" class="empty-book-icon" alt="BookReader" />
+      <h2>No book selected</h2>
+      <p>Tap center of the screen to open menu</p>
+      <div id="cloudEmptyState" class="cloud-empty hidden">
+        <p id="cloudEmptyTitle" class="cloud-empty-title"></p>
+        <p id="cloudEmptyMeta" class="cloud-empty-meta"></p>
+        <button id="cloudAttachButton" class="secondary-btn" type="button">ファイルを追加して紐づけ</button>
       </div>
-      
-      <!-- 空の状態（本が未選択） -->
-      <div id="emptyState" class="empty-state">
-        <img src="assets/bookreader.png" class="empty-book-icon" alt="BookReader" />
-        <h2>No book selected</h2>
-        <p>Tap center of the screen to open menu</p>
-        <div id="cloudEmptyState" class="cloud-empty hidden">
-          <p id="cloudEmptyTitle" class="cloud-empty-title"></p>
-          <p id="cloudEmptyMeta" class="cloud-empty-meta"></p>
-          <button id="cloudAttachButton" class="secondary-btn" type="button">ファイルを追加して紐づけ</button>
+    </div>
+  </div>
+
+  <!-- ファイル選択（非表示） -->
+  <input type="file" id="fileInput" accept=".epub,.cbz,.zip,.rar" class="file-input-hidden" />
+
+  <!-- 左サイドメニューバックドロップ -->
+  <div id="leftMenuBackdrop" class="menu-backdrop"></div>
+
+  <!-- 左サイドメニュー -->
+  <div id="leftMenu" class="left-menu">
+    <div class="menu-header">
+      <img src="assets/bookreader.png" alt="BookReader" class="menu-title-image" />
+    </div>
+
+    <nav class="menu-nav">
+      <button id="menuOpen" class="menu-item">
+        <span class="menu-icon">📂</span>
+        <span>開く</span>
+      </button>
+      <button id="menuLibrary" class="menu-item">
+        <span class="menu-icon">📚</span>
+        <span>ライブラリ</span>
+      </button>
+      <button id="menuSearch" class="menu-item">
+        <span class="menu-icon">🔍</span>
+        <span>テキスト検索</span>
+      </button>
+      <button id="menuBookmarks" class="menu-item">
+        <span class="menu-icon">🔖</span>
+        <span>しおり</span>
+      </button>
+      <button id="menuHistory" class="menu-item">
+        <span class="menu-icon">📜</span>
+        <span>履歴</span>
+      </button>
+      <button id="menuSettings" class="menu-item">
+        <span class="menu-icon">⚙️</span>
+        <span>設定</span>
+      </button>
+    </nav>
+
+    <div class="menu-language">
+      <button id="langJa" class="lang-btn" type="button">日</button>
+      <button id="langEn" class="lang-btn" type="button">EN</button>
+    </div>
+
+    <div id="tocSection" class="toc-section hidden">
+      <h3 class="toc-title">目次</h3>
+      <ul id="tocList" class="toc-list"></ul>
+    </div>
+
+  </div>
+
+  <!-- 進捗バーバックドロップ -->
+  <div id="progressBarBackdrop" class="menu-backdrop"></div>
+
+  <!-- 進捗バーパネル -->
+  <div id="progressBarPanel" class="progress-bar-panel">
+    <div class="progress-container">
+      <div class="progress-track">
+        <div id="progressFill" class="progress-fill"></div>
+        <div id="progressThumb" class="progress-thumb"></div>
+        <!-- しおりマーカーはJSで動的に追加 -->
+      </div>
+      <div class="progress-info">
+        <div class="page-numbers">
+          <input id="currentPageInput" type="number" class="current-page-input" value="1" min="1" />
+          <span>/</span>
+          <span id="totalPages" class="total-pages">0</span>
         </div>
       </div>
     </div>
-    
-    <!-- ファイル選択（非表示） -->
-    <input type="file" id="fileInput" accept=".epub,.cbz,.zip,.rar" class="file-input-hidden" />
+  </div>
 
-    <!-- 左サイドメニューバックドロップ -->
-    <div id="leftMenuBackdrop" class="menu-backdrop"></div>
-    
-    <!-- 左サイドメニュー -->
-    <div id="leftMenu" class="left-menu">
-      <div class="menu-header">
-        <img src="assets/bookreader.png" alt="BookReader" class="menu-title-image" />
+  <!-- しおりメニュー（モーダル） -->
+  <div id="bookmarkMenu" class="bookmark-menu">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="bookmarkMenuTitle">しおり</h3>
+        <button id="closeBookmarkMenu" class="close-btn">✕</button>
       </div>
-      
-      <nav class="menu-nav">
-        <button id="menuOpen" class="menu-item">
-          <span class="menu-icon">📂</span>
-          <span>開く</span>
+      <div class="modal-body">
+        <ul id="bookmarkList" class="bookmark-list"></ul>
+        <button id="addBookmarkBtn" class="add-bookmark-btn">
+          ✚ 現在位置にしおりを追加
         </button>
-        <button id="menuLibrary" class="menu-item">
-          <span class="menu-icon">📚</span>
-          <span>ライブラリ</span>
-        </button>
-        <button id="menuSearch" class="menu-item">
-          <span class="menu-icon">🔍</span>
-          <span>テキスト検索</span>
-        </button>
-        <button id="menuBookmarks" class="menu-item">
-          <span class="menu-icon">🔖</span>
-          <span>しおり</span>
-        </button>
-        <button id="menuHistory" class="menu-item">
-          <span class="menu-icon">📜</span>
-          <span>履歴</span>
-        </button>
-        <button id="menuSettings" class="menu-item">
-          <span class="menu-icon">⚙️</span>
-          <span>設定</span>
-        </button>
-      </nav>
-
-      <div class="menu-language">
-        <button id="langJa" class="lang-btn" type="button">日</button>
-        <button id="langEn" class="lang-btn" type="button">EN</button>
-      </div>
-
-      <div id="tocSection" class="toc-section hidden">
-        <h3 class="toc-title">目次</h3>
-        <ul id="tocList" class="toc-list"></ul>
-      </div>
-      
-    </div>
-
-    <!-- 進捗バーバックドロップ -->
-    <div id="progressBarBackdrop" class="menu-backdrop"></div>
-    
-    <!-- 進捗バーパネル -->
-    <div id="progressBarPanel" class="progress-bar-panel">
-      <div class="progress-container">
-        <div class="progress-track">
-          <div id="progressFill" class="progress-fill"></div>
-          <div id="progressThumb" class="progress-thumb"></div>
-          <!-- しおりマーカーはJSで動的に追加 -->
-        </div>
-        <div class="progress-info">
-          <div class="page-numbers">
-            <input 
-              id="currentPageInput" 
-              type="number" 
-              class="current-page-input" 
-              value="1" 
-              min="1"
-            />
-            <span>/</span>
-            <span id="totalPages" class="total-pages">0</span>
-          </div>
-        </div>
       </div>
     </div>
+  </div>
 
-    <!-- しおりメニュー（モーダル） -->
-    <div id="bookmarkMenu" class="bookmark-menu">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 id="bookmarkMenuTitle">しおり</h3>
-          <button id="closeBookmarkMenu" class="close-btn">✕</button>
+  <!-- テキスト検索モーダル（EPUB用） -->
+  <div id="searchModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="searchModalTitle">テキスト検索</h3>
+        <button id="closeSearchModal" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="search-input-container">
+          <input type="text" id="searchInput" class="search-input" placeholder="検索キーワードを入力..." />
+          <button id="searchBtn" class="search-btn">🔍 検索</button>
         </div>
-        <div class="modal-body">
-          <ul id="bookmarkList" class="bookmark-list"></ul>
-          <button id="addBookmarkBtn" class="add-bookmark-btn">
-            ✚ 現在位置にしおりを追加
-          </button>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 目次モーダル -->
+  <div id="tocModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="tocModalTitle">目次</h3>
+        <button id="closeTocModal" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <ul id="tocModalList" class="toc-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 候補書籍選択モーダル -->
+  <div id="candidateModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="candidateModalTitle">類似の書籍が見つかりました</h2>
+        <button id="closeCandidateModal" class="close-btn" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>クラウド上にこの書籍と思われるデータが見つかりました。<br>同期して続きから読みますか？</p>
+        <div id="candidateList" class="candidate-list">
+          <!-- 候補リストがここに挿入されます -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="candidateUseLocal" class="sync-action-btn" style="margin-top: 1rem;">同期せず新規として扱う</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 同期モーダル -->
+  <div id="syncModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="syncModalTitle">同期の確認</h3>
+      </div>
+      <div class="modal-body">
+        <p id="syncModalMessage" class="sync-message">他の端末で、より新しい読書位置があります。</p>
+        <div class="sync-actions">
+          <button id="syncUseRemote" class="sync-action-btn primary" type="button">他端末の続きから読む</button>
+          <button id="syncUseLocal" class="sync-action-btn" type="button">この端末の位置から読む</button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- テキスト検索モーダル（EPUB用） -->
-    <div id="searchModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-medium">
-        <div class="modal-header">
-          <h3 id="searchModalTitle">テキスト検索</h3>
-          <button id="closeSearchModal" class="close-btn">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="search-input-container">
-            <input 
-              type="text" 
-              id="searchInput" 
-              class="search-input" 
-              placeholder="検索キーワードを入力..." 
-            />
-            <button id="searchBtn" class="search-btn">🔍 検索</button>
-          </div>
-          <div id="searchResults" class="search-results"></div>
-        </div>
+  <!-- ファイル選択モーダル -->
+  <div id="openFileModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="openFileModalTitle">ライブラリ</h3>
+        <button id="closeFileModal" class="close-btn">✕</button>
       </div>
-    </div>
-
-    <!-- 目次モーダル -->
-    <div id="tocModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-medium">
-        <div class="modal-header">
-          <h3 id="tocModalTitle">目次</h3>
-          <button id="closeTocModal" class="close-btn">✕</button>
-        </div>
-        <div class="modal-body">
-          <ul id="tocModalList" class="toc-list"></ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- 候補書籍選択モーダル -->
-    <div id="candidateModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 id="candidateModalTitle">類似の書籍が見つかりました</h2>
-          <button id="closeCandidateModal" class="close-btn" aria-label="Close">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p>クラウド上にこの書籍と思われるデータが見つかりました。<br>同期して続きから読みますか？</p>
-          <div id="candidateList" class="candidate-list">
-            <!-- 候補リストがここに挿入されます -->
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="candidateUseLocal" class="sync-action-btn" style="margin-top: 1rem;">同期せず新規として扱う</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 同期モーダル -->
-    <div id="syncModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-medium">
-        <div class="modal-header">
-          <h3 id="syncModalTitle">同期の確認</h3>
-        </div>
-        <div class="modal-body">
-          <p id="syncModalMessage" class="sync-message">他の端末で、より新しい読書位置があります。</p>
-          <div class="sync-actions">
-            <button id="syncUseRemote" class="sync-action-btn primary" type="button">他端末の続きから読む</button>
-            <button id="syncUseLocal" class="sync-action-btn" type="button">この端末の位置から読む</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ファイル選択モーダル -->
-    <div id="openFileModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h3 id="openFileModalTitle">ライブラリ</h3>
-          <button id="closeFileModal" class="close-btn">✕</button>
-        </div>
-        <div class="modal-body">
-          <div id="librarySection" class="library-section">
-            <div class="library-controls">
-              <h4 id="librarySectionTitle">ライブラリ</h4>
-              <div class="library-view-toggle">
-                <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="グリッド表示">🔲</button>
-                <button id="libraryViewList" class="library-view-btn" type="button" aria-label="一覧表示">📄</button>
-              </div>
-            </div>
-            <div id="libraryGrid" class="library-grid"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 履歴モーダル -->
-    <div id="historyModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-medium">
-        <div class="modal-header">
-          <h3 id="historyModalTitle">履歴</h3>
-          <button id="closeHistoryModal" class="close-btn">✕</button>
-        </div>
-        <div class="modal-body">
-          <ul id="historyList" class="history-list"></ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- 設定モーダル -->
-    <div id="settingsModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h3 id="settingsModalTitle">設定</h3>
-          <button id="closeSettingsModal" class="close-btn">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="settings-section">
-            <h4 id="settingsDisplayTitle">表示設定</h4>
-            <div class="setting-item">
-              <label for="progressDisplayMode" id="progressDisplayModeLabel">進捗表示形式</label>
-              <select id="progressDisplayMode">
-                <option value="page">ページ数</option>
-                <option value="percentage">パーセンテージ</option>
-              </select>
+      <div class="modal-body">
+        <div id="librarySection" class="library-section">
+          <div class="library-controls">
+            <h4 id="librarySectionTitle">ライブラリ</h4>
+            <div class="library-view-toggle">
+              <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="グリッド表示">🔲</button>
+              <button id="libraryViewList" class="library-view-btn" type="button" aria-label="一覧表示">📄</button>
             </div>
           </div>
-          
-          <div class="settings-section">
-            <h4 id="settingsAccountTitle">アカウント</h4>
-            <div class="setting-item">
-              <div class="setting-actions">
-                <button id="googleLoginButton" class="secondary-btn" type="button">Googleログイン</button>
-                <button id="manualSyncButton" class="secondary-btn" type="button" style="margin-left: 10px;">今すぐ同期</button>
-              </div>
-              <p id="userInfo" class="setting-hint">未ログイン</p>
-              <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
-            </div>
+          <div id="libraryGrid" class="library-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 履歴モーダル -->
+  <div id="historyModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="historyModalTitle">履歴</h3>
+        <button id="closeHistoryModal" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <ul id="historyList" class="history-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設定モーダル -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="settingsModalTitle">設定</h3>
+        <button id="closeSettingsModal" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h4 id="settingsDisplayTitle">表示設定</h4>
+          <div class="setting-item">
+            <label for="progressDisplayMode" id="progressDisplayModeLabel">進捗表示形式</label>
+            <select id="progressDisplayMode">
+              <option value="page">ページ数</option>
+              <option value="percentage">パーセンテージ</option>
+            </select>
           </div>
-
         </div>
+
+        <div class="settings-section">
+          <h4 id="settingsAccountTitle">アカウント</h4>
+          <div class="setting-item">
+            <div class="setting-actions">
+              <button id="googleLoginButton" class="secondary-btn" type="button">Googleログイン</button>
+              <button id="manualSyncButton" class="secondary-btn" type="button"
+                style="margin-left: 10px;">今すぐ同期</button>
+            </div>
+            <p id="userInfo" class="setting-hint">未ログイン</p>
+            <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
+          </div>
+        </div>
+
       </div>
     </div>
+  </div>
 
-    <!-- 画像拡大モーダル -->
-    <div id="imageModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <button id="closeImageModal" class="close-btn">✕</button>
-        <img id="modalImage" alt="拡大画像" />
-      </div>
+  <!-- 画像拡大モーダル -->
+  <div id="imageModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button id="closeImageModal" class="close-btn">✕</button>
+      <img id="modalImage" alt="拡大画像" />
+    </div>
+  </div>
+
+  <!-- フロートオーバーレイ -->
+  <div id="floatOverlay">
+    <div class="float-backdrop"></div>
+
+    <div class="float-title">
+      <img src="assets/bookreader.png" alt="BookReader" />
     </div>
 
-    <!-- フロートオーバーレイ -->
-    <div id="floatOverlay">
-      <div class="float-backdrop"></div>
-
-      <div class="float-title">
-        <img src="assets/bookreader.png" alt="BookReader" />
+    <div class="float-buttons">
+      <div class="float-main-menu">
+        <button id="floatOpen" type="button">📂 開く</button>
+        <button id="floatLibrary" type="button">📚 ライブラリ</button>
+        <button id="floatSearch" type="button">🔍 検索</button>
+        <button id="floatBookmarks" type="button">🔖 しおり</button>
+        <button id="floatHistory" type="button">🕘 履歴</button>
       </div>
 
-      <div class="float-buttons">
-        <div class="float-main-menu">
-          <button id="floatOpen" type="button">📂 開く</button>
-          <button id="floatLibrary" type="button">📚 ライブラリ</button>
-          <button id="floatSearch" type="button">🔍 検索</button>
-          <button id="floatBookmarks" type="button">🔖 しおり</button>
-          <button id="floatHistory" type="button">🕘 履歴</button>
-        </div>
+      <button id="floatSettings" class="float-settings" type="button">⚙</button>
 
-        <button id="floatSettings" class="float-settings" type="button">⚙</button>
-
-        <!-- 右上 -->
-        <div class="float-top-right">
-          <button id="openToc" type="button">目次</button>
-          <button id="toggleWritingMode" type="button">縦</button>
-        </div>
-
-        <!-- 右下 -->
-        <div class="font-buttons">
-          <button id="fontPlus" type="button">A+</button>
-          <button id="fontMinus" type="button">A-</button>
-        </div>
-
-        <!-- 右中央 -->
-        <button id="toggleTheme" type="button">🌙</button>
-
-        <!-- 左下 -->
-        <button id="toggleLanguage" type="button">
-          <img id="langIcon" src="assets/Flag_Japan.svg" alt="言語" />
-        </button>
+      <!-- 右上 -->
+      <div class="float-top-right">
+        <button id="openToc" type="button">目次</button>
+        <button id="toggleWritingMode" type="button">縦</button>
       </div>
 
-      <div id="floatProgress">
-        <div id="floatProgressPercent">0%</div>
-        <div id="floatProgressTrack">
-          <div id="floatProgressMarks"></div>
-          <div id="floatProgressFill"></div>
-          <div id="floatProgressThumb"></div>
-        </div>
+      <!-- 右下 -->
+      <div class="font-buttons">
+        <button id="fontPlus" type="button">A+</button>
+        <button id="fontMinus" type="button">A-</button>
       </div>
+
+      <!-- 右中央 -->
+      <button id="toggleTheme" type="button">🌙</button>
+
+      <!-- 左下 -->
+      <button id="toggleLanguage" type="button">
+        <img id="langIcon" src="assets/Flag_Japan.svg" alt="言語" />
+      </button>
     </div>
 
-    <div id="modalOverlay"></div>
+    <div id="floatProgress">
+      <div id="floatProgressPercent">0%</div>
+      <div id="floatProgressTrack">
+        <div id="floatProgressMarks"></div>
+        <div id="floatProgressFill"></div>
+        <div id="floatProgressThumb"></div>
+      </div>
+    </div>
+  </div>
 
-    <script src="./assets/config.js"></script>
-    <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
-    <script type="module" src="./assets/app.js"></script>
-  </body>
+  <!-- 言語選択メニュー（フロート用） -->
+  <div id="floatLangMenu" class="float-lang-menu hidden">
+    <button id="floatLangJa" class="lang-option-btn">
+      <img src="assets/Flag_Japan.svg" alt="JP" /> 日本語
+    </button>
+    <button id="floatLangEn" class="lang-option-btn">
+      <img src="assets/Flag_America.svg" alt="US" /> English
+    </button>
+  </div>
+
+  <!-- ローディングオーバーレイ -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="book-loader">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <p class="loading-text">Loading...</p>
+  </div>
+
+  <div id="modalOverlay"></div>
+
+  <script src="./assets/config.js"></script>
+  <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
+  <script type="module" src="./assets/app.js"></script>
+</body>
+
 </html>

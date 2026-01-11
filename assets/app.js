@@ -125,8 +125,9 @@ const UI_STRINGS = {
     syncPromptTitle: "同期の確認",
     syncPromptMessage: "他の端末で、より新しい読書位置があります。",
     syncPromptLocalMessage: "この端末の状態が新しいようです。アップロードしますか？",
-    syncPromptRemote: "他端末の続きから読む（{time}）",
-    syncPromptLocal: "この端末の位置から読む",
+    syncPromptJump: "最新の読書位置は {page} ですがジャンプしますか？",
+    syncPromptRemote: "ジャンプする（{time}）",
+    syncPromptLocal: "キャンセル",
     syncPromptUpload: "この端末の状態をアップロード",
     libraryCloudMissingBadge: "この端末に未保存",
     libraryAttachFile: "ファイルを追加して紐づけ",
@@ -782,15 +783,27 @@ function promptSyncChoice({ mode, remoteProgress }) {
     if (elements.syncModalTitle) {
       elements.syncModalTitle.textContent = t("syncPromptTitle");
     }
-    if (elements.syncModalMessage) {
-      elements.syncModalMessage.textContent =
-        mode === "local" ? t("syncPromptLocalMessage") : t("syncPromptMessage");
-    }
-    if (mode === "local") {
-      elements.syncUseRemote.textContent = t("syncPromptUpload");
+
+    // Remote update available (Continuity Prompt)
+    if (mode === "remote") {
+      const pageStr = remoteProgress.progressDisplayMode === "page"
+        ? `${remoteProgress.location ?? "?"}ページ`
+        : `${(remoteProgress.percentage ?? 0).toFixed(0)}%`;
+
+      const message = t("syncPromptJump").replace("{page}", pageStr);
+
+      if (elements.syncModalMessage) {
+        elements.syncModalMessage.textContent = message;
+      }
+      elements.syncUseRemote.textContent = t("syncPromptRemote").replace("{time}", new Date(remoteProgress.updatedAt).toLocaleString());
       elements.syncUseLocal.textContent = t("syncPromptLocal");
-    } else {
-      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteProgress?.updatedAt);
+    }
+    // Local is newer (Conflict/Reverse Sync)
+    else {
+      if (elements.syncModalMessage) {
+        elements.syncModalMessage.textContent = t("syncPromptLocalMessage");
+      }
+      elements.syncUseRemote.textContent = t("syncPromptUpload");
       elements.syncUseLocal.textContent = t("syncPromptLocal");
     }
 
@@ -952,12 +965,20 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
     }
 
     const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
+    // クラウドの方が新しい場合（かつ、読書位置が異なる場合のみプロンプト）
     if (remoteUpdatedAt > localUpdatedAt) {
-      const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteState });
-      if (choice === "remote") {
-        applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-        storage.setSettings({ lastSyncAt: Date.now() });
-        return storage.getProgress(localBookId);
+      // 5%以上、または5ページ以上の差があるか？ (あまりに細かい差は無視するか、ユーザー体験次第)
+      // 今回は純粋にタイムスタンプと位置の違いで判定
+      if (remoteState.location !== localProgress?.location) {
+        const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteState });
+        if (choice === "remote") {
+          applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
+          storage.setSettings({ lastSyncAt: Date.now() });
+          return storage.getProgress(localBookId);
+        }
+        // cancel selected: use local progress (and effectively ignore remote for this session)
+        // optionally we could push local to overwrite, but "Cancel" usually means "Don't change anything"
+        return localProgress;
       }
       return localProgress;
     }
