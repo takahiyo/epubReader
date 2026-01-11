@@ -646,14 +646,12 @@ body.google-auth-active .modal-backdrop {
 .progress-track {
   position: relative;
   height: 8px;
-  background: var(--border);
+  /* 固定の暗いグレー（ライトモードでも視認性確保） */
+  background: #1f2937;
   border-radius: 999px;
   cursor: pointer;
-  /* Better visibility in light mode */
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 }
-
-/* ライトモード進捗バー: ダークモードと同色を維持して視認性確保 */
 
 .progress-fill {
   position: absolute;
@@ -667,7 +665,7 @@ body.google-auth-active .modal-backdrop {
   box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
 }
 
-/* ライトモードでも進捗バーパネルはダークのまま（視認性重視） */
+
 
 .progress-thumb {
   position: absolute;
