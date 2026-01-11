@@ -2860,11 +2860,7 @@ function setupEvents() {
     updateProgressBarDirection();
   });
 
-  // ズーム切替ボタン
-  elements.toggleZoom?.addEventListener('click', () => {
-    reader.toggleZoom();
-    updateZoomButtonLabel();
-  });
+
 
   elements.fontPlus?.addEventListener('click', () => {
     applyFontSize((fontSize ?? 16) + 1);
