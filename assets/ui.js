@@ -237,8 +237,6 @@ export class UIController {
    * エリアクリックを処理
    */
   handleAreaClick(area, event) {
-    if (!this.isBookOpen()) return;
-
     // フローティングメニューが表示されている場合
     if (this.isFloatVisible?.()) {
       // 機能なしエリア、またはM3（メニュー開閉）ならフローティングを閉じる
@@ -254,6 +252,8 @@ export class UIController {
       this.onFloatToggle?.();
       return;
     }
+
+    if (!this.isBookOpen()) return;
 
     const writingMode = this.getWritingMode?.() || "horizontal";
 
