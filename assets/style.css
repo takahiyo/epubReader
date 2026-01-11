@@ -248,6 +248,15 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+#toggleZoom {
+  position: absolute;
+  right: 24px;
+  top: calc(50% + 50px);
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+}
+
 #toggleLanguage {
   position: absolute;
   left: 24px;
@@ -712,7 +721,35 @@ body.google-auth-active .modal-backdrop {
   gap: 0.5rem;
 }
 
+.progress-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.progress-arrow {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.progress-arrow:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: var(--accent);
+}
+
 .progress-track {
+  flex: 1;
   position: relative;
   height: 12px;
   /* 濁E��グレーで白背景でも確実に視認可能 */
@@ -1707,6 +1744,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 0.6;
@@ -1762,4 +1800,118 @@ body.google-auth-active .modal-backdrop {
   width: 28px;
   height: 28px;
   border-radius: 2px;
+}
+
+/* ズームボタン配置 (テーマ切替ボタンの下) */
+#toggleZoom {
+  position: absolute;
+  right: 24px;
+  top: calc(50% + 60px);
+  /* toggleThemeの約60px下 */
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+/* ズーム時のUI制御 */
+body.is-zoomed #floatOverlay .float-backdrop {
+  backdrop-filter: none !important;
+  background: transparent !important;
+}
+
+/* ズーム時はズームボタン以外を非表示 */
+body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 明示的な指定（念のため） */
+body.is-zoomed #floatOverlay .float-buttons .font-buttons,
+body.is-zoomed #floatOverlay .float-buttons .float-top-right,
+body.is-zoomed #floatOverlay .float-main-menu,
+body.is-zoomed #floatOverlay .top-bar-title,
+/* 追加: ソフトタイトルがあれば */
+body.is-zoomed #toggleLanguage,
+body.is-zoomed #toggleTheme {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ズーム時はスクロールを有効化（パン操作） */
+#imageViewer.zoomed {
+  overflow: auto;
+  /* タッチデバイスでの慣性スクロール */
+  -webkit-overflow-scrolling: touch;
+}
+
+.float-buttons {
+  z-index: 1600;
+  /* GridOverlayより上にする */
+}
+
+/* クリックエリア可視化グリッド */
+.area-grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* デフォルトは操作不可 */
+  z-index: 1400;
+  /* floatOverlay(1500?)より手前にするが、ボタン系は1600以上にする必要あり */
+  /* 実装確認: floatOverlayは z-index指定なし(static)だが、.float-buttons等は絶対配置 */
+  /* ここでは、ボタンより下、背景より上にする。 */
+  /* 一旦 z-index: 100 に下げて様子を見るか、あるいはボタンを上げる。 */
+  /* ユーザー要望: "ボタンが効かない" -> gridが上にあるから。 */
+  /* Gridはあくまでガイドなので、ボタンクリックを邪魔してはいけないが、
+     "色なしエリアをクリックしたらリーダー状態に戻る" 機能のためには click を受け取る必要がある。 */
+  /* 解決策: Gridの z-index を 1500 (floatOverlayと同等) にしつつ、ボタンの z-index を 1600 に上げる。 */
+  display: grid;
+  grid-template-columns: 20% 60% 20%;
+  grid-template-rows: 20% 60% 20%;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.area-grid-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.area-cell {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* 線を濃くする */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.area-cell.has-function {
+  background-color: rgba(64, 150, 255, 0.1);
+  cursor: pointer;
+}
+
+.area-cell.active-function {
+  background-color: rgba(64, 150, 255, 0.3);
+}
+
+.area-label {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.area-cell.show-label .area-label {
+  opacity: 1;
 }

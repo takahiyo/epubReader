@@ -293,6 +293,8 @@ const elements = {
   progressTrack: document.querySelector(".progress-track"),
   currentPageInput: document.getElementById("currentPageInput"),
   totalPages: document.getElementById("totalPages"),
+  progressPrev: document.getElementById("progressPrev"),
+  progressNext: document.getElementById("progressNext"),
 
   // しおりメニュー
   bookmarkMenu: document.getElementById("bookmarkMenu"),
@@ -357,7 +359,7 @@ const elements = {
   candidateList: document.getElementById("candidateList"),
   candidateUseLocal: document.getElementById("candidateUseLocal"),
   closeCandidateModal: document.getElementById("closeCandidateModal"),
-  
+
   // 画像書庫用ボタン
   toggleSpreadMode: document.getElementById("toggleSpreadMode"),
   toggleReadingDirection: document.getElementById("toggleReadingDirection"),
@@ -390,9 +392,17 @@ const ui = new UIController({
   isPageNavigationEnabled: () => currentBookId !== null,
   isProgressBarAvailable: () => currentBookId !== null,
   isFloatVisible: () => floatVisible,
+  isImageBook: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar"),
+  isSpreadMode: () => reader.imageViewMode === "spread",
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
   onFloatToggle: () => {
     toggleFloatOverlay();
+    // グリッドオーバーレイの表示切替
+    if (floatVisible) {
+      ui.showClickAreas();
+    } else {
+      ui.hideClickAreas();
+    }
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -412,13 +422,13 @@ const ui = new UIController({
       bookmarkMenuMode = "current";
     }
   },
-  onPagePrev: () => {
+  onPagePrev: (step) => {
     updateActivity();
-    reader.prev();
+    reader.prev(step);
   },
-  onPageNext: () => {
+  onPageNext: (step) => {
     updateActivity();
-    reader.next();
+    reader.next(step);
   },
 });
 
@@ -481,6 +491,7 @@ setupViewerIframeClickBridge();
 const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector('.progress-track'),
   thumb: elements.progressThumb,
+  getIsRtl: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar") && reader.imageReadingDirection === "rtl",
   onSeek: (percentage) => {
     // パーセンテージからページ位置を計算してジャンプ
     seekToPercentage(percentage);
@@ -490,6 +501,7 @@ const progressBarHandler = new ProgressBarHandler({
 const floatProgressHandler = new ProgressBarHandler({
   container: elements.floatProgressTrack,
   thumb: elements.floatProgressThumb,
+  getIsRtl: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar") && reader.imageReadingDirection === "rtl",
   onSeek: (percentage) => {
     seekToPercentage(percentage);
   },
@@ -514,32 +526,54 @@ function updateFloatingUIButtons() {
   const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
   const isEpub = currentBookInfo && currentBookInfo.type === "epub";
   const isBookOpen = currentBookId !== null;
-  
+
   // 縦/横書き切替ボタン: EPUB のみ表示
   if (elements.toggleWritingMode) {
     elements.toggleWritingMode.style.display = isEpub ? "" : "none";
   }
-  
+
   // 見開き/単ページ切替ボタン: 画像書庫のみ表示
   if (elements.toggleSpreadMode) {
     elements.toggleSpreadMode.style.display = isImageBook ? "" : "none";
     updateSpreadModeButtonLabel();
   }
-  
+
   // 左開き/右開き切替ボタン: 画像書庫のみ表示
   if (elements.toggleReadingDirection) {
     elements.toggleReadingDirection.style.display = isImageBook ? "" : "none";
     updateReadingDirectionButtonLabel();
   }
-  
+
   // ズームボタン: ブックが開いている時のみ表示
   if (elements.toggleZoom) {
     elements.toggleZoom.style.display = isBookOpen ? "" : "none";
     updateZoomButtonLabel();
   }
-  
+
+  // プログレスバーの矢印: 画像書庫のみ表示
+  if (elements.progressPrev) {
+    elements.progressPrev.classList.toggle('hidden', !isImageBook);
+  }
+  if (elements.progressNext) {
+    elements.progressNext.classList.toggle('hidden', !isImageBook);
+  }
+
   // 進捗バーの方向を更新
   updateProgressBarDirection();
+}
+
+function handleToggleZoom() {
+  // ズーム切替
+  const isZoomed = reader.toggleZoom();
+
+  // Bodyにクラス適用（UI制御用）
+  if (isZoomed) {
+    document.body.classList.add('is-zoomed');
+  } else {
+    document.body.classList.remove('is-zoomed');
+  }
+
+  updateZoomButtonLabel();
 }
 
 // 見開きボタンのラベルを更新
@@ -571,7 +605,7 @@ function updateProgressBarDirection() {
   const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
   const isRtl = reader.imageReadingDirection === "rtl";
   const progressBar = document.getElementById("floatProgress");
-  
+
   if (progressBar) {
     if (isImageBook && isRtl) {
       progressBar.classList.add("rtl-progress");
@@ -625,6 +659,11 @@ function toggleFloatOverlay(forceVisible) {
   floatVisible = nextVisible;
   elements.floatOverlay.classList.toggle("visible", floatVisible);
   updateProgressBarDisplay();
+  if (floatVisible) {
+    ui.showClickAreas();
+  } else {
+    ui.hideClickAreas();
+  }
 }
 
 function updateFloatProgressBar(percentage) {
@@ -1574,7 +1613,7 @@ function updateProgressBarDisplay() {
             elements.totalPages.textContent = '100';
           }
         }
-      } else if (currentBookInfo?.type === 'image') {
+      } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
         // 画像書籍の場合はページ数
         const totalPages = reader.imagePages?.length || 1;
         const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
@@ -1630,7 +1669,7 @@ function renderBookmarkMarkers() {
         } else {
           tooltipText += ` (${percentage}%)`;
         }
-      } else if (currentBookInfo?.type === 'image') {
+      } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
         tooltipText += ` (${pageNumber}/${totalPages})`;
@@ -1702,9 +1741,8 @@ async function seekToPercentage(percentage) {
   } else {
     // 画像書籍の場合はページ数でシーク
     const totalPages = reader.imagePages?.length || 1;
-    const pageIndex = Math.floor((percentage / 100) * totalPages);
-    reader.imageIndex = Math.max(0, Math.min(pageIndex, totalPages - 1));
-    reader.renderImagePage();
+    const pageIndex = Math.max(0, Math.min(Math.round((percentage / 100) * (totalPages - 1)), totalPages - 1));
+    reader.goTo(pageIndex);
   }
 }
 
@@ -2822,11 +2860,7 @@ function setupEvents() {
     updateProgressBarDirection();
   });
 
-  // ズーム切替ボタン
-  elements.toggleZoom?.addEventListener('click', () => {
-    reader.toggleZoom();
-    updateZoomButtonLabel();
-  });
+
 
   elements.fontPlus?.addEventListener('click', () => {
     applyFontSize((fontSize ?? 16) + 1);
@@ -2914,7 +2948,7 @@ function setupEvents() {
             } else {
               seekToPercentage(Math.max(0, Math.min(value, 100)));
             }
-          } else if (currentBookInfo?.type === 'image') {
+          } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
             // 画像書籍の場合はページ数として扱う
             const totalPages = reader.imagePages?.length || 1;
             const percentage = ((value - 1) / (totalPages - 1)) * 100;
@@ -3185,6 +3219,19 @@ function setupEvents() {
     pushCurrentBookSync().catch((error) => {
       console.error("Auto-sync failed:", error);
     });
+  });
+  // ズームボタン
+  elements.toggleZoom?.addEventListener('click', handleToggleZoom);
+
+  // プログレスバー矢印
+  elements.progressPrev?.addEventListener('click', () => {
+    updateActivity();
+    reader.prev(1); // 1ページずつ戻る
+  });
+
+  elements.progressNext?.addEventListener('click', () => {
+    updateActivity();
+    reader.next(1); // 1ページずつ進む
   });
 }
 

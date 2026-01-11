@@ -258,39 +258,39 @@ export class ReaderController {
     this.resetReaderState();
     this.type = "epub";
     this.usingPaginator = true;
-    
+
     // JSZipを先にロード
     const JSZipLib = await this.ensureJSZip();
-    
+
     // JSZipがグローバルに設定されていることを確認（EPUB.jsが必要）
     if (typeof window !== 'undefined') {
       if (!window.JSZip) {
         window.JSZip = JSZipLib;
         console.log("Set window.JSZip explicitly for EPUB.js");
       }
-      
+
       // グローバルスコープにも設定（一部のEPUB.jsバージョンが必要とする）
       if (typeof globalThis !== 'undefined' && !globalThis.JSZip) {
         globalThis.JSZip = JSZipLib;
         console.log("Set globalThis.JSZip for compatibility");
       }
     }
-    
+
     // JSZipが正しくロードされたか確認
     console.log("JSZip status after loading:", {
       'window.JSZip': typeof window.JSZip,
       'JSZipLib': typeof JSZipLib,
       'has methods': typeof JSZipLib?.loadAsync === 'function'
     });
-    
+
     // EPUB.jsがJSZipを認識できるか最終確認
     if (typeof window.JSZip === 'undefined' && typeof JSZipLib === 'undefined') {
       throw new Error("JSZipの読み込みに失敗しました。ページを再読み込みしてください。");
     }
-    
+
     // EPUBライブラリの確認（複数の場所をチェック）
     let epubConstructor = null;
-    
+
     if (typeof ePub !== "undefined") {
       epubConstructor = ePub;
       console.log("Found ePub in global scope");
@@ -301,15 +301,15 @@ export class ReaderController {
       epubConstructor = window.EPUBJS.ePub;
       console.log("Found window.EPUBJS.ePub");
     }
-    
+
     if (!epubConstructor) {
       console.error("EPUB.js library not found in any expected location");
       console.error("Available globals:", Object.keys(window).filter(k => k.toLowerCase().includes('epub')));
       throw new Error("EPUB.jsライブラリが読み込まれていません。\\n\\nページを再読み込みしてください。\\n\\n問題が解決しない場合は、開発者ツールのコンソールを確認してください。");
     }
-    
+
     const arrayBuffer = await file.arrayBuffer();
-    
+
     console.log("Creating ePub instance with constructor:", typeof epubConstructor);
     // EPUB.jsのための最終的なJSZip確認
     console.log("JSZip check before creating book:", {
@@ -317,7 +317,7 @@ export class ReaderController {
       'window.JSZip exists': !!window.JSZip,
       'window.JSZip.loadAsync': typeof window.JSZip?.loadAsync
     });
-    
+
     // EPUB.jsがグローバルスコープでJSZipを見つけられるようにする
     // これは一部のEPUB.jsバージョンで必要
     if (typeof JSZip === 'undefined' && window.JSZip) {
@@ -329,13 +329,13 @@ export class ReaderController {
         console.warn("Could not inject JSZip into globalThis:", e);
       }
     }
-    
+
     try {
       this.book = epubConstructor(arrayBuffer);
       console.log("ePub book instance created successfully");
     } catch (error) {
       console.error("Failed to create ePub instance:", error);
-      
+
       // JSZipの問題の場合、エラーを抑制してリトライ
       if (error.message && (error.message.includes('JSZip') || error.message.includes('not defined'))) {
         console.warn("JSZip error detected, attempting to continue anyway...");
@@ -346,7 +346,7 @@ export class ReaderController {
           'JSZipLib.loadAsync': typeof JSZipLib?.loadAsync,
           'error': error.message
         });
-        
+
         // JSZipエラーでもbookインスタンスが作成されている可能性があるため続行を試みる
         // EPUB.jsの古いバージョンではエラーが出ても動作することがある
         try {
@@ -365,13 +365,13 @@ export class ReaderController {
         throw new Error(`EPUBファイルの解析に失敗しました: ${error.message}`);
       }
     }
-    
+
     if (!this.book) {
       throw new Error("EPUBファイルの解析に失敗しました（bookオブジェクトがnull）。");
     }
-    
+
     console.log("ePub instance created:", this.book);
-    
+
     // book.readyを待つ
     await this.book.ready;
     console.log("Book ready");
@@ -449,9 +449,9 @@ export class ReaderController {
       const directLocator = startLocation.location;
       const locator =
         directLocator &&
-        typeof directLocator === "object" &&
-        typeof directLocator.spineIndex === "number" &&
-        typeof directLocator.segmentIndex === "number"
+          typeof directLocator === "object" &&
+          typeof directLocator.spineIndex === "number" &&
+          typeof directLocator.segmentIndex === "number"
           ? directLocator
           : startLocation;
       if (
@@ -850,7 +850,7 @@ export class ReaderController {
         if (!url || /^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
-        
+
         // Try book.resolve first (ePub.js built-in)
         if (this.book?.resolve) {
           try {
@@ -860,22 +860,22 @@ export class ReaderController {
             // ignore and fallback
           }
         }
-        
+
         // Manual resolution with ".." normalization
         if (spineItem?.href) {
           // Get base directory from spine item href
           const baseParts = spineItem.href.split("/").slice(0, -1);
           const base = baseParts.join("/");
-          
+
           // Combine base and url
           const combined = base ? `${base}/${url}` : url;
-          
+
           // Normalize backslashes to forward slashes
           const normalized = combined.replace(/\\/g, "/");
-          
+
           // Remove query and hash
           const withoutQuery = normalized.split(/[?#]/)[0];
-          
+
           // Use URL constructor to normalize ".." and "."
           try {
             // Prepend a dummy base to use URL API
@@ -898,7 +898,7 @@ export class ReaderController {
             return result.join("/");
           }
         }
-        
+
         return url;
       };
 
@@ -907,13 +907,13 @@ export class ReaderController {
         if (/^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
-        
+
         const resolvedUrl = resolveResourceUrl(url, spineItem);
-        
+
         if (this.resourceUrlCache.has(resolvedUrl)) {
           return this.resourceUrlCache.get(resolvedUrl);
         }
-        
+
         try {
           // Try multiple candidate keys to find the resource
           const candidates = [
@@ -924,10 +924,10 @@ export class ReaderController {
             encodeURI(resolvedUrl), // encoded
             url // original
           ];
-          
+
           let resourceItem = null;
           let foundKey = null;
-          
+
           for (const candidate of candidates) {
             try {
               const item = this.book?.resources?.get?.(candidate);
@@ -940,11 +940,11 @@ export class ReaderController {
               // try next candidate
             }
           }
-          
+
           if (resourceItem?.then) {
             resourceItem = await resourceItem;
           }
-          
+
           if (!resourceItem) {
             console.warn("[EPUB Resource] Not found:", {
               originalUrl: url,
@@ -1024,7 +1024,7 @@ export class ReaderController {
     try {
       console.log(`Processing ${isRar ? 'RAR' : 'ZIP/CBZ'} file: ${file.name}`);
       console.log(`File size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
-      
+
       if (isRar) {
         console.log("Opening RAR file...");
         const { createExtractorFromData } = await this.ensureUnrar();
@@ -1032,7 +1032,7 @@ export class ReaderController {
         const list = extractor.getFileList();
         const headers = list?.fileHeaders ?? list?.files ?? [];
         console.log(`Found ${headers.length} entries in RAR`);
-        
+
         // デバッグ: 最初の数エントリを表示
         if (headers.length > 0) {
           console.log('Sample RAR entries:', headers.slice(0, 3).map(h => ({
@@ -1040,30 +1040,30 @@ export class ReaderController {
             isDir: h?.flags?.directory ?? h?.isDirectory ?? h?.directory
           })));
         }
-        
+
         const imageHeaders = headers.filter((header) => {
           const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
           if (!name) return false;
-          
+
           const normalized = name.replace(/\\/g, "/");
           const fileName = normalized.split("/").pop() ?? "";
           const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
-          
+
           // 隠しファイルを除外 (.DS_Store, Thumbs.db, __MACOSX など)
           if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
             return false;
           }
-          
+
           const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
           const result = !isDir && isImage;
-          
+
           if (result) {
             console.log(`✓ Including: ${name}`);
           }
-          
+
           return result;
         });
-        
+
         console.log(`Filtered ${imageHeaders.length} image entries`);
 
         if (imageHeaders.length === 0) {
@@ -1074,32 +1074,32 @@ export class ReaderController {
         const imageNames = imageHeaders
           .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
           .filter(Boolean);
-        
+
         console.log('Extracting images:', imageNames);
         const extracted = extractor.extractFiles(imageNames);
         const extractedFiles = extracted?.files ?? extracted ?? [];
-        
+
         images = extractedFiles
           .map((item) => {
             const header = item?.fileHeader ?? item?.header ?? item;
             const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
             const data = item?.extraction?.data ?? item?.data;
-            
+
             if (!data) {
               console.warn(`Failed to extract data for: ${name}`);
               return null;
             }
-            
+
             return { path: name, data };
           })
           .filter((entry) => entry !== null && entry.path && entry.data);
-        
+
         console.log(`Successfully extracted ${images.length} images from RAR`);
       } else {
         console.log("Opening ZIP/CBZ file...");
         const JSZipLib = await this.ensureJSZip();
         const zip = await JSZipLib.loadAsync(buffer);
-        
+
         const entries = [];
         zip.forEach((path, entry) => {
           // ディレクトリを除外
@@ -1107,36 +1107,36 @@ export class ReaderController {
             entries.push({ path, entry });
           }
         });
-        
+
         console.log(`Found ${entries.length} files in ZIP`);
-        
+
         // デバッグ: 最初の数エントリを表示
         if (entries.length > 0) {
           console.log('Sample ZIP entries:', entries.slice(0, 5).map(e => e.path));
         }
-        
+
         images = entries
           .filter(({ path }) => {
             const normalized = path.replace(/\\/g, "/");
             const fileName = normalized.split("/").pop() ?? normalized;
-            
+
             // 隠しファイルを除外
             if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
               return false;
             }
-            
+
             const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
-            
+
             if (isImage) {
               console.log(`✓ Including: ${path}`);
             }
-            
+
             return isImage;
           })
           .map(({ path, entry }) => ({ path, entry }));
-        
+
         console.log(`Filtered ${images.length} image entries from ZIP`);
-        
+
         if (images.length === 0) {
           console.error('No image files found in ZIP. Available files:', entries.map(e => e.path));
           throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
@@ -1154,13 +1154,13 @@ export class ReaderController {
         const normalize = (path) => path.replace(/\\/g, "/");
         const aPath = normalize(a.path);
         const bPath = normalize(b.path);
-        
+
         // パス全体で自然順ソート（階層含む）
         return aPath.localeCompare(bPath, undefined, { numeric: true, sensitivity: "base" });
       });
-      
+
       console.log('Sorted image paths:', images.slice(0, 5).map(img => img.path));
-      
+
       this.imageEntries = images;
       this.imagePages = new Array(images.length).fill(null);
       this.imagePageErrors = new Array(images.length).fill(null);
@@ -1222,11 +1222,11 @@ export class ReaderController {
       const ext = image.path.split(".").pop()?.toLowerCase() ?? "jpeg";
       const mime =
         ext === "png" ? "image/png" :
-        ext === "gif" ? "image/gif" :
-        ext === "webp" ? "image/webp" :
-        ext === "bmp" ? "image/bmp" :
-        ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-        "image/jpeg";
+          ext === "gif" ? "image/gif" :
+            ext === "webp" ? "image/webp" :
+              ext === "bmp" ? "image/bmp" :
+                ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+                  "image/jpeg";
       const dataUrl = `data:${mime};base64,${base64}`;
       this.imagePages[index] = dataUrl;
       return dataUrl;
@@ -1256,7 +1256,7 @@ export class ReaderController {
   renderImagePage() {
     if (!this.imagePages.length) return;
     const targetIndex = this.imageIndex;
-    
+
     // RTL モードクラスを適用
     if (this.imageViewer) {
       if (this.imageReadingDirection === "rtl") {
@@ -1265,21 +1265,106 @@ export class ReaderController {
         this.imageViewer.classList.remove('rtl-mode');
       }
     }
-    
+
+    // 現在のページが横長かどうかチェック（非同期だが、すでにプリロード済みと仮定または簡易チェック）
+    // 横長判定: プリロードされた画像データから判定するのは難しいが、
+    // Imageオブジェクトを一時生成してチェックするか、キャッシュ済みの情報を利用する。
+    // ここでは描画時に判定して動的にモード切替相当の処理を行うアプローチをとる。
+
     // 見開きモードの場合
     if (this.imageViewMode === "spread" && this.imageViewer) {
-      this.renderSpreadPage(targetIndex);
+      // 横長チェックは renderSpreadPage 内で実施し、必要なら単ページ表示にフォールバック
+      // ただし描画遅延を防ぐため、Imageオブジェクトでサイズ取得を試みる
+      this.checkWideAndRender(targetIndex);
     } else {
       // 単ページモード
-      this.imageElement.src = this.imagePages[targetIndex] || "";
-      // 見開きコンテナを非表示
-      if (this.imageViewer) {
-        const spreadContainer = this.imageViewer.querySelector('.spread-container');
-        if (spreadContainer) spreadContainer.remove();
-        this.imageElement.style.display = '';
+      this.renderSinglePageWithStyle(targetIndex);
+    }
+  }
+
+  async checkWideAndRender(index) {
+    const src = this.imagePages[index];
+    if (!src) return;
+
+    // サイズチェック
+    const isWide = await this.isImageWide(src);
+
+    if (isWide) {
+      // 横長なら強制単ページ表示（見開き扱い）
+      this.renderSinglePageWithStyle(index, true);
+    } else {
+      // 通常の見開き
+      this.renderSpreadPage(index);
+    }
+
+    this.updateProgress(index, isWide);
+  }
+
+  isImageWide(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        // 横幅 > 高さ * 1.25 (少し閾値を上げる)
+        const ratio = img.naturalWidth / img.naturalHeight;
+        const isWide = ratio > 1.25;
+        // console.log(`Image ${src.slice(-20)} ratio: ${ratio.toFixed(2)}, isWide: ${isWide}`);
+        resolve(isWide);
+      };
+      img.onerror = () => resolve(false);
+      img.src = src;
+    });
+  }
+
+  renderSinglePageWithStyle(index, isWideSpread = false) {
+    if (!this.imageElement) return;
+
+    this.imageElement.src = this.imagePages[index] || "";
+    this.imageElement.style.display = '';
+
+    // 単ページでも画像書庫ならクリック無効化
+    if (this.type !== "epub") {
+      this.imageElement.onclick = null;
+      this.imageElement.style.pointerEvents = "none";
+    }
+
+    // ズーム適用
+    if (this.imageZoomed) {
+      this.imageViewer?.classList.add('zoomed');
+      this.imageElement.style.transform = 'scale(2)';
+      this.imageElement.style.transformOrigin = 'center center';
+    } else {
+      this.imageViewer?.classList.remove('zoomed');
+      this.imageElement.style.transform = 'scale(1)';
+    }
+
+    // 見開きコンテナ削除
+    if (this.imageViewer) {
+      const spreadContainer = this.imageViewer.querySelector('.spread-container');
+      if (spreadContainer) spreadContainer.remove();
+
+      // ズーム状態の適用（単ページ）
+      if (this.imageZoomed) {
+        this.imageViewer.classList.add('zoomed');
+        this.imageElement.style.transform = 'scale(2)';
+        this.imageElement.style.transformOrigin = 'center center';
+      } else {
+        this.imageViewer.classList.remove('zoomed');
+        this.imageElement.style.transform = 'scale(1)';
       }
     }
-    
+
+    this.loadImagePage(index);
+    // プリロード
+    if (index + 1 < this.imagePages.length) {
+      this.loadImagePage(index + 1);
+    }
+
+    if (!isWideSpread) {
+      this.updateProgress(index, false);
+    }
+  }
+
+  updateProgress(targetIndex, isWideSpread) {
     if (this.pageIndicator) {
       this.pageIndicator.textContent = `${targetIndex + 1} / ${this.imagePages.length}`;
     }
@@ -1287,21 +1372,14 @@ export class ReaderController {
       location: targetIndex,
       percentage: Math.round(((targetIndex + 1) / this.imagePages.length) * 100),
     });
-    this.bindImageZoomHandlers();
-    this.loadImagePage(targetIndex);
-    
-    // 見開きモードの場合は次ページもプリロード
-    if (this.imageViewMode === "spread" && targetIndex + 1 < this.imagePages.length) {
-      this.loadImagePage(targetIndex + 1);
-    }
   }
 
   renderSpreadPage(targetIndex) {
     if (!this.imageViewer || !this.imagePages.length) return;
-    
+
     // 元の画像を非表示
     this.imageElement.style.display = 'none';
-    
+
     // 既存の見開きコンテナを削除
     let spreadContainer = this.imageViewer.querySelector('.spread-container');
     if (!spreadContainer) {
@@ -1310,11 +1388,35 @@ export class ReaderController {
       this.imageViewer.appendChild(spreadContainer);
     }
     spreadContainer.innerHTML = '';
-    
+
+    // 画像書庫ならクリック無効
+    if (this.type !== "epub") {
+      spreadContainer.style.pointerEvents = "none";
+    }
+
     // ズーム状態を適用
-    spreadContainer.style.transform = this.imageZoomed ? 'scale(2)' : 'scale(1)';
-    spreadContainer.style.transformOrigin = 'center center';
-    
+    if (this.imageZoomed) {
+      this.imageViewer.classList.add('zoomed');
+      spreadContainer.style.transform = 'scale(2)';
+      spreadContainer.style.transformOrigin = '0 0'; /* 左上基準にすることでスクロール可能領域に展開 */
+      spreadContainer.style.width = '50%'; /* scale(2)で100%になるように調整、あるいは親のスクロールに合わせて自動 */
+      /* spreadContainerはflexで中央寄せされている。
+         scale(2)Origin(0,0)だと、左上から2倍になる。
+         中央寄せのまま拡大したい場合は、flexのalign-items/justify-contentの影響を受ける。
+         単純に 0 0 にすると左上に寄ってしまうかもしれない。
+         パン操作(スクロール)を有効にするなら、コンテンツが親より大きくなる必要がある。
+         scale(2) だけでは layout size は変わらないことがある。
+      */
+      spreadContainer.style.width = '100%';
+      spreadContainer.style.height = '100%';
+    } else {
+      this.imageViewer.classList.remove('zoomed');
+      spreadContainer.style.transform = 'scale(1)';
+      spreadContainer.style.transformOrigin = 'center center';
+      spreadContainer.style.width = '100%';
+      spreadContainer.style.height = '100%';
+    }
+
     // 奇数ページ基準で左始まり
     // ページ0は単独表示（表紙）、その後は1-2, 3-4...
     let firstIndex, secondIndex;
@@ -1332,29 +1434,45 @@ export class ReaderController {
         secondIndex = targetIndex;
       }
     }
-    
-    // 左開き(ltr): firstが左、secondが右
-    // 右開き(rtl): secondが左、firstが右
+
+    // 左右決定ロジック
+    // LTR: 左=first(index), 右=second(index+1)
+    // RTL: 左=second(index+1), 右=first(index)
+
     const isRtl = this.imageReadingDirection === "rtl";
-    const leftIndex = isRtl ? secondIndex : firstIndex;
-    const rightIndex = isRtl ? firstIndex : secondIndex;
-    
+    let leftIndex, rightIndex;
+
+    if (isRtl) {
+      leftIndex = secondIndex;
+      rightIndex = firstIndex;
+    } else {
+      leftIndex = firstIndex;
+      rightIndex = secondIndex;
+    }
+
     // 左ページ
     if (leftIndex !== null && this.imagePages[leftIndex]) {
       const leftImg = document.createElement('img');
       leftImg.src = this.imagePages[leftIndex];
       leftImg.alt = `ページ ${leftIndex + 1}`;
       leftImg.className = 'spread-page spread-left';
+      if (this.type !== "epub") leftImg.style.pointerEvents = "none";
       spreadContainer.appendChild(leftImg);
     }
-    
+
     // 右ページ
     if (rightIndex !== null && this.imagePages[rightIndex]) {
       const rightImg = document.createElement('img');
       rightImg.src = this.imagePages[rightIndex];
       rightImg.alt = `ページ ${rightIndex + 1}`;
       rightImg.className = 'spread-page spread-right';
+      if (this.type !== "epub") rightImg.style.pointerEvents = "none";
       spreadContainer.appendChild(rightImg);
+    }
+
+    // プリロード
+    if (targetIndex + 2 < this.imagePages.length) {
+      this.loadImagePage(targetIndex + 2);
     }
   }
 
@@ -1384,58 +1502,29 @@ export class ReaderController {
   // ズーム切替（画像書庫用）
   toggleImageZoom() {
     this.imageZoomed = !this.imageZoomed;
-    
-    if (this.imageViewMode === "spread") {
-      // 見開きモード: コンテナ全体をズーム
-      const spreadContainer = this.imageViewer?.querySelector('.spread-container');
-      if (spreadContainer) {
-        spreadContainer.style.transform = this.imageZoomed ? 'scale(2)' : 'scale(1)';
-        spreadContainer.style.transformOrigin = 'center center';
-      }
-    } else {
-      // 単ページモード: 画像をズーム
-      if (this.imageElement) {
-        this.imageElement.style.transform = this.imageZoomed ? 'scale(2)' : 'scale(1)';
-        this.imageElement.style.transformOrigin = 'center center';
-      }
-    }
-    
+    this.renderImagePage(); // 再描画してズーム適用
     return this.imageZoomed;
   }
 
   // ズーム解除
   resetImageZoom() {
     this.imageZoomed = false;
-    const spreadContainer = this.imageViewer?.querySelector('.spread-container');
-    if (spreadContainer) {
-      spreadContainer.style.transform = 'scale(1)';
+    if (this.imageViewer) {
+      this.imageViewer.classList.remove('zoomed');
+      const spreadContainer = this.imageViewer.querySelector('.spread-container');
+      if (spreadContainer) spreadContainer.style.transform = 'scale(1)';
     }
     if (this.imageElement) {
       this.imageElement.style.transform = 'scale(1)';
     }
-    // zoomed クラスを削除
-    if (this.imageViewer) {
-      this.imageViewer.classList.remove('zoomed');
-    }
   }
 
-  // 統合ズーム切替（EPUB と 画像書庫 両方対応）
+  // 統合ズーム切替
   toggleZoom() {
+    // 既存の実装を継承しつつ、ImageZoomedフラグを管理
     if (this.isImageBook()) {
-      // 画像書庫の場合
-      this.imageZoomed = !this.imageZoomed;
-      
-      if (this.imageViewer) {
-        if (this.imageZoomed) {
-          this.imageViewer.classList.add('zoomed');
-        } else {
-          this.imageViewer.classList.remove('zoomed');
-        }
-      }
-      
-      return this.imageZoomed;
+      return this.toggleImageZoom();
     } else {
-      // EPUB の場合（簡易実装）
       this.imageZoomed = !this.imageZoomed;
       if (this.viewer) {
         this.viewer.style.transform = this.imageZoomed ? 'scale(1.5)' : 'scale(1)';
@@ -1443,6 +1532,20 @@ export class ReaderController {
       }
       return this.imageZoomed;
     }
+  }
+
+  isImageBook() {
+    return this.type === "zip" || this.type === "rar";
+  }
+
+  // 現在のページが横長かどうかを確認（Navigation用）
+  async isCurrentPageWideSync() {
+    if (!this.imagePages[this.imageIndex]) return false;
+    // 既にキャッシュされていれば早い。キャッシュがなければ非同期になるが
+    // ここでは簡易的に直近の判定結果を使いたいところ。
+    // しかし厳密には非同期。navigation内でawaitするのはUIレスポンスに関わる。
+    // 一旦、毎回チェックする。
+    return await this.isImageWide(this.imagePages[this.imageIndex]);
   }
 
   async loadImagePage(index) {
@@ -1465,39 +1568,68 @@ export class ReaderController {
     }
   }
 
-  // 画像書庫かどうかを判定
-  isImageBook() {
-    return this.type === "zip" || this.type === "rar";
+
+
+  async prev(step = 1) {
+    if (this.imageZoomed) return; // ズーム中はページめくり無効
+
+    // EPUBの場合はPageControllerを使用
+    if (this.type === "epub") {
+      this.pageController?.prev();
+      return;
+    }
+
+    if (this.render && this.render.prev && !this.isImageBook()) {
+      this.render.prev();
+      return;
+    }
+
+    let targetIndex;
+    if (this.imageViewMode === "spread") {
+      // 見開きモード：1ページずつか2ページずつか
+      // step=1なら単ページ移動、それ以外なら見開き単位（従来の動作）を維持
+      const decrement = step === 1 ? 1 : 2;
+
+      // 画像がワイド（単ページ表示）の場合は1つ戻るだけで良い
+      if (this.isCurrentPageWideSync()) {
+        targetIndex = Math.max(0, this.currentImageIndex - 1);
+      } else {
+        targetIndex = Math.max(0, this.currentImageIndex - decrement);
+      }
+    } else {
+      targetIndex = Math.max(0, this.currentImageIndex - 1);
+    }
+    await this.goTo(targetIndex);
   }
 
-  next() {
-    if (this.type === "epub") {
-      if (!this.pagination?.pages?.length) return;
-      this.pageController.next();
-    } else if (this.isImageBook()) {
-      // 見開きモードの場合は2ページ進む
-      const step = this.imageViewMode === "spread" ? 2 : 1;
-      const nextIndex = Math.min(this.imageIndex + step, this.imagePages.length - 1);
-      if (nextIndex !== this.imageIndex) {
-        this.imageIndex = nextIndex;
-        this.renderImagePage();
-      }
-    }
-  }
+  async next(step = 1) {
+    if (this.imageZoomed) return; // ズーム中はページめくり無効
 
-  prev() {
+    // EPUBの場合はPageControllerを使用
     if (this.type === "epub") {
-      if (!this.pagination?.pages?.length) return;
-      this.pageController.prev();
-    } else if (this.isImageBook()) {
-      // 見開きモードの場合は2ページ戻る
-      const step = this.imageViewMode === "spread" ? 2 : 1;
-      const prevIndex = Math.max(this.imageIndex - step, 0);
-      if (prevIndex !== this.imageIndex) {
-        this.imageIndex = prevIndex;
-        this.renderImagePage();
-      }
+      this.pageController?.next();
+      return;
     }
+
+    if (this.render && this.render.next && !this.isImageBook()) {
+      this.render.next();
+      return;
+    }
+
+    let targetIndex;
+    if (this.imageViewMode === "spread") {
+      const increment = step === 1 ? 1 : 2;
+
+      // 画像がワイド（単ページ表示）の場合は1つ進むだけで良い
+      if (this.isCurrentPageWideSync()) {
+        targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + 1);
+      } else {
+        targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + increment);
+      }
+    } else {
+      targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + 1);
+    }
+    await this.goTo(targetIndex);
   }
 
   addBookmark(label = "しおり") {
@@ -1528,7 +1660,7 @@ export class ReaderController {
     if (!bookmark) return;
     // bookType または type で判定（互換性のため両方サポート）
     const bookType = bookmark.bookType || bookmark.type;
-    
+
     if (bookType === "epub") {
       if (
         bookmark.location &&
@@ -1549,8 +1681,8 @@ export class ReaderController {
       }
     } else if (bookType === "zip" || bookType === "rar" || bookType === "image") {
       // 画像書庫: location は imageIndex
-      const targetIndex = typeof bookmark.location === "number" 
-        ? bookmark.location 
+      const targetIndex = typeof bookmark.location === "number"
+        ? bookmark.location
         : Math.round((bookmark.percentage / 100) * this.imagePages.length) - 1;
       this.imageIndex = Math.max(0, Math.min(targetIndex, this.imagePages.length - 1));
       this.renderImagePage();
@@ -1614,13 +1746,13 @@ export class ReaderController {
     if (this.type !== "epub") return;
     const isVertical = this.writingMode === "vertical";
     const contentDirection = "ltr";
-    
-    console.log("[updateEpubTheme] Applying theme:", { 
-      isVertical, 
+
+    console.log("[updateEpubTheme] Applying theme:", {
+      isVertical,
       theme: this.theme,
-      writingMode: this.writingMode 
+      writingMode: this.writingMode
     });
-    
+
     // 縦書き・横書きともに縦スクロールで表示するため、
     // writing-modeはそのまま適用するが、レイアウトは縦スクロール用に最適化
     if (this.viewer) {
@@ -1729,6 +1861,7 @@ export class ReaderController {
   }
 
   injectImageZoom() {
+    /* Image zoom on click is disabled per user request
     if (this.type === "epub") {
       this.viewer?.querySelectorAll("img").forEach((img) => {
         img.style.cursor = "zoom-in";
@@ -1737,6 +1870,7 @@ export class ReaderController {
       return;
     }
     if (!this.rendition) return;
+    */
   }
 
   bindImageZoomHandlers() {
