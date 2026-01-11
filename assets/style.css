@@ -645,15 +645,15 @@ body.google-auth-active .modal-backdrop {
 
 .progress-track {
   position: relative;
-  height: 10px;
-  /* 中間色グレー + 境界線で白背景でも黒背景でも視認可能 */
-  background: #6b7280;
-  border: 2px solid #374151;
+  height: 12px;
+  /* 濃いグレーで白背景でも確実に視認可能 */
+  background: #374151;
+  border: 2px solid #1f2937;
   border-radius: 999px;
   cursor: pointer;
   box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.3),
-    0 1px 3px rgba(0, 0, 0, 0.2);
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .progress-fill {
