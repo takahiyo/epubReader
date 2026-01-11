@@ -312,11 +312,7 @@ export class UIController {
       console.log('Showed menu backdrop');
     }
 
-    // オーバーレイを無効化
-    if (overlay) {
-      overlay.style.pointerEvents = 'none';
-      console.log('Disabled overlay pointer events');
-    }
+
   }
 
   /**
@@ -354,11 +350,7 @@ export class UIController {
         console.log('Showed progress bar backdrop');
       }
 
-      // オーバーレイを無効化
-      if (overlay) {
-        overlay.style.pointerEvents = 'none';
-        console.log('Disabled overlay pointer events');
-      }
+
     } else {
       if (backdrop) {
         backdrop.classList.remove('visible');
@@ -385,11 +377,7 @@ export class UIController {
       console.error('bookmarkMenu element not found!');
     }
 
-    // オーバーレイを無効化
-    if (overlay) {
-      overlay.style.pointerEvents = 'none';
-      console.log('Disabled overlay pointer events');
-    }
+
   }
 
   /**
@@ -417,11 +405,7 @@ export class UIController {
     }
     if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
 
-    // オーバーレイを再度有効化
-    if (overlay) {
-      overlay.style.pointerEvents = 'all';
-      console.log('Re-enabled overlay pointer events');
-    }
+
 
     this.onLeftMenu?.('hide');
     this.onProgressBar?.('hide');
