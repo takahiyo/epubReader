@@ -311,6 +311,19 @@ body.google-auth-active .modal-backdrop {
   border: 2px solid rgba(17, 24, 39, 0.8);
 }
 
+/* RTL（右開き）時の進捗バー反転 */
+#floatProgress.rtl-progress #floatProgressTrack {
+  transform: scaleX(-1);
+}
+
+#floatProgress.rtl-progress #floatProgressFill {
+  transform: scaleX(-1);
+}
+
+#floatProgress.rtl-progress #floatProgressThumb {
+  right: auto;
+}
+
 /* スクロール時�Eメニューボタン */
 .floating-menu-button {
   position: absolute;
@@ -391,6 +404,53 @@ body.google-auth-active .modal-backdrop {
   max-height: 100%;
   object-fit: contain;
   cursor: zoom-in;
+}
+
+/* 見開きコンテナ */
+.image-viewer .spread-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.image-viewer .spread-page {
+  max-width: 50%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+}
+
+.image-viewer .spread-left {
+  /* 左ページ */
+}
+
+.image-viewer .spread-right {
+  /* 右ページ */
+}
+
+/* ズーム状態 */
+.image-viewer.zoomed {
+  overflow: auto;
+  cursor: grab;
+}
+
+.image-viewer.zoomed:active {
+  cursor: grabbing;
+}
+
+.image-viewer.zoomed img,
+.image-viewer.zoomed .spread-container {
+  transform: scale(2);
+  transform-origin: center center;
+  cursor: zoom-out;
+}
+
+/* RTL モード時の見開き表示順序 */
+.image-viewer.rtl-mode .spread-container {
+  flex-direction: row-reverse;
 }
 
 .empty-state {
@@ -1228,6 +1288,13 @@ body.google-auth-active .modal-backdrop {
   border: 1px solid var(--border);
   color: var(--muted);
   background: rgba(139, 92, 246, 0.1);
+}
+
+.library-type-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 0.5rem;
 }
 
 .library-attach {
