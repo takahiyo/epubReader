@@ -248,6 +248,15 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+#toggleZoom {
+  position: absolute;
+  right: 24px;
+  top: calc(50% + 50px);
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+}
+
 #toggleLanguage {
   position: absolute;
   left: 24px;

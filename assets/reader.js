@@ -1824,6 +1824,7 @@ export class ReaderController {
   }
 
   injectImageZoom() {
+    /* Image zoom on click is disabled per user request
     if (this.type === "epub") {
       this.viewer?.querySelectorAll("img").forEach((img) => {
         img.style.cursor = "zoom-in";
@@ -1832,6 +1833,7 @@ export class ReaderController {
       return;
     }
     if (!this.rendition) return;
+    */
   }
 
   bindImageZoomHandlers() {
