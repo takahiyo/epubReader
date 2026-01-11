@@ -2773,8 +2773,8 @@ function setupEvents() {
       await syncAllBooksFromCloud();
 
       // If a book is open, sync its state
-      if (currentReader && currentBook?.cloudBookId) {
-        await syncCurrentBookState();
+      if (currentBookId && currentCloudBookId) {
+        await pushCurrentBookSync();
       }
 
       if (syncStatus) {
