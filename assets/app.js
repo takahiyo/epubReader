@@ -256,6 +256,11 @@ const elements = {
   toggleTheme: document.getElementById("toggleTheme"),
   toggleLanguage: document.getElementById("toggleLanguage"),
   langIcon: document.getElementById("langIcon"),
+  loadingOverlay: document.getElementById("loadingOverlay"),
+  floatLangMenu: document.getElementById("floatLangMenu"),
+  openLangMenu: document.getElementById("openLangMenu"),
+  floatLangJa: document.getElementById("floatLangJa"),
+  floatLangEn: document.getElementById("floatLangEn"),
 
   // メニュー
   leftMenu: document.getElementById("leftMenu"),
@@ -580,6 +585,22 @@ function formatRelativeTimeEn(timestamp) {
   if (diffHours < 24) return `${diffHours} hr ago`;
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays} days ago`;
+}
+
+// ========================================
+// ローディングオーバーレイ
+// ========================================
+
+function showLoading() {
+  if (elements.loadingOverlay) {
+    elements.loadingOverlay.classList.add("visible");
+  }
+}
+
+function hideLoading() {
+  if (elements.loadingOverlay) {
+    elements.loadingOverlay.classList.remove("visible");
+  }
 }
 
 function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
@@ -1051,6 +1072,7 @@ function buildMatchMeta(info) {
 // ========================================
 
 async function handleFile(file) {
+  showLoading();
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
     updateActivity();
@@ -1158,6 +1180,7 @@ async function handleFile(file) {
     }
 
     console.log("Book opened successfully");
+    hideLoading();
     renderLibrary();
     renderBookmarkMarkers();
     updateProgressBarDisplay();
@@ -1179,6 +1202,7 @@ async function handleFile(file) {
     if (error.message && (error.message.includes('JSZip') || error.message.includes('not defined'))) {
       console.warn("JSZip warning detected, but file may have opened successfully");
       // エラーダイアログを表示しない（ファイルが開けているため）
+      hideLoading();
       return;
     }
 
@@ -1193,6 +1217,7 @@ async function handleFile(file) {
       userMessage += `エラー詳細: ${error.message}`;
     }
 
+    hideLoading();
     alert(userMessage);
   }
 }
@@ -2694,6 +2719,21 @@ function setupEvents() {
 
   elements.toggleLanguage?.addEventListener('click', () => {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
+  });
+
+  // 言語メニュー（フロートUI用）
+  elements.openLangMenu?.addEventListener('click', () => {
+    elements.floatLangMenu?.classList.toggle("hidden");
+  });
+
+  elements.floatLangJa?.addEventListener('click', () => {
+    applyUiLanguage("ja");
+    elements.floatLangMenu?.classList.add("hidden");
+  });
+
+  elements.floatLangEn?.addEventListener('click', () => {
+    applyUiLanguage("en");
+    elements.floatLangMenu?.classList.add("hidden");
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {

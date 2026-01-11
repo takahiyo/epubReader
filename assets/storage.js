@@ -2,7 +2,7 @@ const STORAGE_KEY = "epubReader:data";
 
 const defaultGasEndpoint =
   (typeof window !== "undefined" && window.APP_CONFIG?.GAS_SYNC_ENDPOINT) ||
-  "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec";
+  "https://script.google.com/macros/s/AKfycbzwS0SP00OKHnfw3WHZdBT7w9zF-thjJ7Lufr2wZJqa62FhOkDnPB492_LqWrnufx9W/exec";
 
 const defaultData = {
   library: {},
