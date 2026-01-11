@@ -248,14 +248,30 @@ export class UIController {
     }
 
     const writingMode = this.getWritingMode?.() || "horizontal";
+    console.log('Writing mode:', writingMode, 'Area:', area);
+    
     if (writingMode === "vertical") {
-      if (area === "U2") this.onPagePrev?.();
-      if (area === "B2") this.onPageNext?.();
+      // 縦書き: 上(U2)で前ページ、下(B2)で次ページ
+      if (area === "U2") {
+        console.log('Vertical mode: U2 -> prev page');
+        this.onPagePrev?.();
+      }
+      if (area === "B2") {
+        console.log('Vertical mode: B2 -> next page');
+        this.onPageNext?.();
+      }
       return;
     }
 
-    if (area === "M2") this.onPagePrev?.();
-    if (area === "M4") this.onPageNext?.();
+    // 横書き: 左(M2)で前ページ、右(M4)で次ページ
+    if (area === "M2") {
+      console.log('Horizontal mode: M2 -> prev page');
+      this.onPagePrev?.();
+    }
+    if (area === "M4") {
+      console.log('Horizontal mode: M4 -> next page');
+      this.onPageNext?.();
+    }
   }
   
   /**
