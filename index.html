@@ -197,6 +197,26 @@
       </div>
     </div>
 
+    <!-- 候補書籍選択モーダル -->
+    <div id="candidateModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="candidateModalTitle">類似の書籍が見つかりました</h2>
+          <button id="closeCandidateModal" class="close-btn" aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>クラウド上にこの書籍と思われるデータが見つかりました。<br>同期して続きから読みますか？</p>
+          <div id="candidateList" class="candidate-list">
+            <!-- 候補リストがここに挿入されます -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="candidateUseLocal" class="sync-action-btn" style="margin-top: 1rem;">同期せず新規として扱う</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 同期モーダル -->
     <div id="syncModal" class="modal hidden">
       <div class="modal-backdrop"></div>

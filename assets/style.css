@@ -1511,3 +1511,46 @@ body.google-auth-active .modal-backdrop {
     left: 0;
   }
 }
+
+/* 候補リスト */
+.candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.candidate-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.candidate-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: var(--accent);
+}
+
+.candidate-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.candidate-author {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.candidate-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
