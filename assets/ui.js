@@ -3,17 +3,21 @@
 /**
  * 画面を15エリアに分割して判定
  * 
- * グリッド構造:
- * ┌─────┬──────────────────────┬─────┐
- * │ U1  │    U2 (未使用)       │ U3  │  ← 上10%
- * ├─────┼─────┬────┬────┬─────┼─────┤
- * │     │     │    │    │     │     │
- * │ M1  │ M2  │ M3 │ M4 │ M5  │  M1 │  ← 中80%
- * │     │     │    │    │     │     │
- * ├─────┼─────┴────┴────┴─────┼─────┤
- * │ B1  │    B2            B3  │ B1  │  ← 下10%
- * └─────┴──────────────────────┴─────┘
- *   左20%    中60%              右20%
+ * グリッド構造（下10%は進捗バー専用で除外）:
+ * ┌─────┬─────┬─────┬─────┬─────┐
+ * │ U1  │ U2  │ U3  │ U4  │ U5  │  ← 上30% (0-30%)
+ * ├─────┼─────┼─────┼─────┼─────┤
+ * │ M1  │ M2  │ M3  │ M4  │ M5  │  ← 中30% (30-60%)
+ * ├─────┼─────┼─────┼─────┼─────┤
+ * │ B1  │ B2  │ B3  │ B4  │ B5  │  ← 下30% (60-90%)
+ * ├─────┴─────┴─────┴─────┴─────┤
+ * │      進捗バー専用エリア       │  ← 最下10% (90-100%)
+ * └─────────────────────────────┘
+ *   20%   20%   20%   20%   20%
+ * 
+ * メニュー表示: M3（中央）
+ * 縦書き時ページ移動: M2(前), M4(次) + 横スワイプ
+ * 横書き時ページ移動: U3(前), B3(次) + 縦スワイプ
  */
 
 export class UIController {
@@ -57,6 +61,7 @@ export class UIController {
   
   /**
    * クリック座標からエリアを判定
+   * 下10%は進捗バー専用エリアとして除外
    */
   getClickArea(x, y, baseElement, viewport = window.visualViewport) {
     if (!baseElement || typeof baseElement.getBoundingClientRect !== "function") {
@@ -82,12 +87,18 @@ export class UIController {
     
     console.log(`Area size: ${areaRect.width}x${areaRect.height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
     
-    // 縦方向: U(0-10%), M(10-90%), B(90-100%)
-    let vArea = 'M';
-    if (yPercent < 10) vArea = 'U';
-    if (yPercent > 90) vArea = 'B';
+    // 下10%は進捗バー専用エリア（クリック処理しない）
+    if (yPercent > 90) {
+      console.log('Progress bar area - ignoring click');
+      return null;
+    }
     
-    // 横方向の判定
+    // 縦方向: U(0-30%), M(30-60%), B(60-90%)
+    let vArea = 'U';
+    if (yPercent >= 30 && yPercent < 60) vArea = 'M';
+    else if (yPercent >= 60) vArea = 'B';
+    
+    // 横方向: 20%ずつ5分割
     let hArea;
     if (xPercent < 20) {
       hArea = 1;
@@ -99,19 +110,6 @@ export class UIController {
       hArea = 4;
     } else {
       hArea = 5;
-    }
-    
-    // U2は1-5を統合、B2は2-4を統合
-    if (vArea === 'U' && hArea >= 2 && hArea <= 4) {
-      hArea = 2;
-    }
-    if (vArea === 'B' && hArea >= 2 && hArea <= 4) {
-      hArea = 2;
-    }
-    
-    // 左右のM1, M5は上下のU1, U3, B1, B3と統合
-    if ((hArea === 1 || hArea === 5)) {
-      hArea = 1; // 左右端は全て1として扱う
     }
     
     return `${vArea}${hArea}`;
@@ -239,8 +237,12 @@ export class UIController {
       bookmarkMenuVisible: this.bookmarkMenuVisible
     });
 
+    // 進捗バーエリア（null）は無視
+    if (!area) return;
+    
     if (this.isFloatVisible?.()) return;
     
+    // M3でメニュー表示（初期状態・リーダー状態共通）
     if (area === 'M3') {
       console.log('Toggling float overlay...');
       this.onFloatToggle?.();
@@ -251,25 +253,25 @@ export class UIController {
     console.log('Writing mode:', writingMode, 'Area:', area);
     
     if (writingMode === "vertical") {
-      // 縦書き: 上(U2)で前ページ、下(B2)で次ページ
-      if (area === "U2") {
-        console.log('Vertical mode: U2 -> prev page');
+      // 縦書き: M2で前ページ、M4で次ページ
+      if (area === "M2") {
+        console.log('Vertical mode: M2 -> prev page');
         this.onPagePrev?.();
       }
-      if (area === "B2") {
-        console.log('Vertical mode: B2 -> next page');
+      if (area === "M4") {
+        console.log('Vertical mode: M4 -> next page');
         this.onPageNext?.();
       }
       return;
     }
 
-    // 横書き: 左(M2)で前ページ、右(M4)で次ページ
-    if (area === "M2") {
-      console.log('Horizontal mode: M2 -> prev page');
+    // 横書き: U3で前ページ、B3で次ページ
+    if (area === "U3") {
+      console.log('Horizontal mode: U3 -> prev page');
       this.onPagePrev?.();
     }
-    if (area === "M4") {
-      console.log('Horizontal mode: M4 -> next page');
+    if (area === "B3") {
+      console.log('Horizontal mode: B3 -> next page');
       this.onPageNext?.();
     }
   }
