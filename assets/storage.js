@@ -62,7 +62,15 @@ export class StorageService {
         bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
-          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
+          // マイグレーション: 旧エンドポイントを新エンドポイントに自動置換
+          gasEndpoint: (() => {
+            const OLD_ENDPOINT = "https://script.google.com/macros/s/AKfycbz3iYbkseBSodo8kfJXjfBIPTd9QAHBKjkgYiR5ZKHcIhDcF9RUUi21DMlEYj2sJ6wT/exec";
+            if (settings.gasEndpoint === OLD_ENDPOINT) {
+              console.log("[Migration] Replacing old GAS endpoint with new one");
+              return defaultData.settings.gasEndpoint;
+            }
+            return settings.gasEndpoint || defaultData.settings.gasEndpoint;
+          })(),
           syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
           lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
