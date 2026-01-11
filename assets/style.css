@@ -1821,10 +1821,19 @@ body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
 body.is-zoomed #floatOverlay .float-buttons .font-buttons,
 body.is-zoomed #floatOverlay .float-buttons .float-top-right,
 body.is-zoomed #floatOverlay .float-main-menu,
+body.is-zoomed #floatOverlay .top-bar-title,
+/* 追加: ソフトタイトルがあれば */
 body.is-zoomed #toggleLanguage,
 body.is-zoomed #toggleTheme {
   opacity: 0;
   pointer-events: none;
+}
+
+/* ズーム時はスクロールを有効化（パン操作） */
+#imageViewer.zoomed {
+  overflow: auto;
+  /* タッチデバイスでの慣性スクロール */
+  -webkit-overflow-scrolling: touch;
 }
 
 .float-buttons {

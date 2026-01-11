@@ -1398,10 +1398,23 @@ export class ReaderController {
     if (this.imageZoomed) {
       this.imageViewer.classList.add('zoomed');
       spreadContainer.style.transform = 'scale(2)';
-      spreadContainer.style.transformOrigin = 'center center';
+      spreadContainer.style.transformOrigin = '0 0'; /* 左上基準にすることでスクロール可能領域に展開 */
+      spreadContainer.style.width = '50%'; /* scale(2)で100%になるように調整、あるいは親のスクロールに合わせて自動 */
+      /* spreadContainerはflexで中央寄せされている。
+         scale(2)Origin(0,0)だと、左上から2倍になる。
+         中央寄せのまま拡大したい場合は、flexのalign-items/justify-contentの影響を受ける。
+         単純に 0 0 にすると左上に寄ってしまうかもしれない。
+         パン操作(スクロール)を有効にするなら、コンテンツが親より大きくなる必要がある。
+         scale(2) だけでは layout size は変わらないことがある。
+      */
+      spreadContainer.style.width = '100%';
+      spreadContainer.style.height = '100%';
     } else {
       this.imageViewer.classList.remove('zoomed');
       spreadContainer.style.transform = 'scale(1)';
+      spreadContainer.style.transformOrigin = 'center center';
+      spreadContainer.style.width = '100%';
+      spreadContainer.style.height = '100%';
     }
 
     // 奇数ページ基準で左始まり
@@ -1555,77 +1568,31 @@ export class ReaderController {
     }
   }
 
-  async next(step = null) {
-    if (this.type === "epub") {
-      if (!this.pagination?.pages?.length) return;
-      this.pageController.next();
-    } else if (this.isImageBook()) {
-      let finalStep = step;
-      if (finalStep === null) {
-        if (this.imageViewMode === "spread") {
-          // 現在のページが横長なら1ページ進む、そうでなければ2ページ
-          // DOMの状態から判定（DOM更新待ちが発生するため注意が必要だが、UI操作は通常描画後に行われる）
-          const spreadContainer = this.imageViewer?.querySelector('.spread-container');
-          if (spreadContainer) {
-            // 見開きコンテナがある = 見開き表示中
-            // ただし表紙(index=0)の場合は1ページ
-            if (this.imageIndex === 0) {
-              finalStep = 1;
-            } else {
-              finalStep = 2;
-            }
-          } else {
-            // 見開きコンテナがない = 横長単ページ表示中
-            finalStep = 1;
-          }
-        } else {
-          finalStep = 1;
-        }
-      }
 
-      const nextIndex = Math.min(this.imageIndex + finalStep, this.imagePages.length - 1);
-      if (nextIndex !== this.imageIndex) {
-        this.imageIndex = nextIndex;
-        this.renderImagePage();
-      }
+
+  async prev(step = 1) {
+    if (this.imageZoomed) return; // ズーム中はページめくり無効
+    if (this.render && this.render.prev && !this.isImageBook()) {
+      this.render.prev();
+      return;
     }
-  }
 
-  async prev(step = null) {
-    if (this.type === "epub") {
-      if (!this.pagination?.pages?.length) return;
-      this.pageController.prev();
-    } else if (this.isImageBook()) {
-      let finalStep = step;
-      if (finalStep === null) {
-        if (this.imageViewMode === "spread") {
-          if (this.imageIndex > 0) {
-            const prevIndex = this.imageIndex - 1;
-            if (prevIndex === 0) {
-              finalStep = 1;
-            } else {
-              // 前のページが横長かどうかチェック
-              const isPrevWide = await this.isImageWide(this.imagePages[prevIndex]);
-              if (isPrevWide) {
-                finalStep = 1;
-              } else {
-                finalStep = 2;
-              }
-            }
-          } else {
-            finalStep = 1;
-          }
-        } else {
-          finalStep = 1;
-        }
-      }
+    let targetIndex;
+    if (this.imageViewMode === "spread") {
+      // 見開きモード：1ページずつか2ページずつか
+      // step=1なら単ページ移動、それ以外なら見開き単位（従来の動作）を維持
+      const decrement = step === 1 ? 1 : 2;
 
-      const prevIndex = Math.max(this.imageIndex - finalStep, 0);
-      if (prevIndex !== this.imageIndex) {
-        this.imageIndex = prevIndex;
-        this.renderImagePage();
+      // 画像がワイド（単ページ表示）の場合は1つ戻るだけで良い
+      if (this.isCurrentPageWideSync()) {
+        targetIndex = Math.max(0, this.currentImageIndex - 1);
+      } else {
+        targetIndex = Math.max(0, this.currentImageIndex - decrement);
       }
+    } else {
+      targetIndex = Math.max(0, this.currentImageIndex - 1);
     }
+    await this.goTo(targetIndex);
   }
 
   addBookmark(label = "しおり") {
