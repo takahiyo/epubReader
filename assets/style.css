@@ -669,8 +669,26 @@ body.google-auth-active .modal-backdrop {
   /* Ensure better visibility in light mode */
   box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
 }
-  border-radius: 999px;
-  transition: width 0.2s ease;
+
+[data-theme="light"] .progress-bar-panel{
+  background: rgba(255,255,255,0.95);
+  border-top: 1px solid #9ca3af;
+}
+
+[data-theme="light"] .progress-track{
+  background: #cbd5e1;      /* 目立つグレー */
+  border: 1px solid #94a3b8;
+}
+
+[data-theme="light"] .progress-thumb{
+  background: var(--accent); /* つまみをアクセント色に */
+  border: 2px solid #111827; /* 黒系で輪郭を付ける */
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+}
+
+[data-theme="light"] .bookmark-marker{
+  background: var(--accent);
+  border: 2px solid #111827;
 }
 
 .progress-thumb {
