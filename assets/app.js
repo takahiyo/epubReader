@@ -261,9 +261,6 @@ const elements = {
   openLangMenu: document.getElementById("openLangMenu"),
   floatLangJa: document.getElementById("floatLangJa"),
   floatLangEn: document.getElementById("floatLangEn"),
-  
-  // 言語選択メニュー（独立型）
-  languageMenu: document.getElementById("language-menu"),
 
   // メニュー
   leftMenu: document.getElementById("leftMenu"),
@@ -2724,35 +2721,19 @@ function setupEvents() {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
   });
 
-  // 言語メニュー（フロートUI用）
+  // 言語メニュー（フロートUI用・地球儀ボタン横）
   elements.openLangMenu?.addEventListener('click', () => {
     elements.floatLangMenu?.classList.toggle("hidden");
-    // 独立型言語メニューもトグル
-    ui.toggleLanguageMenu();
   });
 
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
     elements.floatLangMenu?.classList.add("hidden");
-    ui.closeLanguageMenu();
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
     elements.floatLangMenu?.classList.add("hidden");
-    ui.closeLanguageMenu();
-  });
-  
-  // 独立型言語メニューのボタンハンドラ
-  elements.languageMenu?.querySelectorAll('button[data-lang]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const lang = btn.dataset.lang;
-      if (lang) {
-        applyUiLanguage(lang);
-        ui.closeLanguageMenu();
-        elements.floatLangMenu?.classList.add("hidden");
-      }
-    });
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {

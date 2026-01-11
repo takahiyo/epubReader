@@ -68,14 +68,14 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* EPUBスクロールモード（縦書き�E横書きともに縦スクロール�E�E*/
+/* EPUBスクロールモード（縦書き�E横書きともに縦スクロール�E�E*/
 .fullscreen-reader.epub-scroll .viewer {
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 
-/* クリチE��検知用オーバ�Eレイ */
+/* クリチE��検知用オーバ�Eレイ */
 .click-overlay {
   position: absolute;
   inset: 0;
@@ -311,7 +311,7 @@ body.google-auth-active .modal-backdrop {
   border: 2px solid rgba(17, 24, 39, 0.8);
 }
 
-/* スクロール時�Eメニューボタン */
+/* スクロール時�Eメニューボタン */
 .floating-menu-button {
   position: absolute;
   top: 1rem;
@@ -367,7 +367,7 @@ body.google-auth-active .modal-backdrop {
   cursor: not-allowed;
 }
 
-/* メニューが開ぁE��ぁE��時�Eオーバ�Eレイを非表示 */
+/* メニューが開ぁE��ぁE��時�Eオーバ�Eレイを非表示 */
 .left-menu.visible~.fullscreen-reader .click-overlay,
 .progress-bar-panel.visible~.fullscreen-reader .click-overlay,
 .bookmark-menu.visible~.fullscreen-reader .click-overlay {
@@ -468,12 +468,12 @@ body.google-auth-active .modal-backdrop {
   opacity: 1;
 }
 
-/* 左メニュー用バックドロチE�E�E�左メニューの下！E*/
+/* 左メニュー用バックドロチE�E�E�左メニューの下！E*/
 #leftMenuBackdrop {
   z-index: 99;
 }
 
-/* 進捗バー用バックドロチE�E�E�進捗バーの下！E*/
+/* 進捗バー用バックドロチE�E�E�進捗バーの下！E*/
 #progressBarBackdrop {
   z-index: 85;
 }
@@ -655,7 +655,7 @@ body.google-auth-active .modal-backdrop {
 .progress-track {
   position: relative;
   height: 12px;
-  /* 濁E��グレーで白背景でも確実に視認可能 */
+  /* 濁E��グレーで白背景でも確実に視認可能 */
   background: #374151;
   border: 2px solid #1f2937;
   border-radius: 999px;
@@ -683,7 +683,7 @@ body.google-auth-active .modal-backdrop {
   left: 2px;
   top: 2px;
   bottom: 2px;
-  /* 鮮めE��なグラチE�Eションで視認性向丁E*/
+  /* 鮮めE��なグラチE�Eションで視認性向丁E*/
   background: linear-gradient(90deg, #8b5cf6, #a855f7);
   border-radius: 999px;
   transition: width 0.2s ease;
@@ -752,7 +752,7 @@ body.google-auth-active .modal-backdrop {
   color: var(--muted);
 }
 
-/* しおり�Eーカー�E�進捗バー上！E*/
+/* しおり�Eーカー�E�進捗バー上！E*/
 .bookmark-marker {
   position: absolute;
   top: 50%;
@@ -774,7 +774,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   しおりメニュー�E�モーダル�E�E
+   しおりメニュー�E�モーダル�E�E
 ======================================== */
 
 .bookmark-menu {
@@ -1054,7 +1054,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   ファイル選択�Eライブラリ
+   ファイル選択�Eライブラリ
 ======================================== */
 
 .file-input-hidden {
@@ -1295,7 +1295,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   チE��スト検索
+   チE��スト検索
 ======================================== */
 
 .search-input-container {
@@ -1651,22 +1651,22 @@ body.google-auth-active .modal-backdrop {
 }
 
 /* ========================================
-   言語選択メニュー（フロートUI用）
+   言語選択メニュー（フロートUI用・地球儀ボタン横）
 ======================================== */
 
 .float-lang-menu {
   position: absolute;
-  left: 80px;
+  left: 76px;
   bottom: 24px;
-  background: var(--card);
+  background: rgba(17, 24, 39, 0.85);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 8px;
+  padding: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 20;
+  flex-direction: row;
+  gap: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  z-index: 910;
   pointer-events: auto;
 }
 
@@ -1677,63 +1677,22 @@ body.google-auth-active .modal-backdrop {
 .lang-option-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  justify-content: center;
+  padding: 6px;
   border: none;
   background: transparent;
   color: var(--text);
-  font-size: 1rem;
   cursor: pointer;
   border-radius: 8px;
-  white-space: nowrap;
-}
-
-.lang-option-btn:hover {
-  background: rgba(139, 92, 246, 0.1);
-}
-
-.lang-option-btn img {
-  width: 24px;
-  height: auto;
-  border-radius: 2px;
-}
-
-/* ========================================
-   言語選択メニュー（独立型）
-======================================== */
-
-.language-menu {
-  position: fixed;
-  bottom: 80px;
-  right: 20px;
-  z-index: 4000;
-  display: flex;
-  gap: 12px;
-  background: rgba(30, 30, 30, 0.9);
-  padding: 10px;
-  border-radius: 12px;
-}
-
-.language-menu.hidden {
-  display: none;
-}
-
-.language-menu button {
-  border: none;
-  background: transparent;
-  padding: 4px;
-  cursor: pointer;
-  border-radius: 4px;
   transition: background 0.2s ease;
 }
 
-.language-menu button:hover {
+.lang-option-btn:hover {
   background: rgba(139, 92, 246, 0.2);
 }
 
-.language-menu img {
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
+.lang-option-btn img {
+  width: 28px;
+  height: 28px;
   border-radius: 2px;
 }

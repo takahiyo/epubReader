@@ -421,29 +421,6 @@ export class UIController {
   }
   
   /**
-   * 言語メニューをトグル
-   */
-  toggleLanguageMenu() {
-    const menu = document.querySelector('.language-menu');
-    if (menu) {
-      menu.classList.toggle('hidden');
-      console.log('Language menu toggled:', !menu.classList.contains('hidden'));
-    } else {
-      console.warn('Language menu element not found');
-    }
-  }
-  
-  /**
-   * 言語メニューを閉じる
-   */
-  closeLanguageMenu() {
-    const menu = document.querySelector('.language-menu');
-    if (menu) {
-      menu.classList.add('hidden');
-    }
-  }
-  
-  /**
    * エリアのデバッグ表示（開発用）
    */
   showDebugGrid() {
