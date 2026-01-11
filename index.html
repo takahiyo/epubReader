@@ -125,10 +125,14 @@
   <!-- 進捗バーパネル -->
   <div id="progressBarPanel" class="progress-bar-panel">
     <div class="progress-container">
-      <div class="progress-track">
-        <div id="progressFill" class="progress-fill"></div>
-        <div id="progressThumb" class="progress-thumb"></div>
-        <!-- しおりマーカーはJSで動的に追加 -->
+      <div class="progress-bar-wrapper">
+        <button id="progressPrev" class="progress-arrow hidden">◀</button>
+        <div class="progress-track">
+          <div id="progressFill" class="progress-fill"></div>
+          <div id="progressThumb" class="progress-thumb"></div>
+          <!-- しおりマーカーはJSで動的に追加 -->
+        </div>
+        <button id="progressNext" class="progress-arrow hidden">▶</button>
       </div>
       <div class="progress-info">
         <div class="page-numbers">

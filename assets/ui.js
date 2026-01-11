@@ -33,19 +33,20 @@ export class UIController {
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
     this.getWritingMode = options.getWritingMode || (() => "horizontal");
     this.isFloatVisible = options.isFloatVisible || (() => false);
-    
+    this.isImageBook = options.isImageBook || (() => false);
+
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
     this.progressBarPinned = false;
     this.bookmarkMenuVisible = false;
     this.touchStartX = null;
     this.touchStartY = null;
-    
+
     this.setupClickHandler();
     this.setupTouchHandlers();
     this.setupResizeHandler();
   }
-  
+
   /**
    * リサイズハンドラーをセットアップ
    */
@@ -58,7 +59,7 @@ export class UIController {
       }, 250);
     });
   }
-  
+
   /**
    * クリック座標からエリアを判定
    * 下10%は進捗バー専用エリアとして除外
@@ -70,34 +71,34 @@ export class UIController {
     const rect = baseElement.getBoundingClientRect();
     const areaRect = rect
       ? {
-          left: rect.left + (viewport?.offsetLeft ?? 0),
-          top: rect.top + (viewport?.offsetTop ?? 0),
-          width: viewport?.width ?? rect.width,
-          height: viewport?.height ?? rect.height
-        }
+        left: rect.left + (viewport?.offsetLeft ?? 0),
+        top: rect.top + (viewport?.offsetTop ?? 0),
+        width: viewport?.width ?? rect.width,
+        height: viewport?.height ?? rect.height
+      }
       : {
-          left: 0,
-          top: 0,
-          width: viewport?.width ?? window.innerWidth,
-          height: viewport?.height ?? window.innerHeight
-        };
-    
+        left: 0,
+        top: 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight
+      };
+
     const xPercent = ((x - areaRect.left) / areaRect.width) * 100;
     const yPercent = ((y - areaRect.top) / areaRect.height) * 100;
-    
+
     console.log(`Area size: ${areaRect.width}x${areaRect.height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
-    
+
     // 下10%は進捗バー専用エリア（クリック処理しない）
     if (yPercent > 90) {
       console.log('Progress bar area - ignoring click');
       return null;
     }
-    
+
     // 縦方向: U(0-30%), M(30-60%), B(60-90%)
     let vArea = 'U';
     if (yPercent >= 30 && yPercent < 60) vArea = 'M';
     else if (yPercent >= 60) vArea = 'B';
-    
+
     // 横方向: 20%ずつ5分割
     let hArea;
     if (xPercent < 20) {
@@ -111,16 +112,16 @@ export class UIController {
     } else {
       hArea = 5;
     }
-    
+
     return `${vArea}${hArea}`;
   }
-  
+
   /**
    * クリックハンドラーをセットアップ
    */
   setupClickHandler() {
     let isProcessing = false;  // 連続クリックを防ぐフラグ
-    
+
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
       if (document.body.classList.contains("google-auth-active")) {
@@ -130,15 +131,15 @@ export class UIController {
       if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgressBar')) {
         return;
       }
-      
+
       // 処理中なら無視（連続クリックを防ぐ）
       if (isProcessing) {
         console.log('Click event ignored (already processing)');
         return;
       }
-      
+
       isProcessing = true;
-      
+
       const baseElement = document.getElementById('fullscreenReader');
       const area = this.getClickArea(e.clientX, e.clientY, baseElement);
       if (!area) {
@@ -146,15 +147,15 @@ export class UIController {
         return;
       }
       console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
-      
+
       this.handleAreaClick(area, e);
-      
+
       // 処理完了後、フラグをリセット（100ms後）
       setTimeout(() => {
         isProcessing = false;
       }, 100);
     };
-    
+
     document.addEventListener('click', clickHandler);
     console.log('Click handler attached to document');
   }
@@ -200,7 +201,8 @@ export class UIController {
 
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
         const mode = this.getWritingMode?.() || "horizontal";
-        if (mode === "vertical") {
+        // 画像書庫または縦書きモードなら横スワイプ
+        if (mode === "vertical" || this.isImageBook?.()) {
           if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
             if (deltaX > 0) {
               this.onPagePrev?.();
@@ -225,7 +227,7 @@ export class UIController {
   isAnyMenuVisible() {
     return this.leftMenuVisible || this.bookmarkMenuVisible || (this.progressBarVisible && !this.progressBarPinned);
   }
-  
+
   /**
    * エリアクリックを処理
    */
@@ -239,9 +241,9 @@ export class UIController {
 
     // 進捗バーエリア（null）は無視
     if (!area) return;
-    
+
     if (this.isFloatVisible?.()) return;
-    
+
     // M3でメニュー表示（初期状態・リーダー状態共通）
     if (area === 'M3') {
       console.log('Toggling float overlay...');
@@ -251,9 +253,9 @@ export class UIController {
 
     const writingMode = this.getWritingMode?.() || "horizontal";
     console.log('Writing mode:', writingMode, 'Area:', area);
-    
-    if (writingMode === "vertical") {
-      // 縦書き: M2で前ページ、M4で次ページ
+
+    // 画像書庫または縦書き: M2で前ページ、M4で次ページ
+    if (writingMode === "vertical" || this.isImageBook?.()) {
       if (area === "M2") {
         console.log('Vertical mode: M2 -> prev page');
         this.onPagePrev?.();
@@ -275,7 +277,7 @@ export class UIController {
       this.onPageNext?.();
     }
   }
-  
+
   /**
    * 左メニューを表示
    */
@@ -283,11 +285,11 @@ export class UIController {
     console.log('showLeftMenu called');
     this.leftMenuVisible = true;
     this.onLeftMenu?.('show');
-    
+
     const menu = document.getElementById('leftMenu');
     const backdrop = document.getElementById('leftMenuBackdrop');
     const overlay = document.getElementById('clickOverlay');
-    
+
     console.log('leftMenu element:', menu);
     if (menu) {
       menu.classList.add('visible');
@@ -295,7 +297,7 @@ export class UIController {
     } else {
       console.error('leftMenu element not found!');
     }
-    
+
     // バックドロップを表示
     if (backdrop) {
       backdrop.classList.add('visible');
@@ -303,14 +305,14 @@ export class UIController {
       backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
       console.log('Showed menu backdrop');
     }
-    
+
     // オーバーレイを無効化
     if (overlay) {
       overlay.style.pointerEvents = 'none';
       console.log('Disabled overlay pointer events');
     }
   }
-  
+
   /**
    * 進捗バーを表示
    */
@@ -324,11 +326,11 @@ export class UIController {
     this.progressBarPinned = this.progressBarPinned || persistent;
     this.progressBarVisible = !persistent;
     this.onProgressBar?.('show');
-    
+
     const bar = document.getElementById('progressBarPanel');
     const backdrop = document.getElementById('progressBarBackdrop');
     const overlay = document.getElementById('clickOverlay');
-    
+
     console.log('progressBarPanel element:', bar);
     if (bar) {
       bar.classList.add('visible');
@@ -336,7 +338,7 @@ export class UIController {
     } else {
       console.error('progressBarPanel element not found!');
     }
-    
+
     if (!persistent) {
       // バックドロップを表示
       if (backdrop) {
@@ -345,7 +347,7 @@ export class UIController {
         backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
         console.log('Showed progress bar backdrop');
       }
-      
+
       // オーバーレイを無効化
       if (overlay) {
         overlay.style.pointerEvents = 'none';
@@ -357,7 +359,7 @@ export class UIController {
       }
     }
   }
-  
+
   /**
    * しおりメニューを表示
    */
@@ -365,10 +367,10 @@ export class UIController {
     console.log('showBookmarkMenu called');
     this.bookmarkMenuVisible = true;
     this.onBookmarkMenu?.('show');
-    
+
     const menu = document.getElementById('bookmarkMenu');
     const overlay = document.getElementById('clickOverlay');
-    
+
     console.log('bookmarkMenu element:', menu);
     if (menu) {
       menu.classList.add('visible');
@@ -376,14 +378,14 @@ export class UIController {
     } else {
       console.error('bookmarkMenu element not found!');
     }
-    
+
     // オーバーレイを無効化
     if (overlay) {
       overlay.style.pointerEvents = 'none';
       console.log('Disabled overlay pointer events');
     }
   }
-  
+
   /**
    * 全てのメニューを閉じる
    */
@@ -391,14 +393,14 @@ export class UIController {
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
     this.bookmarkMenuVisible = false;
-    
+
     const leftMenu = document.getElementById('leftMenu');
     const leftMenuBackdrop = document.getElementById('leftMenuBackdrop');
     const progressBar = document.getElementById('progressBarPanel');
     const progressBarBackdrop = document.getElementById('progressBarBackdrop');
     const bookmarkMenu = document.getElementById('bookmarkMenu');
     const overlay = document.getElementById('clickOverlay');
-    
+
     if (leftMenu) leftMenu.classList.remove('visible');
     if (leftMenuBackdrop) leftMenuBackdrop.classList.remove('visible');
     if (!this.progressBarPinned) {
@@ -408,18 +410,18 @@ export class UIController {
       progressBarBackdrop.classList.remove('visible');
     }
     if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
-    
+
     // オーバーレイを再度有効化
     if (overlay) {
       overlay.style.pointerEvents = 'all';
       console.log('Re-enabled overlay pointer events');
     }
-    
+
     this.onLeftMenu?.('hide');
     this.onProgressBar?.('hide');
     this.onBookmarkMenu?.('hide');
   }
-  
+
   /**
    * エリアのデバッグ表示（開発用）
    */
@@ -432,7 +434,7 @@ export class UIController {
       pointer-events: none;
       z-index: 9999;
     `;
-    
+
     // グリッド線を描画
     const lines = [
       { type: 'horizontal', percent: 10, label: '10%' },
@@ -442,19 +444,19 @@ export class UIController {
       { type: 'vertical', percent: 60, label: '60%' },
       { type: 'vertical', percent: 80, label: '80%' },
     ];
-    
+
     lines.forEach(line => {
       const el = document.createElement('div');
       el.style.cssText = `
         position: absolute;
         background: rgba(255, 0, 0, 0.3);
-        ${line.type === 'horizontal' ? 
+        ${line.type === 'horizontal' ?
           `top: ${line.percent}%; left: 0; right: 0; height: 2px;` :
           `left: ${line.percent}%; top: 0; bottom: 0; width: 2px;`
         }
       `;
       overlay.appendChild(el);
-      
+
       // ラベル
       const label = document.createElement('div');
       label.textContent = line.label;
@@ -464,7 +466,7 @@ export class UIController {
         color: white;
         padding: 2px 4px;
         font-size: 10px;
-        ${line.type === 'horizontal' ? 
+        ${line.type === 'horizontal' ?
           `top: ${line.percent}%; left: 50%;` :
           `left: ${line.percent}%; top: 50%;`
         }
@@ -472,9 +474,9 @@ export class UIController {
       `;
       overlay.appendChild(label);
     });
-    
+
     document.body.appendChild(overlay);
-    
+
     // 10秒後に自動削除
     setTimeout(() => overlay.remove(), 10000);
   }
@@ -488,78 +490,92 @@ export class ProgressBarHandler {
     this.container = options.container;
     this.thumb = options.thumb;
     this.onSeek = options.onSeek;
-    
+    this.getIsRtl = options.getIsRtl || (() => false);
+
     this.isDragging = false;
     this.setupDragHandlers();
   }
-  
+
   setupDragHandlers() {
     if (!this.thumb || !this.container) return;
-    
+
     // ツマミのドラッグ
     this.thumb.addEventListener('mousedown', this.handleDragStart.bind(this));
     document.addEventListener('mousemove', this.handleDragMove.bind(this));
     document.addEventListener('mouseup', this.handleDragEnd.bind(this));
-    
+
     // タッチ対応
     this.thumb.addEventListener('touchstart', this.handleDragStart.bind(this));
     document.addEventListener('touchmove', this.handleDragMove.bind(this), { passive: false });
     document.addEventListener('touchend', this.handleDragEnd.bind(this));
-    
+
     // 進捗トラックをクリックでジャンプ
     this.container.addEventListener('click', (e) => {
       // ツマミをクリックした場合は無視
       if (e.target === this.thumb) return;
-      
+
       const rect = this.container.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const percentage = (x / rect.width) * 100;
-      
+      let percentage = (x / rect.width) * 100;
+
+      // RTLなら反転
+      if (this.getIsRtl()) {
+        percentage = 100 - percentage;
+      }
+
       console.log('Track clicked at', percentage.toFixed(2) + '%');
       this.updatePosition(percentage);
       this.onSeek?.(percentage);
     });
   }
-  
+
   handleDragStart(e) {
     e.preventDefault();
     this.isDragging = true;
     this.thumb.classList.add('dragging');
     console.log('Drag started');
   }
-  
+
   handleDragMove(e) {
     if (!this.isDragging) return;
-    
+
     e.preventDefault(); // スクロールを防ぐ
-    
+
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const rect = this.container.getBoundingClientRect();
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percentage = (x / rect.width) * 100;
-    
+    let percentage = (x / rect.width) * 100;
+
+    if (this.getIsRtl()) {
+      percentage = 100 - percentage;
+    }
+
     this.updatePosition(percentage);
     // ドラッグ中はシークしない（updatePositionのみ）
   }
-  
+
   handleDragEnd(e) {
     if (!this.isDragging) return;
-    
+
     e.preventDefault();
-    
+
     // ドラッグ終了時に最終位置でシーク
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     const rect = this.container.getBoundingClientRect();
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percentage = (x / rect.width) * 100;
-    
+    let percentage = (x / rect.width) * 100;
+
+    if (this.getIsRtl()) {
+      percentage = 100 - percentage;
+    }
+
     console.log('Drag ended at', percentage.toFixed(2) + '%');
     this.onSeek?.(percentage);
-    
+
     this.isDragging = false;
     this.thumb.classList.remove('dragging');
   }
-  
+
   updatePosition(percentage) {
     if (this.thumb) {
       this.thumb.style.left = `${percentage}%`;

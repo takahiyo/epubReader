@@ -712,7 +712,35 @@ body.google-auth-active .modal-backdrop {
   gap: 0.5rem;
 }
 
+.progress-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.progress-arrow {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.progress-arrow:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: var(--accent);
+}
+
 .progress-track {
+  flex: 1;
   position: relative;
   height: 12px;
   /* 濁E��グレーで白背景でも確実に視認可能 */
@@ -1707,6 +1735,7 @@ body.google-auth-active .modal-backdrop {
 }
 
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 0.6;
@@ -1762,4 +1791,38 @@ body.google-auth-active .modal-backdrop {
   width: 28px;
   height: 28px;
   border-radius: 2px;
+}
+
+/* ズームボタン配置 (テーマ切替ボタンの下) */
+#toggleZoom {
+  position: absolute;
+  right: 24px;
+  top: calc(50% + 60px);
+  /* toggleThemeの約60px下 */
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+/* ズーム時のUI制御 */
+body.is-zoomed #floatOverlay .float-backdrop {
+  backdrop-filter: none !important;
+  background: transparent !important;
+}
+
+/* ズーム時はズームボタン以外を非表示 */
+body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 明示的な指定（念のため） */
+body.is-zoomed #floatOverlay .float-buttons .font-buttons,
+body.is-zoomed #floatOverlay .float-buttons .float-top-right,
+body.is-zoomed #floatOverlay .float-main-menu,
+body.is-zoomed #toggleLanguage,
+body.is-zoomed #toggleTheme {
+  opacity: 0;
+  pointer-events: none;
 }
