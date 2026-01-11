@@ -358,8 +358,10 @@ const elements = {
   candidateUseLocal: document.getElementById("candidateUseLocal"),
   closeCandidateModal: document.getElementById("closeCandidateModal"),
   
-  // 見開き切替ボタン
+  // 画像書庫用ボタン
   toggleSpreadMode: document.getElementById("toggleSpreadMode"),
+  toggleReadingDirection: document.getElementById("toggleReadingDirection"),
+  toggleZoom: document.getElementById("toggleZoom"),
 };
 
 // ========================================
@@ -511,6 +513,7 @@ function updateFloatingUIButtons() {
   // 画像書庫かどうかを判定 (type が "zip" または "rar")
   const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
   const isEpub = currentBookInfo && currentBookInfo.type === "epub";
+  const isBookOpen = currentBookId !== null;
   
   // 縦/横書き切替ボタン: EPUB のみ表示
   if (elements.toggleWritingMode) {
@@ -522,6 +525,21 @@ function updateFloatingUIButtons() {
     elements.toggleSpreadMode.style.display = isImageBook ? "" : "none";
     updateSpreadModeButtonLabel();
   }
+  
+  // 左開き/右開き切替ボタン: 画像書庫のみ表示
+  if (elements.toggleReadingDirection) {
+    elements.toggleReadingDirection.style.display = isImageBook ? "" : "none";
+    updateReadingDirectionButtonLabel();
+  }
+  
+  // ズームボタン: ブックが開いている時のみ表示
+  if (elements.toggleZoom) {
+    elements.toggleZoom.style.display = isBookOpen ? "" : "none";
+    updateZoomButtonLabel();
+  }
+  
+  // 進捗バーの方向を更新
+  updateProgressBarDirection();
 }
 
 // 見開きボタンのラベルを更新
@@ -530,6 +548,37 @@ function updateSpreadModeButtonLabel() {
   const isSpread = reader.imageViewMode === "spread";
   elements.toggleSpreadMode.textContent = isSpread ? "単頁" : "見開";
   elements.toggleSpreadMode.title = isSpread ? "単ページ表示に切替" : "見開き表示に切替";
+}
+
+// 左開き/右開きボタンのラベルを更新
+function updateReadingDirectionButtonLabel() {
+  if (!elements.toggleReadingDirection) return;
+  const isRtl = reader.imageReadingDirection === "rtl";
+  elements.toggleReadingDirection.textContent = isRtl ? "→左" : "右←";
+  elements.toggleReadingDirection.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
+}
+
+// ズームボタンのラベルを更新
+function updateZoomButtonLabel() {
+  if (!elements.toggleZoom) return;
+  const isZoomed = reader.imageZoomed;
+  elements.toggleZoom.textContent = isZoomed ? "🔍−" : "🔍+";
+  elements.toggleZoom.title = isZoomed ? "ズームを解除" : "ズームする";
+}
+
+// 進捗バーの方向を更新（RTL時は反転）
+function updateProgressBarDirection() {
+  const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
+  const isRtl = reader.imageReadingDirection === "rtl";
+  const progressBar = document.getElementById("floatProgress");
+  
+  if (progressBar) {
+    if (isImageBook && isRtl) {
+      progressBar.classList.add("rtl-progress");
+    } else {
+      progressBar.classList.remove("rtl-progress");
+    }
+  }
 }
 
 function updateAuthStatusDisplay() {
@@ -2764,6 +2813,19 @@ function setupEvents() {
   elements.toggleSpreadMode?.addEventListener('click', () => {
     reader.toggleImageViewMode();
     updateSpreadModeButtonLabel();
+  });
+
+  // 左開き/右開き切替ボタン
+  elements.toggleReadingDirection?.addEventListener('click', () => {
+    reader.toggleImageReadingDirection();
+    updateReadingDirectionButtonLabel();
+    updateProgressBarDirection();
+  });
+
+  // ズーム切替ボタン
+  elements.toggleZoom?.addEventListener('click', () => {
+    reader.toggleZoom();
+    updateZoomButtonLabel();
   });
 
   elements.fontPlus?.addEventListener('click', () => {

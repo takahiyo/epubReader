@@ -60,6 +60,8 @@ export class ReaderController {
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
     this.imageViewMode = "single"; // "single" | "spread"
+    this.imageReadingDirection = "ltr"; // "ltr" = 左開き, "rtl" = 右開き
+    this.imageZoomed = false;
     this.theme = "dark";
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
@@ -105,6 +107,8 @@ export class ReaderController {
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
     this.imageViewMode = "single"; // "single" | "spread"
+    this.imageReadingDirection = "ltr"; // "ltr" = 左開き, "rtl" = 右開き
+    this.imageZoomed = false;
     this.toc = [];
     if (this.paginator?.destroy) {
       this.paginator.destroy();
@@ -1253,6 +1257,15 @@ export class ReaderController {
     if (!this.imagePages.length) return;
     const targetIndex = this.imageIndex;
     
+    // RTL モードクラスを適用
+    if (this.imageViewer) {
+      if (this.imageReadingDirection === "rtl") {
+        this.imageViewer.classList.add('rtl-mode');
+      } else {
+        this.imageViewer.classList.remove('rtl-mode');
+      }
+    }
+    
     // 見開きモードの場合
     if (this.imageViewMode === "spread" && this.imageViewer) {
       this.renderSpreadPage(targetIndex);
@@ -1298,23 +1311,33 @@ export class ReaderController {
     }
     spreadContainer.innerHTML = '';
     
+    // ズーム状態を適用
+    spreadContainer.style.transform = this.imageZoomed ? 'scale(2)' : 'scale(1)';
+    spreadContainer.style.transformOrigin = 'center center';
+    
     // 奇数ページ基準で左始まり
     // ページ0は単独表示（表紙）、その後は1-2, 3-4...
-    let leftIndex, rightIndex;
+    let firstIndex, secondIndex;
     if (targetIndex === 0) {
       // 表紙は単独表示
-      leftIndex = 0;
-      rightIndex = null;
+      firstIndex = 0;
+      secondIndex = null;
     } else {
-      // 奇数ページが左、偶数ページが右
+      // 奇数ページが先、偶数ページが後
       if (targetIndex % 2 === 1) {
-        leftIndex = targetIndex;
-        rightIndex = targetIndex + 1 < this.imagePages.length ? targetIndex + 1 : null;
+        firstIndex = targetIndex;
+        secondIndex = targetIndex + 1 < this.imagePages.length ? targetIndex + 1 : null;
       } else {
-        leftIndex = targetIndex - 1;
-        rightIndex = targetIndex;
+        firstIndex = targetIndex - 1;
+        secondIndex = targetIndex;
       }
     }
+    
+    // 左開き(ltr): firstが左、secondが右
+    // 右開き(rtl): secondが左、firstが右
+    const isRtl = this.imageReadingDirection === "rtl";
+    const leftIndex = isRtl ? secondIndex : firstIndex;
+    const rightIndex = isRtl ? firstIndex : secondIndex;
     
     // 左ページ
     if (leftIndex !== null && this.imagePages[leftIndex]) {
@@ -1322,7 +1345,6 @@ export class ReaderController {
       leftImg.src = this.imagePages[leftIndex];
       leftImg.alt = `ページ ${leftIndex + 1}`;
       leftImg.className = 'spread-page spread-left';
-      this.bindElementZoomHandlers(leftImg, () => this.imagePages[leftIndex]);
       spreadContainer.appendChild(leftImg);
     }
     
@@ -1332,7 +1354,6 @@ export class ReaderController {
       rightImg.src = this.imagePages[rightIndex];
       rightImg.alt = `ページ ${rightIndex + 1}`;
       rightImg.className = 'spread-page spread-right';
-      this.bindElementZoomHandlers(rightImg, () => this.imagePages[rightIndex]);
       spreadContainer.appendChild(rightImg);
     }
   }
@@ -1346,6 +1367,82 @@ export class ReaderController {
   toggleImageViewMode() {
     this.setImageViewMode(this.imageViewMode === "single" ? "spread" : "single");
     return this.imageViewMode;
+  }
+
+  // 左開き/右開き切替
+  setImageReadingDirection(direction) {
+    if (direction !== "ltr" && direction !== "rtl") return;
+    this.imageReadingDirection = direction;
+    this.renderImagePage();
+  }
+
+  toggleImageReadingDirection() {
+    this.setImageReadingDirection(this.imageReadingDirection === "ltr" ? "rtl" : "ltr");
+    return this.imageReadingDirection;
+  }
+
+  // ズーム切替（画像書庫用）
+  toggleImageZoom() {
+    this.imageZoomed = !this.imageZoomed;
+    
+    if (this.imageViewMode === "spread") {
+      // 見開きモード: コンテナ全体をズーム
+      const spreadContainer = this.imageViewer?.querySelector('.spread-container');
+      if (spreadContainer) {
+        spreadContainer.style.transform = this.imageZoomed ? 'scale(2)' : 'scale(1)';
+        spreadContainer.style.transformOrigin = 'center center';
+      }
+    } else {
+      // 単ページモード: 画像をズーム
+      if (this.imageElement) {
+        this.imageElement.style.transform = this.imageZoomed ? 'scale(2)' : 'scale(1)';
+        this.imageElement.style.transformOrigin = 'center center';
+      }
+    }
+    
+    return this.imageZoomed;
+  }
+
+  // ズーム解除
+  resetImageZoom() {
+    this.imageZoomed = false;
+    const spreadContainer = this.imageViewer?.querySelector('.spread-container');
+    if (spreadContainer) {
+      spreadContainer.style.transform = 'scale(1)';
+    }
+    if (this.imageElement) {
+      this.imageElement.style.transform = 'scale(1)';
+    }
+    // zoomed クラスを削除
+    if (this.imageViewer) {
+      this.imageViewer.classList.remove('zoomed');
+    }
+  }
+
+  // 統合ズーム切替（EPUB と 画像書庫 両方対応）
+  toggleZoom() {
+    if (this.isImageBook()) {
+      // 画像書庫の場合
+      this.imageZoomed = !this.imageZoomed;
+      
+      if (this.imageViewer) {
+        if (this.imageZoomed) {
+          this.imageViewer.classList.add('zoomed');
+        } else {
+          this.imageViewer.classList.remove('zoomed');
+        }
+      }
+      
+      return this.imageZoomed;
+    } else {
+      // EPUB の場合（簡易実装）
+      this.imageZoomed = !this.imageZoomed;
+      if (this.viewer) {
+        this.viewer.style.transform = this.imageZoomed ? 'scale(1.5)' : 'scale(1)';
+        this.viewer.style.transformOrigin = 'center center';
+      }
+      return this.imageZoomed;
+    }
   }
 
   async loadImagePage(index) {

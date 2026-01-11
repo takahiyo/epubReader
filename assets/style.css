@@ -311,6 +311,19 @@ body.google-auth-active .modal-backdrop {
   border: 2px solid rgba(17, 24, 39, 0.8);
 }
 
+/* RTL（右開き）時の進捗バー反転 */
+#floatProgress.rtl-progress #floatProgressTrack {
+  transform: scaleX(-1);
+}
+
+#floatProgress.rtl-progress #floatProgressFill {
+  transform: scaleX(-1);
+}
+
+#floatProgress.rtl-progress #floatProgressThumb {
+  right: auto;
+}
+
 /* スクロール時�Eメニューボタン */
 .floating-menu-button {
   position: absolute;
@@ -416,6 +429,28 @@ body.google-auth-active .modal-backdrop {
 
 .image-viewer .spread-right {
   /* 右ページ */
+}
+
+/* ズーム状態 */
+.image-viewer.zoomed {
+  overflow: auto;
+  cursor: grab;
+}
+
+.image-viewer.zoomed:active {
+  cursor: grabbing;
+}
+
+.image-viewer.zoomed img,
+.image-viewer.zoomed .spread-container {
+  transform: scale(2);
+  transform-origin: center center;
+  cursor: zoom-out;
+}
+
+/* RTL モード時の見開き表示順序 */
+.image-viewer.rtl-mode .spread-container {
+  flex-direction: row-reverse;
 }
 
 .empty-state {
