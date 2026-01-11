@@ -493,6 +493,7 @@ export class UIController {
   createGridOverlay() {
     this.gridOverlay = document.createElement('div');
     this.gridOverlay.className = 'area-grid-overlay';
+    this.gridOverlay.style.pointerEvents = 'none'; // 初期状態は操作不可
 
     // 3x5グリッド (U1-U5, M1-M5, B1-B5)
     const areas = [];

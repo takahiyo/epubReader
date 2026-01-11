@@ -1304,8 +1304,11 @@ export class ReaderController {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        // 横幅 > 高さ * 1.2
-        resolve(img.width > img.height * 1.2);
+        // 横幅 > 高さ * 1.25 (少し閾値を上げる)
+        const ratio = img.naturalWidth / img.naturalHeight;
+        const isWide = ratio > 1.25;
+        // console.log(`Image ${src.slice(-20)} ratio: ${ratio.toFixed(2)}, isWide: ${isWide}`);
+        resolve(isWide);
       };
       img.onerror = () => resolve(false);
       img.src = src;

@@ -1827,6 +1827,11 @@ body.is-zoomed #toggleTheme {
   pointer-events: none;
 }
 
+.float-buttons {
+  z-index: 1600;
+  /* GridOverlayより上にする */
+}
+
 /* クリックエリア可視化グリッド */
 .area-grid-overlay {
   position: absolute;
@@ -1834,17 +1839,22 @@ body.is-zoomed #toggleTheme {
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: auto;
-  /* グリッド上の操作を有効化 */
-  z-index: 1500;
-  /* floatOverlayより手前 */
+  pointer-events: none;
+  /* デフォルトは操作不可 */
+  z-index: 1400;
+  /* floatOverlay(1500?)より手前にするが、ボタン系は1600以上にする必要あり */
+  /* 実装確認: floatOverlayは z-index指定なし(static)だが、.float-buttons等は絶対配置 */
+  /* ここでは、ボタンより下、背景より上にする。 */
+  /* 一旦 z-index: 100 に下げて様子を見るか、あるいはボタンを上げる。 */
+  /* ユーザー要望: "ボタンが効かない" -> gridが上にあるから。 */
+  /* Gridはあくまでガイドなので、ボタンクリックを邪魔してはいけないが、
+     "色なしエリアをクリックしたらリーダー状態に戻る" 機能のためには click を受け取る必要がある。 */
+  /* 解決策: Gridの z-index を 1500 (floatOverlayと同等) にしつつ、ボタンの z-index を 1600 に上げる。 */
   display: grid;
   grid-template-columns: 20% 60% 20%;
   grid-template-rows: 20% 60% 20%;
   opacity: 0;
   transition: opacity 0.2s;
-  pointer-events: none;
-  /* デフォルトは操作不可 */
 }
 
 .area-grid-overlay.visible {
@@ -1853,7 +1863,8 @@ body.is-zoomed #toggleTheme {
 }
 
 .area-cell {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* 線を濃くする */
   display: flex;
   align-items: center;
   justify-content: center;

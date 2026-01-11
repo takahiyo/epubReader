@@ -659,6 +659,11 @@ function toggleFloatOverlay(forceVisible) {
   floatVisible = nextVisible;
   elements.floatOverlay.classList.toggle("visible", floatVisible);
   updateProgressBarDisplay();
+  if (floatVisible) {
+    ui.showClickAreas();
+  } else {
+    ui.hideClickAreas();
+  }
 }
 
 function updateFloatProgressBar(percentage) {
