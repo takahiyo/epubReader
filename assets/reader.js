@@ -53,12 +53,13 @@ export class ReaderController {
     this.onImageZoom = onImageZoom;
     this.rendition = null;
     this.book = null;
-    this.type = null;
+    this.type = null; // "epub" | "zip" | "rar"
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageViewMode = "single"; // "single" | "spread"
     this.theme = "dark";
     this.writingMode = "horizontal";
     this.pageDirection = "ltr";
@@ -97,12 +98,13 @@ export class ReaderController {
     }
     this.rendition = null;
     this.book = null;
-    this.type = null;
+    this.type = null; // "epub" | "zip" | "rar"
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageViewMode = "single"; // "single" | "spread"
     this.toc = [];
     if (this.paginator?.destroy) {
       this.paginator.destroy();
@@ -1005,12 +1007,13 @@ export class ReaderController {
     }
   }
 
-  async openImageBook(file, startPage = 0) {
+  async openImageBook(file, startPage = 0, bookType = null) {
     this.resetReaderState();
-    this.type = "image";
     this.toc = [];
     const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar = ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
+    const isRar = bookType === "rar" || ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
+    // type: "zip" | "rar" として設定
+    this.type = isRar ? "rar" : "zip";
     const buffer = await file.arrayBuffer();
     let images = [];
 
@@ -1140,20 +1143,15 @@ export class ReaderController {
         throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, BMP");
       }
 
-      // 自然順ソート（ファイル名の数字を考慮）
+      // 階層対応 + ファイル名順に統一してソート
+      // フォルダ階層を無視して再帰的に全画像を収集済み
+      // path でソート (e.g. "001/010.jpg" < "002/001.jpg")
       images.sort((a, b) => {
         const normalize = (path) => path.replace(/\\/g, "/");
         const aPath = normalize(a.path);
         const bPath = normalize(b.path);
         
-        // 階層の深さで優先順位をつける（浅い階層を優先）
-        const depthA = aPath.split("/").length;
-        const depthB = bPath.split("/").length;
-        if (depthA !== depthB) {
-          return depthA - depthB;
-        }
-        
-        // 同じ階層なら、自然順ソート（数字を数値として比較）
+        // パス全体で自然順ソート（階層含む）
         return aPath.localeCompare(bPath, undefined, { numeric: true, sensitivity: "base" });
       });
       
@@ -1254,7 +1252,21 @@ export class ReaderController {
   renderImagePage() {
     if (!this.imagePages.length) return;
     const targetIndex = this.imageIndex;
-    this.imageElement.src = this.imagePages[targetIndex] || "";
+    
+    // 見開きモードの場合
+    if (this.imageViewMode === "spread" && this.imageViewer) {
+      this.renderSpreadPage(targetIndex);
+    } else {
+      // 単ページモード
+      this.imageElement.src = this.imagePages[targetIndex] || "";
+      // 見開きコンテナを非表示
+      if (this.imageViewer) {
+        const spreadContainer = this.imageViewer.querySelector('.spread-container');
+        if (spreadContainer) spreadContainer.remove();
+        this.imageElement.style.display = '';
+      }
+    }
+    
     if (this.pageIndicator) {
       this.pageIndicator.textContent = `${targetIndex + 1} / ${this.imagePages.length}`;
     }
@@ -1264,6 +1276,76 @@ export class ReaderController {
     });
     this.bindImageZoomHandlers();
     this.loadImagePage(targetIndex);
+    
+    // 見開きモードの場合は次ページもプリロード
+    if (this.imageViewMode === "spread" && targetIndex + 1 < this.imagePages.length) {
+      this.loadImagePage(targetIndex + 1);
+    }
+  }
+
+  renderSpreadPage(targetIndex) {
+    if (!this.imageViewer || !this.imagePages.length) return;
+    
+    // 元の画像を非表示
+    this.imageElement.style.display = 'none';
+    
+    // 既存の見開きコンテナを削除
+    let spreadContainer = this.imageViewer.querySelector('.spread-container');
+    if (!spreadContainer) {
+      spreadContainer = document.createElement('div');
+      spreadContainer.className = 'spread-container';
+      this.imageViewer.appendChild(spreadContainer);
+    }
+    spreadContainer.innerHTML = '';
+    
+    // 奇数ページ基準で左始まり
+    // ページ0は単独表示（表紙）、その後は1-2, 3-4...
+    let leftIndex, rightIndex;
+    if (targetIndex === 0) {
+      // 表紙は単独表示
+      leftIndex = 0;
+      rightIndex = null;
+    } else {
+      // 奇数ページが左、偶数ページが右
+      if (targetIndex % 2 === 1) {
+        leftIndex = targetIndex;
+        rightIndex = targetIndex + 1 < this.imagePages.length ? targetIndex + 1 : null;
+      } else {
+        leftIndex = targetIndex - 1;
+        rightIndex = targetIndex;
+      }
+    }
+    
+    // 左ページ
+    if (leftIndex !== null && this.imagePages[leftIndex]) {
+      const leftImg = document.createElement('img');
+      leftImg.src = this.imagePages[leftIndex];
+      leftImg.alt = `ページ ${leftIndex + 1}`;
+      leftImg.className = 'spread-page spread-left';
+      this.bindElementZoomHandlers(leftImg, () => this.imagePages[leftIndex]);
+      spreadContainer.appendChild(leftImg);
+    }
+    
+    // 右ページ
+    if (rightIndex !== null && this.imagePages[rightIndex]) {
+      const rightImg = document.createElement('img');
+      rightImg.src = this.imagePages[rightIndex];
+      rightImg.alt = `ページ ${rightIndex + 1}`;
+      rightImg.className = 'spread-page spread-right';
+      this.bindElementZoomHandlers(rightImg, () => this.imagePages[rightIndex]);
+      spreadContainer.appendChild(rightImg);
+    }
+  }
+
+  setImageViewMode(mode) {
+    if (mode !== "single" && mode !== "spread") return;
+    this.imageViewMode = mode;
+    this.renderImagePage();
+  }
+
+  toggleImageViewMode() {
+    this.setImageViewMode(this.imageViewMode === "single" ? "spread" : "single");
+    return this.imageViewMode;
   }
 
   async loadImagePage(index) {
@@ -1286,13 +1368,21 @@ export class ReaderController {
     }
   }
 
+  // 画像書庫かどうかを判定
+  isImageBook() {
+    return this.type === "zip" || this.type === "rar";
+  }
+
   next() {
     if (this.type === "epub") {
       if (!this.pagination?.pages?.length) return;
       this.pageController.next();
-    } else if (this.type === "image") {
-      if (this.imageIndex < this.imagePages.length - 1) {
-        this.imageIndex += 1;
+    } else if (this.isImageBook()) {
+      // 見開きモードの場合は2ページ進む
+      const step = this.imageViewMode === "spread" ? 2 : 1;
+      const nextIndex = Math.min(this.imageIndex + step, this.imagePages.length - 1);
+      if (nextIndex !== this.imageIndex) {
+        this.imageIndex = nextIndex;
         this.renderImagePage();
       }
     }
@@ -1302,9 +1392,12 @@ export class ReaderController {
     if (this.type === "epub") {
       if (!this.pagination?.pages?.length) return;
       this.pageController.prev();
-    } else if (this.type === "image") {
-      if (this.imageIndex > 0) {
-        this.imageIndex -= 1;
+    } else if (this.isImageBook()) {
+      // 見開きモードの場合は2ページ戻る
+      const step = this.imageViewMode === "spread" ? 2 : 1;
+      const prevIndex = Math.max(this.imageIndex - step, 0);
+      if (prevIndex !== this.imageIndex) {
+        this.imageIndex = prevIndex;
         this.renderImagePage();
       }
     }
@@ -1320,22 +1413,26 @@ export class ReaderController {
         location: locator,
         percentage,
         createdAt: Date.now(),
-        type: "epub",
+        bookType: "epub", // bookType として保存
       };
     }
 
+    // 画像書庫の場合
     return {
       label,
-      location: this.imageIndex,
+      location: this.imageIndex, // imageIndex を location として保存
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
       createdAt: Date.now(),
-      type: "image",
+      bookType: this.type, // "zip" | "rar"
     };
   }
 
   async goTo(bookmark) {
     if (!bookmark) return;
-    if (bookmark.type === "epub") {
+    // bookType または type で判定（互換性のため両方サポート）
+    const bookType = bookmark.bookType || bookmark.type;
+    
+    if (bookType === "epub") {
       if (
         bookmark.location &&
         typeof bookmark.location === "object" &&
@@ -1353,8 +1450,12 @@ export class ReaderController {
         const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
         this.pageController.goTo(index);
       }
-    } else if (bookmark.type === "image") {
-      this.imageIndex = Math.min(bookmark.location, this.imagePages.length - 1);
+    } else if (bookType === "zip" || bookType === "rar" || bookType === "image") {
+      // 画像書庫: location は imageIndex
+      const targetIndex = typeof bookmark.location === "number" 
+        ? bookmark.location 
+        : Math.round((bookmark.percentage / 100) * this.imagePages.length) - 1;
+      this.imageIndex = Math.max(0, Math.min(targetIndex, this.imagePages.length - 1));
       this.renderImagePage();
     }
   }

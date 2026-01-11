@@ -393,6 +393,31 @@ body.google-auth-active .modal-backdrop {
   cursor: zoom-in;
 }
 
+/* 見開きコンテナ */
+.image-viewer .spread-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.image-viewer .spread-page {
+  max-width: 50%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+}
+
+.image-viewer .spread-left {
+  /* 左ページ */
+}
+
+.image-viewer .spread-right {
+  /* 右ページ */
+}
+
 .empty-state {
   position: absolute;
   inset: 0;
@@ -1228,6 +1253,13 @@ body.google-auth-active .modal-backdrop {
   border: 1px solid var(--border);
   color: var(--muted);
   background: rgba(139, 92, 246, 0.1);
+}
+
+.library-type-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 0.5rem;
 }
 
 .library-attach {

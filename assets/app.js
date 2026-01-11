@@ -357,6 +357,9 @@ const elements = {
   candidateList: document.getElementById("candidateList"),
   candidateUseLocal: document.getElementById("candidateUseLocal"),
   closeCandidateModal: document.getElementById("closeCandidateModal"),
+  
+  // 見開き切替ボタン
+  toggleSpreadMode: document.getElementById("toggleSpreadMode"),
 };
 
 // ========================================
@@ -501,6 +504,32 @@ function updateSearchButtonState() {
   if (elements.floatSearch) {
     elements.floatSearch.disabled = !isEpubOpen;
   }
+}
+
+// フローティングUIの切替ボタン表示を更新
+function updateFloatingUIButtons() {
+  // 画像書庫かどうかを判定 (type が "zip" または "rar")
+  const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
+  const isEpub = currentBookInfo && currentBookInfo.type === "epub";
+  
+  // 縦/横書き切替ボタン: EPUB のみ表示
+  if (elements.toggleWritingMode) {
+    elements.toggleWritingMode.style.display = isEpub ? "" : "none";
+  }
+  
+  // 見開き/単ページ切替ボタン: 画像書庫のみ表示
+  if (elements.toggleSpreadMode) {
+    elements.toggleSpreadMode.style.display = isImageBook ? "" : "none";
+    updateSpreadModeButtonLabel();
+  }
+}
+
+// 見開きボタンのラベルを更新
+function updateSpreadModeButtonLabel() {
+  if (!elements.toggleSpreadMode) return;
+  const isSpread = reader.imageViewMode === "spread";
+  elements.toggleSpreadMode.textContent = isSpread ? "単頁" : "見開";
+  elements.toggleSpreadMode.title = isSpread ? "単ページ表示に切替" : "見開き表示に切替";
 }
 
 function updateAuthStatusDisplay() {
@@ -650,6 +679,7 @@ function buildLibraryEntries() {
       progressPercentage,
       lastTimestamp,
       hasLocalFile: Boolean(localInfo),
+      fileType: localInfo?.type || normalizedMeta.fileType || null, // "epub" | "zip" | "rar" | null
     });
   });
 
@@ -666,6 +696,7 @@ function buildLibraryEntries() {
       progressPercentage: progress?.percentage ?? 0,
       lastTimestamp: book.lastOpened ?? progress?.updatedAt ?? 0,
       hasLocalFile: true,
+      fileType: book.type || null, // "epub" | "zip" | "rar" | null
     });
   });
 
@@ -909,6 +940,7 @@ function buildCloudStatePayload(localBookId, cloudBookId) {
   const progress = storage.getProgress(localBookId) ?? {};
   const bookmarks = storage.getBookmarks(localBookId) ?? [];
   const history = (storage.data.history ?? []).filter((entry) => entry.bookId === localBookId);
+  const bookInfo = storage.data.library[localBookId];
   const updatedAt = Math.max(
     progress?.updatedAt ?? 0,
     ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0),
@@ -917,8 +949,12 @@ function buildCloudStatePayload(localBookId, cloudBookId) {
   const state = {
     progress: progress?.percentage ?? 0,
     lastCfi: progress?.location ?? null,
+    // bookType と location を含める
+    bookType: bookInfo?.type ?? null, // "epub" | "zip" | "rar"
+    location: progress?.location ?? null, // epub: CFI object, image: imageIndex
     bookmarks: bookmarks.map((bookmark) => ({
       ...bookmark,
+      bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
       updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
     })),
     history: history.map((entry) => ({
@@ -1039,6 +1075,7 @@ function buildCloudMeta({ cloudBookId, info, fingerprint, overrides = {} }) {
     author: overrides.author ?? info?.author ?? existing.author ?? "",
     identifiers: overrides.identifiers ?? existing.identifiers ?? [],
     fingerprints: Array.from(fingerprints),
+    fileType: overrides.fileType ?? info?.type ?? existing.fileType ?? null, // "epub" | "zip" | "rar"
     lastReadAt: overrides.lastReadAt ?? Date.now(),
     updatedAt: Date.now(),
     createdAt: existing.createdAt ?? overrides.createdAt ?? Date.now(),
@@ -1094,10 +1131,11 @@ async function handleFile(file) {
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
     await saveFile(id, buffer, { fileName: file.name, mime }, source);
 
+    // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
       id,
       title: fileTitle(file.name),
-      type: type === "epub" ? "epub" : "image",
+      type: type, // "epub" | "zip" | "rar"
       fileName: file.name,
       size: file.size,
       contentHash,
@@ -1142,7 +1180,9 @@ async function handleFile(file) {
     const startProgress = syncedProgress?.percentage;
 
     hideCloudEmptyState();
-    if (info.type === "epub") {
+    // isImageBook: zip または rar の場合
+    const isImageBook = info.type === "zip" || info.type === "rar";
+    if (!isImageBook) {
       console.log("Opening EPUB...");
 
       // 空の状態を非表示、ビューアを表示
@@ -1162,7 +1202,7 @@ async function handleFile(file) {
         percentage: startProgress,
       });
     } else {
-      console.log("Opening image book...");
+      console.log(`Opening image book (${info.type})...`);
       console.log(`Start location: ${startLocation}`);
 
       // 空の状態を非表示、画像ビューアを表示
@@ -1175,7 +1215,8 @@ async function handleFile(file) {
 
       await reader.openImageBook(
         new File([buffer], file.name, { type: mime }),
-        typeof startLocation === "number" ? startLocation : 0
+        typeof startLocation === "number" ? startLocation : 0,
+        info.type // "zip" | "rar" を渡す
       );
     }
 
@@ -1185,6 +1226,7 @@ async function handleFile(file) {
     renderBookmarkMarkers();
     updateProgressBarDisplay();
     updateSearchButtonState();
+    updateFloatingUIButtons();
     closeModal(elements.openFileModal);
     if (floatVisible) {
       toggleFloatOverlay(false);
@@ -1298,7 +1340,9 @@ async function openFromLibrary(bookId, options = {}) {
     const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
 
     hideCloudEmptyState();
-    if (info.type === "epub") {
+    // isImageBook: zip または rar の場合
+    const isImageBook = info.type === "zip" || info.type === "rar";
+    if (!isImageBook) {
       // 空の状態を非表示、ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add('hidden');
       if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
@@ -1321,7 +1365,7 @@ async function openFromLibrary(bookId, options = {}) {
       }
       if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
 
-      await reader.openImageBook(file, typeof start === "number" ? start : 0);
+      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type);
     }
 
     storage.addHistory(bookId);
@@ -1329,6 +1373,7 @@ async function openFromLibrary(bookId, options = {}) {
     renderBookmarkMarkers();
     updateProgressBarDisplay();
     updateSearchButtonState();
+    updateFloatingUIButtons();
     closeModal(elements.openFileModal);
     if (floatVisible) {
       toggleFloatOverlay(false);
@@ -1341,7 +1386,9 @@ async function openFromLibrary(bookId, options = {}) {
 
 function detectFileType(file) {
   const ext = file.name.split('.').pop().toLowerCase();
-  return ext === 'epub' ? 'epub' : 'image';
+  if (ext === 'epub') return 'epub';
+  if (ext === 'rar' || ext === 'cbr') return 'rar';
+  return 'zip'; // .zip, .cbz, etc.
 }
 
 function fileTitle(name) {
@@ -1986,6 +2033,14 @@ function renderLibrary() {
 
     const actions = document.createElement("div");
     actions.className = "library-actions";
+
+    // ファイルタイプバッジ [EPUB] [ZIP] [RAR]
+    if (entry.fileType) {
+      const typeBadge = document.createElement("span");
+      typeBadge.className = "library-type-badge";
+      typeBadge.textContent = `[${entry.fileType.toUpperCase()}]`;
+      actions.appendChild(typeBadge);
+    }
 
     if (!entry.hasLocalFile) {
       const badge = document.createElement("span");
@@ -2703,6 +2758,12 @@ function setupEvents() {
     if (elements.writingModeSelect) {
       elements.writingModeSelect.value = writingMode;
     }
+  });
+
+  // 見開き/単ページ切替ボタン
+  elements.toggleSpreadMode?.addEventListener('click', () => {
+    reader.toggleImageViewMode();
+    updateSpreadModeButtonLabel();
   });
 
   elements.fontPlus?.addEventListener('click', () => {
