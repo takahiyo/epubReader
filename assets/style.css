@@ -1826,3 +1826,63 @@ body.is-zoomed #toggleTheme {
   opacity: 0;
   pointer-events: none;
 }
+
+/* クリックエリア可視化グリッド */
+.area-grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  /* グリッド上の操作を有効化 */
+  z-index: 1500;
+  /* floatOverlayより手前 */
+  display: grid;
+  grid-template-columns: 20% 60% 20%;
+  grid-template-rows: 20% 60% 20%;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  /* デフォルトは操作不可 */
+}
+
+.area-grid-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.area-cell {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.area-cell.has-function {
+  background-color: rgba(64, 150, 255, 0.1);
+  cursor: pointer;
+}
+
+.area-cell.active-function {
+  background-color: rgba(64, 150, 255, 0.3);
+}
+
+.area-label {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.area-cell.show-label .area-label {
+  opacity: 1;
+}

@@ -393,9 +393,16 @@ const ui = new UIController({
   isProgressBarAvailable: () => currentBookId !== null,
   isFloatVisible: () => floatVisible,
   isImageBook: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar"),
+  isSpreadMode: () => reader.imageViewMode === "spread",
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
   onFloatToggle: () => {
     toggleFloatOverlay();
+    // グリッドオーバーレイの表示切替
+    if (floatVisible) {
+      ui.showClickAreas();
+    } else {
+      ui.hideClickAreas();
+    }
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -415,13 +422,13 @@ const ui = new UIController({
       bookmarkMenuMode = "current";
     }
   },
-  onPagePrev: () => {
+  onPagePrev: (step) => {
     updateActivity();
-    reader.prev();
+    reader.prev(step);
   },
-  onPageNext: () => {
+  onPageNext: (step) => {
     updateActivity();
-    reader.next();
+    reader.next(step);
   },
 });
 
@@ -1601,7 +1608,7 @@ function updateProgressBarDisplay() {
             elements.totalPages.textContent = '100';
           }
         }
-      } else if (currentBookInfo?.type === 'image') {
+      } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
         // 画像書籍の場合はページ数
         const totalPages = reader.imagePages?.length || 1;
         const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
@@ -1657,7 +1664,7 @@ function renderBookmarkMarkers() {
         } else {
           tooltipText += ` (${percentage}%)`;
         }
-      } else if (currentBookInfo?.type === 'image') {
+      } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
         tooltipText += ` (${pageNumber}/${totalPages})`;
@@ -1729,9 +1736,8 @@ async function seekToPercentage(percentage) {
   } else {
     // 画像書籍の場合はページ数でシーク
     const totalPages = reader.imagePages?.length || 1;
-    const pageIndex = Math.floor((percentage / 100) * totalPages);
-    reader.imageIndex = Math.max(0, Math.min(pageIndex, totalPages - 1));
-    reader.renderImagePage();
+    const pageIndex = Math.max(0, Math.min(Math.round((percentage / 100) * (totalPages - 1)), totalPages - 1));
+    reader.goTo(pageIndex);
   }
 }
 
@@ -2941,7 +2947,7 @@ function setupEvents() {
             } else {
               seekToPercentage(Math.max(0, Math.min(value, 100)));
             }
-          } else if (currentBookInfo?.type === 'image') {
+          } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
             // 画像書籍の場合はページ数として扱う
             const totalPages = reader.imagePages?.length || 1;
             const percentage = ((value - 1) / (totalPages - 1)) * 100;

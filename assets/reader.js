@@ -1324,6 +1324,16 @@ export class ReaderController {
       this.imageElement.style.pointerEvents = "none";
     }
 
+    // ズーム適用
+    if (this.imageZoomed) {
+      this.imageViewer?.classList.add('zoomed');
+      this.imageElement.style.transform = 'scale(2)';
+      this.imageElement.style.transformOrigin = 'center center';
+    } else {
+      this.imageViewer?.classList.remove('zoomed');
+      this.imageElement.style.transform = 'scale(1)';
+    }
+
     // 見開きコンテナ削除
     if (this.imageViewer) {
       const spreadContainer = this.imageViewer.querySelector('.spread-container');
