@@ -682,6 +682,8 @@ function hideCloudEmptyState() {
 
 async function syncAllBooksFromCloud() {
   if (!isCloudSyncEnabled()) return;
+
+  // 1. Pull from Cloud (既存の処理)
   try {
     const remote = await cloudSync.pullIndex();
     const index = remote?.index ?? {};
@@ -701,15 +703,59 @@ async function syncAllBooksFromCloud() {
         console.warn("クラウド状態の取得に失敗しました:", error);
       }
     }
-    storage.setSettings({ lastSyncAt: Date.now() });
-    updateSyncStatusDisplay();
-    if (uiInitialized) {
-      renderLibrary();
-      renderHistory();
-      renderBookmarks(bookmarkMenuMode);
-    }
   } catch (error) {
     console.warn("クラウドの同期に失敗しました:", error);
+    // Pullに失敗してもPushは試行する
+  }
+
+  // 2. Push Local to Cloud (不足分のアップロード)
+  try {
+    const library = storage.data.library;
+    const cloudIndex = storage.data.cloudIndex ?? {};
+
+    for (const localBook of Object.values(library)) {
+      if (!localBook || !localBook.id) continue;
+
+      let cloudBookId = storage.getCloudBookId(localBook.id);
+
+      // ケースA: 既にリンクされているが、クラウドインデックスに存在しない（消されたか、別アカウントか、同期ミス）
+      if (cloudBookId && !cloudIndex[cloudBookId]) {
+        console.log(`Re-uploading metadata for linked book: ${localBook.title}`);
+        await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash);
+        continue;
+      }
+
+      // ケースB: リンクされていない
+      if (!cloudBookId) {
+        // クラウドインデックスからハッシュで探す
+        const matchEntry = Object.values(cloudIndex).find(
+          entry => entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
+        );
+
+        if (matchEntry && matchEntry.cloudBookId) {
+          // マッチした場合はリンクする
+          console.log(`Linking local book "${localBook.title}" to existing cloud book`);
+          storage.setBookLink(localBook.id, matchEntry.cloudBookId);
+        } else {
+          // マッチしない場合は新規作成してアップロード
+          console.log(`Uploading new book to cloud: ${localBook.title}`);
+          cloudBookId = generateCloudBookId();
+          storage.setBookLink(localBook.id, cloudBookId);
+          await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("ローカル書籍のアップロードに失敗しました:", error);
+  }
+
+  // 3. 完了処理
+  storage.setSettings({ lastSyncAt: Date.now() });
+  updateSyncStatusDisplay();
+  if (uiInitialized) {
+    renderLibrary();
+    renderHistory();
+    renderBookmarks(bookmarkMenuMode);
   }
 }
 
