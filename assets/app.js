@@ -362,7 +362,8 @@ const elements = {
 
   // 画像書庫用ボタン
   toggleSpreadMode: document.getElementById("toggleSpreadMode"),
-  toggleReadingDirection: document.getElementById("toggleReadingDirection"),
+  toggleReadingDirectionEpub: document.getElementById("toggleReadingDirectionEpub"),
+  toggleReadingDirectionImage: document.getElementById("toggleReadingDirectionImage"),
   toggleZoom: document.getElementById("toggleZoom"),
 };
 
@@ -546,11 +547,23 @@ function updateFloatingUIButtons() {
     updateSpreadModeButtonLabel();
   }
 
-  // 左開き/右開き切替ボタン: 常に表示 (現在は常に有効)
-  if (elements.toggleReadingDirection) {
-    elements.toggleReadingDirection.style.display = "";
-    elements.toggleReadingDirection.disabled = false;
-    updateReadingDirectionButtonLabel();
+  // 左開き/右開き切替ボタン
+  if (elements.toggleReadingDirectionEpub) {
+    if (isEpub) {
+      elements.toggleReadingDirectionEpub.style.display = "";
+      // EPUB用ボタンのラベル更新ロジックがあればここで呼ぶ
+    } else {
+      elements.toggleReadingDirectionEpub.style.display = "none";
+    }
+  }
+
+  if (elements.toggleReadingDirectionImage) {
+    if (isImageBook) {
+      elements.toggleReadingDirectionImage.style.display = "";
+      updateReadingDirectionButtonLabel();
+    } else {
+      elements.toggleReadingDirectionImage.style.display = "none";
+    }
   }
 
   // ズームボタン: ブックが開いている時のみ表示
@@ -599,12 +612,12 @@ function updateSpreadModeButtonLabel() {
   }
 }
 
-// 左開き/右開きボタンのラベルを更新
+// 左開き/右開きボタンのラベルを更新 (画像用)
 function updateReadingDirectionButtonLabel() {
-  if (!elements.toggleReadingDirection) return;
+  if (!elements.toggleReadingDirectionImage) return;
   const isRtl = reader.imageReadingDirection === "rtl";
-  elements.toggleReadingDirection.textContent = isRtl ? "→左" : "右←";
-  elements.toggleReadingDirection.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
+  elements.toggleReadingDirectionImage.textContent = isRtl ? "→左" : "右←";
+  elements.toggleReadingDirectionImage.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
 }
 
 // ズームボタンのラベルを更新
@@ -2873,11 +2886,16 @@ function setupEvents() {
     updateSpreadModeButtonLabel();
   });
 
-  // 左開き/右開き切替ボタン
-  elements.toggleReadingDirection?.addEventListener('click', () => {
+  // 左開き/右開き切替ボタン (画像用)
+  elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     reader.toggleImageReadingDirection();
     updateReadingDirectionButtonLabel();
     updateProgressBarDirection();
+  });
+
+  // 左開き/右開き切替ボタン (EPUB用・プレースホルダー)
+  elements.toggleReadingDirectionEpub?.addEventListener('click', () => {
+    console.log("EPUB reading direction toggle clicked (Placeholder)");
   });
 
 
