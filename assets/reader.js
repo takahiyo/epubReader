@@ -719,7 +719,25 @@ export class ReaderController {
     this.viewer.innerHTML = `<div class="epub-page"></div>`;
     this.pageContainer = this.viewer.querySelector(".epub-page");
     if (!this.pageContainer) return;
-    this.pageContainer.innerHTML = page.htmlFragment;
+
+    // --- [修正開始] ---
+    // HTML内の src/srcset を data-src/data-srcset に一時退避させて 404 を防ぐ
+    let safeHtml = page.htmlFragment || "";
+
+    // src="..." を data-src="..." に置換 (blob: や data: で始まる解決済みパスは除外)
+    safeHtml = safeHtml.replace(
+      /(<img\s+[^>]*?)\bsrc\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      '$1data-src=$2$3$2'
+    );
+    // srcset="..." を data-srcset="..." に置換
+    safeHtml = safeHtml.replace(
+      /(<img\s+[^>]*?)\bsrcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      '$1data-srcset=$2$3$2'
+    );
+
+    this.pageContainer.innerHTML = safeHtml;
+    // --- [修正終了] ---
+
     this.pageContainer.querySelectorAll("img").forEach((img) => {
       img.style.maxWidth = "100%";
       img.style.maxHeight = "70vh";
@@ -759,10 +777,13 @@ export class ReaderController {
         const attrName = isSvgImage
           ? (img.getAttribute("href") ? "href" : "xlink:href")
           : "src";
+
+        // data-src もフォールバックとして取得
         const fallbackSrc = !isSvgImage
           ? (img.getAttribute("data-src") || img.getAttribute("data-original") || img.getAttribute("data-lazy-src"))
           : null;
         const src = img.getAttribute(attrName) || fallbackSrc;
+
         if (!src || src.startsWith("blob:")) return;
         try {
           const resolved = await this.resourceLoader(src, spineItem);
@@ -771,9 +792,12 @@ export class ReaderController {
             if (!isSvgImage && attrName !== "src") {
               img.setAttribute("src", resolved);
             }
+            // [追加] 解決できたら一時退避用の属性を削除
+            if (fallbackSrc) img.removeAttribute("data-src");
           }
           if (!isSvgImage) {
-            const srcset = img.getAttribute("srcset");
+            // [修正] data-srcset にも対応
+            let srcset = img.getAttribute("srcset") || img.getAttribute("data-srcset");
             if (srcset) {
               const parts = await Promise.all(
                 srcset.split(",").map(async (part) => {
@@ -785,6 +809,8 @@ export class ReaderController {
                 })
               );
               img.setAttribute("srcset", parts.filter(Boolean).join(", "));
+              // [追加] data-srcset を削除
+              img.removeAttribute("data-srcset");
             }
           }
         } catch (error) {
