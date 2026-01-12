@@ -1289,10 +1289,16 @@ export class ReaderController {
   }
 
   // ---------------------------------------------------------
-  // [修正] 画像データを安全に取得するヘルパー
+  // [修正] 画像データを安全に取得するヘルパー（自動ロード機能付き）
   // ---------------------------------------------------------
   async getImageData(index) {
     if (index < 0 || index >= this.imagePages.length) return null;
+
+    // ★追加: データがまだロードされていない（nullの）場合は、ここで変換処理を実行する
+    if (!this.imagePages[index] && !this.imagePageErrors[index]) {
+      // convertImageAtIndex は ZIP/RAR から画像を解凍し、this.imagePages[index] にセットします
+      await this.convertImageAtIndex(index);
+    }
 
     // imagePages[index] が Promise (ZIP解凍待ち) の可能性があるため await する
     try {
