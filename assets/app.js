@@ -580,8 +580,14 @@ function handleToggleZoom() {
 function updateSpreadModeButtonLabel() {
   if (!elements.toggleSpreadMode) return;
   const isSpread = reader.imageViewMode === "spread";
-  elements.toggleSpreadMode.textContent = isSpread ? "単頁" : "見開";
-  elements.toggleSpreadMode.title = isSpread ? "単ページ表示に切替" : "見開き表示に切替";
+
+  if (isSpread) {
+    elements.toggleSpreadMode.innerHTML = '<span class="material-icons">auto_stories</span> 見開き';
+    elements.toggleSpreadMode.classList.add('active');
+  } else {
+    elements.toggleSpreadMode.innerHTML = '<span class="material-icons">tablet</span> 単ページ';
+    elements.toggleSpreadMode.classList.remove('active');
+  }
 }
 
 // 左開き/右開きボタンのラベルを更新

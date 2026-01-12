@@ -1382,6 +1382,10 @@ export class ReaderController {
       spreadContainer.className = 'spread-container';
       this.imageViewer.appendChild(spreadContainer);
     }
+    // コンテナ自体にクラスを付与してCSSを効かせやすくする（念のため再設定）
+    if (!spreadContainer.classList.contains('spread-container')) {
+      spreadContainer.className = 'spread-container';
+    }
     spreadContainer.innerHTML = '';
 
     // 画像書庫ならクリック無効
@@ -1394,120 +1398,87 @@ export class ReaderController {
       this.imageViewer.classList.add('zoomed');
       spreadContainer.style.transform = 'scale(2)';
       spreadContainer.style.transformOrigin = '0 0';
-      spreadContainer.style.width = '100%';
-      spreadContainer.style.height = '100%';
+      // CSSで width: 100%, height: 100vh となっているので、ズーム時はここを調整するか
+      // あるいは親の overflow: auto で任せる形にする
+      // 既存ロジックに合わせて transform を使う
     } else {
       this.imageViewer.classList.remove('zoomed');
       spreadContainer.style.transform = 'scale(1)';
       spreadContainer.style.transformOrigin = 'center center';
-      spreadContainer.style.width = '100%';
-      spreadContainer.style.height = '100%';
     }
 
-    // 現在のページが「横長」かチェック (非同期)
+    // 1. 横長判定
     const isWide = await this.isImageWide(targetIndex);
 
-    // 次のページの判定用
-    let nextIsWide = false;
-    let nextIndex = targetIndex + 1;
-    if (!isWide && nextIndex < this.imagePages.length) {
-      nextIsWide = await this.isImageWide(nextIndex);
-    }
-
-    // 表示ロジックの決定
-    // 1. 現在が横長 -> 1枚表示 (step=1)
-    // 2. 現在が縦長 ＆ 次が横長 -> 1枚表示 (step=1)
-    // 3. 現在が縦長 ＆ 次も縦長 -> 2枚表示 (step=2)
-    // 4. 現在が縦長 ＆ 次がない -> 1枚表示 (step=1) or 2枚枠で片方空 (step=? 動作としては1枚扱いが自然)
-
     if (isWide) {
-      // --- パターン1: 現在が横長 ---
+      // --- 横長画像の場合（1枚表示） ---
       const img = document.createElement('img');
       img.src = this.imagePages[targetIndex];
-      img.className = 'spread-page wide'; // width: 100%
-      if (this.type !== "epub") img.style.pointerEvents = "none";
-      spreadContainer.appendChild(img);
-
-      this.currentSpreadStep = 1;
-
-    } else if (nextIndex < this.imagePages.length && nextIsWide) {
-      // --- パターン2: 現在＝縦, 次＝横 ---
-      // レイアウト崩れを防ぐため、この縦画像は1枚だけで表示する
-      // (次の横長画像を巻き込まない)
-      this.currentSpreadStep = 1;
-
-      // 1枚表示だが、スタイルは「見開き片面」ではなく「中央寄せ」にするか？
-      // 要望によると「1枚表示」とあるので、SinglePage相当の表示にするのがベストだが、
-      // 見開きモードの中での1枚表示なので、spread-pageクラスを使って制御する。
-      // width: auto; max-width: 50%? 100%?
-      // 「横長だろうが縦長だろうが画面に合わせて1枚出す」なら wide扱いでも良いが、
-      // 縦長画像を wideクラス(width:100%)で出すと縦がはみ出しすぎる。
-      // ここでは spread-left/right ではなく、中央に1枚配置する形にする。
-      const img = document.createElement('img');
-      img.src = this.imagePages[targetIndex];
-      // img.className = 'spread-page single-portrait'; // 新設クラス検討
-      // 既存CSSでどう見えるか？ spread-page wideだと width:100% height:auto
-      // 縦長画像を1枚で見せるなら object-fit: contain で中央配置したい。
-      // 簡易的に wide クラスを使いつつ style調整
+      // .wide クラスを付与 → CSSで max-width: 100% になる
       img.className = 'spread-page wide';
-      img.style.objectFit = "contain";
       if (this.type !== "epub") img.style.pointerEvents = "none";
       spreadContainer.appendChild(img);
+
+      this.currentSpreadStep = 1;
 
     } else {
-      // --- パターン3: 現在＝縦, 次＝縦 (または次がない) ---
-      // 通常の2枚表示
+      // --- 通常（縦長）の場合 ---
 
-      // 次がない場合は実質1枚
-      if (nextIndex >= this.imagePages.length) {
-        this.currentSpreadStep = 1;
-        // 最後の1枚
-        const img = document.createElement('img');
-        img.src = this.imagePages[targetIndex];
-        // 2枚表示の左側(または右側)として出すか、中央に出すか？
-        // 漫画ビューア的には「最後のページが左(右)にある」状態が自然かもしれないが、
-        // ここはパターン2同様に中央1枚表示が無難。
-        img.className = 'spread-page wide';
-        img.style.objectFit = "contain";
-        if (this.type !== "epub") img.style.pointerEvents = "none";
-        spreadContainer.appendChild(img);
+      const page1Src = this.imagePages[targetIndex];
+      const page2Index = targetIndex + 1;
+      const page2Src = this.imagePages[page2Index]; // 次のページ
 
-      } else {
-        // ペア成立
-        this.currentSpreadStep = 2;
+      // 1枚目
+      if (page1Src) {
+        const img1 = document.createElement('img');
+        img1.src = page1Src;
 
-        const firstIndex = targetIndex;
-        const secondIndex = nextIndex;
-
-        const isRtl = this.imageReadingDirection === "rtl";
-        let leftIndex, rightIndex;
-
-        if (isRtl) {
-          leftIndex = secondIndex;
-          rightIndex = firstIndex;
-        } else {
-          leftIndex = firstIndex;
-          rightIndex = secondIndex;
+        // 2枚目があるかチェック
+        // 次のページが存在し、かつ「次のページも縦長」である場合のみ2枚並べる
+        let showTwoPages = false;
+        if (page2Src) {
+          const isNextWide = await this.isImageWide(page2Index);
+          if (!isNextWide) {
+            showTwoPages = true;
+          }
         }
 
-        // 左ページ
-        if (leftIndex !== null && this.imagePages[leftIndex]) {
+        if (showTwoPages) {
+          // ★2枚表示
+          this.currentSpreadStep = 2;
+
+          const isRtl = this.imageReadingDirection === "rtl";
+          let leftImgSrc, rightImgSrc;
+
+          // 表示順序の決定
+          if (isRtl) {
+            leftImgSrc = page2Src;
+            rightImgSrc = page1Src;
+          } else {
+            leftImgSrc = page1Src;
+            rightImgSrc = page2Src;
+          }
+
           const leftImg = document.createElement('img');
-          leftImg.src = this.imagePages[leftIndex];
-          leftImg.alt = `ページ ${leftIndex + 1}`;
-          leftImg.className = 'spread-page spread-left';
+          leftImg.src = leftImgSrc;
+          leftImg.className = 'spread-page spread-left'; // max-width: 50%
           if (this.type !== "epub") leftImg.style.pointerEvents = "none";
           spreadContainer.appendChild(leftImg);
-        }
 
-        // 右ページ
-        if (rightIndex !== null && this.imagePages[rightIndex]) {
           const rightImg = document.createElement('img');
-          rightImg.src = this.imagePages[rightIndex];
-          rightImg.alt = `ページ ${rightIndex + 1}`;
-          rightImg.className = 'spread-page spread-right';
+          rightImg.src = rightImgSrc;
+          rightImg.className = 'spread-page spread-right'; // max-width: 50%
           if (this.type !== "epub") rightImg.style.pointerEvents = "none";
           spreadContainer.appendChild(rightImg);
+
+        } else {
+          // ★1枚表示（見開きモードだが、相方がいない、または次が横長でペアにできない場合）
+          // .single-view を付与して中央に大きく表示する
+          img1.className = 'spread-page single-view';
+          if (this.type !== "epub") img1.style.pointerEvents = "none";
+          spreadContainer.appendChild(img1);
+
+          this.currentSpreadStep = 1;
         }
       }
     }
