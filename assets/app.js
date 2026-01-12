@@ -560,10 +560,9 @@ function updateFloatingUIButtons() {
   if (elements.toggleReadingDirectionEpub) {
     if (isEpub) {
       elements.toggleReadingDirectionEpub.style.display = "";
-      // EPUBで横書きの場合は無効化
-      elements.toggleReadingDirectionEpub.disabled = (writingMode === "horizontal");
-      // opacityも調整して視覚的にも無効であることを示す
-      elements.toggleReadingDirectionEpub.style.opacity = (writingMode === "horizontal") ? "0.5" : "";
+      // 【修正】横書きでも開き方向（操作方向）の変更を許可するため、無効化ロジックを削除
+      elements.toggleReadingDirectionEpub.disabled = false;
+      elements.toggleReadingDirectionEpub.style.opacity = "";
       updateReadingDirectionEpubButtonLabel();
     } else {
       elements.toggleReadingDirectionEpub.style.display = "none";

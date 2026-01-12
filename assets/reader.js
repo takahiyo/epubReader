@@ -1527,16 +1527,11 @@ export class ReaderController {
         // 2枚表示
         this.currentSpreadStep = 2;
 
-        const isRtl = this.imageReadingDirection === "rtl";
-        let leftImgSrc, rightImgSrc;
-
-        if (isRtl) {
-          leftImgSrc = page2Src;
-          rightImgSrc = page1Src;
-        } else {
-          leftImgSrc = page1Src;
-          rightImgSrc = page2Src;
-        }
+        // 【修正】CSS側(.rtl-mode)で表示順序を反転させるため、
+        // JS側では常に DOM順序 = [現在ページ, 次ページ] として生成する。
+        // これにより、RTL時は CSS flex-direction 等の効果で [次ページ] [現在ページ] と表示される。
+        const leftImgSrc = page1Src;
+        const rightImgSrc = page2Src;
 
         const leftImg = document.createElement('img');
         leftImg.src = leftImgSrc;
