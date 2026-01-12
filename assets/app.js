@@ -566,7 +566,15 @@ setupViewerIframeClickBridge();
 const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector('.progress-track'),
   thumb: elements.progressThumb,
-  getIsRtl: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar") && reader.imageReadingDirection === "rtl",
+  getIsRtl: () => {
+    if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
+      return reader.imageReadingDirection === "rtl";
+    }
+    if (currentBookInfo?.type === 'epub') {
+      return pageDirection === 'rtl';
+    }
+    return false;
+  },
   onSeek: (percentage) => {
     // パーセンテージからページ位置を計算してジャンプ
     seekToPercentage(percentage);
@@ -576,7 +584,15 @@ const progressBarHandler = new ProgressBarHandler({
 const floatProgressHandler = new ProgressBarHandler({
   container: elements.floatProgressTrack,
   thumb: elements.floatProgressThumb,
-  getIsRtl: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar") && reader.imageReadingDirection === "rtl",
+  getIsRtl: () => {
+    if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
+      return reader.imageReadingDirection === "rtl";
+    }
+    if (currentBookInfo?.type === 'epub') {
+      return pageDirection === 'rtl';
+    }
+    return false;
+  },
   onSeek: (percentage) => {
     seekToPercentage(percentage);
   },
