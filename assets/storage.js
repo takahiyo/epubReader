@@ -126,6 +126,30 @@ export class StorageService {
     this.save();
   }
 
+  mergeBookmarks(bookId, incomingList) {
+    if (!Array.isArray(incomingList)) return;
+
+    const currentList = this.data.bookmarks[bookId] ?? [];
+    const map = new Map();
+
+    // 既存と新規をマージ（createdAtをキーに重複排除）
+    [...currentList, ...incomingList].forEach((bookmark) => {
+      if (!bookmark?.createdAt) return;
+      const existing = map.get(bookmark.createdAt);
+      // ラベルがある方を優先、あるいは新しい方を優先する
+      if (!existing || (!existing.label && bookmark.label)) {
+        map.set(bookmark.createdAt, bookmark);
+      }
+    });
+
+    const mergedList = Array.from(map.values())
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, 50);
+
+    this.data.bookmarks[bookId] = mergedList;
+    this.save();
+  }
+
   getBookmarks(bookId) {
     return this.data.bookmarks[bookId] ?? [];
   }

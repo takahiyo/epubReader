@@ -961,6 +961,26 @@ async function syncAllBooksFromCloud() {
     const index = remote?.index ?? {};
     const updatedAt = remote?.updatedAt ?? Date.now();
     storage.mergeCloudIndex(index, updatedAt);
+
+    // ★追加: クラウドインデックスを元に、ローカル書籍との自動リンクを試行
+    const library = storage.data.library;
+    Object.keys(library).forEach(localBookId => {
+      // まだリンクされていないローカル書籍
+      if (!storage.getCloudBookId(localBookId)) {
+        const book = library[localBookId];
+        if (book && book.contentHash) {
+          // ハッシュ(fingerprint)が一致するクラウド書籍を探す
+          const match = Object.values(index).find(cloudItem =>
+            cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+          );
+          if (match && match.cloudBookId) {
+            console.log(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId}`);
+            storage.setBookLink(localBookId, match.cloudBookId);
+          }
+        }
+      }
+    });
+
     const recentList = Object.values(index)
       .sort((a, b) => (b.lastReadAt ?? b.updatedAt ?? 0) - (a.lastReadAt ?? a.updatedAt ?? 0))
       .slice(0, 5);
@@ -1158,13 +1178,14 @@ function promptSyncCandidate(candidates) {
 function buildCloudStatePayload(localBookId, cloudBookId) {
   const progress = storage.getProgress(localBookId) ?? {};
   const bookmarks = storage.getBookmarks(localBookId) ?? [];
-  const history = (storage.data.history ?? []).filter((entry) => entry.bookId === localBookId);
+  // historyは端末ごとなので送信しない
   const bookInfo = storage.data.library[localBookId];
+
   const updatedAt = Math.max(
     progress?.updatedAt ?? 0,
-    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0),
-    ...history.map((entry) => entry?.updatedAt ?? entry?.openedAt ?? 0),
+    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0)
   );
+
   const state = {
     progress: progress?.percentage ?? 0,
     lastCfi: progress?.location ?? null,
@@ -1176,10 +1197,7 @@ function buildCloudStatePayload(localBookId, cloudBookId) {
       bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
       updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
     })),
-    history: history.map((entry) => ({
-      ...entry,
-      updatedAt: entry?.updatedAt ?? entry?.openedAt ?? Date.now(),
-    })),
+    // historyフィールドを削除
     updatedAt,
   };
   return { cloudBookId, state, updatedAt };
@@ -1197,15 +1215,13 @@ function isEmptyCloudState(state) {
 
 function applyCloudStateToLocal(localBookId, cloudBookId, state) {
   if (!state || !localBookId) return;
-  if (state.bookmarks) {
-    storage.setBookmarks(localBookId, state.bookmarks);
+
+  if (state.bookmarks && Array.isArray(state.bookmarks)) {
+    storage.mergeBookmarks(localBookId, state.bookmarks);
   }
-  if (state.history) {
-    const normalizedHistory = state.history.map((entry) => ({
-      openedAt: entry?.openedAt ?? entry?.updatedAt ?? Date.now(),
-    }));
-    storage.setHistoryEntries(localBookId, normalizedHistory);
-  }
+
+  // historyの適用処理を削除
+
   if (state.lastCfi || typeof state.progress === "number") {
     const existing = storage.getProgress(localBookId) ?? {};
     storage.setProgress(localBookId, {
@@ -1215,6 +1231,7 @@ function applyCloudStateToLocal(localBookId, cloudBookId, state) {
       updatedAt: state.updatedAt ?? Date.now(),
     });
   }
+
   if (cloudBookId) {
     storage.setCloudState(cloudBookId, state);
   }
