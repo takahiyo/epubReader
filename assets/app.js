@@ -555,6 +555,7 @@ function updateFloatingUIButtons() {
       elements.toggleReadingDirectionEpub.disabled = (writingMode === "horizontal");
       // opacityも調整して視覚的にも無効であることを示す
       elements.toggleReadingDirectionEpub.style.opacity = (writingMode === "horizontal") ? "0.5" : "";
+      updateReadingDirectionEpubButtonLabel();
     } else {
       elements.toggleReadingDirectionEpub.style.display = "none";
     }
@@ -621,6 +622,14 @@ function updateReadingDirectionButtonLabel() {
   const isRtl = reader.imageReadingDirection === "rtl";
   elements.toggleReadingDirectionImage.textContent = isRtl ? "→左" : "右←";
   elements.toggleReadingDirectionImage.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
+}
+
+// 左開き/右開きボタンのラベルを更新 (EPUB用)
+function updateReadingDirectionEpubButtonLabel() {
+  if (!elements.toggleReadingDirectionEpub) return;
+  const isRtl = pageDirection === "rtl";
+  elements.toggleReadingDirectionEpub.textContent = isRtl ? "→左" : "右←";
+  elements.toggleReadingDirectionEpub.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
 }
 
 // ズームボタンのラベルを更新
@@ -2660,6 +2669,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   storage.setSettings({ writingMode, pageDirection });
   persistReadingState({ writingMode });
   updateWritingModeToggleLabel();
+  updateReadingDirectionEpubButtonLabel();
   updateFloatingUIButtons();
 }
 
@@ -2897,9 +2907,13 @@ function setupEvents() {
     updateProgressBarDirection();
   });
 
-  // 左開き/右開き切替ボタン (EPUB用・プレースホルダー)
-  elements.toggleReadingDirectionEpub?.addEventListener('click', () => {
-    console.log("EPUB reading direction toggle clicked (Placeholder)");
+  // 左開き/右開き切替ボタン (EPUB用)
+  elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
+    const nextDirection = pageDirection === "rtl" ? "ltr" : "rtl";
+    await applyReadingSettings(null, nextDirection);
+    if (elements.pageDirectionSelect) {
+      elements.pageDirectionSelect.value = pageDirection;
+    }
   });
 
 
