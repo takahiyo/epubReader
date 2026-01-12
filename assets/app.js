@@ -1412,10 +1412,15 @@ async function handleFile(file) {
         elements.fullscreenReader.classList.remove('epub-scroll');
       }
 
-      await reader.openEpub(new File([buffer], file.name, { type: mime }), {
-        location: startLocation,
-        percentage: startProgress,
-      });
+      showLoading();
+      try {
+        await reader.openEpub(new File([buffer], file.name, { type: mime }), {
+          location: startLocation,
+          percentage: startProgress,
+        });
+      } finally {
+        hideLoading();
+      }
     } else {
       console.log(`Opening image book (${info.type})...`);
       console.log(`Start location: ${startLocation}`);
