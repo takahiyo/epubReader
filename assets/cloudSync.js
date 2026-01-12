@@ -55,6 +55,9 @@ export class CloudSync {
   }
 
   getGasEndpoint(settings = this.storage.getSettings()) {
+    if (window.APP_CONFIG?.GAS_SYNC_ENDPOINT) {
+      return window.APP_CONFIG.GAS_SYNC_ENDPOINT.replace(/\/$/, "");
+    }
     if (!settings.gasEndpoint) {
       throw new Error("GAS エンドポイントが設定されていません");
     }
