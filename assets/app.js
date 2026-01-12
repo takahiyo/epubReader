@@ -55,6 +55,7 @@ let currentToc = [];
 let uiInitialized = false;
 let floatVisible = false;
 let googleLoginReady = false;
+let userOverrodeDirection = false;
 
 const UI_STRINGS = {
   ja: {
@@ -1275,6 +1276,7 @@ function buildMatchMeta(info) {
 
 async function handleFile(file) {
   showLoading();
+  userOverrodeDirection = false;
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
     updateActivity();
@@ -1467,6 +1469,7 @@ function openCloudOnlyBook(cloudBookId) {
 async function openFromLibrary(bookId, options = {}) {
   try {
     updateActivity();
+    userOverrodeDirection = false;
     const source = storage.getSettings().source || 'local';
     const record = await loadFile(bookId, source);
 
@@ -1840,7 +1843,7 @@ function handleBookReady(payload) {
   if (currentBookInfo.type === 'epub') {
     // メタデータから方向を取得（設定値があればそちらを優先）
     const metadataDirection = metadata.direction;
-    if (metadataDirection) {
+    if (metadataDirection && !userOverrodeDirection) {
       pageDirection = metadataDirection;
       if (elements.pageDirectionSelect) {
         elements.pageDirectionSelect.value = pageDirection;
@@ -2961,6 +2964,7 @@ function setupEvents() {
 
   // 左開き/右開き切替ボタン (EPUB用)
   elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
+    userOverrodeDirection = true;
     const nextDirection = pageDirection === "rtl" ? "ltr" : "rtl";
     await applyReadingSettings(null, nextDirection);
     if (elements.pageDirectionSelect) {
@@ -3083,6 +3087,7 @@ function setupEvents() {
   });
 
   elements.pageDirectionSelect?.addEventListener('change', async (e) => {
+    userOverrodeDirection = true;
     await applyReadingSettings(null, e.target.value);
   });
 
