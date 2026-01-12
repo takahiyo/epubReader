@@ -1889,7 +1889,4 @@ body.is-zoomed #toggleTheme {
 .float-main-menu #openToc {
   margin-bottom: 24px;
   /* 下のボタン群と距離を離す */
-
-  #lottie-loader svg {
-    mix-blend-mode: multiply;
-  }
+}

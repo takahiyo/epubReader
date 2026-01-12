@@ -238,6 +238,11 @@ function initLoadingAnimation() {
     return;
   }
 
+  // ★追加: 背景レイヤー('bkgr')を削除して透過させる
+  if (LOADER_ANIMATION_DATA.layers) {
+    LOADER_ANIMATION_DATA.layers = LOADER_ANIMATION_DATA.layers.filter(layer => layer.nm !== 'bkgr');
+  }
+
   try {
     lottieInstance = lottie.loadAnimation({
       container: container,
@@ -1413,6 +1418,10 @@ async function handleFile(file) {
       }
 
       showLoading();
+
+      // ★追加: UI描画更新のために少し待機
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       try {
         await reader.openEpub(new File([buffer], file.name, { type: mime }), {
           location: startLocation,
@@ -1521,6 +1530,9 @@ function openCloudOnlyBook(cloudBookId) {
 
 async function openFromLibrary(bookId, options = {}) {
   showLoading();
+  // ★追加: UI描画更新のために少し待機
+  await new Promise(resolve => setTimeout(resolve, 50));
+
   try {
     updateActivity();
     userOverrodeDirection = false;
