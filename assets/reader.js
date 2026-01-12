@@ -80,6 +80,7 @@ export class ReaderController {
       this.renderEpubPage(index);
     });
     this.imageZoomBound = false;
+    this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
   }
 
@@ -1287,6 +1288,49 @@ export class ReaderController {
     await this.renderSpreadPage(index);
   }
 
+  // ---------------------------------------------------------
+  // [修正] 画像データを安全に取得するヘルパー
+  // ---------------------------------------------------------
+  async getImageData(index) {
+    if (index < 0 || index >= this.imagePages.length) return null;
+
+    // imagePages[index] が Promise (ZIP解凍待ち) の可能性があるため await する
+    try {
+      const src = await this.imagePages[index];
+      return src;
+    } catch (e) {
+      console.error("Image load failed:", e);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------
+  // [修正] 画像サイズ判定（キャッシュ機能付き）
+  // ---------------------------------------------------------
+  async getPageDimensions(index) {
+    // キャッシュがあればそれを返す（高速化）
+    if (this.pageDimensionCache[index]) {
+      return this.pageDimensionCache[index];
+    }
+
+    const src = await this.getImageData(index);
+    if (!src) return { w: 0, h: 0 };
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = { w: img.naturalWidth, h: img.naturalHeight };
+        // サイズをキャッシュに保存
+        this.pageDimensionCache[index] = size;
+        resolve(size);
+      };
+      img.onerror = () => {
+        resolve({ w: 0, h: 0 });
+      };
+      img.src = src;
+    });
+  }
+
   async isImageWide(index) {
     // 範囲外チェック
     if (index < 0 || index >= this.imagePages.length) return false;
@@ -1369,127 +1413,128 @@ export class ReaderController {
     });
   }
 
+  // ---------------------------------------------------------
+  // [修正] 見開き描画メソッド
+  // ---------------------------------------------------------
   async renderSpreadPage(targetIndex) {
     if (!this.imageViewer || !this.imagePages.length) return;
 
     // 元の画像を非表示
     this.imageElement.style.display = 'none';
 
-    // 既存の見開きコンテナを削除または取得
-    let spreadContainer = this.imageViewer.querySelector('.spread-container');
-    if (!spreadContainer) {
-      spreadContainer = document.createElement('div');
-      spreadContainer.className = 'spread-container';
-      this.imageViewer.appendChild(spreadContainer);
+    const container = this.imageViewer.querySelector('.spread-container') || this.imageViewer;
+    if (!container.classList.contains('spread-container')) {
+      container.className = 'spread-container';
+      if (this.imageViewer && !this.imageViewer.querySelector('.spread-container')) {
+        this.imageViewer.appendChild(container);
+      }
     }
-    // コンテナ自体にクラスを付与してCSSを効かせやすくする（念のため再設定）
-    if (!spreadContainer.classList.contains('spread-container')) {
-      spreadContainer.className = 'spread-container';
-    }
-    spreadContainer.innerHTML = '';
 
     // 画像書庫ならクリック無効
     if (this.type !== "epub") {
-      spreadContainer.style.pointerEvents = "none";
+      container.style.pointerEvents = "none";
     }
 
     // ズーム状態を適用
     if (this.imageZoomed) {
       this.imageViewer.classList.add('zoomed');
-      spreadContainer.style.transform = 'scale(2)';
-      spreadContainer.style.transformOrigin = '0 0';
-      // CSSで width: 100%, height: 100vh となっているので、ズーム時はここを調整するか
-      // あるいは親の overflow: auto で任せる形にする
-      // 既存ロジックに合わせて transform を使う
+      container.style.transform = 'scale(2)';
+      container.style.transformOrigin = '0 0';
     } else {
       this.imageViewer.classList.remove('zoomed');
-      spreadContainer.style.transform = 'scale(1)';
-      spreadContainer.style.transformOrigin = 'center center';
+      container.style.transform = 'scale(1)';
+      container.style.transformOrigin = 'center center';
     }
 
-    // 1. 横長判定
+    // 描画開始前に中身を空にする（プログレスバー移動時の残像防止）
+    container.innerHTML = '';
+
+    // 1. 現在のページの画像データとサイズを取得
+    const page1Src = await this.getImageData(targetIndex);
+    if (!page1Src) {
+      // 画像がない（範囲外など）
+      return;
+    }
+
+    // サイズ判定
     const isWide = await this.isImageWide(targetIndex);
 
     if (isWide) {
-      // --- 横長画像の場合（1枚表示） ---
+      // --- ワイド画像 (1枚表示) ---
       const img = document.createElement('img');
-      img.src = this.imagePages[targetIndex];
-      // .wide クラスを付与 → CSSで max-width: 100% になる
-      img.className = 'spread-page wide';
+      img.src = page1Src;
+      img.className = 'spread-page wide'; //.wide -> max-width: 100%
       if (this.type !== "epub") img.style.pointerEvents = "none";
-      spreadContainer.appendChild(img);
+      container.appendChild(img);
 
       this.currentSpreadStep = 1;
 
     } else {
-      // --- 通常（縦長）の場合 ---
+      // --- 通常画像 (ペア表示を試みる) ---
 
-      const page1Src = this.imagePages[targetIndex];
-      const page2Index = targetIndex + 1;
-      const page2Src = this.imagePages[page2Index]; // 次のページ
+      // 次のページがあるか確認
+      const nextIndex = targetIndex + 1;
+      let showTwoPages = false;
+      let page2Src = null;
 
-      // 1枚目
-      if (page1Src) {
-        const img1 = document.createElement('img');
-        img1.src = page1Src;
-
-        // 2枚目があるかチェック
-        // 次のページが存在し、かつ「次のページも縦長」である場合のみ2枚並べる
-        let showTwoPages = false;
-        if (page2Src) {
-          const isNextWide = await this.isImageWide(page2Index);
-          if (!isNextWide) {
+      if (nextIndex < this.imagePages.length) {
+        // 次のページのサイズも確認
+        const isNextWide = await this.isImageWide(nextIndex);
+        if (!isNextWide) {
+          // 次も縦長ならペア成立
+          page2Src = await this.getImageData(nextIndex);
+          if (page2Src) {
             showTwoPages = true;
           }
         }
+      }
 
-        if (showTwoPages) {
-          // ★2枚表示
-          this.currentSpreadStep = 2;
+      if (showTwoPages) {
+        // 2枚表示
+        this.currentSpreadStep = 2;
 
-          const isRtl = this.imageReadingDirection === "rtl";
-          let leftImgSrc, rightImgSrc;
+        const isRtl = this.imageReadingDirection === "rtl";
+        let leftImgSrc, rightImgSrc;
 
-          // 表示順序の決定
-          if (isRtl) {
-            leftImgSrc = page2Src;
-            rightImgSrc = page1Src;
-          } else {
-            leftImgSrc = page1Src;
-            rightImgSrc = page2Src;
-          }
-
-          const leftImg = document.createElement('img');
-          leftImg.src = leftImgSrc;
-          leftImg.className = 'spread-page spread-left'; // max-width: 50%
-          if (this.type !== "epub") leftImg.style.pointerEvents = "none";
-          spreadContainer.appendChild(leftImg);
-
-          const rightImg = document.createElement('img');
-          rightImg.src = rightImgSrc;
-          rightImg.className = 'spread-page spread-right'; // max-width: 50%
-          if (this.type !== "epub") rightImg.style.pointerEvents = "none";
-          spreadContainer.appendChild(rightImg);
-
+        if (isRtl) {
+          leftImgSrc = page2Src;
+          rightImgSrc = page1Src;
         } else {
-          // ★1枚表示（見開きモードだが、相方がいない、または次が横長でペアにできない場合）
-          // .single-view を付与して中央に大きく表示する
-          img1.className = 'spread-page single-view';
-          if (this.type !== "epub") img1.style.pointerEvents = "none";
-          spreadContainer.appendChild(img1);
-
-          this.currentSpreadStep = 1;
+          leftImgSrc = page1Src;
+          rightImgSrc = page2Src;
         }
+
+        const leftImg = document.createElement('img');
+        leftImg.src = leftImgSrc;
+        leftImg.className = 'spread-page spread-left';
+        if (this.type !== "epub") leftImg.style.pointerEvents = "none";
+        container.appendChild(leftImg);
+
+        const rightImg = document.createElement('img');
+        rightImg.src = rightImgSrc;
+        rightImg.className = 'spread-page spread-right';
+        if (this.type !== "epub") rightImg.style.pointerEvents = "none";
+        container.appendChild(rightImg);
+
+      } else {
+        // 1枚表示（ペア相手がいない、または次がワイド）
+        const img1 = document.createElement('img');
+        img1.src = page1Src;
+        img1.className = 'spread-page single-view';
+        if (this.type !== "epub") img1.style.pointerEvents = "none";
+        container.appendChild(img1);
+
+        this.currentSpreadStep = 1;
       }
     }
 
     // プリロード
     const preloadStep = this.currentSpreadStep || 1;
     if (targetIndex + preloadStep < this.imagePages.length) {
-      this.loadImagePage(targetIndex + preloadStep);
+      // 次の画像データだけ取得しておく（キャッシュ乗る）
+      this.getPageDimensions(targetIndex + preloadStep);
     }
 
-    // ページ進捗更新
     this.updateProgress(targetIndex, isWide);
   }
 
