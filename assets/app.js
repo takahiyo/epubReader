@@ -45,6 +45,7 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = "horizontal";
 if (!pageDirection) pageDirection = "ltr";
+let defaultDirection = settings.defaultDirection ?? "rtl";
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
@@ -319,6 +320,7 @@ const elements = {
   themeSelect: document.getElementById("themeSelect"),
   writingModeSelect: document.getElementById("writingMode"),
   pageDirectionSelect: document.getElementById("pageDirection"),
+  settingsDefaultDirection: document.getElementById("settingsDefaultDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
@@ -1351,6 +1353,12 @@ async function handleFile(file) {
         typeof startLocation === "number" ? startLocation : 0,
         info.type // "zip" | "rar" を渡す
       );
+      // [追加] デフォルトの開き方向を適用
+      // 保存された進行状況に方向が含まれていないため、常にデフォルト（またはユーザー設定）を適用
+      // ※将来的には個別の方向保存に対応する可能性があるが、現状はデフォルト設定を使用
+      reader.setImageReadingDirection(defaultDirection);
+      updateReadingDirectionButtonLabel();
+      updateProgressBarDirection();
     }
 
     console.log("Book opened successfully");
@@ -2824,6 +2832,7 @@ function showSettings() {
   if (elements.themeSelect) elements.themeSelect.value = theme;
   if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  if (elements.settingsDefaultDirection) elements.settingsDefaultDirection.value = defaultDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
   updateAuthStatusDisplay();
 }
@@ -3032,6 +3041,11 @@ function setupEvents() {
 
   elements.pageDirectionSelect?.addEventListener('change', async (e) => {
     await applyReadingSettings(null, e.target.value);
+  });
+
+  elements.settingsDefaultDirection?.addEventListener('change', (e) => {
+    defaultDirection = e.target.value;
+    storage.setSettings({ defaultDirection });
   });
 
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
