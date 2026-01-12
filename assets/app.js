@@ -2718,13 +2718,35 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   if (nextPageDirection) {
     pageDirection = nextPageDirection;
   }
-  await reader.applyReadingDirection(writingMode, pageDirection);
-  updateEpubScrollMode();
-  storage.setSettings({ writingMode, pageDirection });
-  persistReadingState({ writingMode });
+
+  // [修正] UIを即時更新 (重い処理の前に反映させる)
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+
   updateWritingModeToggleLabel();
   updateReadingDirectionEpubButtonLabel();
   updateFloatingUIButtons();
+
+  // [修正] ローディング表示を追加し、レンダリングを待機
+  const isEpubOpen = currentBookInfo?.type === 'epub';
+  if (isEpubOpen) {
+    showLoading();
+    // スピナーが表示されるよう、ブラウザの描画サイクルを1回回す
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 20)));
+  }
+
+  try {
+    await reader.applyReadingDirection(writingMode, pageDirection);
+    updateEpubScrollMode();
+    storage.setSettings({ writingMode, pageDirection });
+    persistReadingState({ writingMode });
+  } catch (error) {
+    console.error("Failed to apply reading settings:", error);
+  } finally {
+    if (isEpubOpen) {
+      hideLoading();
+    }
+  }
 }
 
 function applyLibraryViewMode(mode) {
