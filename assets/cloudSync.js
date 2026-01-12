@@ -55,9 +55,12 @@ export class CloudSync {
   }
 
   getGasEndpoint(settings = this.storage.getSettings()) {
+    // 1. config.js (window.APP_CONFIG) has the highest priority
     if (window.APP_CONFIG?.GAS_SYNC_ENDPOINT) {
       return window.APP_CONFIG.GAS_SYNC_ENDPOINT.replace(/\/$/, "");
     }
+
+    // 2. Settings (local storage)
     if (!settings.gasEndpoint) {
       throw new Error("GAS エンドポイントが設定されていません");
     }
