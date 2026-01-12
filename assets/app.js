@@ -398,7 +398,14 @@ const ui = new UIController({
   isImageBook: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar"),
   isSpreadMode: () => reader.imageViewMode === "spread",
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
-  getReadingDirection: () => reader.imageReadingDirection, // [追加] 見開き移動方向の判定用
+  getReadingDirection: () => {
+    // EPUBの場合は pageDirection (ltr/rtl)
+    if (currentBookInfo?.type === 'epub') {
+      return pageDirection;
+    }
+    // 画像書庫の場合は reader.imageReadingDirection
+    return reader.imageReadingDirection;
+  },
   onFloatToggle: () => {
     toggleFloatOverlay();
     // グリッドオーバーレイの表示切替
@@ -622,16 +629,16 @@ function updateSpreadModeButtonLabel() {
 function updateReadingDirectionButtonLabel() {
   if (!elements.toggleReadingDirectionImage) return;
   const isRtl = reader.imageReadingDirection === "rtl";
-  elements.toggleReadingDirectionImage.textContent = isRtl ? "→左" : "右←";
-  elements.toggleReadingDirectionImage.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
+  elements.toggleReadingDirectionImage.textContent = isRtl ? "←右開き" : "→左開き";
+  elements.toggleReadingDirectionImage.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
 }
 
 // 左開き/右開きボタンのラベルを更新 (EPUB用)
 function updateReadingDirectionEpubButtonLabel() {
   if (!elements.toggleReadingDirectionEpub) return;
   const isRtl = pageDirection === "rtl";
-  elements.toggleReadingDirectionEpub.textContent = isRtl ? "→左" : "右←";
-  elements.toggleReadingDirectionEpub.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
+  elements.toggleReadingDirectionEpub.textContent = isRtl ? "←右開き" : "→左開き";
+  elements.toggleReadingDirectionEpub.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
 }
 
 // ズームボタンのラベルを更新
@@ -668,6 +675,15 @@ function updateProgressBarDirection() {
       progressBarWrapper.classList.add('rtl-mode');
     } else {
       progressBarWrapper.classList.remove('rtl-mode');
+    }
+  }
+
+  // [追加] 画像ビューア自体のRTLクラス切替 (スプレッド表示の順序制御用)
+  if (elements.imageViewer) {
+    if (isRtl) {
+      elements.imageViewer.classList.add('rtl-mode');
+    } else {
+      elements.imageViewer.classList.remove('rtl-mode');
     }
   }
 }
