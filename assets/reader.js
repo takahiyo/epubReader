@@ -1702,9 +1702,26 @@ export class ReaderController {
   }
 
   async goTo(bookmark) {
-    if (!bookmark) return;
-    // bookType または type で判定（互換性のため両方サポート）
-    const bookType = bookmark.bookType || bookmark.type;
+    // 0は有効なインデックスなので、null/undefinedのみ除外
+    if (bookmark === null || bookmark === undefined) return;
+
+    // 数値が渡された場合（next/prevからの呼び出しなど）は、現在のモードに合わせて移動
+    if (typeof bookmark === "number") {
+      if (this.type === "epub") {
+        this.pageController.goTo(bookmark);
+      } else {
+        // 画像書庫の場合、範囲チェックをして移動
+        this.imageIndex = Math.max(0, Math.min(bookmark, this.imagePages.length - 1));
+        this.renderImagePage();
+      }
+      return;
+    }
+
+    // 以下、しおりオブジェクト（{ bookType: ..., location: ... }）の場合の処理
+
+    // bookType または type で判定（互換性のため両方サポート）。
+    // bookmarkオブジェクトにtypeが無い場合は現在のthis.typeをフォールバックとして使用
+    const bookType = bookmark.bookType || bookmark.type || this.type;
 
     if (bookType === "epub") {
       if (
