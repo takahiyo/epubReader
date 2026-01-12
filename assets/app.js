@@ -395,6 +395,7 @@ const ui = new UIController({
   isImageBook: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar"),
   isSpreadMode: () => reader.imageViewMode === "spread",
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
+  getReadingDirection: () => reader.imageReadingDirection, // [追加] 見開き移動方向の判定用
   onFloatToggle: () => {
     toggleFloatOverlay();
     // グリッドオーバーレイの表示切替

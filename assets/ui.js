@@ -35,6 +35,7 @@ export class UIController {
     this.isFloatVisible = options.isFloatVisible || (() => false);
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
+    this.getReadingDirection = options.getReadingDirection || (() => "ltr");
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -271,10 +272,25 @@ export class UIController {
 
       // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動
       if (this.isImageBook?.() && this.isSpreadMode?.()) {
+        const direction = this.getReadingDirection();
         if (area === "U3") {
-          this.onPagePrev?.(1);
+          console.log('Spread adjustment: Prev 1 page');
+          // U3 (上中央) -> 1ページ戻る
+          if (direction === 'rtl') {
+            this.onPageNext?.(1); // RTLの「戻る」は物理的に左(Index増) = next()
+          } else {
+            this.onPagePrev?.(1); // LTRの「戻る」は物理的に左(Index減) = prev()
+          }
+          return;
         } else if (area === "B3") {
-          this.onPageNext?.(1);
+          console.log('Spread adjustment: Next 1 page');
+          // B3 (下中央) -> 1ページ進む
+          if (direction === 'rtl') {
+            this.onPagePrev?.(1); // RTLの「進む」は物理的に右(Index減) = prev()
+          } else {
+            this.onPageNext?.(1); // LTRの「進む」は物理的に右(Index増) = next()
+          }
+          return;
         }
       }
       return;
