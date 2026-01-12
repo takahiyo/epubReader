@@ -528,9 +528,16 @@ function updateFloatingUIButtons() {
   const isEpub = currentBookInfo && currentBookInfo.type === "epub";
   const isBookOpen = currentBookId !== null;
 
-  // 縦/横書き切替ボタン: EPUB のみ表示
+  // 目次ボタン (#openToc)
+  // 書籍（EPUB）が開かれていない状態では無効化
+  if (elements.openToc) {
+    elements.openToc.disabled = !isEpub;
+  }
+
+  // 縦/横書き切替ボタン: 常に表示するが、EPUB以外では無効化
   if (elements.toggleWritingMode) {
-    elements.toggleWritingMode.style.display = isEpub ? "" : "none";
+    elements.toggleWritingMode.style.display = "";
+    elements.toggleWritingMode.disabled = !isEpub;
   }
 
   // 見開き/単ページ切替ボタン: 画像書庫のみ表示
@@ -539,9 +546,10 @@ function updateFloatingUIButtons() {
     updateSpreadModeButtonLabel();
   }
 
-  // 左開き/右開き切替ボタン: 画像書庫のみ表示
+  // 左開き/右開き切替ボタン: 常に表示 (現在は常に有効)
   if (elements.toggleReadingDirection) {
-    elements.toggleReadingDirection.style.display = isImageBook ? "" : "none";
+    elements.toggleReadingDirection.style.display = "";
+    elements.toggleReadingDirection.disabled = false;
     updateReadingDirectionButtonLabel();
   }
 
@@ -665,6 +673,11 @@ function toggleFloatOverlay(forceVisible) {
   const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
   floatVisible = nextVisible;
   elements.floatOverlay.classList.toggle("visible", floatVisible);
+
+  if (floatVisible) {
+    updateFloatingUIButtons();
+  }
+
   updateProgressBarDisplay();
   if (floatVisible) {
     ui.showClickAreas();

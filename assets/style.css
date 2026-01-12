@@ -1938,3 +1938,9 @@ body.is-zoomed #toggleTheme {
 .area-cell.show-label .area-label {
   opacity: 1;
 }
+
+/* 追加: フローティングメニューの目次ボタンの配置調整 */
+.float-main-menu #openToc {
+  margin-bottom: 24px;
+  /* 下のボタン群と距離を離す */
+}
