@@ -213,11 +213,22 @@ export class UIController {
         const mode = this.getWritingMode?.() || "horizontal";
         // 画像書庫または縦書きモードなら横スワイプ
         if (mode === "vertical" || this.isImageBook?.()) {
+          const direction = this.getReadingDirection?.() || 'rtl';
           if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
             if (deltaX > 0) {
-              this.onPagePrev?.();
+              // 右方向へのスワイプ
+              if (direction === 'ltr') {
+                this.onPagePrev?.(); // LTRなら「右スワイプ」で戻る
+              } else {
+                this.onPageNext?.(); // RTLなら「右スワイプ」で進む
+              }
             } else {
-              this.onPageNext?.();
+              // 左方向へのスワイプ
+              if (direction === 'ltr') {
+                this.onPageNext?.(); // LTRなら「左スワイプ」で進む
+              } else {
+                this.onPagePrev?.(); // RTLなら「左スワイプ」で戻る
+              }
             }
           }
         } else if (absDeltaY >= minSwipeDistance && (absDeltaY - absDeltaX) >= axisDifference) {
@@ -264,10 +275,19 @@ export class UIController {
 
     // 画像書庫または縦書き
     if (writingMode === "vertical" || this.isImageBook?.()) {
+      const direction = this.getReadingDirection?.() || 'rtl';
       if (area === "M2") {
-        this.onPagePrev?.();
+        if (direction === 'ltr') {
+          this.onPagePrev?.(); // LTRなら左で戻る
+        } else {
+          this.onPageNext?.(); // RTLなら左で進む
+        }
       } else if (area === "M4") {
-        this.onPageNext?.();
+        if (direction === 'ltr') {
+          this.onPageNext?.(); // LTRなら右で進む
+        } else {
+          this.onPagePrev?.(); // RTLなら右で戻る
+        }
       }
 
       // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動

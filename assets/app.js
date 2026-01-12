@@ -645,14 +645,29 @@ function updateZoomButtonLabel() {
 // 進捗バーの方向を更新（RTL時は反転）
 function updateProgressBarDirection() {
   const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
-  const isRtl = reader.imageReadingDirection === "rtl";
-  const progressBar = document.getElementById("floatProgress");
+  let isRtl = false;
 
-  if (progressBar) {
-    if (isImageBook && isRtl) {
-      progressBar.classList.add("rtl-progress");
+  if (isImageBook) {
+    isRtl = reader.imageReadingDirection === "rtl";
+  } else if (currentBookInfo?.type === 'epub') {
+    isRtl = pageDirection === 'rtl';
+  }
+
+  const floatProgressBar = document.getElementById("floatProgress");
+  if (floatProgressBar) {
+    if (isRtl) {
+      floatProgressBar.classList.add("rtl-progress");
     } else {
-      progressBar.classList.remove("rtl-progress");
+      floatProgressBar.classList.remove("rtl-progress");
+    }
+  }
+
+  const progressBarWrapper = document.querySelector('.progress-bar-wrapper');
+  if (progressBarWrapper) {
+    if (isRtl) {
+      progressBarWrapper.classList.add('rtl-mode');
+    } else {
+      progressBarWrapper.classList.remove('rtl-mode');
     }
   }
 }
@@ -1805,6 +1820,19 @@ function handleBookReady(payload) {
   const metadata = payload.metadata ?? payload;
   const toc = Array.isArray(payload.toc) ? payload.toc : [];
   currentToc = toc;
+
+  // 方向判定とUI更新
+  if (currentBookInfo.type === 'epub') {
+    // メタデータから方向を取得（設定値があればそちらを優先）
+    const metadataDirection = metadata.direction;
+    if (metadataDirection) {
+      pageDirection = metadataDirection;
+      if (elements.pageDirectionSelect) {
+        elements.pageDirectionSelect.value = pageDirection;
+      }
+    }
+    updateProgressBarDirection(); // 進捗バーの方向更新
+  }
 
   const title = metadata.title || currentBookInfo.title;
   currentBookInfo.title = title;

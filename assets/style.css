@@ -798,6 +798,12 @@ body.google-auth-active .modal-backdrop {
   color: #0f172a;
 }
 
+/* 追加: RTLモード時に進捗バー全体（ボタン・トラック含む）を左右反転 */
+.progress-bar-wrapper.rtl-mode {
+  transform: scaleX(-1);
+}
+
+
 .progress-fill {
   position: absolute;
   left: 2px;
