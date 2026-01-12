@@ -1916,9 +1916,14 @@ export class ReaderController {
       return;
     }
 
-    this.pagination = null;
-    await this.buildPagination();
-    this.pageController.goTo(this.currentPageIndex);
+    try {
+      console.log("[Reader] applyReadingDirection:", { writingMode, pageDirection });
+      this.pagination = null;
+      await this.buildPagination();
+      this.pageController.goTo(this.currentPageIndex);
+    } catch (error) {
+      console.error("[Reader] Failed to apply reading direction:", error);
+    }
   }
 
   applyWritingModeToContents() {
