@@ -426,10 +426,19 @@ body.google-auth-active .modal-backdrop {
 }
 
 .image-viewer .spread-page {
-  max-width: 50%;
-  max-height: 100%;
+  width: 50%;
+  height: 100%;
   object-fit: contain;
   cursor: zoom-in;
+}
+
+.image-viewer .spread-page.wide {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  display: block;
+  margin: auto;
 }
 
 .image-viewer .spread-left {

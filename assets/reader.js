@@ -1283,36 +1283,46 @@ export class ReaderController {
   }
 
   async checkWideAndRender(index) {
-    const src = this.imagePages[index];
-    if (!src) return;
-
-    // サイズチェック
-    const isWide = await this.isImageWide(src);
-
-    if (isWide) {
-      // 横長なら強制単ページ表示（見開き扱い）
-      this.renderSinglePageWithStyle(index, true);
-    } else {
-      // 通常の見開き
-      this.renderSpreadPage(index);
-    }
-
-    this.updateProgress(index, isWide);
+    // 横長判定も renderSpreadPage 内で行うため、直接呼び出す
+    await this.renderSpreadPage(index);
   }
 
-  isImageWide(src) {
-    return new Promise((resolve) => {
+  async isImageWide(index) {
+    // 範囲外チェック
+    if (index < 0 || index >= this.imagePages.length) return false;
+
+    // 画像データの取得
+    const src = this.imagePages[index];
+    if (!src) return false;
+
+    // 画像サイズを取得するヘルパー
+    const getSize = (url) => new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => {
-        // 横幅 > 高さ * 1.25 (少し閾値を上げる)
-        const ratio = img.naturalWidth / img.naturalHeight;
-        const isWide = ratio > 1.25;
-        // console.log(`Image ${src.slice(-20)} ratio: ${ratio.toFixed(2)}, isWide: ${isWide}`);
-        resolve(isWide);
-      };
-      img.onerror = () => resolve(false);
-      img.src = src;
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => resolve({ w: 0, h: 0 });
+      img.src = url;
     });
+
+    const currentSize = await getSize(src);
+
+    // 比較対象（次のページ）のサイズを取得
+    let refSize = null;
+    if (index + 1 < this.imagePages.length) {
+      const nextSrc = this.imagePages[index + 1];
+      refSize = await getSize(nextSrc);
+    } else if (index - 1 >= 0) {
+      // 次がないなら前と比較
+      const prevSrc = this.imagePages[index - 1];
+      refSize = await getSize(prevSrc);
+    }
+
+    // 判定ロジック: 横サイズが比較対象の1.5倍以上あるか
+    if (refSize && refSize.w > 0) {
+      return currentSize.w >= refSize.w * 1.5;
+    }
+
+    // 比較対象がない場合や取得失敗時のフォールバック
+    return currentSize.w > currentSize.h * 1.5;
   }
 
   renderSinglePageWithStyle(index, isWideSpread = false) {
@@ -1374,13 +1384,13 @@ export class ReaderController {
     });
   }
 
-  renderSpreadPage(targetIndex) {
+  async renderSpreadPage(targetIndex) {
     if (!this.imageViewer || !this.imagePages.length) return;
 
     // 元の画像を非表示
     this.imageElement.style.display = 'none';
 
-    // 既存の見開きコンテナを削除
+    // 既存の見開きコンテナを削除または取得
     let spreadContainer = this.imageViewer.querySelector('.spread-container');
     if (!spreadContainer) {
       spreadContainer = document.createElement('div');
@@ -1398,15 +1408,7 @@ export class ReaderController {
     if (this.imageZoomed) {
       this.imageViewer.classList.add('zoomed');
       spreadContainer.style.transform = 'scale(2)';
-      spreadContainer.style.transformOrigin = '0 0'; /* 左上基準にすることでスクロール可能領域に展開 */
-      spreadContainer.style.width = '50%'; /* scale(2)で100%になるように調整、あるいは親のスクロールに合わせて自動 */
-      /* spreadContainerはflexで中央寄せされている。
-         scale(2)Origin(0,0)だと、左上から2倍になる。
-         中央寄せのまま拡大したい場合は、flexのalign-items/justify-contentの影響を受ける。
-         単純に 0 0 にすると左上に寄ってしまうかもしれない。
-         パン操作(スクロール)を有効にするなら、コンテンツが親より大きくなる必要がある。
-         scale(2) だけでは layout size は変わらないことがある。
-      */
+      spreadContainer.style.transformOrigin = '0 0';
       spreadContainer.style.width = '100%';
       spreadContainer.style.height = '100%';
     } else {
@@ -1417,63 +1419,83 @@ export class ReaderController {
       spreadContainer.style.height = '100%';
     }
 
-    // 奇数ページ基準で左始まり
-    // ページ0は単独表示（表紙）、その後は1-2, 3-4...
-    let firstIndex, secondIndex;
-    if (targetIndex === 0) {
-      // 表紙は単独表示
-      firstIndex = 0;
-      secondIndex = null;
+    // 現在のページが「横長」かチェック (非同期)
+    const isWide = await this.isImageWide(targetIndex);
+
+    if (isWide) {
+      // 【例外処理】横長画像なら1枚だけ表示し、横幅に合わせる
+      const img = document.createElement('img');
+      img.src = this.imagePages[targetIndex];
+      img.className = 'spread-page wide'; // CSSで width: 100%; height: auto; を適用
+      if (this.type !== "epub") img.style.pointerEvents = "none";
+      spreadContainer.appendChild(img);
+
+      // ★重要: 現在の表示が「1枚分」であることを記憶させておく
+      this.currentSpreadStep = 1;
     } else {
-      // 奇数ページが先、偶数ページが後
-      if (targetIndex % 2 === 1) {
-        firstIndex = targetIndex;
-        secondIndex = targetIndex + 1 < this.imagePages.length ? targetIndex + 1 : null;
+      // 【通常処理】2枚表示
+      this.currentSpreadStep = 2;
+
+      // 奇数ページ基準で左始まり
+      let firstIndex, secondIndex;
+      if (targetIndex === 0) {
+        // 表紙は単独表示 (ここでもstep=1にするか、既存ロジックに従うか。既存ロジックだと表紙は単独だが次へ行くと2ページずつになる)
+        // 表紙の場合も実質1枚なのでstep=1とおくのが自然だが、表紙だけは例外的に「通常のspreadフローの始点」
+        // とする場合、next()で+1したいならstep=1。
+        firstIndex = 0;
+        secondIndex = null;
+        this.currentSpreadStep = 1; // 表紙は1枚
       } else {
-        firstIndex = targetIndex - 1;
-        secondIndex = targetIndex;
+        // 奇数ページが先、偶数ページが後
+        if (targetIndex % 2 === 1) {
+          firstIndex = targetIndex;
+          secondIndex = targetIndex + 1 < this.imagePages.length ? targetIndex + 1 : null;
+        } else {
+          firstIndex = targetIndex - 1;
+          secondIndex = targetIndex;
+        }
+      }
+
+      const isRtl = this.imageReadingDirection === "rtl";
+      let leftIndex, rightIndex;
+
+      if (isRtl) {
+        leftIndex = secondIndex;
+        rightIndex = firstIndex;
+      } else {
+        leftIndex = firstIndex;
+        rightIndex = secondIndex;
+      }
+
+      // 左ページ
+      if (leftIndex !== null && this.imagePages[leftIndex]) {
+        const leftImg = document.createElement('img');
+        leftImg.src = this.imagePages[leftIndex];
+        leftImg.alt = `ページ ${leftIndex + 1}`;
+        leftImg.className = 'spread-page spread-left';
+        if (this.type !== "epub") leftImg.style.pointerEvents = "none";
+        spreadContainer.appendChild(leftImg);
+      }
+
+      // 右ページ
+      if (rightIndex !== null && this.imagePages[rightIndex]) {
+        const rightImg = document.createElement('img');
+        rightImg.src = this.imagePages[rightIndex];
+        rightImg.alt = `ページ ${rightIndex + 1}`;
+        rightImg.className = 'spread-page spread-right';
+        if (this.type !== "epub") rightImg.style.pointerEvents = "none";
+        spreadContainer.appendChild(rightImg);
       }
     }
 
-    // 左右決定ロジック
-    // LTR: 左=first(index), 右=second(index+1)
-    // RTL: 左=second(index+1), 右=first(index)
-
-    const isRtl = this.imageReadingDirection === "rtl";
-    let leftIndex, rightIndex;
-
-    if (isRtl) {
-      leftIndex = secondIndex;
-      rightIndex = firstIndex;
-    } else {
-      leftIndex = firstIndex;
-      rightIndex = secondIndex;
-    }
-
-    // 左ページ
-    if (leftIndex !== null && this.imagePages[leftIndex]) {
-      const leftImg = document.createElement('img');
-      leftImg.src = this.imagePages[leftIndex];
-      leftImg.alt = `ページ ${leftIndex + 1}`;
-      leftImg.className = 'spread-page spread-left';
-      if (this.type !== "epub") leftImg.style.pointerEvents = "none";
-      spreadContainer.appendChild(leftImg);
-    }
-
-    // 右ページ
-    if (rightIndex !== null && this.imagePages[rightIndex]) {
-      const rightImg = document.createElement('img');
-      rightImg.src = this.imagePages[rightIndex];
-      rightImg.alt = `ページ ${rightIndex + 1}`;
-      rightImg.className = 'spread-page spread-right';
-      if (this.type !== "epub") rightImg.style.pointerEvents = "none";
-      spreadContainer.appendChild(rightImg);
-    }
-
     // プリロード
-    if (targetIndex + 2 < this.imagePages.length) {
-      this.loadImagePage(targetIndex + 2);
+    const preloadStep = this.currentSpreadStep || 2;
+    if (targetIndex + preloadStep < this.imagePages.length) {
+      this.loadImagePage(targetIndex + preloadStep);
     }
+
+    // ページ進捗更新
+    this.updateProgress(targetIndex, isWide);
   }
 
   setImageViewMode(mode) {
@@ -1545,7 +1567,7 @@ export class ReaderController {
     // ここでは簡易的に直近の判定結果を使いたいところ。
     // しかし厳密には非同期。navigation内でawaitするのはUIレスポンスに関わる。
     // 一旦、毎回チェックする。
-    return await this.isImageWide(this.imagePages[this.imageIndex]);
+    return await this.isImageWide(this.imageIndex);
   }
 
   async loadImagePage(index) {
@@ -1570,7 +1592,7 @@ export class ReaderController {
 
 
 
-  async prev(step = 1) {
+  async prev(step) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
     // EPUBの場合はPageControllerを使用
@@ -1586,23 +1608,46 @@ export class ReaderController {
 
     let targetIndex;
     if (this.imageViewMode === "spread") {
-      // 見開きモード：1ページずつか2ページずつか
-      // step=1なら単ページ移動、それ以外なら見開き単位（従来の動作）を維持
-      const decrement = step === 1 ? 1 : 2;
+      // 戻る場合、戻り先のページが「ワイド」かどうかを事前にチェックする必要がある
+      // 1つ前のページ(index-1)がワイドなら、そこは「1枚表示」だったはずなので -1 戻る
+      // ワイドでないなら、そこは「2枚表示の右側(または左側)」だったはずなので -2 戻る
+      // ただし、もし step が指定されている場合(1など)はどうするか？
+      // prev(1) は「1枚戻る」を意図している。
 
-      // 画像がワイド（単ページ表示）の場合は1つ戻るだけで良い
-      if (this.isCurrentPageWideSync()) {
-        targetIndex = Math.max(0, this.currentImageIndex - 1);
+      if (step !== undefined && step === 1) {
+        targetIndex = Math.max(0, this.imageIndex - 1);
       } else {
-        targetIndex = Math.max(0, this.currentImageIndex - decrement);
+        // 自動判定
+        const prevIndex = this.imageIndex - 1;
+        if (prevIndex < 0) {
+          targetIndex = 0;
+        } else {
+          // 戻り先のページがワイドかどうか
+          const isPrevWide = await this.isImageWide(prevIndex);
+          // 戻り先が通常のspreadなら、その前のページとセットかどうか？
+          // spreadの区切りは固定(0, 1-2, 3-4...)ではなく可変になるため、
+          // 単純に -1 か -2 かを決めるのは難しいが、
+          // 「今のページ(imageIndex)の直前にある "spreadの塊" の先頭」に戻る必要がある。
+          // 簡易実装として、直前がワイドなら -1, そうでなければ -2 とする。
+          // ただし、0ページ目(表紙)は単独なので -1。
+
+          if (prevIndex === 0) {
+            targetIndex = 0;
+          } else if (isPrevWide) {
+            targetIndex = prevIndex; // -1
+          } else {
+            // 通常の2枚見開き戻り
+            targetIndex = Math.max(0, this.imageIndex - 2);
+          }
+        }
       }
     } else {
-      targetIndex = Math.max(0, this.currentImageIndex - 1);
+      targetIndex = Math.max(0, this.imageIndex - (step || 1));
     }
     await this.goTo(targetIndex);
   }
 
-  async next(step = 1) {
+  async next(step) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
     // EPUBの場合はPageControllerを使用
@@ -1618,16 +1663,16 @@ export class ReaderController {
 
     let targetIndex;
     if (this.imageViewMode === "spread") {
-      const increment = step === 1 ? 1 : 2;
+      // 表示時に計算したステップ数分だけ進む
+      // (ワイド表示なら+1、通常なら+2)
+      // 引数 step が指定されている場合(1など)はそれを優先するか、
+      // あるいは step が未指定(undefined)の場合のみ currentSpreadStep を使う。
+      // UIからは next() (undefined) か next(1) が呼ばれる。
 
-      // 画像がワイド（単ページ表示）の場合は1つ進むだけで良い
-      if (this.isCurrentPageWideSync()) {
-        targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + 1);
-      } else {
-        targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + increment);
-      }
+      const actualStep = step !== undefined ? step : (this.currentSpreadStep || 2);
+      targetIndex = Math.min(this.imagePages.length - 1, this.imageIndex + actualStep);
     } else {
-      targetIndex = Math.min(this.imagePages.length - 1, this.currentImageIndex + 1);
+      targetIndex = Math.min(this.imagePages.length - 1, this.imageIndex + (step || 1));
     }
     await this.goTo(targetIndex);
   }
