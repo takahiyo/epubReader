@@ -215,6 +215,218 @@ const UI_STRINGS = {
   },
 };
 
+// 1. Lottieアニメーションデータ (Book.jsonの内容)
+// TODO: ここに実際のJSONデータをペーストしてください
+const LOADER_ANIMATION_DATA = null;
+
+// 2. ローディング制御用変数と関数
+let lottieInstance = null;
+
+function initLoadingAnimation() {
+  const container = document.getElementById('lottie-loader');
+  if (!container) return;
+
+  // lottieが読み込まれているか確認
+  if (typeof lottie === 'undefined') {
+    console.warn('Lottie library not loaded.');
+    return;
+  }
+
+  // データがない場合は初期化しない (またはプレースホルダーを表示)
+  if (!LOADER_ANIMATION_DATA) {
+    console.warn('Lottie animation data (LOADER_ANIMATION_DATA) is missing.');
+    return;
+  }
+
+  try {
+    lottieInstance = lottie.loadAnimation({
+      container: container,
+      renderer: 'svg',
+      loop: true,
+      autoplay: false, // 表示されるまで再生しない
+      animationData: LOADER_ANIMATION_DATA
+    });
+  } catch (e) {
+    console.error('Failed to initialize Lottie animation:', e);
+  }
+}
+
+function showLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) {
+    overlay.classList.add('visible');
+    lottieInstance?.play();
+  }
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) {
+    overlay.classList.remove('visible');
+    lottieInstance?.stop(); // 非表示時は停止してリソース節約
+  }
+}
+
+// 初期化実行
+document.addEventListener('DOMContentLoaded', () => {
+  initLoadingAnimation();
+});
+
+emptyTitle: "本が選択されていません",
+  emptyDescription: "画面中央をクリックしてメニューを表示",
+    menuOpen: "開く",
+      menuLibrary: "ライブラリ",
+        menuSearch: "テキスト検索",
+          menuBookmarks: "しおり",
+            menuHistory: "履歴",
+              menuSettings: "設定",
+                tocButton: "目次",
+                  bookmarkTitle: "しおり",
+                    bookmarkDefault: "しおり",
+                      addBookmark: "✚ 現在位置にしおりを追加",
+                        searchTitle: "テキスト検索",
+                          searchPlaceholder: "検索キーワードを入力...",
+                            searchButton: "🔍 検索",
+                              tocTitle: "目次",
+                                tocUntitled: "無題",
+                                  openFileTitle: "ライブラリ",
+                                    librarySectionTitle: "ライブラリ",
+                                      historyTitle: "履歴",
+                                        settingsTitle: "設定",
+                                          settingsDisplayTitle: "表示設定",
+                                            themeLabel: "テーマ",
+                                              themeDark: "ダークモード",
+                                                themeLight: "ライトモード",
+                                                  writingModeLabel: "書字方向",
+                                                    writingModeHorizontal: "横書き",
+                                                      writingModeVertical: "縦書き",
+                                                        pageDirectionLabel: "開き方向",
+                                                          pageDirectionLtr: "左開き",
+                                                            pageDirectionRtl: "右開き",
+                                                              progressDisplayModeLabel: "進捗表示形式",
+                                                                progressDisplayPage: "ページ数",
+                                                                  progressDisplayPercentage: "パーセンテージ",
+                                                                    settingsAccountTitle: "アカウント",
+                                                                      googleLoginLabel: "Googleログイン",
+                                                                        googleLogoutLabel: "ログオフ",
+                                                                          googleLoginStatusSignedOut: "未ログイン",
+                                                                            googleLoginStatusSignedIn: "ログイン済み: {user}",
+                                                                              googleLoginStatusSignedInShort: "ログイン済み",
+                                                                                googleLoginFailed: "ログインに失敗しました",
+                                                                                  syncToggleLabel: "同期を有効にする",
+                                                                                    syncToggleOff: "同期を無効にする",
+                                                                                      syncStatusLabel: "最終同期: {time}",
+                                                                                        syncStatusNever: "最終同期: 未実施",
+                                                                                          syncNeedsLogin: "同期には Google ログインが必要です。",
+                                                                                            settingsDataTitle: "データ管理",
+                                                                                              exportData: "設定・データを書き出す",
+                                                                                                importData: "設定・データを読み込む",
+                                                                                                  libraryEmpty: "ライブラリが空です",
+                                                                                                    historyEmpty: "履歴がありません",
+                                                                                                      historyDeleteConfirm: "この履歴を削除しますか？",
+                                                                                                        progressLabel: "進捗",
+                                                                                                          bookmarkEmpty: "しおりがありません",
+                                                                                                            bookmarkDeleteConfirm: "このしおりを削除しますか？",
+                                                                                                              openBookPrompt: "本を開いてください",
+                                                                                                                searchMissingQuery: "検索キーワードを入力してください",
+                                                                                                                  searchNoResults: "検索結果が見つかりませんでした",
+                                                                                                                    searchLoading: "検索中...",
+                                                                                                                      searchEpubOnly: "EPUB形式の本を開いている時のみ検索できます",
+                                                                                                                        searchNavigateFailed: "検索結果への移動に失敗しました",
+                                                                                                                          searchResultFallback: "結果",
+                                                                                                                            writingModeToggleVertical: "縦",
+                                                                                                                              writingModeToggleHorizontal: "横",
+                                                                                                                                syncPromptTitle: "同期の確認",
+                                                                                                                                  syncPromptMessage: "他の端末で、より新しい読書位置があります。",
+                                                                                                                                    syncPromptLocalMessage: "この端末の状態が新しいようです。アップロードしますか？",
+                                                                                                                                      syncPromptJump: "最新の読書位置は {page} ですがジャンプしますか？",
+                                                                                                                                        syncPromptRemote: "ジャンプする（{time}）",
+                                                                                                                                          syncPromptLocal: "キャンセル",
+                                                                                                                                            syncPromptUpload: "この端末の状態をアップロード",
+                                                                                                                                              libraryCloudMissingBadge: "この端末に未保存",
+                                                                                                                                                libraryAttachFile: "ファイルを追加して紐づけ",
+                                                                                                                                                  cloudOnlyTitle: "クラウドの読書データのみ表示中",
+                                                                                                                                                    cloudOnlyDescription: "ファイルを追加すると続きから読めます",
+  },
+en: {
+  documentTitle: "Epub Reader",
+    emptyTitle: "No book selected",
+      emptyDescription: "Tap center of the screen to open menu",
+        menuOpen: "Open",
+          menuLibrary: "Library",
+            menuSearch: "Text Search",
+              menuBookmarks: "Bookmarks",
+                menuHistory: "History",
+                  menuSettings: "Settings",
+                    tocButton: "TOC",
+                      bookmarkTitle: "Bookmarks",
+                        bookmarkDefault: "Bookmark",
+                          addBookmark: "✚ Add bookmark at current location",
+                            searchTitle: "Text Search",
+                              searchPlaceholder: "Enter a search keyword...",
+                                searchButton: "🔍 Search",
+                                  tocTitle: "Table of Contents",
+                                    tocUntitled: "Untitled",
+                                      openFileTitle: "Library",
+                                        librarySectionTitle: "Library",
+                                          historyTitle: "History",
+                                            settingsTitle: "Settings",
+                                              settingsDisplayTitle: "Display",
+                                                themeLabel: "Theme",
+                                                  themeDark: "Dark mode",
+                                                    themeLight: "Light mode",
+                                                      writingModeLabel: "Writing mode",
+                                                        writingModeHorizontal: "Horizontal",
+                                                          writingModeVertical: "Vertical",
+                                                            pageDirectionLabel: "Page direction",
+                                                              pageDirectionLtr: "Left binding",
+                                                                pageDirectionRtl: "Right binding",
+                                                                  progressDisplayModeLabel: "Progress format",
+                                                                    progressDisplayPage: "Pages",
+                                                                      progressDisplayPercentage: "Percentage",
+                                                                        settingsAccountTitle: "Account",
+                                                                          googleLoginLabel: "Sign in with Google",
+                                                                            googleLogoutLabel: "Sign out",
+                                                                              googleLoginStatusSignedOut: "Signed out",
+                                                                                googleLoginStatusSignedIn: "Signed in: {user}",
+                                                                                  googleLoginStatusSignedInShort: "Signed in",
+                                                                                    googleLoginFailed: "Failed to sign in",
+                                                                                      syncToggleLabel: "Enable sync",
+                                                                                        syncToggleOff: "Disable sync",
+                                                                                          syncStatusLabel: "Last sync: {time}",
+                                                                                            syncStatusNever: "Last sync: never",
+                                                                                              syncNeedsLogin: "Sign in with Google to enable sync.",
+                                                                                                settingsDataTitle: "Data",
+                                                                                                  exportData: "Export settings & data",
+                                                                                                    importData: "Import settings & data",
+                                                                                                      libraryEmpty: "Your library is empty",
+                                                                                                        historyEmpty: "No history yet",
+                                                                                                          historyDeleteConfirm: "Delete this history entry?",
+                                                                                                            progressLabel: "Progress",
+                                                                                                              bookmarkEmpty: "No bookmarks",
+                                                                                                                bookmarkDeleteConfirm: "Delete this bookmark?",
+                                                                                                                  openBookPrompt: "Please open a book.",
+                                                                                                                    searchMissingQuery: "Please enter a search keyword.",
+                                                                                                                      searchNoResults: "No results found.",
+                                                                                                                        searchLoading: "Searching...",
+                                                                                                                          searchEpubOnly: "Search is available only when an EPUB is open.",
+                                                                                                                            searchNavigateFailed: "Failed to navigate to the search result.",
+                                                                                                                              searchResultFallback: "Result",
+                                                                                                                                writingModeToggleVertical: "V",
+                                                                                                                                  writingModeToggleHorizontal: "H",
+                                                                                                                                    syncPromptTitle: "Sync available",
+                                                                                                                                      syncPromptMessage: "A newer reading position is available on another device.",
+                                                                                                                                        syncPromptLocalMessage: "This device has newer data. Upload it?",
+                                                                                                                                          syncPromptRemote: "Continue from other device ({time})",
+                                                                                                                                            syncPromptLocal: "Keep this device's position",
+                                                                                                                                              syncPromptUpload: "Upload this device's state",
+                                                                                                                                                libraryCloudMissingBadge: "Not on this device",
+                                                                                                                                                  libraryAttachFile: "Attach file to link",
+                                                                                                                                                    cloudOnlyTitle: "Viewing cloud reading data",
+                                                                                                                                                      cloudOnlyDescription: "Attach the file to continue reading.",
+  },
+};
+
 function getUiStrings(language = uiLanguage) {
   return UI_STRINGS[language] ?? UI_STRINGS.ja;
 }
@@ -786,17 +998,7 @@ function formatRelativeTimeEn(timestamp) {
 // ローディングオーバーレイ
 // ========================================
 
-function showLoading() {
-  if (elements.loadingOverlay) {
-    elements.loadingOverlay.classList.add("visible");
-  }
-}
 
-function hideLoading() {
-  if (elements.loadingOverlay) {
-    elements.loadingOverlay.classList.remove("visible");
-  }
-}
 
 function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
   if (!authStatus.authenticated) {
@@ -1467,6 +1669,7 @@ function openCloudOnlyBook(cloudBookId) {
 }
 
 async function openFromLibrary(bookId, options = {}) {
+  showLoading();
   try {
     updateActivity();
     userOverrodeDirection = false;
@@ -1555,6 +1758,8 @@ async function openFromLibrary(bookId, options = {}) {
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
+  } finally {
+    hideLoading();
   }
 }
 

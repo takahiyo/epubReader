@@ -7,6 +7,7 @@
   <title>Epub Reader</title>
   <link rel="stylesheet" href="./assets/style.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
@@ -384,11 +385,7 @@
 
   <!-- ローディングオーバーレイ -->
   <div id="loadingOverlay" class="loading-overlay">
-    <div class="book-loader">
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
+    <div id="lottie-loader" style="width: 120px; height: 120px;"></div>
     <p class="loading-text">Loading...</p>
   </div>
 
