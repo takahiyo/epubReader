@@ -1305,24 +1305,9 @@ export class ReaderController {
 
     const currentSize = await getSize(src);
 
-    // 比較対象（次のページ）のサイズを取得
-    let refSize = null;
-    if (index + 1 < this.imagePages.length) {
-      const nextSrc = this.imagePages[index + 1];
-      refSize = await getSize(nextSrc);
-    } else if (index - 1 >= 0) {
-      // 次がないなら前と比較
-      const prevSrc = this.imagePages[index - 1];
-      refSize = await getSize(prevSrc);
-    }
-
-    // 判定ロジック: 横サイズが比較対象の1.5倍以上あるか
-    if (refSize && refSize.w > 0) {
-      return currentSize.w >= refSize.w * 1.5;
-    }
-
-    // 比較対象がない場合や取得失敗時のフォールバック
-    return currentSize.w > currentSize.h * 1.5;
+    // 判定ロジック: 単純に横幅が高さより大きいかどうか
+    // (以前の 1.5倍ルールは廃止し、明確な「横長」定義を使用)
+    return currentSize.w > currentSize.h;
   }
 
   renderSinglePageWithStyle(index, isWideSpread = false) {
@@ -1422,74 +1407,113 @@ export class ReaderController {
     // 現在のページが「横長」かチェック (非同期)
     const isWide = await this.isImageWide(targetIndex);
 
+    // 次のページの判定用
+    let nextIsWide = false;
+    let nextIndex = targetIndex + 1;
+    if (!isWide && nextIndex < this.imagePages.length) {
+      nextIsWide = await this.isImageWide(nextIndex);
+    }
+
+    // 表示ロジックの決定
+    // 1. 現在が横長 -> 1枚表示 (step=1)
+    // 2. 現在が縦長 ＆ 次が横長 -> 1枚表示 (step=1)
+    // 3. 現在が縦長 ＆ 次も縦長 -> 2枚表示 (step=2)
+    // 4. 現在が縦長 ＆ 次がない -> 1枚表示 (step=1) or 2枚枠で片方空 (step=? 動作としては1枚扱いが自然)
+
     if (isWide) {
-      // 【例外処理】横長画像なら1枚だけ表示し、横幅に合わせる
+      // --- パターン1: 現在が横長 ---
       const img = document.createElement('img');
       img.src = this.imagePages[targetIndex];
-      img.className = 'spread-page wide'; // CSSで width: 100%; height: auto; を適用
+      img.className = 'spread-page wide'; // width: 100%
       if (this.type !== "epub") img.style.pointerEvents = "none";
       spreadContainer.appendChild(img);
 
-      // ★重要: 現在の表示が「1枚分」であることを記憶させておく
       this.currentSpreadStep = 1;
+
+    } else if (nextIndex < this.imagePages.length && nextIsWide) {
+      // --- パターン2: 現在＝縦, 次＝横 ---
+      // レイアウト崩れを防ぐため、この縦画像は1枚だけで表示する
+      // (次の横長画像を巻き込まない)
+      this.currentSpreadStep = 1;
+
+      // 1枚表示だが、スタイルは「見開き片面」ではなく「中央寄せ」にするか？
+      // 要望によると「1枚表示」とあるので、SinglePage相当の表示にするのがベストだが、
+      // 見開きモードの中での1枚表示なので、spread-pageクラスを使って制御する。
+      // width: auto; max-width: 50%? 100%?
+      // 「横長だろうが縦長だろうが画面に合わせて1枚出す」なら wide扱いでも良いが、
+      // 縦長画像を wideクラス(width:100%)で出すと縦がはみ出しすぎる。
+      // ここでは spread-left/right ではなく、中央に1枚配置する形にする。
+      const img = document.createElement('img');
+      img.src = this.imagePages[targetIndex];
+      // img.className = 'spread-page single-portrait'; // 新設クラス検討
+      // 既存CSSでどう見えるか？ spread-page wideだと width:100% height:auto
+      // 縦長画像を1枚で見せるなら object-fit: contain で中央配置したい。
+      // 簡易的に wide クラスを使いつつ style調整
+      img.className = 'spread-page wide';
+      img.style.objectFit = "contain";
+      if (this.type !== "epub") img.style.pointerEvents = "none";
+      spreadContainer.appendChild(img);
+
     } else {
-      // 【通常処理】2枚表示
-      this.currentSpreadStep = 2;
+      // --- パターン3: 現在＝縦, 次＝縦 (または次がない) ---
+      // 通常の2枚表示
 
-      // 奇数ページ基準で左始まり
-      let firstIndex, secondIndex;
-      if (targetIndex === 0) {
-        // 表紙は単独表示 (ここでもstep=1にするか、既存ロジックに従うか。既存ロジックだと表紙は単独だが次へ行くと2ページずつになる)
-        // 表紙の場合も実質1枚なのでstep=1とおくのが自然だが、表紙だけは例外的に「通常のspreadフローの始点」
-        // とする場合、next()で+1したいならstep=1。
-        firstIndex = 0;
-        secondIndex = null;
-        this.currentSpreadStep = 1; // 表紙は1枚
+      // 次がない場合は実質1枚
+      if (nextIndex >= this.imagePages.length) {
+        this.currentSpreadStep = 1;
+        // 最後の1枚
+        const img = document.createElement('img');
+        img.src = this.imagePages[targetIndex];
+        // 2枚表示の左側(または右側)として出すか、中央に出すか？
+        // 漫画ビューア的には「最後のページが左(右)にある」状態が自然かもしれないが、
+        // ここはパターン2同様に中央1枚表示が無難。
+        img.className = 'spread-page wide';
+        img.style.objectFit = "contain";
+        if (this.type !== "epub") img.style.pointerEvents = "none";
+        spreadContainer.appendChild(img);
+
       } else {
-        // 奇数ページが先、偶数ページが後
-        if (targetIndex % 2 === 1) {
-          firstIndex = targetIndex;
-          secondIndex = targetIndex + 1 < this.imagePages.length ? targetIndex + 1 : null;
+        // ペア成立
+        this.currentSpreadStep = 2;
+
+        const firstIndex = targetIndex;
+        const secondIndex = nextIndex;
+
+        const isRtl = this.imageReadingDirection === "rtl";
+        let leftIndex, rightIndex;
+
+        if (isRtl) {
+          leftIndex = secondIndex;
+          rightIndex = firstIndex;
         } else {
-          firstIndex = targetIndex - 1;
-          secondIndex = targetIndex;
+          leftIndex = firstIndex;
+          rightIndex = secondIndex;
         }
-      }
 
-      const isRtl = this.imageReadingDirection === "rtl";
-      let leftIndex, rightIndex;
+        // 左ページ
+        if (leftIndex !== null && this.imagePages[leftIndex]) {
+          const leftImg = document.createElement('img');
+          leftImg.src = this.imagePages[leftIndex];
+          leftImg.alt = `ページ ${leftIndex + 1}`;
+          leftImg.className = 'spread-page spread-left';
+          if (this.type !== "epub") leftImg.style.pointerEvents = "none";
+          spreadContainer.appendChild(leftImg);
+        }
 
-      if (isRtl) {
-        leftIndex = secondIndex;
-        rightIndex = firstIndex;
-      } else {
-        leftIndex = firstIndex;
-        rightIndex = secondIndex;
-      }
-
-      // 左ページ
-      if (leftIndex !== null && this.imagePages[leftIndex]) {
-        const leftImg = document.createElement('img');
-        leftImg.src = this.imagePages[leftIndex];
-        leftImg.alt = `ページ ${leftIndex + 1}`;
-        leftImg.className = 'spread-page spread-left';
-        if (this.type !== "epub") leftImg.style.pointerEvents = "none";
-        spreadContainer.appendChild(leftImg);
-      }
-
-      // 右ページ
-      if (rightIndex !== null && this.imagePages[rightIndex]) {
-        const rightImg = document.createElement('img');
-        rightImg.src = this.imagePages[rightIndex];
-        rightImg.alt = `ページ ${rightIndex + 1}`;
-        rightImg.className = 'spread-page spread-right';
-        if (this.type !== "epub") rightImg.style.pointerEvents = "none";
-        spreadContainer.appendChild(rightImg);
+        // 右ページ
+        if (rightIndex !== null && this.imagePages[rightIndex]) {
+          const rightImg = document.createElement('img');
+          rightImg.src = this.imagePages[rightIndex];
+          rightImg.alt = `ページ ${rightIndex + 1}`;
+          rightImg.className = 'spread-page spread-right';
+          if (this.type !== "epub") rightImg.style.pointerEvents = "none";
+          spreadContainer.appendChild(rightImg);
+        }
       }
     }
 
     // プリロード
-    const preloadStep = this.currentSpreadStep || 2;
+    const preloadStep = this.currentSpreadStep || 1;
     if (targetIndex + preloadStep < this.imagePages.length) {
       this.loadImagePage(targetIndex + preloadStep);
     }
@@ -1617,27 +1641,90 @@ export class ReaderController {
       if (step !== undefined && step === 1) {
         targetIndex = Math.max(0, this.imageIndex - 1);
       } else {
-        // 自動判定
+        // スマート「戻る」判定
+        // 1. 1つ前が横長なら「1枚表示」だった -> -1
+        // 2. 1つ前が縦長の場合、そのさらに前(2つ前)とペアだったか確認
+        //    ペア条件: 2つ前が存在し、かつ2つ前も縦長。 -> -2
+        //    そうでなければ(2つ前が横長、あるいは存在しない) -> -1
+
         const prevIndex = this.imageIndex - 1;
         if (prevIndex < 0) {
           targetIndex = 0;
         } else {
-          // 戻り先のページがワイドかどうか
           const isPrevWide = await this.isImageWide(prevIndex);
-          // 戻り先が通常のspreadなら、その前のページとセットかどうか？
-          // spreadの区切りは固定(0, 1-2, 3-4...)ではなく可変になるため、
-          // 単純に -1 か -2 かを決めるのは難しいが、
-          // 「今のページ(imageIndex)の直前にある "spreadの塊" の先頭」に戻る必要がある。
-          // 簡易実装として、直前がワイドなら -1, そうでなければ -2 とする。
-          // ただし、0ページ目(表紙)は単独なので -1。
-
-          if (prevIndex === 0) {
-            targetIndex = 0;
-          } else if (isPrevWide) {
+          if (isPrevWide) {
             targetIndex = prevIndex; // -1
           } else {
-            // 通常の2枚見開き戻り
-            targetIndex = Math.max(0, this.imageIndex - 2);
+            // 1つ前は縦長。ペアか？
+            const prevPrevIndex = this.imageIndex - 2;
+            if (prevPrevIndex < 0) {
+              targetIndex = prevIndex; // -1 (ペア相手なし)
+            } else {
+              const isPrevPrevWide = await this.isImageWide(prevPrevIndex);
+              if (!isPrevPrevWide) {
+                // 2つ前も縦長 -> ペア成立
+                targetIndex = prevPrevIndex; // -2
+              } else {
+                // 2つ前は横長 -> 1つ前はペア相手に選ばれず単独表示(または次の横長とはペア組まない)だったはず
+                // ※ renderSpreadPageのロジックでは「現在=縦, 次=横」なら「現在」は単独表示になる。
+                // つまり prevPrev(Wide) -> prev(Tall) -> current(Tall) の並びなら
+                // prevPrev は単独。 prev は current とペアにはならない(prevPrevの一部ではない)。
+                // 待てよ、 prevPrev(Wide) | prev(Tall) | current...
+                // prevPrevの次は prev。 prevPrevは単独表示。
+                // 次に prev を表示する際、 prev(Tall) の次は current(Tall) なので prev+current ペアになるはず...？
+                // ああ、ここが重要。「prevPrevがWide」だった場合、そこでページ区切り。
+                // 次のページは prev から始まる。
+                // prev(Tall) + next(Tall) ならペアになる。
+                // なので、 prevPrev が Wide なら、 prev は新しいペアの先頭になれる。
+                // つまり prev と prev+1 (current) がペアだった可能性がある。
+                // しかし、今「current」にいるということは、current が表示先頭。
+                // つまり prev は表示されていなかった。
+                // ということは prev は current とペアではなかった（currentが先頭だから）。
+                // もし prev と current がペアなら、表示は prev を先頭にしているはず。
+                // なので current が表示先頭なら、 prev は「前のspread」に含まれていた。
+                //
+                // パターン整理:
+                // [P-2(T), P-1(T)] -> 今 [C(..)] : 戻るなら P-2 (-2)
+                // [P-2(W)] -> [P-1(T)] -> 今 [C(..)] (※P-1の次がCならペアのはずだが、Cが先頭ということはP-1は孤立？)
+                // ありえるケース:
+                //   P-1(T), C(W) ... P-1は単独表示(step=1)。次はC。 -> 今 C。戻るなら P-1 (-1)。
+                //   つまり「P-1とペアになる相手」は C なのだが、CがWideだからペア解消された。
+                //   この場合 P-1 は単独。
+                //
+                // 判定ロジック再考:
+                // 「P-1 を先頭として renderSpreadPage した場合、 step はいくつか？」を判定すれば確実。
+                // renderSpreadPage(P-1) をシミュレート。
+                //   P-1 is Wide? No.
+                //   Check P-1's Next (P-0 a.k.a current).
+                //   If current is Wide?
+                //     Yes -> P-1 step is 1. => 戻り先は P-1 (-1).
+                //     No (current is Tall) -> P-1 step is 2. => 戻り先は P-1 (-2)? いや、P-1から始まって step2なら P-1, current が表示される。
+                //     今 current にいるなら、本来 P-1 が表示されているべきペアだったのでは？
+                //     ユーザーが手動で current に飛んだ場合などはありえるが、順送りなら P-1, current と表示されるはず。
+                //     しかし「戻る」ボタンを押す状況では、今は current が先頭で見えている。
+                //     つまり [P-2, P-1] の次ページとして current が来ていると仮定するのが自然。
+                //     (P-1 と current がペアなら、今 current 単独で見ているのは変だが、
+                //      もし P-1(T) + current(W) なら P-1単独 -> current単独 となるので、今 current 閲覧中はありえる)
+                //
+                // ケース1: [P-2(T), P-1(T)] -> [current(T)...]
+                //   P-1 のパートナーは P-2. なので P-2 へ戻る (-2).
+                // ケース2: [P-1(T)] -> [current(W)] (P-1の次は本来ペアだが次がWなので単独)
+                //   これは「P-1から見た次」の話。
+                //   「戻る」動作は「何が表示されていたか」を復元する。
+                //   P-1 が P-2 とペアだったのか、単独だったのかを知りたい。
+                //   -> P-2 が T なら P-2 とペア (-2).
+                //   -> P-2 が W なら P-1 はペア相手不在(前のWとは組めない) -> P-1 は新しい先頭 (-1).
+                //   -> P-2 が存在しない(Index<0) -> P-1 は先頭 (-1).
+                //
+                // 結論:
+                //   P-1(T) の場合:
+                //     Check P-2.
+                //     If P-2 exists AND P-2 is Tall -> They form a pair [P-2, P-1]. Return -2.
+                //     Else (P-2 is Wide or None) -> P-1 stands alone [P-1]. Return -1.
+
+                targetIndex = prevPrevIndex; // -2
+              }
+            }
           }
         }
       }
@@ -1669,7 +1756,7 @@ export class ReaderController {
       // あるいは step が未指定(undefined)の場合のみ currentSpreadStep を使う。
       // UIからは next() (undefined) か next(1) が呼ばれる。
 
-      const actualStep = step !== undefined ? step : (this.currentSpreadStep || 2);
+      const actualStep = step !== undefined ? step : (this.currentSpreadStep || 1);
       targetIndex = Math.min(this.imagePages.length - 1, this.imageIndex + actualStep);
     } else {
       targetIndex = Math.min(this.imagePages.length - 1, this.imageIndex + (step || 1));
