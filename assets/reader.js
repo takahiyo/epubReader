@@ -1422,12 +1422,14 @@ export class ReaderController {
     // 元の画像を非表示
     this.imageElement.style.display = 'none';
 
-    const container = this.imageViewer.querySelector('.spread-container') || this.imageViewer;
-    if (!container.classList.contains('spread-container')) {
+    // --- 修正箇所 ---
+    // 以前のコードではここで this.imageViewer 自体のクラスを書き換えてしまうバグがありました
+    let container = this.imageViewer.querySelector('.spread-container');
+    if (!container) {
+      // コンテナが存在しない場合は新規作成して追加する
+      container = document.createElement('div');
       container.className = 'spread-container';
-      if (this.imageViewer && !this.imageViewer.querySelector('.spread-container')) {
-        this.imageViewer.appendChild(container);
-      }
+      this.imageViewer.appendChild(container);
     }
 
     // 画像書庫ならクリック無効
