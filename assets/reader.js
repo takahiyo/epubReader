@@ -1088,8 +1088,9 @@ export class ReaderController {
         console.log("Opening RAR file...");
         const { createExtractorFromData } = await this.ensureUnrar();
         const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
+        // 1. getFileListの結果（イテレータ）を配列に変換
         const list = extractor.getFileList();
-        const headers = list?.fileHeaders ?? list?.files ?? [];
+        const headers = [...list];
         console.log(`Found ${headers.length} entries in RAR`);
 
         // デバッグ: 最初の数エントリを表示
@@ -1108,19 +1109,12 @@ export class ReaderController {
           const fileName = normalized.split("/").pop() ?? "";
           const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
 
-          // 隠しファイルを除外 (.DS_Store, Thumbs.db, __MACOSX など)
           if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
             return false;
           }
 
           const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
-          const result = !isDir && isImage;
-
-          if (result) {
-            console.log(`✓ Including: ${name}`);
-          }
-
-          return result;
+          return !isDir && isImage;
         });
 
         console.log(`Filtered ${imageHeaders.length} image entries`);
@@ -1135,14 +1129,24 @@ export class ReaderController {
           .filter(Boolean);
 
         console.log('Extracting images:', imageNames);
-        const extracted = extractor.extractFiles(imageNames);
-        const extractedFiles = extracted?.files ?? extracted ?? [];
+
+        // 2. extractメソッドを使用し、結果（イテレータ）を配列に変換
+        const extracted = extractor.extract({ files: imageNames });
+        const extractedFiles = [...extracted];
 
         images = extractedFiles
           .map((item) => {
             const header = item?.fileHeader ?? item?.header ?? item;
             const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
-            const data = item?.extraction?.data ?? item?.data;
+
+            // 3. データ取得ロジックをv2に対応 (item.extraction が Uint8Array の場合がある)
+            let data = item?.extraction;
+            if (data && data.data) {
+              // 古い構造へのフォールバック
+              data = data.data;
+            } else if (item?.data) {
+              data = item.data;
+            }
 
             if (!data) {
               console.warn(`Failed to extract data for: ${name}`);
