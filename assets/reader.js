@@ -211,50 +211,45 @@ export class ReaderController {
       }
     }
 
-    // CDNから読み込む (ESM + WASM)
+    // CDNから読み込む
     try {
-      console.log("Loading node-unrar-js from CDN...");
+      console.log("Loading node-unrar-js from esm.sh...");
 
-      // バンドル済みファイルのベースURL (distディレクトリを使用)
-      // バージョン 2.0.2 を指定
-      const CDN_BASE = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist";
+      // JS: ブラウザ互換に変換してくれる esm.sh を使用
+      const JS_URL = "https://esm.sh/node-unrar-js@2.0.2";
+      // WASM: 静的ファイルは jsdelivr から取得
+      const WASM_URL = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm";
 
-      // 1. WASMバイナリを取得 (dist/js/unrar.wasm にあると想定)
-      // ※ もし404になる場合は esm/js/unrar.wasm も試行するロジックを入れると堅牢ですが、
-      //    まずは dist/js/unrar.wasm を試します。
-      const wasmUrl = `${CDN_BASE}/js/unrar.wasm`;
-      console.log(`Fetching WASM from: ${wasmUrl}`);
+      // 1. WASMバイナリを取得
+      console.log(`Fetching WASM from: ${WASM_URL}`);
+      const wasmPromise = fetch(WASM_URL).then(res => {
+        if (!res.ok) throw new Error(`Failed to load WASM: ${res.status} ${res.statusText}`);
+        return res.arrayBuffer();
+      });
 
-      const wasmPromise = fetch(wasmUrl)
-        .then(async res => {
-          if (!res.ok) {
-            // フォールバック: dist/js にない場合は esm/js を試す
-            const fallbackUrl = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/esm/js/unrar.wasm";
-            console.warn(`Failed to load WASM from dist. Trying fallback: ${fallbackUrl}`);
-            const res2 = await fetch(fallbackUrl);
-            if (!res2.ok) throw new Error(`Failed to load WASM: ${res2.status} ${res2.statusText}`);
-            return res2.arrayBuffer();
-          }
-          return res.arrayBuffer();
-        });
-
-      // 2. JSモジュール (バンドル済みESM) を読み込み
-      // esm/index.js ではなく dist/index.esm.js を使用する
-      const moduleUrl = `${CDN_BASE}/index.esm.js`;
-      console.log(`Importing JS from: ${moduleUrl}`);
-      const modulePromise = import(moduleUrl);
+      // 2. JSモジュールを読み込み
+      console.log(`Importing JS from: ${JS_URL}`);
+      const modulePromise = import(JS_URL);
 
       // 両方の完了を待つ
       const [wasmBinary, module] = await Promise.all([wasmPromise, modulePromise]);
 
+      // エクスポートの取得 (esm.sh は Named Export または default に格納される)
+      const createExtractor = module.createExtractorFromData || module.default?.createExtractorFromData;
+
+      if (!createExtractor) {
+        console.error("Loaded module exports:", module);
+        throw new Error("createExtractorFromData がモジュール内に見つかりません。");
+      }
+
       console.log("node-unrar-js loaded successfully.");
 
-      // 3. createExtractorFromData をラップして WASM を自動注入するオブジェクトを返す
+      // 3. ラッパーオブジェクトを返す (WASMを自動注入)
       return {
         createExtractorFromData: async (options) => {
-          return module.createExtractorFromData({
+          return createExtractor({
             ...options,
-            wasmBinary: wasmBinary
+            wasmBinary: wasmBinary // 手動取得したバイナリを渡す
           });
         }
       };
