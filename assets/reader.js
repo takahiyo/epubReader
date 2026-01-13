@@ -199,73 +199,53 @@ export class ReaderController {
   }
 
   async ensureUnrar() {
-    // プレースホルダーかどうかを判定する関数
-    const isPlaceholder = (unrarLib) =>
-      typeof unrarLib?.createExtractorFromData === "function" &&
-      unrarLib.createExtractorFromData.name === "missing";
-
-    // 既にロード済みで、かつプレースホルダーでないならそれを返す
+    // ローカルの window.unrar があればそれを使う (後方互換性)
     if (typeof window !== "undefined") {
       const existing = window.unrar || window.Unrar || window.UnRAR;
+      const isPlaceholder = (lib) =>
+        typeof lib?.createExtractorFromData === "function" &&
+        lib.createExtractorFromData.name === "missing";
+
       if (existing && !isPlaceholder(existing)) {
         return existing;
       }
     }
 
-    // ローカルファイルの読み込みを試みる
+    // CDNから読み込む (ESM + WASM)
     try {
-      // WASMのパス解決用（ローカル）
-      if (typeof window !== "undefined") {
-        window.Module = {
-          ...(window.Module || {}),
-          locateFile: (path) => `./assets/vendor/${path}`,
-        };
-      }
-      await this.loadScript("./assets/vendor/unrar.js");
-    } catch (error) {
-      console.warn("Local unrar.js load failed or missing. Trying CDN...");
-    }
+      console.log("Loading node-unrar-js from CDN (ESM)...");
+      const CDN_BASE = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2";
 
-    // ロード後のチェック
-    let localUnrar = typeof window !== "undefined" ? (window.unrar || window.Unrar || window.UnRAR) : null;
+      // 1. WASMバイナリを並行して取得
+      const wasmPromise = fetch(`${CDN_BASE}/esm/js/unrar.wasm`)
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed to load WASM: ${res.status} ${res.statusText}`);
+          return res.arrayBuffer();
+        });
 
-    // ローカルが失敗、またはプレースホルダーだった場合はCDNからロード
-    if (!localUnrar || isPlaceholder(localUnrar)) {
-      console.log("Loading unrar.js from CDN...");
-      return this.loadUnrarFromCdn();
-    }
+      // 2. JSモジュールを読み込み
+      const modulePromise = import(`${CDN_BASE}/esm/index.js`);
 
-    return localUnrar;
-  }
+      // 両方の完了を待つ
+      const [wasmBinary, module] = await Promise.all([wasmPromise, modulePromise]);
 
-  async loadUnrarFromCdn() {
-    // node-unrar-js の CDN URL
-    const cdnBase = "https://cdn.jsdelivr.net/npm/node-unrar-js@0.8.1/dist";
-    const cdnScript = `${cdnBase}/unrar.min.js`;
-    const cdnWasm = `${cdnBase}/unrar.wasm`;
+      console.log("node-unrar-js loaded successfully.");
 
-    // WASMファイルのパスをCDNに向ける
-    if (typeof window !== "undefined") {
-      window.Module = {
-        ...(window.Module || {}),
-        locateFile: (path) => {
-          if (path.endsWith('.wasm')) {
-            return cdnWasm;
-          }
-          return path;
+      // 3. createExtractorFromData をラップして WASM を自動注入するオブジェクトを返す
+      return {
+        createExtractorFromData: async (options) => {
+          // 元のオプションに wasmBinary を強制的に追加
+          return module.createExtractorFromData({
+            ...options,
+            wasmBinary: wasmBinary
+          });
         }
       };
+
+    } catch (error) {
+      console.error("RAR Library Load Error:", error);
+      throw new Error(`RARライブラリの読み込みに失敗しました: ${error.message}`);
     }
-
-    await this.loadScript(cdnScript);
-
-    // ロード完了待ちと取得
-    const cdnUnrar = window.unrar || window.Unrar || window.UnRAR;
-    if (!cdnUnrar) {
-      throw new Error("CDNからのRARライブラリ読み込みに失敗しました。");
-    }
-
-    return cdnUnrar;
   }
 
   async loadScript(src) {
