@@ -1042,7 +1042,7 @@ export class ReaderController {
     this.resetReaderState();
     this.toc = [];
     const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar = bookType === "rar" || ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
+    const isRar = bookType === "rar" || ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed" || file.type === "application/x-cbr";
     // type: "zip" | "rar" として設定
     this.type = isRar ? "rar" : "zip";
     const buffer = await file.arrayBuffer();
@@ -1081,7 +1081,7 @@ export class ReaderController {
             return false;
           }
 
-          const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+          const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
           const result = !isDir && isImage;
 
           if (result) {
@@ -1095,7 +1095,7 @@ export class ReaderController {
 
         if (imageHeaders.length === 0) {
           console.error('No image files found in RAR. Available files:', headers.map(h => h?.name ?? h?.fileName));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
+          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
         }
 
         const imageNames = imageHeaders
@@ -1152,7 +1152,7 @@ export class ReaderController {
               return false;
             }
 
-            const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+            const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
 
             if (isImage) {
               console.log(`✓ Including: ${path}`);
@@ -1166,12 +1166,12 @@ export class ReaderController {
 
         if (images.length === 0) {
           console.error('No image files found in ZIP. Available files:', entries.map(e => e.path));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
+          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
         }
       }
 
       if (!images.length) {
-        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, BMP");
+        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
       }
 
       // 階層対応 + ファイル名順に統一してソート
@@ -1251,9 +1251,10 @@ export class ReaderController {
         ext === "png" ? "image/png" :
           ext === "gif" ? "image/gif" :
             ext === "webp" ? "image/webp" :
-              ext === "bmp" ? "image/bmp" :
-                ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-                  "image/jpeg";
+              ext === "avif" ? "image/avif" :
+                ext === "bmp" ? "image/bmp" :
+                  ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+                    "image/jpeg";
       const dataUrl = `data:${mime};base64,${base64}`;
       this.imagePages[index] = dataUrl;
       return dataUrl;
