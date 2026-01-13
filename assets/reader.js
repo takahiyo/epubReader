@@ -213,18 +213,36 @@ export class ReaderController {
 
     // CDNから読み込む (ESM + WASM)
     try {
-      console.log("Loading node-unrar-js from CDN (ESM)...");
-      const CDN_BASE = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2";
+      console.log("Loading node-unrar-js from CDN...");
 
-      // 1. WASMバイナリを並行して取得
-      const wasmPromise = fetch(`${CDN_BASE}/esm/js/unrar.wasm`)
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed to load WASM: ${res.status} ${res.statusText}`);
+      // バンドル済みファイルのベースURL (distディレクトリを使用)
+      // バージョン 2.0.2 を指定
+      const CDN_BASE = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist";
+
+      // 1. WASMバイナリを取得 (dist/js/unrar.wasm にあると想定)
+      // ※ もし404になる場合は esm/js/unrar.wasm も試行するロジックを入れると堅牢ですが、
+      //    まずは dist/js/unrar.wasm を試します。
+      const wasmUrl = `${CDN_BASE}/js/unrar.wasm`;
+      console.log(`Fetching WASM from: ${wasmUrl}`);
+
+      const wasmPromise = fetch(wasmUrl)
+        .then(async res => {
+          if (!res.ok) {
+            // フォールバック: dist/js にない場合は esm/js を試す
+            const fallbackUrl = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/esm/js/unrar.wasm";
+            console.warn(`Failed to load WASM from dist. Trying fallback: ${fallbackUrl}`);
+            const res2 = await fetch(fallbackUrl);
+            if (!res2.ok) throw new Error(`Failed to load WASM: ${res2.status} ${res2.statusText}`);
+            return res2.arrayBuffer();
+          }
           return res.arrayBuffer();
         });
 
-      // 2. JSモジュールを読み込み
-      const modulePromise = import(`${CDN_BASE}/esm/index.js`);
+      // 2. JSモジュール (バンドル済みESM) を読み込み
+      // esm/index.js ではなく dist/index.esm.js を使用する
+      const moduleUrl = `${CDN_BASE}/index.esm.js`;
+      console.log(`Importing JS from: ${moduleUrl}`);
+      const modulePromise = import(moduleUrl);
 
       // 両方の完了を待つ
       const [wasmBinary, module] = await Promise.all([wasmPromise, modulePromise]);
@@ -234,7 +252,6 @@ export class ReaderController {
       // 3. createExtractorFromData をラップして WASM を自動注入するオブジェクトを返す
       return {
         createExtractorFromData: async (options) => {
-          // 元のオプションに wasmBinary を強制的に追加
           return module.createExtractorFromData({
             ...options,
             wasmBinary: wasmBinary
