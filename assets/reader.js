@@ -199,33 +199,65 @@ export class ReaderController {
   }
 
   async ensureUnrar() {
-    if (typeof unrar !== "undefined") {
-      return unrar;
-    }
+    // ローカルの window.unrar があればそれを使う (後方互換性)
     if (typeof window !== "undefined") {
       const existing = window.unrar || window.Unrar || window.UnRAR;
-      if (existing) {
-        window.unrar = existing;
+      const isPlaceholder = (lib) =>
+        typeof lib?.createExtractorFromData === "function" &&
+        lib.createExtractorFromData.name === "missing";
+
+      if (existing && !isPlaceholder(existing)) {
         return existing;
       }
-      window.Module = {
-        ...(window.Module || {}),
-        locateFile: (path) => `./assets/vendor/${path}`,
-      };
     }
+
+    // CDNから読み込む
     try {
-      await this.loadScript("./assets/vendor/unrar.js");
+      console.log("Loading node-unrar-js from esm.sh...");
+
+      // JS: ブラウザ互換に変換してくれる esm.sh を使用
+      const JS_URL = "https://esm.sh/node-unrar-js@2.0.2";
+      // WASM: 静的ファイルは jsdelivr から取得
+      const WASM_URL = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm";
+
+      // 1. WASMバイナリを取得
+      console.log(`Fetching WASM from: ${WASM_URL}`);
+      const wasmPromise = fetch(WASM_URL).then(res => {
+        if (!res.ok) throw new Error(`Failed to load WASM: ${res.status} ${res.statusText}`);
+        return res.arrayBuffer();
+      });
+
+      // 2. JSモジュールを読み込み
+      console.log(`Importing JS from: ${JS_URL}`);
+      const modulePromise = import(JS_URL);
+
+      // 両方の完了を待つ
+      const [wasmBinary, module] = await Promise.all([wasmPromise, modulePromise]);
+
+      // エクスポートの取得 (esm.sh は Named Export または default に格納される)
+      const createExtractor = module.createExtractorFromData || module.default?.createExtractorFromData;
+
+      if (!createExtractor) {
+        console.error("Loaded module exports:", module);
+        throw new Error("createExtractorFromData がモジュール内に見つかりません。");
+      }
+
+      console.log("node-unrar-js loaded successfully.");
+
+      // 3. ラッパーオブジェクトを返す (WASMを自動注入)
+      return {
+        createExtractorFromData: async (options) => {
+          return createExtractor({
+            ...options,
+            wasmBinary: wasmBinary // 手動取得したバイナリを渡す
+          });
+        }
+      };
+
     } catch (error) {
-      throw new Error("RARの読み込みに失敗しました。wasmの読み込みに失敗している可能性があります。");
+      console.error("RAR Library Load Error:", error);
+      throw new Error(`RARライブラリの読み込みに失敗しました: ${error.message}`);
     }
-    const localUnrar = typeof window !== "undefined"
-      ? (window.unrar || window.Unrar || window.UnRAR)
-      : null;
-    if (!localUnrar) {
-      throw new Error("RARの読み込みに失敗しました。wasmの読み込みに失敗している可能性があります。");
-    }
-    window.unrar = localUnrar;
-    return localUnrar;
   }
 
   async loadScript(src) {
@@ -1042,7 +1074,7 @@ export class ReaderController {
     this.resetReaderState();
     this.toc = [];
     const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar = bookType === "rar" || ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed";
+    const isRar = bookType === "rar" || ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed" || file.type === "application/x-cbr";
     // type: "zip" | "rar" として設定
     this.type = isRar ? "rar" : "zip";
     const buffer = await file.arrayBuffer();
@@ -1055,9 +1087,13 @@ export class ReaderController {
       if (isRar) {
         console.log("Opening RAR file...");
         const { createExtractorFromData } = await this.ensureUnrar();
-        const extractor = createExtractorFromData({ data: new Uint8Array(buffer) });
+        const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
+
+        // 1. getFileListの結果から fileHeaders を取得して配列に変換
+        // 修正: v2では戻り値が { arcHeader, fileHeaders } となっているため .fileHeaders にアクセスする
         const list = extractor.getFileList();
-        const headers = list?.fileHeaders ?? list?.files ?? [];
+        const headers = [...list.fileHeaders];
+
         console.log(`Found ${headers.length} entries in RAR`);
 
         // デバッグ: 最初の数エントリを表示
@@ -1076,26 +1112,19 @@ export class ReaderController {
           const fileName = normalized.split("/").pop() ?? "";
           const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
 
-          // 隠しファイルを除外 (.DS_Store, Thumbs.db, __MACOSX など)
           if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
             return false;
           }
 
-          const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
-          const result = !isDir && isImage;
-
-          if (result) {
-            console.log(`✓ Including: ${name}`);
-          }
-
-          return result;
+          const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
+          return !isDir && isImage;
         });
 
         console.log(`Filtered ${imageHeaders.length} image entries`);
 
         if (imageHeaders.length === 0) {
           console.error('No image files found in RAR. Available files:', headers.map(h => h?.name ?? h?.fileName));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
+          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
         }
 
         const imageNames = imageHeaders
@@ -1103,14 +1132,25 @@ export class ReaderController {
           .filter(Boolean);
 
         console.log('Extracting images:', imageNames);
-        const extracted = extractor.extractFiles(imageNames);
-        const extractedFiles = extracted?.files ?? extracted ?? [];
+
+        // 2. extractメソッドを使用し、結果から files を取得して配列に変換
+        // 修正: v2では戻り値が { arcHeader, files } となっているため .files にアクセスする
+        const extracted = extractor.extract({ files: imageNames });
+        const extractedFiles = [...extracted.files];
 
         images = extractedFiles
           .map((item) => {
             const header = item?.fileHeader ?? item?.header ?? item;
             const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
-            const data = item?.extraction?.data ?? item?.data;
+
+            // 3. データ取得ロジックをv2に対応 (item.extraction が Uint8Array の場合がある)
+            let data = item?.extraction;
+            if (data && data.data) {
+              // 古い構造へのフォールバック
+              data = data.data;
+            } else if (item?.data) {
+              data = item.data;
+            }
 
             if (!data) {
               console.warn(`Failed to extract data for: ${name}`);
@@ -1152,7 +1192,7 @@ export class ReaderController {
               return false;
             }
 
-            const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+            const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
 
             if (isImage) {
               console.log(`✓ Including: ${path}`);
@@ -1166,17 +1206,15 @@ export class ReaderController {
 
         if (images.length === 0) {
           console.error('No image files found in ZIP. Available files:', entries.map(e => e.path));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, BMP）が含まれているか確認してください。");
+          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
         }
       }
 
       if (!images.length) {
-        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, BMP");
+        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
       }
 
       // 階層対応 + ファイル名順に統一してソート
-      // フォルダ階層を無視して再帰的に全画像を収集済み
-      // path でソート (e.g. "001/010.jpg" < "002/001.jpg")
       images.sort((a, b) => {
         const normalize = (path) => path.replace(/\\/g, "/");
         const aPath = normalize(a.path);
@@ -1251,9 +1289,10 @@ export class ReaderController {
         ext === "png" ? "image/png" :
           ext === "gif" ? "image/gif" :
             ext === "webp" ? "image/webp" :
-              ext === "bmp" ? "image/bmp" :
-                ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-                  "image/jpeg";
+              ext === "avif" ? "image/avif" :
+                ext === "bmp" ? "image/bmp" :
+                  ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+                    "image/jpeg";
       const dataUrl = `data:${mime};base64,${base64}`;
       this.imagePages[index] = dataUrl;
       return dataUrl;

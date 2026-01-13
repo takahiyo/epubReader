@@ -1662,8 +1662,8 @@ async function openFromLibrary(bookId, options = {}) {
 function detectFileType(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'epub') return 'epub';
-  if (ext === 'rar' || ext === 'cbr') return 'rar';
-  return 'zip'; // .zip, .cbz, etc.
+  if (ext === 'rar' || ext === 'cbr') return 'rar'; // Treat .cbr as RAR
+  return 'zip'; // Treat .zip, .cbz as ZIP
 }
 
 function fileTitle(name) {
@@ -1673,10 +1673,17 @@ function fileTitle(name) {
 function guessMime(type, file) {
   if (type === "epub") return "application/epub+zip";
   if (type === "image") {
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext === "rar") return "application/vnd.rar";
-    return "application/vnd.comicbook+zip";
+    // This branch is for internal image files inside archives, likely unused for the main file
+    // But keeping logic consistent if it were used
+    return "application/octet-stream";
   }
+
+  // For the main file passed to saveFile/handleFile
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (ext === "cbr") return "application/x-cbr";
+  if (ext === "cbz") return "application/vnd.comicbook+zip";
+  if (ext === "rar") return "application/vnd.rar";
+
   return file.type || "application/octet-stream";
 }
 

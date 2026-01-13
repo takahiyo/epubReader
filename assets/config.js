@@ -8,5 +8,5 @@ window.EPUB_READER_CONFIG.googleClientId =
 // アプリ共通設定
 window.APP_CONFIG = {
   GAS_SYNC_ENDPOINT:
-    "https://script.google.com/macros/s/AKfycbzwS0SP00OKHnfw3WHZdBT7w9zF-thjJ7Lufr2wZJqa62FhOkDnPB492_LqWrnufx9W/exec"
+    "https://script.google.com/macros/s/AKfycbw3uw5rRskTSpQXqlbMuUuXyfpFzVxerM2BehKt0gnyZjnD1SMPXs1gH6bW0KhXHiDl/exec"
 };
