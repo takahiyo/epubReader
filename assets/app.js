@@ -45,6 +45,7 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = "horizontal";
 if (!pageDirection) pageDirection = "ltr";
+let defaultDirection = settings.defaultDirection ?? "rtl";
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? "grid";
 let autoSyncInterval = null;
@@ -54,6 +55,7 @@ let currentToc = [];
 let uiInitialized = false;
 let floatVisible = false;
 let googleLoginReady = false;
+let userOverrodeDirection = false;
 
 const UI_STRINGS = {
   ja: {
@@ -213,6 +215,69 @@ const UI_STRINGS = {
   },
 };
 
+// 1. Lottieアニメーションデータ (Book.jsonの内容)
+// TODO: ここに実際のJSONデータをペーストしてください
+const LOADER_ANIMATION_DATA = { "v": "5.5.7", "meta": { "g": "LottieFiles AE 0.1.20", "a": "", "k": "", "d": "", "tc": "" }, "fr": 45, "ip": 0, "op": 54, "w": 400, "h": 400, "nm": "book", "ddd": 0, "assets": [], "layers": [{ "ddd": 0, "ind": 1, "ty": 4, "nm": "Shape Layer 5", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 200, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[0, 0], [0, 0]], "o": [[0, 0], [0, 0]], "v": [[0, 49.5], [0, -24.5]], "c": false }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 0, "k": 100, "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 2, "ty": 4, "nm": "page animation", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [264.109, 208.537, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 1, "k": [{ "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 0, "s": [{ "i": [[17.35, 0], [4.957, -7], [0, 0], [-18.291, 0], [-36.582, 0], [0, 0]], "o": [[-15.698, 0], [0, 0], [5.776, -7], [20.216, 0], [0, 0], [-31.395, 0]], "v": [[-33.105, -43], [-64.5, -31], [-64.5, 43], [-27.918, 31], [64.5, 43], [46.209, -31]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 5, "s": [{ "i": [[17.35, 0], [4.957, -7], [0, 0], [-18.291, 0], [-36.582, 0], [0, 0]], "o": [[-15.698, 0], [0, 0], [5.776, -7], [20.216, 0], [0, 0], [-31.395, 0]], "v": [[-33.105, -43], [-64.5, -31], [-64.5, 43], [-27.918, 31], [64.5, 43], [46.209, -31]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 10, "s": [{ "i": [[17.35, 0.079], [4.989, -6.977], [0, 0], [-18.291, -0.083], [-15.552, 8.301], [3.153, 13.883]], "o": [[-15.697, -0.071], [0, 0], [5.808, -6.974], [20.216, 0.092], [-7.552, -8.699], [-26.847, -1.617]], "v": [[-32.91, -43.15], [-64.359, -31.292], [-64.694, 42.707], [-28.058, 30.873], [65.804, 27.542], [46.349, -30.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 15, "s": [{ "i": [[14.661, -1.007], [4.989, -6.977], [0, 0], [-18.057, 2.916], [-22.302, 15.551], [1.153, 9.633]], "o": [[-15.661, 1.076], [0, 0], [5.808, -6.974], [20.31, -3.28], [-11.802, -22.949], [-17.597, 1.883]], "v": [[-33.41, -46.15], [-64.359, -31.292], [-64.694, 42.707], [-32.058, 25.373], [41.804, 8.292], [26.099, -45.04]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 20, "s": [{ "i": [[12.411, -10.257], [4.989, -6.977], [0, 0], [-15.983, 12.327], [-22.302, 15.551], [1.153, 9.633]], "o": [[-11.657, 9.634], [0, 0], [5.808, -6.974], [11.06, -8.53], [-11.802, -22.949], [-7.347, 9.383]], "v": [[-38.16, -56.15], [-64.359, -31.292], [-64.694, 42.707], [-34.558, 14.873], [18.054, -23.458], [-5.651, -85.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 25, "s": [{ "i": [[1.411, -10.507], [4.611, -10.365], [0, 0], [-4.809, 19.603], [-0.802, 13.801], [1.153, 9.633]], "o": [[-0.861, 6.41], [0, 0], [5.808, -6.974], [3.81, -15.53], [-1.802, -13.199], [-1.597, 17.633]], "v": [[-55.66, -71.15], [-64.359, -31.292], [-64.694, 42.707], [-49.558, -3.627], [-43.446, -50.958], [-51.151, -115.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 30, "s": [{ "i": [[-3.589, -11.507], [-0.889, -11.365], [0, 0], [5.509, 19.418], [5.698, 13.301], [-0.097, 22.633]], "o": [[1.926, 6.175], [0, 0], [-2.054, -11.364], [-4.69, -16.53], [2.198, -15.199], [5.403, 20.133]], "v": [[-72.16, -69.65], [-64.359, -31.292], [-64.694, 42.707], [-75.058, -7.627], [-90.446, -52.458], [-87.651, -119.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 35, "s": [{ "i": [[-9.089, -11.007], [-0.889, -11.365], [0, 0], [14.024, 14.517], [17.198, 3.801], [-4.097, 19.633]], "o": [[6.964, 8.435], [0, 0], [-2.054, -11.364], [-9.69, -10.03], [5.198, -16.199], [15.403, 8.133]], "v": [[-79.66, -66.15], [-64.359, -31.292], [-64.694, 42.707], [-89.058, -2.127], [-138.946, -26.458], [-120.151, -93.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 40, "s": [{ "i": [[-11.744, -2.718], [-0.889, -11.365], [0, 0], [15.81, 1.47], [18.698, 4.301], [-4.097, 19.633]], "o": [[19.411, 4.493], [0, 0], [-2.054, -11.364], [-13.886, -1.291], [5.698, -20.699], [16.403, 5.633]], "v": [[-93.66, -52.65], [-64.359, -31.292], [-64.694, 42.707], [-102.058, 19.373], [-160.946, 12.542], [-143.151, -61.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 45, "s": [{ "i": [[-21.589, -0.007], [-0.889, -11.365], [0, 0], [15.81, 1.47], [21.698, 6.801], [-4.097, 19.633]], "o": [[13.411, 0.005], [0, 0], [-2.054, -11.364], [-13.886, -1.291], [5.698, -16.699], [16.403, 5.633]], "v": [[-95.66, -49.15], [-64.359, -31.292], [-64.694, 42.707], [-102.558, 21.873], [-182.946, 25.542], [-163.651, -42.29]], "c": true }] }, { "t": 50.0000020365418, "s": [{ "i": [[-21.589, -0.007], [-6.389, -7.865], [0, 0], [12.813, 0.384], [31.198, -0.62], [-4.097, 19.633]], "o": [[13.411, 0.005], [0, 0], [-8.554, -6.864], [-20.69, -0.62], [5.698, -16.699], [19.903, -0.62]], "v": [[-96.66, -44.15], [-64.359, -31.292], [-64.694, 42.707], [-99.558, 31.373], [-194.446, 43.542], [-175.151, -32.79]], "c": true }] }], "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 1, "k": [{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 50, "s": [100] }, { "t": 52.0000021180034, "s": [0] }], "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 1, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 1, "k": [{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 50, "s": [100] }, { "t": 52.0000021180034, "s": [0] }], "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0.639, 0.62], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 3, "ty": 4, "nm": "pages", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 209, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[-4.957, -7], [-15.698, 0], [-31.395, 0], [0, 0], [20.216, 0], [5.776, -7], [18.291, 0], [36.582, 0], [0, 0], [-17.35, 0]], "o": [[4.957, -7], [17.35, 0], [0, 0], [-36.582, 0], [-18.291, 0], [-5.776, -7], [-20.216, 0], [0, 0], [31.395, 0], [15.698, 0]], "v": [[0, -31], [31.395, -43], [110.709, -31], [129, 43], [36.582, 31], [0, 43], [-36.582, 31], [-129, 43], [-110.709, -31], [-31.395, -43]], "c": true }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 4, "ty": 4, "nm": "cover", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 264, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[0, 0], [0, 0], [6, 0], [2, 3], [0, 0]], "o": [[0, 0], [-2, 3], [-6, 0], [0, 0], [0, 0]], "v": [[134, -2], [12, -2], [0, 2], [-12, -2], [-134, -2]], "c": false }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 5, "ty": 4, "nm": "bkgr", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [262.668, 179.393, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ty": "rc", "d": 1, "s": { "a": 0, "k": [400, 400], "ix": 2 }, "p": { "a": 0, "k": [0, 0], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 4 }, "nm": "Rectangle Path 1", "mn": "ADBE Vector Shape - Rect", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 0, "k": 100, "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [-62.668, 20.607], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Rectangle 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }], "markers": [] };
+
+// 2. ローディング制御用変数と関数
+let lottieInstance = null;
+
+function initLoadingAnimation() {
+  const container = document.getElementById('lottie-loader');
+  if (!container) return;
+
+  // lottieが読み込まれているか確認
+  if (typeof lottie === 'undefined') {
+    console.warn('Lottie library not loaded.');
+    return;
+  }
+
+  // データがない場合は初期化しない (またはプレースホルダーを表示)
+  if (!LOADER_ANIMATION_DATA) {
+    console.warn('Lottie animation data (LOADER_ANIMATION_DATA) is missing.');
+    return;
+  }
+
+  // ★追加: 背景レイヤー('bkgr')を削除して透過させる
+  if (LOADER_ANIMATION_DATA.layers) {
+    LOADER_ANIMATION_DATA.layers = LOADER_ANIMATION_DATA.layers.filter(layer => layer.nm !== 'bkgr');
+  }
+
+  try {
+    lottieInstance = lottie.loadAnimation({
+      container: container,
+      renderer: 'svg',
+      loop: true,
+      autoplay: false, // 表示されるまで再生しない
+      animationData: LOADER_ANIMATION_DATA
+    });
+  } catch (e) {
+    console.error('Failed to initialize Lottie animation:', e);
+  }
+}
+
+function showLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) {
+    overlay.classList.add('visible');
+    lottieInstance?.play();
+  }
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) {
+    overlay.classList.remove('visible');
+    lottieInstance?.stop(); // 非表示時は停止してリソース節約
+  }
+}
+
+// 初期化実行
+document.addEventListener('DOMContentLoaded', () => {
+  initLoadingAnimation();
+});
+
+
 function getUiStrings(language = uiLanguage) {
   return UI_STRINGS[language] ?? UI_STRINGS.ja;
 }
@@ -319,6 +384,7 @@ const elements = {
   themeSelect: document.getElementById("themeSelect"),
   writingModeSelect: document.getElementById("writingMode"),
   pageDirectionSelect: document.getElementById("pageDirection"),
+  settingsDefaultDirection: document.getElementById("settingsDefaultDirection"),
   progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
   exportDataBtn: document.getElementById("exportDataBtn"),
   importDataInput: document.getElementById("importDataInput"),
@@ -362,7 +428,8 @@ const elements = {
 
   // 画像書庫用ボタン
   toggleSpreadMode: document.getElementById("toggleSpreadMode"),
-  toggleReadingDirection: document.getElementById("toggleReadingDirection"),
+  toggleReadingDirectionEpub: document.getElementById("toggleReadingDirectionEpub"),
+  toggleReadingDirectionImage: document.getElementById("toggleReadingDirectionImage"),
   toggleZoom: document.getElementById("toggleZoom"),
 };
 
@@ -395,6 +462,14 @@ const ui = new UIController({
   isImageBook: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar"),
   isSpreadMode: () => reader.imageViewMode === "spread",
   getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
+  getReadingDirection: () => {
+    // EPUBの場合は pageDirection (ltr/rtl)
+    if (currentBookInfo?.type === 'epub') {
+      return pageDirection;
+    }
+    // 画像書庫の場合は reader.imageReadingDirection
+    return reader.imageReadingDirection;
+  },
   onFloatToggle: () => {
     toggleFloatOverlay();
     // グリッドオーバーレイの表示切替
@@ -491,7 +566,15 @@ setupViewerIframeClickBridge();
 const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector('.progress-track'),
   thumb: elements.progressThumb,
-  getIsRtl: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar") && reader.imageReadingDirection === "rtl",
+  getIsRtl: () => {
+    if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
+      return reader.imageReadingDirection === "rtl";
+    }
+    if (currentBookInfo?.type === 'epub') {
+      return pageDirection === 'rtl';
+    }
+    return false;
+  },
   onSeek: (percentage) => {
     // パーセンテージからページ位置を計算してジャンプ
     seekToPercentage(percentage);
@@ -501,7 +584,15 @@ const progressBarHandler = new ProgressBarHandler({
 const floatProgressHandler = new ProgressBarHandler({
   container: elements.floatProgressTrack,
   thumb: elements.floatProgressThumb,
-  getIsRtl: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar") && reader.imageReadingDirection === "rtl",
+  getIsRtl: () => {
+    if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
+      return reader.imageReadingDirection === "rtl";
+    }
+    if (currentBookInfo?.type === 'epub') {
+      return pageDirection === 'rtl';
+    }
+    return false;
+  },
   onSeek: (percentage) => {
     seekToPercentage(percentage);
   },
@@ -527,9 +618,16 @@ function updateFloatingUIButtons() {
   const isEpub = currentBookInfo && currentBookInfo.type === "epub";
   const isBookOpen = currentBookId !== null;
 
-  // 縦/横書き切替ボタン: EPUB のみ表示
+  // 目次ボタン (#openToc)
+  // 書籍（EPUB）が開かれていない状態では無効化
+  if (elements.openToc) {
+    elements.openToc.disabled = !isEpub;
+  }
+
+  // 縦/横書き切替ボタン: 常に表示するが、EPUB以外では無効化
   if (elements.toggleWritingMode) {
-    elements.toggleWritingMode.style.display = isEpub ? "" : "none";
+    elements.toggleWritingMode.style.display = "";
+    elements.toggleWritingMode.disabled = !isEpub;
   }
 
   // 見開き/単ページ切替ボタン: 画像書庫のみ表示
@@ -538,10 +636,26 @@ function updateFloatingUIButtons() {
     updateSpreadModeButtonLabel();
   }
 
-  // 左開き/右開き切替ボタン: 画像書庫のみ表示
-  if (elements.toggleReadingDirection) {
-    elements.toggleReadingDirection.style.display = isImageBook ? "" : "none";
-    updateReadingDirectionButtonLabel();
+  // 左開き/右開き切替ボタン
+  if (elements.toggleReadingDirectionEpub) {
+    if (isEpub) {
+      elements.toggleReadingDirectionEpub.style.display = "";
+      // 【修正】横書きでも開き方向（操作方向）の変更を許可するため、無効化ロジックを削除
+      elements.toggleReadingDirectionEpub.disabled = false;
+      elements.toggleReadingDirectionEpub.style.opacity = "";
+      updateReadingDirectionEpubButtonLabel();
+    } else {
+      elements.toggleReadingDirectionEpub.style.display = "none";
+    }
+  }
+
+  if (elements.toggleReadingDirectionImage) {
+    if (isImageBook) {
+      elements.toggleReadingDirectionImage.style.display = "";
+      updateReadingDirectionButtonLabel();
+    } else {
+      elements.toggleReadingDirectionImage.style.display = "none";
+    }
   }
 
   // ズームボタン: ブックが開いている時のみ表示
@@ -580,16 +694,30 @@ function handleToggleZoom() {
 function updateSpreadModeButtonLabel() {
   if (!elements.toggleSpreadMode) return;
   const isSpread = reader.imageViewMode === "spread";
-  elements.toggleSpreadMode.textContent = isSpread ? "単頁" : "見開";
-  elements.toggleSpreadMode.title = isSpread ? "単ページ表示に切替" : "見開き表示に切替";
+
+  if (isSpread) {
+    elements.toggleSpreadMode.innerHTML = '<span class="material-icons">auto_stories</span> 見開き';
+    elements.toggleSpreadMode.classList.add('active');
+  } else {
+    elements.toggleSpreadMode.innerHTML = '<span class="material-icons">tablet</span> 単ページ';
+    elements.toggleSpreadMode.classList.remove('active');
+  }
 }
 
-// 左開き/右開きボタンのラベルを更新
+// 左開き/右開きボタンのラベルを更新 (画像用)
 function updateReadingDirectionButtonLabel() {
-  if (!elements.toggleReadingDirection) return;
+  if (!elements.toggleReadingDirectionImage) return;
   const isRtl = reader.imageReadingDirection === "rtl";
-  elements.toggleReadingDirection.textContent = isRtl ? "→左" : "右←";
-  elements.toggleReadingDirection.title = isRtl ? "左開き（左から右へ）に切替" : "右開き（右から左へ）に切替";
+  elements.toggleReadingDirectionImage.textContent = isRtl ? "←右開き" : "→左開き";
+  elements.toggleReadingDirectionImage.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
+}
+
+// 左開き/右開きボタンのラベルを更新 (EPUB用)
+function updateReadingDirectionEpubButtonLabel() {
+  if (!elements.toggleReadingDirectionEpub) return;
+  const isRtl = pageDirection === "rtl";
+  elements.toggleReadingDirectionEpub.textContent = isRtl ? "←右開き" : "→左開き";
+  elements.toggleReadingDirectionEpub.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
 }
 
 // ズームボタンのラベルを更新
@@ -603,14 +731,38 @@ function updateZoomButtonLabel() {
 // 進捗バーの方向を更新（RTL時は反転）
 function updateProgressBarDirection() {
   const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
-  const isRtl = reader.imageReadingDirection === "rtl";
-  const progressBar = document.getElementById("floatProgress");
+  let isRtl = false;
 
-  if (progressBar) {
-    if (isImageBook && isRtl) {
-      progressBar.classList.add("rtl-progress");
+  if (isImageBook) {
+    isRtl = reader.imageReadingDirection === "rtl";
+  } else if (currentBookInfo?.type === 'epub') {
+    isRtl = pageDirection === 'rtl';
+  }
+
+  const floatProgressBar = document.getElementById("floatProgress");
+  if (floatProgressBar) {
+    if (isRtl) {
+      floatProgressBar.classList.add("rtl-progress");
     } else {
-      progressBar.classList.remove("rtl-progress");
+      floatProgressBar.classList.remove("rtl-progress");
+    }
+  }
+
+  const progressBarWrapper = document.querySelector('.progress-bar-wrapper');
+  if (progressBarWrapper) {
+    if (isRtl) {
+      progressBarWrapper.classList.add('rtl-mode');
+    } else {
+      progressBarWrapper.classList.remove('rtl-mode');
+    }
+  }
+
+  // [追加] 画像ビューア自体のRTLクラス切替 (スプレッド表示の順序制御用)
+  if (elements.imageViewer) {
+    if (isRtl) {
+      elements.imageViewer.classList.add('rtl-mode');
+    } else {
+      elements.imageViewer.classList.remove('rtl-mode');
     }
   }
 }
@@ -658,6 +810,11 @@ function toggleFloatOverlay(forceVisible) {
   const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
   floatVisible = nextVisible;
   elements.floatOverlay.classList.toggle("visible", floatVisible);
+
+  if (floatVisible) {
+    updateFloatingUIButtons();
+  }
+
   updateProgressBarDisplay();
   if (floatVisible) {
     ui.showClickAreas();
@@ -708,17 +865,7 @@ function formatRelativeTimeEn(timestamp) {
 // ローディングオーバーレイ
 // ========================================
 
-function showLoading() {
-  if (elements.loadingOverlay) {
-    elements.loadingOverlay.classList.add("visible");
-  }
-}
 
-function hideLoading() {
-  if (elements.loadingOverlay) {
-    elements.loadingOverlay.classList.remove("visible");
-  }
-}
 
 function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
   if (!authStatus.authenticated) {
@@ -830,6 +977,26 @@ async function syncAllBooksFromCloud() {
     const index = remote?.index ?? {};
     const updatedAt = remote?.updatedAt ?? Date.now();
     storage.mergeCloudIndex(index, updatedAt);
+
+    // ★追加: クラウドインデックスを元に、ローカル書籍との自動リンクを試行
+    const library = storage.data.library;
+    Object.keys(library).forEach(localBookId => {
+      // まだリンクされていないローカル書籍
+      if (!storage.getCloudBookId(localBookId)) {
+        const book = library[localBookId];
+        if (book && book.contentHash) {
+          // ハッシュ(fingerprint)が一致するクラウド書籍を探す
+          const match = Object.values(index).find(cloudItem =>
+            cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+          );
+          if (match && match.cloudBookId) {
+            console.log(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId}`);
+            storage.setBookLink(localBookId, match.cloudBookId);
+          }
+        }
+      }
+    });
+
     const recentList = Object.values(index)
       .sort((a, b) => (b.lastReadAt ?? b.updatedAt ?? 0) - (a.lastReadAt ?? a.updatedAt ?? 0))
       .slice(0, 5);
@@ -1027,13 +1194,14 @@ function promptSyncCandidate(candidates) {
 function buildCloudStatePayload(localBookId, cloudBookId) {
   const progress = storage.getProgress(localBookId) ?? {};
   const bookmarks = storage.getBookmarks(localBookId) ?? [];
-  const history = (storage.data.history ?? []).filter((entry) => entry.bookId === localBookId);
+  // historyは端末ごとなので送信しない
   const bookInfo = storage.data.library[localBookId];
+
   const updatedAt = Math.max(
     progress?.updatedAt ?? 0,
-    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0),
-    ...history.map((entry) => entry?.updatedAt ?? entry?.openedAt ?? 0),
+    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0)
   );
+
   const state = {
     progress: progress?.percentage ?? 0,
     lastCfi: progress?.location ?? null,
@@ -1045,10 +1213,7 @@ function buildCloudStatePayload(localBookId, cloudBookId) {
       bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
       updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
     })),
-    history: history.map((entry) => ({
-      ...entry,
-      updatedAt: entry?.updatedAt ?? entry?.openedAt ?? Date.now(),
-    })),
+    // historyフィールドを削除
     updatedAt,
   };
   return { cloudBookId, state, updatedAt };
@@ -1066,15 +1231,13 @@ function isEmptyCloudState(state) {
 
 function applyCloudStateToLocal(localBookId, cloudBookId, state) {
   if (!state || !localBookId) return;
-  if (state.bookmarks) {
-    storage.setBookmarks(localBookId, state.bookmarks);
+
+  if (state.bookmarks && Array.isArray(state.bookmarks)) {
+    storage.mergeBookmarks(localBookId, state.bookmarks);
   }
-  if (state.history) {
-    const normalizedHistory = state.history.map((entry) => ({
-      openedAt: entry?.openedAt ?? entry?.updatedAt ?? Date.now(),
-    }));
-    storage.setHistoryEntries(localBookId, normalizedHistory);
-  }
+
+  // historyの適用処理を削除
+
   if (state.lastCfi || typeof state.progress === "number") {
     const existing = storage.getProgress(localBookId) ?? {};
     storage.setProgress(localBookId, {
@@ -1084,6 +1247,7 @@ function applyCloudStateToLocal(localBookId, cloudBookId, state) {
       updatedAt: state.updatedAt ?? Date.now(),
     });
   }
+
   if (cloudBookId) {
     storage.setCloudState(cloudBookId, state);
   }
@@ -1198,6 +1362,7 @@ function buildMatchMeta(info) {
 
 async function handleFile(file) {
   showLoading();
+  userOverrodeDirection = false;
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
     updateActivity();
@@ -1285,10 +1450,19 @@ async function handleFile(file) {
         elements.fullscreenReader.classList.remove('epub-scroll');
       }
 
-      await reader.openEpub(new File([buffer], file.name, { type: mime }), {
-        location: startLocation,
-        percentage: startProgress,
-      });
+      showLoading();
+
+      // ★追加: UI描画更新のために少し待機
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        await reader.openEpub(new File([buffer], file.name, { type: mime }), {
+          location: startLocation,
+          percentage: startProgress,
+        });
+      } finally {
+        hideLoading();
+      }
     } else {
       console.log(`Opening image book (${info.type})...`);
       console.log(`Start location: ${startLocation}`);
@@ -1306,6 +1480,12 @@ async function handleFile(file) {
         typeof startLocation === "number" ? startLocation : 0,
         info.type // "zip" | "rar" を渡す
       );
+      // [追加] デフォルトの開き方向を適用
+      // 保存された進行状況に方向が含まれていないため、常にデフォルト（またはユーザー設定）を適用
+      // ※将来的には個別の方向保存に対応する可能性があるが、現状はデフォルト設定を使用
+      reader.setImageReadingDirection(defaultDirection);
+      updateReadingDirectionButtonLabel();
+      updateProgressBarDirection();
     }
 
     console.log("Book opened successfully");
@@ -1382,8 +1562,13 @@ function openCloudOnlyBook(cloudBookId) {
 }
 
 async function openFromLibrary(bookId, options = {}) {
+  showLoading();
+  // ★追加: UI描画更新のために少し待機
+  await new Promise(resolve => setTimeout(resolve, 50));
+
   try {
     updateActivity();
+    userOverrodeDirection = false;
     const source = storage.getSettings().source || 'local';
     const record = await loadFile(bookId, source);
 
@@ -1469,6 +1654,8 @@ async function openFromLibrary(bookId, options = {}) {
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1752,6 +1939,19 @@ function handleBookReady(payload) {
   const metadata = payload.metadata ?? payload;
   const toc = Array.isArray(payload.toc) ? payload.toc : [];
   currentToc = toc;
+
+  // 方向判定とUI更新
+  if (currentBookInfo.type === 'epub') {
+    // メタデータから方向を取得（設定値があればそちらを優先）
+    const metadataDirection = metadata.direction;
+    if (metadataDirection && !userOverrodeDirection) {
+      pageDirection = metadataDirection;
+      if (elements.pageDirectionSelect) {
+        elements.pageDirectionSelect.value = pageDirection;
+      }
+    }
+    updateProgressBarDirection(); // 進捗バーの方向更新
+  }
 
   const title = metadata.title || currentBookInfo.title;
   currentBookInfo.title = title;
@@ -2619,11 +2819,35 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   if (nextPageDirection) {
     pageDirection = nextPageDirection;
   }
-  await reader.applyReadingDirection(writingMode, pageDirection);
-  updateEpubScrollMode();
-  storage.setSettings({ writingMode, pageDirection });
-  persistReadingState({ writingMode });
+
+  // [修正] UIを即時更新 (重い処理の前に反映させる)
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+
   updateWritingModeToggleLabel();
+  updateReadingDirectionEpubButtonLabel();
+  updateFloatingUIButtons();
+
+  // [修正] ローディング表示を追加し、レンダリングを待機
+  const isEpubOpen = currentBookInfo?.type === 'epub';
+  if (isEpubOpen) {
+    showLoading();
+    // スピナーが表示されるよう、ブラウザの描画サイクルを1回回す
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 20)));
+  }
+
+  try {
+    await reader.applyReadingDirection(writingMode, pageDirection);
+    updateEpubScrollMode();
+    storage.setSettings({ writingMode, pageDirection });
+    persistReadingState({ writingMode });
+  } catch (error) {
+    console.error("Failed to apply reading settings:", error);
+  } finally {
+    if (isEpubOpen) {
+      hideLoading();
+    }
+  }
 }
 
 function applyLibraryViewMode(mode) {
@@ -2777,6 +3001,7 @@ function showSettings() {
   if (elements.themeSelect) elements.themeSelect.value = theme;
   if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  if (elements.settingsDefaultDirection) elements.settingsDefaultDirection.value = defaultDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
   updateAuthStatusDisplay();
 }
@@ -2853,11 +3078,21 @@ function setupEvents() {
     updateSpreadModeButtonLabel();
   });
 
-  // 左開き/右開き切替ボタン
-  elements.toggleReadingDirection?.addEventListener('click', () => {
+  // 左開き/右開き切替ボタン (画像用)
+  elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     reader.toggleImageReadingDirection();
     updateReadingDirectionButtonLabel();
     updateProgressBarDirection();
+  });
+
+  // 左開き/右開き切替ボタン (EPUB用)
+  elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
+    userOverrodeDirection = true;
+    const nextDirection = pageDirection === "rtl" ? "ltr" : "rtl";
+    await applyReadingSettings(null, nextDirection);
+    if (elements.pageDirectionSelect) {
+      elements.pageDirectionSelect.value = pageDirection;
+    }
   });
 
 
@@ -2975,7 +3210,13 @@ function setupEvents() {
   });
 
   elements.pageDirectionSelect?.addEventListener('change', async (e) => {
+    userOverrodeDirection = true;
     await applyReadingSettings(null, e.target.value);
+  });
+
+  elements.settingsDefaultDirection?.addEventListener('change', (e) => {
+    defaultDirection = e.target.value;
+    storage.setSettings({ defaultDirection });
   });
 
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {

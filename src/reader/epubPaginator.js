@@ -242,17 +242,52 @@ async function measureFits(pageElement, htmlFragment, settings) {
   return overflowHeight <= FIT_TOLERANCE_PX && overflowWidth <= FIT_TOLERANCE_PX;
 }
 
+// [修正] resolveResources関数を強化
 async function resolveResources(body, resourceLoader, spineItem) {
   if (!resourceLoader) return;
-  const images = Array.from(body.querySelectorAll("img"));
+  // img だけでなく svg image も対象にする
+  const images = Array.from(body.querySelectorAll("img, image"));
+
   for (const img of images) {
-    const src = img.getAttribute("src");
-    if (!src) continue;
+    const tagName = img.tagName.toLowerCase();
+    const isSvgImage = tagName === "image";
+    // SVGの場合は href または xlink:href、imgの場合は src
+    const attrName = isSvgImage
+      ? (img.hasAttribute("href") ? "href" : "xlink:href")
+      : "src";
+
+    const src = img.getAttribute(attrName);
+    // srcがない、または既に解決済み(blob: data:)ならスキップ
+    if (!src || src.startsWith("blob:") || src.startsWith("data:")) {
+      // srcが解決不要でも、srcsetがある場合は下の処理へ進む必要があるため continue しない
+      if (isSvgImage || !img.hasAttribute("srcset")) continue;
+    }
+
     try {
-      const resolved = await resourceLoader(src, spineItem);
-      if (resolved) img.setAttribute("src", resolved);
+      if (src && !src.startsWith("blob:") && !src.startsWith("data:")) {
+        const resolved = await resourceLoader(src, spineItem);
+        if (resolved) {
+          img.setAttribute(attrName, resolved);
+        }
+      }
+
+      // [追加] imgタグかつsrcsetがある場合も解決する
+      if (!isSvgImage && img.hasAttribute("srcset")) {
+        const srcset = img.getAttribute("srcset");
+        const parts = await Promise.all(
+          srcset.split(",").map(async (part) => {
+            const trimmed = part.trim();
+            if (!trimmed) return "";
+            const [url, descriptor] = trimmed.split(/\s+/, 2);
+            // URL部分を解決
+            const resolvedUrl = await resourceLoader(url, spineItem);
+            return descriptor ? `${resolvedUrl} ${descriptor}` : resolvedUrl;
+          })
+        );
+        img.setAttribute("srcset", parts.filter(Boolean).join(", "));
+      }
     } catch (error) {
-      // Ignore resource errors to keep pagination resilient.
+      // Ignore resource errors
     }
   }
 }

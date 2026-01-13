@@ -7,6 +7,7 @@
   <title>Epub Reader</title>
   <link rel="stylesheet" href="./assets/style.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
@@ -284,6 +285,13 @@
               <option value="percentage">パーセンテージ</option>
             </select>
           </div>
+          <div class="setting-item">
+            <label for="settingsDefaultDirection">デフォルトの開き方向 (画像書庫等)</label>
+            <select id="settingsDefaultDirection">
+              <option value="rtl" selected>右開き</option>
+              <option value="ltr">左開き</option>
+            </select>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -322,6 +330,7 @@
 
     <div class="float-buttons">
       <div class="float-main-menu">
+        <button id="openToc" type="button">目次</button>
         <button id="floatOpen" type="button">📂 開く</button>
         <button id="floatLibrary" type="button">📚 ライブラリ</button>
         <button id="floatSearch" type="button">🔍 検索</button>
@@ -333,10 +342,10 @@
 
       <!-- 右上 -->
       <div class="float-top-right">
-        <button id="openToc" type="button">目次</button>
+        <button id="toggleReadingDirectionEpub" type="button" style="display: none;">⇄</button>
+        <button id="toggleReadingDirectionImage" type="button" style="display: none;">⇄</button>
         <button id="toggleWritingMode" type="button">縦</button>
         <button id="toggleSpreadMode" type="button" style="display: none;">見開</button>
-        <button id="toggleReadingDirection" type="button" style="display: none;">⇄</button>
       </div>
 
       <!-- 右下 -->
@@ -376,11 +385,7 @@
 
   <!-- ローディングオーバーレイ -->
   <div id="loadingOverlay" class="loading-overlay">
-    <div class="book-loader">
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
+    <div id="lottie-loader" style="width: 120px; height: 120px;"></div>
     <p class="loading-text">Loading...</p>
   </div>
 
