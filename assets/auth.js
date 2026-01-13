@@ -1,97 +1,64 @@
-// auth.js
-// Firebase Auth (v10) wrapper
+// assets/auth.js
 import { auth, googleProvider } from "./firebaseConfig.js";
-import {
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-let currentUser = null;
-
-// ===============================
-// UI Layer Hook (used by app.js)
-// ===============================
+// ▼ UI操作用（必要に応じて export）
 export function onGoogleLoginStart() {
-  document.body.classList.add("google-auth-active");
+  const btn = document.getElementById("googleLoginButton");
+  if (btn) btn.disabled = true;
+  document.body.style.cursor = "wait";
 }
 
 export function onGoogleLoginEnd() {
-  document.body.classList.remove("google-auth-active");
+  const btn = document.getElementById("googleLoginButton");
+  if (btn) btn.disabled = false;
+  document.body.style.cursor = "default";
 }
 
-// ===============================
-// Auth State
-// ===============================
-export function checkAuthStatus() {
-  if (!currentUser) {
-    return { authenticated: false };
-  }
-
-  return {
-    authenticated: true,
-    token: currentUser.accessToken, // For compatibility, though mostly handled by SDK
-    userId: currentUser.uid,
-    userEmail: currentUser.email,
-    userName: currentUser.displayName,
-  };
-}
-
-export async function getIdToken() {
-  if (!currentUser) return null;
+// ▼ ここが重要：export を忘れずに
+export async function startGoogleLogin() {
+  console.log("Starting Google Login..."); // デバッグ用ログ
+  onGoogleLoginStart();
   try {
-    return await currentUser.getIdToken();
-  } catch (e) {
-    console.error("Failed to get ID token", e);
-    return null;
+    const result = await signInWithPopup(auth, googleProvider);
+    console.log("Login Success:", result.user);
+    // ログイン成功後の処理は onAuthStateChanged で拾うのでここでは何もしなくてOK
+  } catch (error) {
+    console.error("Login failed:", error);
+    alert("ログインに失敗しました: " + error.message);
+  } finally {
+    onGoogleLoginEnd();
   }
 }
 
-export function getCurrentUserId() {
-  return currentUser ? currentUser.uid : null;
+export function logout() {
+  signOut(auth).then(() => window.location.reload());
 }
 
-// ===============================
-// Initialization
-// ===============================
+// アプリ起動時に監視を開始する関数
 export function initGoogleLogin() {
   onAuthStateChanged(auth, (user) => {
-    currentUser = user;
     if (user) {
+      console.log("User state changed: Logged in");
       window.dispatchEvent(new Event("auth:login"));
+    } else {
+      console.log("User state changed: Logged out");
     }
   });
 }
 
-// ===============================
-// Login / Logout
-// ===============================
-export async function startGoogleLogin() {
-  onGoogleLoginStart();
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    currentUser = result.user;
-    onGoogleLoginEnd();
-  } catch (error) {
-    console.error("Google login error:", error);
-    onGoogleLoginEnd();
-    alert(`ログインに失敗しました: ${error.message}`);
-  }
+// 既存のコードとの互換性用
+export function checkAuthStatus() {
+  const user = auth.currentUser;
+  if (!user) return { authenticated: false };
+  return {
+    authenticated: true,
+    userId: user.uid,
+    userName: user.displayName,
+    userEmail: user.email
+  };
 }
 
-export async function logout() {
-  try {
-    await signOut(auth);
-    window.location.reload();
-  } catch (error) {
-    console.error("Logout error:", error);
-  }
-}
-
-// ===============================
-// Activity ping (app.js imports this)
-// ===============================
-export function updateActivity() {
-  // Firebase Auth manages session refresh automatically.
-  // We keep this function for interface compatibility.
+export function getCurrentUserId() {
+  return auth.currentUser?.uid || null;
 }

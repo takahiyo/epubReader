@@ -9,6 +9,7 @@ import {
   checkAuthStatus,
   initGoogleLogin,
   logout,
+  startGoogleLogin,
   onGoogleLoginStart as startGoogleLoginUi,
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
@@ -3236,27 +3237,8 @@ function setupEvents() {
       logout();
       return;
     }
-    try {
-      if (!googleLoginReady) {
-        initializeGoogleLogin();
-      }
-      startGoogleLoginUi();
-      window.google?.accounts?.id?.prompt((notification) => {
-        if (
-          notification.isNotDisplayed?.() ||
-          notification.isSkippedMoment?.() ||
-          notification.isDismissedMoment?.()
-        ) {
-          endGoogleLoginUi();
-        }
-      });
-    } catch (error) {
-      endGoogleLoginUi();
-      console.error("Google login failed:", error);
-      if (elements.userInfo) {
-        elements.userInfo.textContent = t("googleLoginFailed");
-      }
-    }
+    // New Firebase Auth Login
+    startGoogleLogin();
   });
 
   // Manual sync button
