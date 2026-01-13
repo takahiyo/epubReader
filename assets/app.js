@@ -3281,8 +3281,26 @@ function setupEvents() {
     } catch (error) {
       console.error('Manual sync failed:', error);
       if (syncStatus) {
-        syncStatus.textContent = '✗ 同期に失敗しました: ' + error.message;
+        let userMessage = '同期に失敗しました';
+        let detailMessage = error.message;
+
+        // ネットワークエラーやブロックの可能性を示唆する判定
+        if (error.code === 'unavailable' ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('Network Error')) {
+
+          userMessage = '通信がブロックされました';
+          detailMessage = '広告ブロック等の拡張機能をOFFにして再試行してください。\n(Firebaseへの接続が遮断されています)';
+        } else if (error.code === 'permission-denied') {
+          userMessage = '権限エラー';
+          detailMessage = 'ログインし直してください。';
+        }
+
+        syncStatus.textContent = `✗ ${userMessage}`;
         syncStatus.style.color = '#f44336';
+
+        // 詳細をアラートでも表示（ユーザーに気づかせるため）
+        alert(`${userMessage}\n\n${detailMessage}\n\n詳細エラー: ${error.message}`);
       }
     } finally {
       manualSyncButton.disabled = false;
