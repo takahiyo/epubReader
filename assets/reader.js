@@ -1088,9 +1088,12 @@ export class ReaderController {
         console.log("Opening RAR file...");
         const { createExtractorFromData } = await this.ensureUnrar();
         const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
-        // 1. getFileListの結果（イテレータ）を配列に変換
+
+        // 1. getFileListの結果から fileHeaders を取得して配列に変換
+        // 修正: v2では戻り値が { arcHeader, fileHeaders } となっているため .fileHeaders にアクセスする
         const list = extractor.getFileList();
-        const headers = [...list];
+        const headers = [...list.fileHeaders];
+
         console.log(`Found ${headers.length} entries in RAR`);
 
         // デバッグ: 最初の数エントリを表示
@@ -1130,9 +1133,10 @@ export class ReaderController {
 
         console.log('Extracting images:', imageNames);
 
-        // 2. extractメソッドを使用し、結果（イテレータ）を配列に変換
+        // 2. extractメソッドを使用し、結果から files を取得して配列に変換
+        // 修正: v2では戻り値が { arcHeader, files } となっているため .files にアクセスする
         const extracted = extractor.extract({ files: imageNames });
-        const extractedFiles = [...extracted];
+        const extractedFiles = [...extracted.files];
 
         images = extractedFiles
           .map((item) => {
@@ -1211,8 +1215,6 @@ export class ReaderController {
       }
 
       // 階層対応 + ファイル名順に統一してソート
-      // フォルダ階層を無視して再帰的に全画像を収集済み
-      // path でソート (e.g. "001/010.jpg" < "002/001.jpg")
       images.sort((a, b) => {
         const normalize = (path) => path.replace(/\\/g, "/");
         const aPath = normalize(a.path);
