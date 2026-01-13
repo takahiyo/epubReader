@@ -5,7 +5,7 @@ import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
 import {
-  updateActivity,
+
   checkAuthStatus,
   initGoogleLogin,
   logout,
@@ -482,28 +482,28 @@ const ui = new UIController({
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
-      updateActivity();
+
     }
   },
   onProgressBar: (action) => {
     if (action === 'show') {
-      updateActivity();
+
       updateProgressBarDisplay();
     }
   },
   onBookmarkMenu: (action) => {
     if (action === 'show') {
-      updateActivity();
+
       renderBookmarks(bookmarkMenuMode);
       bookmarkMenuMode = "current";
     }
   },
   onPagePrev: (step) => {
-    updateActivity();
+
     reader.prev(step);
   },
   onPageNext: (step) => {
-    updateActivity();
+
     reader.next(step);
   },
 });
@@ -1366,7 +1366,7 @@ async function handleFile(file) {
   userOverrodeDirection = false;
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
-    updateActivity();
+
 
     // ファイルタイプを自動判別
     const type = detectFileType(file);
@@ -1568,7 +1568,7 @@ async function openFromLibrary(bookId, options = {}) {
   await new Promise(resolve => setTimeout(resolve, 50));
 
   try {
-    updateActivity();
+
     userOverrodeDirection = false;
     const source = storage.getSettings().source || 'local';
     const record = await loadFile(bookId, source);
@@ -1743,7 +1743,7 @@ async function applyReadingState(progress) {
 
 function handleProgress(progress) {
   if (!currentBookId) return;
-  updateActivity();
+
 
   storage.setProgress(currentBookId, {
     ...progress,
@@ -2626,7 +2626,7 @@ function openModal(modal) {
   } else {
     modal.classList.remove("hidden");
   }
-  updateActivity();
+
 }
 
 function closeModal(modal) {
@@ -3392,10 +3392,10 @@ function setupEvents() {
     }
 
     if (event.deltaY > 0) {
-      updateActivity();
+
       reader.next();
     } else if (event.deltaY < 0) {
-      updateActivity();
+
       reader.prev();
     }
 
@@ -3413,7 +3413,7 @@ function setupEvents() {
       return;
     }
 
-    updateActivity();
+
 
     switch (e.key) {
       case 'ArrowLeft':
@@ -3455,12 +3455,12 @@ function setupEvents() {
 
   // プログレスバー矢印
   elements.progressPrev?.addEventListener('click', () => {
-    updateActivity();
+
     reader.prev(1); // 1ページずつ戻る
   });
 
   elements.progressNext?.addEventListener('click', () => {
-    updateActivity();
+
     reader.next(1); // 1ページずつ進む
   });
 }
