@@ -1087,7 +1087,7 @@ export class ReaderController {
       if (isRar) {
         console.log("Opening RAR file...");
         const { createExtractorFromData } = await this.ensureUnrar();
-        const extractor = createExtractorFromData({ data: new Uint8Array(buffer) });
+        const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
         const list = extractor.getFileList();
         const headers = list?.fileHeaders ?? list?.files ?? [];
         console.log(`Found ${headers.length} entries in RAR`);
