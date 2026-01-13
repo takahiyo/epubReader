@@ -199,33 +199,73 @@ export class ReaderController {
   }
 
   async ensureUnrar() {
-    if (typeof unrar !== "undefined") {
-      return unrar;
-    }
+    // プレースホルダーかどうかを判定する関数
+    const isPlaceholder = (unrarLib) =>
+      typeof unrarLib?.createExtractorFromData === "function" &&
+      unrarLib.createExtractorFromData.name === "missing";
+
+    // 既にロード済みで、かつプレースホルダーでないならそれを返す
     if (typeof window !== "undefined") {
       const existing = window.unrar || window.Unrar || window.UnRAR;
-      if (existing) {
-        window.unrar = existing;
+      if (existing && !isPlaceholder(existing)) {
         return existing;
       }
-      window.Module = {
-        ...(window.Module || {}),
-        locateFile: (path) => `./assets/vendor/${path}`,
-      };
     }
+
+    // ローカルファイルの読み込みを試みる
     try {
+      // WASMのパス解決用（ローカル）
+      if (typeof window !== "undefined") {
+        window.Module = {
+          ...(window.Module || {}),
+          locateFile: (path) => `./assets/vendor/${path}`,
+        };
+      }
       await this.loadScript("./assets/vendor/unrar.js");
     } catch (error) {
-      throw new Error("RARの読み込みに失敗しました。wasmの読み込みに失敗している可能性があります。");
+      console.warn("Local unrar.js load failed or missing. Trying CDN...");
     }
-    const localUnrar = typeof window !== "undefined"
-      ? (window.unrar || window.Unrar || window.UnRAR)
-      : null;
-    if (!localUnrar) {
-      throw new Error("RARの読み込みに失敗しました。wasmの読み込みに失敗している可能性があります。");
+
+    // ロード後のチェック
+    let localUnrar = typeof window !== "undefined" ? (window.unrar || window.Unrar || window.UnRAR) : null;
+
+    // ローカルが失敗、またはプレースホルダーだった場合はCDNからロード
+    if (!localUnrar || isPlaceholder(localUnrar)) {
+      console.log("Loading unrar.js from CDN...");
+      return this.loadUnrarFromCdn();
     }
-    window.unrar = localUnrar;
+
     return localUnrar;
+  }
+
+  async loadUnrarFromCdn() {
+    // node-unrar-js の CDN URL
+    const cdnBase = "https://cdn.jsdelivr.net/npm/node-unrar-js@0.8.1/dist";
+    const cdnScript = `${cdnBase}/unrar.min.js`;
+    const cdnWasm = `${cdnBase}/unrar.wasm`;
+
+    // WASMファイルのパスをCDNに向ける
+    if (typeof window !== "undefined") {
+      window.Module = {
+        ...(window.Module || {}),
+        locateFile: (path) => {
+          if (path.endsWith('.wasm')) {
+            return cdnWasm;
+          }
+          return path;
+        }
+      };
+    }
+
+    await this.loadScript(cdnScript);
+
+    // ロード完了待ちと取得
+    const cdnUnrar = window.unrar || window.Unrar || window.UnRAR;
+    if (!cdnUnrar) {
+      throw new Error("CDNからのRARライブラリ読み込みに失敗しました。");
+    }
+
+    return cdnUnrar;
   }
 
   async loadScript(src) {
