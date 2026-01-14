@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bookreader-v3'; // バージョンを上げてください
+const CACHE_NAME = 'bookreader-v4'; // バージョンを上げてください
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
