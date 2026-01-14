@@ -1,0 +1,20 @@
+{
+  "name": "Epub Reader",
+  "short_name": "Epub",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "./assets/bookreader.png",
+      "sizes": "2129x514",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/BookReader_Titlle.png",
+      "sizes": "800x533",
+      "type": "image/jpeg"
+    }
+  ]
+}

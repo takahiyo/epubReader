@@ -3531,11 +3531,24 @@ function initializeGoogleLogin() {
   }
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  navigator.serviceWorker
+    .register("./service-worker.js")
+    .catch((error) => {
+      console.warn("Service worker registration failed:", error);
+    });
+}
+
 function startApp() {
   init();
 }
 
 function startAfterDomReady() {
+  registerServiceWorker();
   initializeGoogleLogin();
   startApp();
 }
