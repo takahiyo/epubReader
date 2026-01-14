@@ -21,6 +21,12 @@
 - リクエスト形式は `POST` で `{ action: "save", payload }` または `{ action: "load" }` を送ります。レスポンスで `{ data: <保存されたJSON> }` を返すと、ブラウザ側に取り込みます。
 - API Key が必要な場合はヘッダー `Authorization: Bearer <token>` を付与します。
 
+### 同期方式の方針 (Firebase / Firestore)
+同期 API は **Cloudflare Workers 経由で Firebase にプロキシする方式を採用** します。ブラウザから直接 Firestore を叩く構成は採用しません。
+
+### Workers 実装済み API 一覧
+現時点で Workers による同期 API の実装はありません（一覧化できるパスはありません）。
+
 ### Cloudflare Workers 例 (保存先は KV / D1 などに置き換え可能)
 ```js
 export default {
