@@ -41,6 +41,10 @@ export class CloudSync {
     return { settings, resolvedSource };
   }
 
+  getSyncProvider(settings = this.storage.getSettings()) {
+    return settings?.syncProvider || "gas";
+  }
+
   getUserIdOrThrow() {
     const uid = getCurrentUserId();
     if (!uid) {
@@ -169,6 +173,67 @@ export class CloudSync {
   }
 
   // ===============================
+  // Firebase Sync API (Index / State)
+  // ===============================
+
+  async pullBookDataFirebase(bookId, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.pullBookDataFirestore(bookId);
+  }
+
+  async pushBookDataFirebase(bookId, payload, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.pushBookDataFirestore(bookId, payload);
+  }
+
+  async matchBookFirebase(fingerprint, meta, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.matchBookFirestore(fingerprint, meta);
+  }
+
+  async pullIndexFirebase(settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.pullIndexFirestore();
+  }
+
+  async pushIndexDeltaFirebase(indexDelta, updatedAt, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.pushIndexDeltaFirestore(indexDelta, updatedAt);
+  }
+
+  async pullStateFirebase(cloudBookId, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.pullBookDataFirestore(cloudBookId);
+  }
+
+  async pushStateFirebase(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("firebase", settings);
+    if (resolvedSource !== "firebase") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    const payload = { state, updatedAt };
+    return this.pushBookDataFirestore(cloudBookId, payload);
+  }
+
+  // ===============================
   // Public API
   // ===============================
 
@@ -272,6 +337,9 @@ export class CloudSync {
   }
 
   async pullBookData(bookId, settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.pullBookDataFirebase(bookId, settings);
+    }
     const resolvedSource = this.resolveSource("location", settings); // Or just use default logic
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
@@ -280,6 +348,9 @@ export class CloudSync {
   }
 
   async pushBookData(bookId, payload, settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.pushBookDataFirebase(bookId, payload, settings);
+    }
     const resolvedSource = this.resolveSource("location", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
@@ -288,6 +359,9 @@ export class CloudSync {
   }
 
   async matchBook(fingerprint, meta, settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.matchBookFirebase(fingerprint, meta, settings);
+    }
     const resolvedSource = this.resolveSource("gas", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
@@ -296,6 +370,9 @@ export class CloudSync {
   }
 
   async pullIndex(settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.pullIndexFirebase(settings);
+    }
     const resolvedSource = this.resolveSource("gas", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
@@ -304,6 +381,9 @@ export class CloudSync {
   }
 
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.pushIndexDeltaFirebase(indexDelta, updatedAt, settings);
+    }
     const resolvedSource = this.resolveSource("gas", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
@@ -312,6 +392,9 @@ export class CloudSync {
   }
 
   async pullState(cloudBookId, settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.pullStateFirebase(cloudBookId, settings);
+    }
     const resolvedSource = this.resolveSource("gas", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
@@ -324,6 +407,9 @@ export class CloudSync {
   }
 
   async pushState(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
+    if (this.getSyncProvider(settings) === "firebase") {
+      return this.pushStateFirebase(cloudBookId, state, updatedAt, settings);
+    }
     const resolvedSource = this.resolveSource("gas", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
