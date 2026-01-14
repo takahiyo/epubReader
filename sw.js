@@ -1,14 +1,26 @@
-const CACHE_NAME = 'bookreader-v1'; // アップデート時はここを v2, v3 と書き換える
+const CACHE_NAME = 'bookreader-v3'; // バージョンを上げてください
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
+    './manifest.json',
     './assets/style.css',
     './assets/app.js',
     './assets/config.js',
     './assets/ui.js',
     './assets/reader.js',
     './assets/storage.js',
-    './assets/icon_BookReader_512.png'
+    './assets/auth.js',
+    './assets/cloudSync.js',
+    './assets/fileStore.js',
+    './assets/firebaseConfig.js',
+    './assets/bookreader.png',
+    './assets/Flag_Japan.svg',
+    './assets/Flag_America.svg',
+    './assets/icon_BookReader_192.png',
+    './assets/icon_BookReader_512.png',
+    'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js',
+    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+    'https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js'
 ];
 
 // インストール時にファイルをキャッシュ

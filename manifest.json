@@ -8,14 +8,15 @@
     "theme_color": "#2c3e50",
     "icons": [
         {
-            "src": "assets/icon_BookReader_512.png",
+            "src": "assets/icon_BookReader_192.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
             "src": "assets/icon_BookReader_512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
         }
     ]
 }
