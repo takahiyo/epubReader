@@ -915,7 +915,13 @@ function getSyncWriteOrder(settings = storage.getSettings()) {
 
 function getSyncResolvePolicy(settings = storage.getSettings()) {
   const policy = settings.syncResolvePolicy;
-  if (policy === "firebase" || policy === "gas" || policy === "updatedAt") {
+  if (policy === "firebaseFirst") return "firebase-first";
+  if (
+    policy === "firebase" ||
+    policy === "firebase-first" ||
+    policy === "gas" ||
+    policy === "updatedAt"
+  ) {
     return policy;
   }
   return "firebase";
@@ -1458,6 +1464,8 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
   try {
     const policy = getSyncResolvePolicy();
     const compareByUpdatedAtOnly = policy === "updatedAt";
+    const preferFirebase = policy === "firebase" || policy === "firebase-first";
+    const preferGas = policy === "gas";
     const fetchFirebaseState = async () => {
       const response = await cloudSync.pullStateFirebase(cloudBookId);
       return response?.state ?? null;
@@ -1473,12 +1481,12 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
     let firebaseState = null;
     let gasState = null;
 
-    if (policy === "firebase") {
+    if (preferFirebase) {
       firebaseState = await fetchFirebaseState();
       if (isEmptyCloudState(firebaseState)) {
         gasState = await fetchGasState();
       }
-    } else if (policy === "gas") {
+    } else if (preferGas) {
       gasState = await fetchGasState();
       if (isEmptyCloudState(gasState)) {
         firebaseState = await fetchFirebaseState();
@@ -1493,7 +1501,7 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
     let remoteState = null;
     if (policy === "updatedAt") {
       remoteState = pickLatestCloudState(firebaseState, gasState);
-    } else if (policy === "gas") {
+    } else if (preferGas) {
       remoteState = isEmptyCloudState(gasState) ? firebaseState : gasState;
     } else {
       remoteState = isEmptyCloudState(firebaseState) ? gasState : firebaseState;
