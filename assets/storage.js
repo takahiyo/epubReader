@@ -3,6 +3,28 @@ const STORAGE_KEY = "epubReader:data";
 const defaultGasEndpoint =
   (typeof window !== "undefined" && window.APP_CONFIG?.GAS_SYNC_ENDPOINT) || "";
 
+const defaultFirebaseConfig = {
+  apiKey: "AIzaSyD2xMk1bbez1Y2crBcgzxUhghU9bFnU1gI",
+  authDomain: "bookreader-1d3a3.firebaseapp.com",
+  projectId: "bookreader-1d3a3",
+  storageBucket: "bookreader-1d3a3.firebasestorage.app",
+  messagingSenderId: "920141070828",
+  appId: "1:920141070828:web:619c658ec726be091c00c9",
+  measurementId: "G-V68746259D",
+};
+
+const normalizeFirebaseConfig = (settings = {}) => {
+  const merged = { ...defaultFirebaseConfig, ...(settings.firebaseConfig ?? {}) };
+  if (settings.firebaseApiKey) merged.apiKey = settings.firebaseApiKey;
+  if (settings.firebaseAuthDomain) merged.authDomain = settings.firebaseAuthDomain;
+  if (settings.firebaseProjectId) merged.projectId = settings.firebaseProjectId;
+  if (settings.firebaseStorageBucket) merged.storageBucket = settings.firebaseStorageBucket;
+  if (settings.firebaseMessagingSenderId) merged.messagingSenderId = settings.firebaseMessagingSenderId;
+  if (settings.firebaseAppId) merged.appId = settings.firebaseAppId;
+  if (settings.firebaseMeasurementId) merged.measurementId = settings.firebaseMeasurementId;
+  return merged;
+};
+
 const defaultData = {
   library: {},
   bookmarks: {},
@@ -25,13 +47,7 @@ const defaultData = {
     onedriveFilePath: "epub-reader-data.json",
     onedriveFileId: "",
     onedriveToken: null,
-    firebaseApiKey: "",
-    firebaseAuthDomain: "",
-    firebaseProjectId: "",
-    firebaseStorageBucket: "",
-    firebaseMessagingSenderId: "",
-    firebaseAppId: "",
-    firebaseMeasurementId: "",
+    firebaseConfig: { ...defaultFirebaseConfig },
     uiLanguage: "en",
     fontSize: 16,
     autoSyncEnabled: null,
@@ -53,6 +69,7 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const firebaseConfig = normalizeFirebaseConfig(settings);
       const normalizedSource = settings.source === "drive" ? "local" : settings.source;
       const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
       return {
@@ -80,14 +97,7 @@ export class StorageService {
           onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
-          firebaseApiKey: settings.firebaseApiKey || defaultData.settings.firebaseApiKey,
-          firebaseAuthDomain: settings.firebaseAuthDomain || defaultData.settings.firebaseAuthDomain,
-          firebaseProjectId: settings.firebaseProjectId || defaultData.settings.firebaseProjectId,
-          firebaseStorageBucket: settings.firebaseStorageBucket || defaultData.settings.firebaseStorageBucket,
-          firebaseMessagingSenderId:
-            settings.firebaseMessagingSenderId || defaultData.settings.firebaseMessagingSenderId,
-          firebaseAppId: settings.firebaseAppId || defaultData.settings.firebaseAppId,
-          firebaseMeasurementId: settings.firebaseMeasurementId || defaultData.settings.firebaseMeasurementId,
+          firebaseConfig,
           autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
@@ -216,6 +226,7 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const firebaseConfig = normalizeFirebaseConfig(settings);
       const normalizedSource = settings.source === "drive" ? "local" : settings.source;
       const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
       this.data = {
@@ -243,14 +254,7 @@ export class StorageService {
           onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
-          firebaseApiKey: settings.firebaseApiKey || defaultData.settings.firebaseApiKey,
-          firebaseAuthDomain: settings.firebaseAuthDomain || defaultData.settings.firebaseAuthDomain,
-          firebaseProjectId: settings.firebaseProjectId || defaultData.settings.firebaseProjectId,
-          firebaseStorageBucket: settings.firebaseStorageBucket || defaultData.settings.firebaseStorageBucket,
-          firebaseMessagingSenderId:
-            settings.firebaseMessagingSenderId || defaultData.settings.firebaseMessagingSenderId,
-          firebaseAppId: settings.firebaseAppId || defaultData.settings.firebaseAppId,
-          firebaseMeasurementId: settings.firebaseMeasurementId || defaultData.settings.firebaseMeasurementId,
+          firebaseConfig,
           autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };

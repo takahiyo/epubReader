@@ -2922,6 +2922,12 @@ function applyProgressDisplayMode(mode) {
   renderBookmarkMarkers();
 }
 
+function updateFirebaseConfig(partial) {
+  const currentSettings = storage.getSettings();
+  const currentConfig = currentSettings.firebaseConfig ?? {};
+  storage.setSettings({ firebaseConfig: { ...currentConfig, ...partial } });
+}
+
 async function pushCurrentBookSync() {
   if (!currentBookId || !currentCloudBookId) return;
   if (!isCloudSyncEnabled()) return;
@@ -3054,25 +3060,26 @@ function showHistory() {
 function showSettings() {
   openExclusiveMenu(elements.settingsModal);
   const currentSettings = storage.getSettings();
+  const firebaseConfig = currentSettings.firebaseConfig ?? {};
   if (elements.themeSelect) elements.themeSelect.value = theme;
   if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
   if (elements.settingsDefaultDirection) elements.settingsDefaultDirection.value = defaultDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
-  if (elements.firebaseApiKey) elements.firebaseApiKey.value = currentSettings.firebaseApiKey ?? "";
+  if (elements.firebaseApiKey) elements.firebaseApiKey.value = firebaseConfig.apiKey ?? "";
   if (elements.firebaseAuthDomain) {
-    elements.firebaseAuthDomain.value = currentSettings.firebaseAuthDomain ?? "";
+    elements.firebaseAuthDomain.value = firebaseConfig.authDomain ?? "";
   }
-  if (elements.firebaseProjectId) elements.firebaseProjectId.value = currentSettings.firebaseProjectId ?? "";
+  if (elements.firebaseProjectId) elements.firebaseProjectId.value = firebaseConfig.projectId ?? "";
   if (elements.firebaseStorageBucket) {
-    elements.firebaseStorageBucket.value = currentSettings.firebaseStorageBucket ?? "";
+    elements.firebaseStorageBucket.value = firebaseConfig.storageBucket ?? "";
   }
   if (elements.firebaseMessagingSenderId) {
-    elements.firebaseMessagingSenderId.value = currentSettings.firebaseMessagingSenderId ?? "";
+    elements.firebaseMessagingSenderId.value = firebaseConfig.messagingSenderId ?? "";
   }
-  if (elements.firebaseAppId) elements.firebaseAppId.value = currentSettings.firebaseAppId ?? "";
+  if (elements.firebaseAppId) elements.firebaseAppId.value = firebaseConfig.appId ?? "";
   if (elements.firebaseMeasurementId) {
-    elements.firebaseMeasurementId.value = currentSettings.firebaseMeasurementId ?? "";
+    elements.firebaseMeasurementId.value = firebaseConfig.measurementId ?? "";
   }
   updateAuthStatusDisplay();
 }
@@ -3295,31 +3302,31 @@ function setupEvents() {
   });
 
   elements.firebaseApiKey?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseApiKey: e.target.value });
+    updateFirebaseConfig({ apiKey: e.target.value });
   });
 
   elements.firebaseAuthDomain?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseAuthDomain: e.target.value });
+    updateFirebaseConfig({ authDomain: e.target.value });
   });
 
   elements.firebaseProjectId?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseProjectId: e.target.value });
+    updateFirebaseConfig({ projectId: e.target.value });
   });
 
   elements.firebaseStorageBucket?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseStorageBucket: e.target.value });
+    updateFirebaseConfig({ storageBucket: e.target.value });
   });
 
   elements.firebaseMessagingSenderId?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseMessagingSenderId: e.target.value });
+    updateFirebaseConfig({ messagingSenderId: e.target.value });
   });
 
   elements.firebaseAppId?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseAppId: e.target.value });
+    updateFirebaseConfig({ appId: e.target.value });
   });
 
   elements.firebaseMeasurementId?.addEventListener('change', (e) => {
-    storage.setSettings({ firebaseMeasurementId: e.target.value });
+    updateFirebaseConfig({ measurementId: e.target.value });
   });
 
   elements.googleLoginButton?.addEventListener('click', () => {
