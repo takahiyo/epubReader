@@ -905,7 +905,13 @@ function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
     return false;
   }
   const settings = storage.getSettings();
-  return Boolean(settings.gasEndpoint);
+  const hasGasEndpoint = Boolean(settings.gasEndpoint);
+  const hasFirebaseEndpoint = Boolean(
+    cloudSync.getFirebaseSyncEndpoint(settings) ||
+      settings.firebaseEndpoint ||
+      settings.firebaseSyncEndpoint
+  );
+  return hasGasEndpoint || hasFirebaseEndpoint;
 }
 
 function getSyncWriteOrder(settings = storage.getSettings()) {
