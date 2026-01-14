@@ -96,6 +96,7 @@ const UI_STRINGS = {
     progressDisplayPage: "ページ数",
     progressDisplayPercentage: "パーセンテージ",
     settingsAccountTitle: "アカウント",
+    settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Googleログイン",
     googleLogoutLabel: "ログオフ",
     googleLoginStatusSignedOut: "未ログイン",
@@ -107,6 +108,13 @@ const UI_STRINGS = {
     syncStatusLabel: "最終同期: {time}",
     syncStatusNever: "最終同期: 未実施",
     syncNeedsLogin: "同期には Google ログインが必要です。",
+    firebaseApiKeyLabel: "APIキー",
+    firebaseAuthDomainLabel: "認証ドメイン",
+    firebaseProjectIdLabel: "プロジェクトID",
+    firebaseStorageBucketLabel: "ストレージバケット",
+    firebaseMessagingSenderIdLabel: "送信者ID",
+    firebaseAppIdLabel: "アプリID",
+    firebaseMeasurementIdLabel: "測定ID",
     settingsDataTitle: "データ管理",
     exportData: "設定・データを書き出す",
     importData: "設定・データを読み込む",
@@ -174,6 +182,7 @@ const UI_STRINGS = {
     progressDisplayPage: "Pages",
     progressDisplayPercentage: "Percentage",
     settingsAccountTitle: "Account",
+    settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Sign in with Google",
     googleLogoutLabel: "Sign out",
     googleLoginStatusSignedOut: "Signed out",
@@ -185,6 +194,13 @@ const UI_STRINGS = {
     syncStatusLabel: "Last sync: {time}",
     syncStatusNever: "Last sync: never",
     syncNeedsLogin: "Sign in with Google to enable sync.",
+    firebaseApiKeyLabel: "API key",
+    firebaseAuthDomainLabel: "Auth domain",
+    firebaseProjectIdLabel: "Project ID",
+    firebaseStorageBucketLabel: "Storage bucket",
+    firebaseMessagingSenderIdLabel: "Messaging sender ID",
+    firebaseAppIdLabel: "App ID",
+    firebaseMeasurementIdLabel: "Measurement ID",
     settingsDataTitle: "Data",
     exportData: "Export settings & data",
     importData: "Import settings & data",
@@ -418,6 +434,21 @@ const elements = {
   syncToggleButton: document.getElementById("syncToggleButton"),
   userInfo: document.getElementById("userInfo"),
   syncStatus: document.getElementById("syncStatus"),
+  settingsFirebaseTitle: document.getElementById("settingsFirebaseTitle"),
+  firebaseApiKeyLabel: document.getElementById("firebaseApiKeyLabel"),
+  firebaseApiKey: document.getElementById("firebaseApiKey"),
+  firebaseAuthDomainLabel: document.getElementById("firebaseAuthDomainLabel"),
+  firebaseAuthDomain: document.getElementById("firebaseAuthDomain"),
+  firebaseProjectIdLabel: document.getElementById("firebaseProjectIdLabel"),
+  firebaseProjectId: document.getElementById("firebaseProjectId"),
+  firebaseStorageBucketLabel: document.getElementById("firebaseStorageBucketLabel"),
+  firebaseStorageBucket: document.getElementById("firebaseStorageBucket"),
+  firebaseMessagingSenderIdLabel: document.getElementById("firebaseMessagingSenderIdLabel"),
+  firebaseMessagingSenderId: document.getElementById("firebaseMessagingSenderId"),
+  firebaseAppIdLabel: document.getElementById("firebaseAppIdLabel"),
+  firebaseAppId: document.getElementById("firebaseAppId"),
+  firebaseMeasurementIdLabel: document.getElementById("firebaseMeasurementIdLabel"),
+  firebaseMeasurementId: document.getElementById("firebaseMeasurementId"),
   settingsDataTitle: document.getElementById("settingsDataTitle"),
   importDataLabel: document.getElementById("importDataLabel"),
 
@@ -2765,6 +2796,22 @@ function applyUiLanguage(nextLanguage) {
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
+  if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
+  if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
+  if (elements.firebaseAuthDomainLabel) {
+    elements.firebaseAuthDomainLabel.textContent = strings.firebaseAuthDomainLabel;
+  }
+  if (elements.firebaseProjectIdLabel) elements.firebaseProjectIdLabel.textContent = strings.firebaseProjectIdLabel;
+  if (elements.firebaseStorageBucketLabel) {
+    elements.firebaseStorageBucketLabel.textContent = strings.firebaseStorageBucketLabel;
+  }
+  if (elements.firebaseMessagingSenderIdLabel) {
+    elements.firebaseMessagingSenderIdLabel.textContent = strings.firebaseMessagingSenderIdLabel;
+  }
+  if (elements.firebaseAppIdLabel) elements.firebaseAppIdLabel.textContent = strings.firebaseAppIdLabel;
+  if (elements.firebaseMeasurementIdLabel) {
+    elements.firebaseMeasurementIdLabel.textContent = strings.firebaseMeasurementIdLabel;
+  }
   if (elements.syncStatus) {
     updateSyncStatusDisplay();
   }
@@ -3006,11 +3053,27 @@ function showHistory() {
 
 function showSettings() {
   openExclusiveMenu(elements.settingsModal);
+  const currentSettings = storage.getSettings();
   if (elements.themeSelect) elements.themeSelect.value = theme;
   if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
   if (elements.settingsDefaultDirection) elements.settingsDefaultDirection.value = defaultDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  if (elements.firebaseApiKey) elements.firebaseApiKey.value = currentSettings.firebaseApiKey ?? "";
+  if (elements.firebaseAuthDomain) {
+    elements.firebaseAuthDomain.value = currentSettings.firebaseAuthDomain ?? "";
+  }
+  if (elements.firebaseProjectId) elements.firebaseProjectId.value = currentSettings.firebaseProjectId ?? "";
+  if (elements.firebaseStorageBucket) {
+    elements.firebaseStorageBucket.value = currentSettings.firebaseStorageBucket ?? "";
+  }
+  if (elements.firebaseMessagingSenderId) {
+    elements.firebaseMessagingSenderId.value = currentSettings.firebaseMessagingSenderId ?? "";
+  }
+  if (elements.firebaseAppId) elements.firebaseAppId.value = currentSettings.firebaseAppId ?? "";
+  if (elements.firebaseMeasurementId) {
+    elements.firebaseMeasurementId.value = currentSettings.firebaseMeasurementId ?? "";
+  }
   updateAuthStatusDisplay();
 }
 
@@ -3229,6 +3292,34 @@ function setupEvents() {
 
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
     applyProgressDisplayMode(e.target.value);
+  });
+
+  elements.firebaseApiKey?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseApiKey: e.target.value });
+  });
+
+  elements.firebaseAuthDomain?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseAuthDomain: e.target.value });
+  });
+
+  elements.firebaseProjectId?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseProjectId: e.target.value });
+  });
+
+  elements.firebaseStorageBucket?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseStorageBucket: e.target.value });
+  });
+
+  elements.firebaseMessagingSenderId?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseMessagingSenderId: e.target.value });
+  });
+
+  elements.firebaseAppId?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseAppId: e.target.value });
+  });
+
+  elements.firebaseMeasurementId?.addEventListener('change', (e) => {
+    storage.setSettings({ firebaseMeasurementId: e.target.value });
   });
 
   elements.googleLoginButton?.addEventListener('click', () => {
@@ -3531,11 +3622,24 @@ function initializeGoogleLogin() {
   }
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  navigator.serviceWorker
+    .register("./service-worker.js")
+    .catch((error) => {
+      console.warn("Service worker registration failed:", error);
+    });
+}
+
 function startApp() {
   init();
 }
 
 function startAfterDomReady() {
+  registerServiceWorker();
   initializeGoogleLogin();
   startApp();
 }
