@@ -913,6 +913,14 @@ function getSyncWriteOrder(settings = storage.getSettings()) {
   return provider === "firebase" ? ["firebase", "gas"] : ["gas", "firebase"];
 }
 
+function getSyncResolvePolicy(settings = storage.getSettings()) {
+  const policy = settings.syncResolvePolicy;
+  if (policy === "firebase" || policy === "gas" || policy === "updatedAt") {
+    return policy;
+  }
+  return "firebase";
+}
+
 function buildGasSyncUrl(endpoint, path) {
   if (!endpoint) return null;
   const separator = endpoint.includes("?") ? "&" : "?";
@@ -947,6 +955,28 @@ async function pushStateToGas(cloudBookId, state, updatedAt) {
   });
   if (!response.ok) {
     throw new Error(`GAS state push failed (${response.status})`);
+  }
+  const data = await response.json().catch(() => ({}));
+  return { status: "success", data };
+}
+
+async function pullStateFromGas(cloudBookId) {
+  const settings = storage.getSettings();
+  if (!settings.gasEndpoint) {
+    return { status: "skipped", reason: "no-endpoint" };
+  }
+  const idToken = await getGasIdToken();
+  if (!idToken) {
+    return { status: "skipped", reason: "no-id-token" };
+  }
+  const url = buildGasSyncUrl(settings.gasEndpoint, "/sync/state/pull");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ idToken, cloudBookId }),
+  });
+  if (!response.ok) {
+    throw new Error(`GAS state pull failed (${response.status})`);
   }
   const data = await response.json().catch(() => ({}));
   return { status: "success", data };
@@ -1411,6 +1441,14 @@ function applyCloudStateToLocal(localBookId, cloudBookId, state) {
   }
 }
 
+function pickLatestCloudState(firebaseState, gasState) {
+  if (isEmptyCloudState(firebaseState)) return gasState;
+  if (isEmptyCloudState(gasState)) return firebaseState;
+  const firebaseUpdatedAt = firebaseState?.updatedAt ?? 0;
+  const gasUpdatedAt = gasState?.updatedAt ?? 0;
+  return firebaseUpdatedAt >= gasUpdatedAt ? firebaseState : gasState;
+}
+
 async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloudBookId(localBookId)) {
   const localProgress = storage.getProgress(localBookId);
   if (!isCloudSyncEnabled() || !cloudBookId) {
@@ -1418,8 +1456,48 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
   }
 
   try {
-    const remote = await cloudSync.pullState(cloudBookId);
-    const remoteState = remote?.state;
+    const policy = getSyncResolvePolicy();
+    const compareByUpdatedAtOnly = policy === "updatedAt";
+    const fetchFirebaseState = async () => {
+      const response = await cloudSync.pullStateFirebase(cloudBookId);
+      return response?.state ?? null;
+    };
+    const fetchGasState = async () => {
+      const response = await pullStateFromGas(cloudBookId);
+      if (response?.status === "skipped") {
+        return null;
+      }
+      return response?.data?.state ?? null;
+    };
+
+    let firebaseState = null;
+    let gasState = null;
+
+    if (policy === "firebase") {
+      firebaseState = await fetchFirebaseState();
+      if (isEmptyCloudState(firebaseState)) {
+        gasState = await fetchGasState();
+      }
+    } else if (policy === "gas") {
+      gasState = await fetchGasState();
+      if (isEmptyCloudState(gasState)) {
+        firebaseState = await fetchFirebaseState();
+      }
+    } else {
+      [firebaseState, gasState] = await Promise.all([
+        fetchFirebaseState(),
+        fetchGasState(),
+      ]);
+    }
+
+    let remoteState = null;
+    if (policy === "updatedAt") {
+      remoteState = pickLatestCloudState(firebaseState, gasState);
+    } else if (policy === "gas") {
+      remoteState = isEmptyCloudState(gasState) ? firebaseState : gasState;
+    } else {
+      remoteState = isEmptyCloudState(firebaseState) ? gasState : firebaseState;
+    }
     const localPayload = buildCloudStatePayload(localBookId, cloudBookId);
     const localUpdatedAt = localPayload.updatedAt ?? 0;
 
@@ -1443,7 +1521,7 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
     if (remoteUpdatedAt > localUpdatedAt) {
       // 5%以上、または5ページ以上の差があるか？ (あまりに細かい差は無視するか、ユーザー体験次第)
       // 今回は純粋にタイムスタンプと位置の違いで判定
-      if (remoteState.location !== localProgress?.location) {
+      if (compareByUpdatedAtOnly || remoteState.location !== localProgress?.location) {
         const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteState });
         if (choice === "remote") {
           applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
