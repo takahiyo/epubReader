@@ -3158,13 +3158,34 @@ async function pushCurrentBookSync() {
   if (!currentBookId || !currentCloudBookId) return;
   if (!isCloudSyncEnabled()) return;
   const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-  const result = await pushStateDual(
-    currentCloudBookId,
-    payload.state,
-    payload.updatedAt,
-    "state-current-book"
-  );
-  if (result.okAny) {
+  const settings = storage.getSettings();
+  const hasFirebaseEndpoint = Boolean(cloudSync.getFirebaseSyncEndpoint(settings));
+  let result = null;
+  if (hasFirebaseEndpoint) {
+    const firebaseResult = await runSyncTask({
+      label: "state-current-book",
+      target: "Firebase",
+      task: () => cloudSync.pushStateFirebase(currentCloudBookId, payload.state, payload.updatedAt, settings),
+    });
+    if (firebaseResult.ok) {
+      result = { okAny: true, results: [firebaseResult] };
+    } else {
+      const gasResult = await runSyncTask({
+        label: "state-current-book",
+        target: "GAS",
+        task: () => pushStateToGas(currentCloudBookId, payload.state, payload.updatedAt),
+      });
+      result = { okAny: gasResult.ok, results: [firebaseResult, gasResult] };
+    }
+  } else {
+    result = await pushStateDual(
+      currentCloudBookId,
+      payload.state,
+      payload.updatedAt,
+      "state-current-book"
+    );
+  }
+  if (result?.okAny) {
     storage.setSettings({ lastSyncAt: Date.now() });
     updateSyncStatusDisplay();
   }
