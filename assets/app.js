@@ -5,10 +5,11 @@ import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
 import {
-  updateActivity,
+
   checkAuthStatus,
   initGoogleLogin,
   logout,
+  startGoogleLogin,
   onGoogleLoginStart as startGoogleLoginUi,
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
@@ -512,28 +513,28 @@ const ui = new UIController({
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
-      updateActivity();
+
     }
   },
   onProgressBar: (action) => {
     if (action === 'show') {
-      updateActivity();
+
       updateProgressBarDisplay();
     }
   },
   onBookmarkMenu: (action) => {
     if (action === 'show') {
-      updateActivity();
+
       renderBookmarks(bookmarkMenuMode);
       bookmarkMenuMode = "current";
     }
   },
   onPagePrev: (step) => {
-    updateActivity();
+
     reader.prev(step);
   },
   onPageNext: (step) => {
-    updateActivity();
+
     reader.next(step);
   },
 });
@@ -1396,7 +1397,7 @@ async function handleFile(file) {
   userOverrodeDirection = false;
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
-    updateActivity();
+
 
     // ファイルタイプを自動判別
     const type = detectFileType(file);
@@ -1598,7 +1599,7 @@ async function openFromLibrary(bookId, options = {}) {
   await new Promise(resolve => setTimeout(resolve, 50));
 
   try {
-    updateActivity();
+
     userOverrodeDirection = false;
     const source = storage.getSettings().source || 'local';
     const record = await loadFile(bookId, source);
@@ -1773,7 +1774,7 @@ async function applyReadingState(progress) {
 
 function handleProgress(progress) {
   if (!currentBookId) return;
-  updateActivity();
+
 
   storage.setProgress(currentBookId, {
     ...progress,
@@ -2656,7 +2657,7 @@ function openModal(modal) {
   } else {
     modal.classList.remove("hidden");
   }
-  updateActivity();
+
 }
 
 function closeModal(modal) {
@@ -3327,27 +3328,8 @@ function setupEvents() {
       logout();
       return;
     }
-    try {
-      if (!googleLoginReady) {
-        initializeGoogleLogin();
-      }
-      startGoogleLoginUi();
-      window.google?.accounts?.id?.prompt((notification) => {
-        if (
-          notification.isNotDisplayed?.() ||
-          notification.isSkippedMoment?.() ||
-          notification.isDismissedMoment?.()
-        ) {
-          endGoogleLoginUi();
-        }
-      });
-    } catch (error) {
-      endGoogleLoginUi();
-      console.error("Google login failed:", error);
-      if (elements.userInfo) {
-        elements.userInfo.textContent = t("googleLoginFailed");
-      }
-    }
+    // New Firebase Auth Login
+    startGoogleLogin();
   });
 
   // Manual sync button
@@ -3390,8 +3372,26 @@ function setupEvents() {
     } catch (error) {
       console.error('Manual sync failed:', error);
       if (syncStatus) {
-        syncStatus.textContent = '✗ 同期に失敗しました: ' + error.message;
+        let userMessage = '同期に失敗しました';
+        let detailMessage = error.message;
+
+        // ネットワークエラーやブロックの可能性を示唆する判定
+        if (error.code === 'unavailable' ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('Network Error')) {
+
+          userMessage = '通信がブロックされました';
+          detailMessage = '広告ブロック等の拡張機能をOFFにして再試行してください。\n(Firebaseへの接続が遮断されています)';
+        } else if (error.code === 'permission-denied') {
+          userMessage = '権限エラー';
+          detailMessage = 'ログインし直してください。';
+        }
+
+        syncStatus.textContent = `✗ ${userMessage}`;
         syncStatus.style.color = '#f44336';
+
+        // 詳細をアラートでも表示（ユーザーに気づかせるため）
+        alert(`${userMessage}\n\n${detailMessage}\n\n詳細エラー: ${error.message}`);
       }
     } finally {
       manualSyncButton.disabled = false;
@@ -3501,10 +3501,10 @@ function setupEvents() {
     }
 
     if (event.deltaY > 0) {
-      updateActivity();
+
       reader.next();
     } else if (event.deltaY < 0) {
-      updateActivity();
+
       reader.prev();
     }
 
@@ -3522,7 +3522,7 @@ function setupEvents() {
       return;
     }
 
-    updateActivity();
+
 
     switch (e.key) {
       case 'ArrowLeft':
@@ -3564,12 +3564,12 @@ function setupEvents() {
 
   // プログレスバー矢印
   elements.progressPrev?.addEventListener('click', () => {
-    updateActivity();
+
     reader.prev(1); // 1ページずつ戻る
   });
 
   elements.progressNext?.addEventListener('click', () => {
-    updateActivity();
+
     reader.next(1); // 1ページずつ進む
   });
 }

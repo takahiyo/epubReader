@@ -1,20 +1,21 @@
 {
-  "name": "Epub Reader",
-  "short_name": "Epub",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "icons": [
-    {
-      "src": "./assets/bookreader.png",
-      "sizes": "2129x514",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/BookReader_Titlle.png",
-      "sizes": "800x533",
-      "type": "image/jpeg"
-    }
-  ]
+    "name": "BookReader",
+    "short_name": "BookReader",
+    "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2c3e50",
+    "icons": [
+        {
+            "src": "assets/icon_BookReader_192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "assets/icon_BookReader_512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
 }
