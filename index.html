@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2c3e50">
+  <link rel="apple-touch-icon" href="assets/icon_BookReader_512.png">
   <title>Epub Reader</title>
   <link rel="stylesheet" href="./assets/style.css" />
   <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
@@ -397,6 +400,15 @@
   <script src="./assets/config.js"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
   <script type="module" src="./assets/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.error('Service Worker registration failed', err));
+      });
+    }
+  </script>
 </body>
 
 </html>
