@@ -51,6 +51,7 @@ const defaultData = {
     uiLanguage: "en",
     fontSize: 16,
     autoSyncEnabled: null,
+    syncResolvePolicy: "firebase",
   },
 };
 
@@ -99,6 +100,7 @@ export class StorageService {
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
           firebaseConfig,
           autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
+          syncResolvePolicy: settings.syncResolvePolicy ?? defaultData.settings.syncResolvePolicy,
         },
       };
     } catch (error) {
