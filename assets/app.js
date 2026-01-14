@@ -13,6 +13,7 @@ import {
   onGoogleLoginStart as startGoogleLoginUi,
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
+import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -907,6 +908,131 @@ function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
   return Boolean(settings.gasEndpoint);
 }
 
+function getSyncWriteOrder(settings = storage.getSettings()) {
+  const provider = cloudSync.getSyncProvider(settings);
+  return provider === "firebase" ? ["firebase", "gas"] : ["gas", "firebase"];
+}
+
+function buildGasSyncUrl(endpoint, path) {
+  if (!endpoint) return null;
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
+}
+
+async function getGasIdToken() {
+  const user = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken();
+  } catch (error) {
+    console.warn("[Sync] GAS idToken 取得に失敗しました:", error);
+    return null;
+  }
+}
+
+async function pushStateToGas(cloudBookId, state, updatedAt) {
+  const settings = storage.getSettings();
+  if (!settings.gasEndpoint) {
+    return { status: "skipped", reason: "no-endpoint" };
+  }
+  const idToken = await getGasIdToken();
+  if (!idToken) {
+    return { status: "skipped", reason: "no-id-token" };
+  }
+  const url = buildGasSyncUrl(settings.gasEndpoint, "/sync/state/push");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ idToken, cloudBookId, state, updatedAt }),
+  });
+  if (!response.ok) {
+    throw new Error(`GAS state push failed (${response.status})`);
+  }
+  const data = await response.json().catch(() => ({}));
+  return { status: "success", data };
+}
+
+async function pushIndexDeltaToGas(indexDelta, updatedAt) {
+  const settings = storage.getSettings();
+  if (!settings.gasEndpoint) {
+    return { status: "skipped", reason: "no-endpoint" };
+  }
+  const idToken = await getGasIdToken();
+  if (!idToken) {
+    return { status: "skipped", reason: "no-id-token" };
+  }
+  const url = buildGasSyncUrl(settings.gasEndpoint, "/sync/index/push");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ idToken, indexDelta, updatedAt }),
+  });
+  if (!response.ok) {
+    throw new Error(`GAS index push failed (${response.status})`);
+  }
+  const data = await response.json().catch(() => ({}));
+  return { status: "success", data };
+}
+
+async function runSyncTask({ label, target, task }) {
+  try {
+    const result = await task();
+    if (result?.status === "skipped") {
+      console.log(`[Sync:${label}] ${target} skipped`, result);
+      return { target, ok: false, skipped: true, result };
+    }
+    console.log(`[Sync:${label}] ${target} success`, result);
+    return { target, ok: true, result };
+  } catch (error) {
+    console.warn(`[Sync:${label}] ${target} failed`, error);
+    return { target, ok: false, error };
+  }
+}
+
+async function pushStateDual(cloudBookId, state, updatedAt, label) {
+  const order = getSyncWriteOrder();
+  const results = [];
+  for (const target of order) {
+    if (target === "gas") {
+      results.push(await runSyncTask({
+        label,
+        target: "GAS",
+        task: () => pushStateToGas(cloudBookId, state, updatedAt),
+      }));
+    } else {
+      results.push(await runSyncTask({
+        label,
+        target: "Firebase",
+        task: () => cloudSync.pushState(cloudBookId, state, updatedAt),
+      }));
+    }
+  }
+  const okAny = results.some((result) => result.ok);
+  return { okAny, results };
+}
+
+async function pushIndexDeltaDual(indexDelta, updatedAt, label) {
+  const order = getSyncWriteOrder();
+  const results = [];
+  for (const target of order) {
+    if (target === "gas") {
+      results.push(await runSyncTask({
+        label,
+        target: "GAS",
+        task: () => pushIndexDeltaToGas(indexDelta, updatedAt),
+      }));
+    } else {
+      results.push(await runSyncTask({
+        label,
+        target: "Firebase",
+        task: () => cloudSync.pushIndexDelta(indexDelta, updatedAt),
+      }));
+    }
+  }
+  const okAny = results.some((result) => result.ok);
+  return { okAny, results };
+}
+
 function formatLibraryMeta({ progressPercentage, timestamp }) {
   const clampedProgress = Math.max(0, Math.min(100, Math.round(progressPercentage ?? 0)));
   const relativeTime = uiLanguage === "en" ? formatRelativeTimeEn(timestamp) : formatRelativeTime(timestamp);
@@ -1299,8 +1425,15 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
 
     if (isEmptyCloudState(remoteState)) {
       if (localUpdatedAt > 0) {
-        await cloudSync.pushState(cloudBookId, localPayload.state, localPayload.updatedAt);
-        storage.setSettings({ lastSyncAt: Date.now() });
+        const result = await pushStateDual(
+          cloudBookId,
+          localPayload.state,
+          localPayload.updatedAt,
+          "state-initial-upload"
+        );
+        if (result.okAny) {
+          storage.setSettings({ lastSyncAt: Date.now() });
+        }
       }
       return localProgress;
     }
@@ -1327,8 +1460,15 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
     if (localUpdatedAt > remoteUpdatedAt) {
       const choice = await promptSyncChoice({ mode: "local" });
       if (choice === "upload") {
-        await cloudSync.pushState(cloudBookId, localPayload.state, localPayload.updatedAt);
-        storage.setSettings({ lastSyncAt: Date.now() });
+        const result = await pushStateDual(
+          cloudBookId,
+          localPayload.state,
+          localPayload.updatedAt,
+          "state-local-upload"
+        );
+        if (result.okAny) {
+          storage.setSettings({ lastSyncAt: Date.now() });
+        }
       }
       return localProgress;
     }
@@ -1372,7 +1512,7 @@ async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, overrides =
   storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
   if (isCloudSyncEnabled()) {
     try {
-      await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
+      await pushIndexDeltaDual({ [cloudBookId]: meta }, meta.updatedAt, "index-upsert");
     } catch (error) {
       console.warn("クラウドインデックスの更新に失敗しました:", error);
     }
@@ -2932,9 +3072,16 @@ async function pushCurrentBookSync() {
   if (!currentBookId || !currentCloudBookId) return;
   if (!isCloudSyncEnabled()) return;
   const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-  await cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
-  storage.setSettings({ lastSyncAt: Date.now() });
-  updateSyncStatusDisplay();
+  const result = await pushStateDual(
+    currentCloudBookId,
+    payload.state,
+    payload.updatedAt,
+    "state-current-book"
+  );
+  if (result.okAny) {
+    storage.setSettings({ lastSyncAt: Date.now() });
+    updateSyncStatusDisplay();
+  }
 }
 
 function toggleAutoSync(enabled) {
