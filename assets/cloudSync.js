@@ -1,5 +1,5 @@
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
-import { getCurrentUserId } from "./auth.js";
+import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { db } from "./firebaseConfig.js";
 import {
   doc,
@@ -51,6 +51,68 @@ export class CloudSync {
       throw new Error(AUTH_REQUIRED_MESSAGE);
     }
     return uid;
+  }
+
+  getFirebaseSyncEndpoint(settings = this.storage.getSettings()) {
+    return (
+      settings?.firebaseEndpoint ||
+      settings?.firebaseSyncEndpoint ||
+      (typeof window !== "undefined" && window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT) ||
+      ""
+    );
+  }
+
+  buildFirebaseSyncUrl(endpoint, path) {
+    if (!endpoint) return null;
+    if (endpoint.includes("{path}")) {
+      return endpoint.replace("{path}", encodeURIComponent(path));
+    }
+    if (endpoint.includes("?")) {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
+    }
+    return `${endpoint.replace(/\/$/, "")}${path}`;
+  }
+
+  async getFirebaseIdToken() {
+    const info = await getIdTokenInfo();
+    if (!info?.idToken) return null;
+    if (info.tokenType && info.tokenType !== ID_TOKEN_TYPE.FIREBASE) return null;
+    return info.idToken;
+  }
+
+  normalizeCloudState(state, updatedAt) {
+    const safeState = state ?? {};
+    const safeBookmarks = Array.isArray(safeState.bookmarks) ? safeState.bookmarks : [];
+    return {
+      ...safeState,
+      progress: typeof safeState.progress === "number" ? safeState.progress : 0,
+      lastCfi: safeState.lastCfi ?? null,
+      location: safeState.location ?? safeState.lastCfi ?? null,
+      bookmarks: safeBookmarks,
+      updatedAt: safeState.updatedAt ?? updatedAt ?? Date.now(),
+    };
+  }
+
+  async postFirebaseSync(path, payload, settings = this.storage.getSettings()) {
+    const endpoint = this.getFirebaseSyncEndpoint(settings);
+    if (!endpoint) {
+      return { source: "firebase", status: "skipped", reason: "no-endpoint" };
+    }
+    const idToken = await this.getFirebaseIdToken();
+    if (!idToken) {
+      return { source: "firebase", status: "skipped", reason: "no-id-token" };
+    }
+    const url = this.buildFirebaseSyncUrl(endpoint, path);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken, ...payload }),
+    });
+    if (!response.ok) {
+      throw new Error(`Firebase sync failed (${response.status})`);
+    }
+    return response.json().catch(() => ({}));
   }
 
   // ===============================
@@ -205,15 +267,20 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.pullIndexFirestore();
+    const response = await this.postFirebaseSync("/sync/index/pull", {}, settings);
+    return response?.data ?? response;
   }
 
   async pushIndexDeltaFirebase(indexDelta, updatedAt, settings = this.storage.getSettings()) {
+    return this.pushIndexFirebase(indexDelta, updatedAt, settings);
+  }
+
+  async pushIndexFirebase(indexDelta, updatedAt, settings = this.storage.getSettings()) {
     const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.pushIndexDeltaFirestore(indexDelta, updatedAt);
+    return this.postFirebaseSync("/sync/index/push", { indexDelta, updatedAt }, settings);
   }
 
   async pullStateFirebase(cloudBookId, settings = this.storage.getSettings()) {
@@ -221,7 +288,8 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.pullBookDataFirestore(cloudBookId);
+    const response = await this.postFirebaseSync("/sync/state/pull", { cloudBookId }, settings);
+    return response?.data ?? response;
   }
 
   async pushStateFirebase(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
@@ -229,8 +297,12 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    const payload = { state, updatedAt };
-    return this.pushBookDataFirestore(cloudBookId, payload);
+    const normalizedState = this.normalizeCloudState(state, updatedAt);
+    return this.postFirebaseSync(
+      "/sync/state/push",
+      { cloudBookId, state: normalizedState, updatedAt: normalizedState.updatedAt },
+      settings
+    );
   }
 
   // ===============================
