@@ -4,11 +4,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2c3e50">
+  <link rel="apple-touch-icon" href="assets/icon_BookReader_512.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon_BookReader_192.png">
   <title>Epub Reader</title>
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./assets/style.css" />
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
@@ -306,6 +309,41 @@
             </div>
             <p id="userInfo" class="setting-hint">未ログイン</p>
             <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
+            <p class="setting-hint" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem;">
+              ※ 同期がうまく行かない場合は、広告ブロック機能をこのサイトで「無効」に設定してください。
+            </p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4 id="settingsFirebaseTitle">Firebase</h4>
+          <div class="setting-item">
+            <label for="firebaseApiKey" id="firebaseApiKeyLabel">APIキー</label>
+            <input id="firebaseApiKey" type="text" autocomplete="off" />
+          </div>
+          <div class="setting-item">
+            <label for="firebaseAuthDomain" id="firebaseAuthDomainLabel">認証ドメイン</label>
+            <input id="firebaseAuthDomain" type="text" autocomplete="off" />
+          </div>
+          <div class="setting-item">
+            <label for="firebaseProjectId" id="firebaseProjectIdLabel">プロジェクトID</label>
+            <input id="firebaseProjectId" type="text" autocomplete="off" />
+          </div>
+          <div class="setting-item">
+            <label for="firebaseStorageBucket" id="firebaseStorageBucketLabel">ストレージバケット</label>
+            <input id="firebaseStorageBucket" type="text" autocomplete="off" />
+          </div>
+          <div class="setting-item">
+            <label for="firebaseMessagingSenderId" id="firebaseMessagingSenderIdLabel">送信者ID</label>
+            <input id="firebaseMessagingSenderId" type="text" autocomplete="off" />
+          </div>
+          <div class="setting-item">
+            <label for="firebaseAppId" id="firebaseAppIdLabel">アプリID</label>
+            <input id="firebaseAppId" type="text" autocomplete="off" />
+          </div>
+          <div class="setting-item">
+            <label for="firebaseMeasurementId" id="firebaseMeasurementIdLabel">測定ID</label>
+            <input id="firebaseMeasurementId" type="text" autocomplete="off" />
           </div>
         </div>
 
@@ -428,6 +466,15 @@
   <script src="./assets/config.js"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
   <script type="module" src="./assets/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.error('Service Worker registration failed', err));
+      });
+    }
+  </script>
 </body>
 
 </html>
