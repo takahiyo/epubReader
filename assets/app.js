@@ -1124,6 +1124,56 @@ function buildSyncRemoteLabel(timestamp) {
   return t("syncPromptRemote").replace("{time}", timeText || "--");
 }
 
+function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }) {
+  return new Promise((resolve) => {
+    if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
+      resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
+      return;
+    }
+
+    const strings = getUiStrings(uiLanguage);
+    const preferRemote = remoteUpdatedAt >= localUpdatedAt;
+
+    if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
+    if (elements.syncModalMessage) {
+      elements.syncModalMessage.textContent = preferRemote
+        ? strings.syncPromptMessage
+        : strings.syncPromptLocalMessage;
+    }
+    if (elements.syncUseRemote) {
+      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteUpdatedAt);
+    }
+    if (elements.syncUseLocal) {
+      elements.syncUseLocal.textContent = preferRemote
+        ? strings.syncPromptLocal
+        : strings.syncPromptUpload;
+    }
+
+    const cleanup = () => {
+      if (elements.syncUseRemote) elements.syncUseRemote.onclick = null;
+      if (elements.syncUseLocal) elements.syncUseLocal.onclick = null;
+    };
+
+    if (elements.syncUseRemote) {
+      elements.syncUseRemote.onclick = () => {
+        cleanup();
+        closeModal(elements.syncModal);
+        resolve("remote");
+      };
+    }
+
+    if (elements.syncUseLocal) {
+      elements.syncUseLocal.onclick = async () => {
+        cleanup();
+        closeModal(elements.syncModal);
+        resolve("local");
+      };
+    }
+
+    openModal(elements.syncModal);
+  });
+}
+
 function promptSyncCandidate(candidates) {
   return new Promise((resolve) => {
     if (!elements.candidateModal || !elements.candidateList || !elements.candidateUseLocal) {
@@ -1256,8 +1306,35 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
     if (isEmptyCloudState(remoteState)) {
       return localProgress;
     }
+
+    const localUpdatedAt = localProgress?.updatedAt ?? 0;
+    const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
+    const localLocation = localProgress?.location ?? null;
+    const remoteLocation = remoteState?.lastCfi ?? null;
+
+    if (
+      localUpdatedAt !== remoteUpdatedAt &&
+      localLocation !== null &&
+      remoteLocation !== null &&
+      localLocation !== remoteLocation
+    ) {
+      const choice = await promptSyncResolution({ localUpdatedAt, remoteUpdatedAt });
+      if (choice === "remote") {
+        applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
+        storage.setSettings({ lastSyncAt: Date.now() });
+        updateSyncStatusDisplay();
+      } else {
+        storage.setCloudState(cloudBookId, remoteState);
+        if (localUpdatedAt > remoteUpdatedAt) {
+          await pushCurrentBookSync();
+        }
+      }
+      return storage.getProgress(localBookId);
+    }
+
     applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
     storage.setSettings({ lastSyncAt: Date.now() });
+    updateSyncStatusDisplay();
     return storage.getProgress(localBookId);
   } catch (error) {
     console.warn("同期情報の取得に失敗しました:", error);
