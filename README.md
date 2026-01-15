@@ -15,53 +15,116 @@
 - 📑 ライブラリ/履歴ビューと進捗表示、最後のしおりからの再開
 - 💾 IndexedDB にファイルを保存するため、再読み込み後もアップロード不要
 - 📱 PWA 対応（インストール/オフライン利用可能）
+- 🥽 Quest 3 ブラウザ対応（VR環境での読書体験）
 
 ---
 
 ## 対応環境
 
-- Windows：Chrome / Edge
-- Android：Chrome
-- iPad：Safari / Chrome（WebKit）
-- Quest 3：ブラウザ
+- **Windows**：Chrome / Edge
+- **Android**：Chrome
+- **iPad**：Safari / Chrome（WebKit）
+- **Quest 3**：Meta Quest Browser
 
 ※「まずブラウザで使えること」を最優先し、PWA は上乗せで提供します。
+
+### Quest 3 対応に関する重要事項
+
+Quest 3 でのブラウザ利用を継続的にサポートするため、以下の要件を満たす必要があります：
+
+#### 1. ブラウザ環境の制約
+
+- **Meta Quest Browser の仕様**：Chromium ベースですが、独自の制約があります
+- **ファイルアップロード**：Quest 3 のブラウザはローカルファイルシステムへのアクセスが制限されているため、ファイル選択UIに特別な配慮が必要
+- **パフォーマンス**：VR デバイスのため、メモリとCPUリソースに制約があります
+
+#### 2. 必須の技術要件
+
+- **標準 Web API のみ使用**：Quest Browser で動作する標準的な Web API に限定
+  - `File API`（ファイル読み込み）
+  - `IndexedDB`（ローカルストレージ）
+  - `Fetch API`（ネットワーク通信）
+- **Firebase SDK の互換性**：
+  - Firebase JavaScript SDK v9+ (modular) は Quest Browser でも動作確認済み
+  - CDN 経由での読み込みを推奨（バンドルサイズの最小化）
+- **軽量な実装**：
+  - 大きな画像や複雑な DOM 操作を避ける
+  - レイジーローディングの活用
+  - メモリリークの防止
+
+#### 3. UI/UX の考慮事項
+
+- **コントローラー操作**：Quest 3 のハンドコントローラーでの操作を想定
+  - クリック可能な要素は十分なサイズを確保（最低44x44px推奨）
+  - ホバー効果に依存しない設計
+- **視認性**：
+  - VR 環境では画面との距離が異なるため、フォントサイズを調整可能に
+  - コントラスト比を高く保つ
+- **仮想キーボード**：テキスト入力が必要な場合、Quest の仮想キーボードを考慮
+
+#### 4. テスト・検証方法
+
+Quest 3 での動作確認には以下の方法を推奨：
+
+- **実機テスト**：定期的に Quest 3 実機でテストする
+- **リモートデバッグ**：
+  - Quest Browser の開発者ツールは制限されているため、`console.log` をUI上に表示する仕組みを用意
+  - エラーハンドリングを徹底し、ユーザーに分かりやすいエラーメッセージを表示
+- **パフォーマンスモニタリング**：
+  - メモリ使用量の監視
+  - 大きなファイル（100MB以上のEPUB等）での動作確認
+
+#### 5. 既知の制限事項
+
+- **ファイルサイズ**：非常に大きなファイル（200MB以上）は Quest 3 ではパフォーマンスが低下する可能性
+- **同時読み込み**：複数の大きなファイルを同時に開くと、メモリ不足でクラッシュする可能性
+- **PWA インストール**：Quest Browser での PWA インストールは限定的なサポート
+
+#### 6. 今後の開発での注意点
+
+Quest 3 対応を維持するため、以下を継続的に実施：
+
+- **後方互換性の維持**：新機能追加時も Quest Browser での動作を確認
+- **ポリフィルの活用**：最新の Web API を使用する場合、Quest Browser での互換性を確認し、必要に応じてポリフィルを追加
+- **フォールバック実装**：Quest 固有の問題が発生した場合のフォールバック処理を用意
+- **ドキュメント更新**：Quest 3 での動作に影響する変更があった場合、README を更新
 
 ---
 
 ## アーキテクチャ
 
 ```
-┌─────────────────────────────┐
-│ Browser (Windows/Android/iPad)│
-│  - Web App / PWA              │
-│  - IndexedDB (library cache)  │
-│  - Firebase SDK (優先)        │
-└───────────┬─────────────────┘
+┌─────────────────────────────────────┐
+│ Browser                              │
+│  (Windows/Android/iPad/Quest 3)      │
+│  - Web App / PWA                     │
+│  - IndexedDB (library cache)         │
+│  - Firebase SDK (優先)               │
+└───────────┬─────────────────────────┘
             │
             ├─ ① 優先: Firebase SDK (直接通信)
             │   HTTPS
             │   ▼
-            │  ┌─────────────────────────────┐
+            │  ┌──────────────────────────────┐
             │  │ Firebase Database             │
             │  │  - Firestore or Realtime DB   │
             │  │  - bookmarks/history/settings │
-            │  └─────────────────────────────┘
+            │  └──────────────────────────────┘
             │
             └─ ② フォールバック: Cloudflare Workers 経由
                 HTTPS
                 ▼
-               ┌─────────────────────────────┐
+               ┌──────────────────────────────┐
                │ Cloudflare Workers (API)      │
                │  - auth / validation / routing│
-               └───────────────┬─────────────┘
+               └───────────────┬──────────────┘
                                │
                                ▼
-               ┌─────────────────────────────┐
+               ┌──────────────────────────────┐
                │ Firebase Database             │
                │  - Firestore or Realtime DB   │
                │  - bookmarks/history/settings │
-               └─────────────────────────────┘
+               └──────────────────────────────┘
 
 (静的配信は Cloudflare Pages)
 ```
@@ -84,6 +147,14 @@
 3. 読書中に「ここにしおりを追加」で位置を保存できます。しおり一覧や履歴から再開可能です。
 4. テーマ切替や拡大表示などは画面右側のボタンから操作します。
 
+### Quest 3 での使い方
+
+1. Quest 3 で Meta Quest Browser を起動
+2. アプリの URL にアクセス
+3. ファイル選択時は Quest のファイルブラウザが開きます（PC からファイルを転送しておく必要があります）
+4. ハンドコントローラーのポインターで操作
+5. 読書中は両手コントローラーまたは片手でページ送りが可能
+
 ---
 
 ## クラウド同期
@@ -97,6 +168,7 @@
 - **通常時の高速性**: Firebase SDK による直接通信で低レイテンシを実現
 - **耐障害性**: ネットワーク制限や広告ブロッカーで SDK が使えない環境でも Workers 経由で動作
 - **メンテナンス性**: Firebase のメンテナンス時や一時的な障害時も継続利用可能
+- **Quest 3 対応**: VR 環境でも確実に同期可能
 
 ### 同期対象
 
@@ -173,7 +245,7 @@ async function syncToCloud(data) {
 ブラウザ側では Firebase JavaScript SDK (v9+ modular SDK) を使用します：
 
 ```html
-<!-- CDN 経由で読み込み -->
+<!-- CDN 経由で読み込み（Quest 3 互換性のため推奨） -->
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
   import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
@@ -192,7 +264,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 export default {
   async fetch(request, env) {
-    // CORS 対応
+    // CORS 対応（Quest 3 を含むすべてのクライアントから接続可能に）
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
@@ -254,6 +326,7 @@ export default {
 - **広告ブロッカー有効時**: Firebase SDK が遮断されても Workers 経由で通信
 - **企業ネットワーク**: Firebase SDK がファイアウォールで遮断されても Workers 経由で通信
 - **一部のモバイル環境**: SDK の初期化に失敗する環境でも Workers で補完
+- **Quest 3 環境**: VR 特有のネットワーク制約がある場合も Workers で対応
 
 ### それでも同期が失敗する場合
 
@@ -265,17 +338,25 @@ uBlock Origin, AdBlock, Privacy Badger などが有効な場合、**両方の通
 
 アドレスバーのライオンマーク（Brave Shields）をクリックし、シールドを **DOWN（無効）** に設定してください。
 
-#### 3. ネットワーク環境の確認
+#### 3. Quest 3 の場合
+
+- Meta Quest Browser の設定で、サイトへのアクセス権限を確認
+- Quest のネットワーク設定を確認（Wi-Fi 接続が安定しているか）
+- Quest の開発者モードが有効な場合、通信が制限される可能性があります
+
+#### 4. ネットワーク環境の確認
 
 社内ネットワークや学校の Wi-Fi で、Firebase と Workers の両方への接続が制限されている場合があります。
 
-#### 4. 開発者ツールでの確認
+#### 5. 開発者ツールでの確認
 
 ブラウザの開発者ツール（F12）→ Console タブで、どちらの通信方式が使用されているか確認できます：
 
 - `Firebase SDK で同期成功` → SDK での直接通信が成功
 - `Firebase SDK 通信失敗、Workers にフォールバック` → Workers 経由に切り替わった
 - `すべての同期方式が失敗` → 両方とも失敗（設定や環境を確認）
+
+**Quest 3 の場合**：開発者ツールが使いにくいため、アプリ内にデバッグログ表示機能を実装することを推奨します。
 
 ---
 
@@ -301,6 +382,11 @@ uBlock Origin, AdBlock, Privacy Badger などが有効な場合、**両方の通
 - Node.js：`npx serve`
 
 起動後：`http://localhost:8000/` を開きます。
+
+**Quest 3 でのテスト**：
+1. PC と Quest 3 を同じネットワークに接続
+2. PC の IP アドレスを確認（例：192.168.1.100）
+3. Quest 3 のブラウザで `http://192.168.1.100:8000/` にアクセス
 
 ### 2) Firebase プロジェクトのセットアップ
 
@@ -389,45 +475,134 @@ wrangler deploy
 
 ---
 
-## リポジトリ構成（目安）
+## リポジトリ構成
 
-- `index.html`：アプリ本体
-- `assets/`：JS/CSS/画像など
-  - `assets/js/sync.js`：同期ロジック（SDK → Workers フォールバック）
-  - `assets/vendor/`：`jszip` / `unrar` などの追加ライブラリ
-  - CDN 経由で `epubjs` と Firebase SDK を読み込み
-- `workers/`：Cloudflare Workers のコード（フォールバック用 API）
-- `dev.html` / `test.html`：開発・検証用（必要なら `tools/` へ隔離）
+```
+epub-reader/
+├── index.html              # アプリ本体
+├── assets/
+│   ├── js/
+│   │   ├── sync.js         # 同期ロジック（SDK → Workers フォールバック）
+│   │   ├── epub-reader.js  # EPUB読み込み処理
+│   │   └── image-reader.js # 画像書籍読み込み処理
+│   ├── css/
+│   │   └── styles.css      # スタイルシート
+│   └── vendor/             # 外部ライブラリ
+│       ├── jszip/          # ZIP解凍用
+│       └── unrar/          # RAR解凍用（必要に応じて）
+├── workers/                # Cloudflare Workers（フォールバック用API）
+│   ├── src/
+│   │   └── index.js        # Workers エントリーポイント
+│   ├── wrangler.toml       # Workers 設定
+│   └── package.json
+├── tools/                  # 開発・検証用ツール
+│   ├── dev.html            # 開発用テストページ
+│   └── test.html           # 機能テスト用ページ
+└── README.md               # 本ファイル
+```
+
+### CDN 経由で読み込むライブラリ
+
+- **epub.js**：EPUB パース・レンダリング
+- **Firebase SDK**：認証・データベース（v9+ modular）
+- その他必要に応じて追加
 
 ### 不要コード/不要ファイルの整理方針
 
-本プロジェクトは「AI バイブコーディングで素早く作る」性格上、試作の残骸が溜まりやすい前提です。以下の基準で整理します。
+本プロジェクトは「AI バイブコーディングで素早く作る」性格上、試作の残骸が溜まりやすい前提です。以下の基準で整理します：
 
-- **本番配信に不要**：`dev.html` / `test.html` / `index.html.backup` などは削除または `tools/` に移動
+- **本番配信に不要**：`dev.html` / `test.html` / `index.html.backup` などは `tools/` に移動
 - **旧実装の残骸**：Workers のみの実装や GAS 前提のコードは削除
 - **実装が二重化している**：同じ責務の関数・設定が複数ある場合は統合
+- **Quest 3 互換性のチェック**：新機能追加時は Quest 3 での動作を確認し、互換性のないコードは削除または代替実装を用意
 
 ---
 
 ## 開発メモ
 
-- Firebase SDK と Workers の両方に対応した同期ロジックを `assets/js/sync.js` に実装
-- Firebase SDK は CDN 経由で modular SDK (v9+) を使用
-- Workers はシンプルなプロキシとして実装し、Firebase Admin SDK で Firebase にアクセス
-- 追加ライブラリは `assets/vendor` と CDN 経由で管理（ビルド工程不要）
+### 技術スタック
+
+- **フロントエンド**：Vanilla JavaScript（フレームワークなし）
+- **同期ロジック**：Firebase SDK (v9+ modular) + Cloudflare Workers
+- **ストレージ**：IndexedDB（ファイル本体）、Firebase Database（同期データ）
+- **ホスティング**：Cloudflare Pages（静的サイト）
+- **API**：Cloudflare Workers（フォールバック用プロキシ）
+
+### Quest 3 対応の実装ポイント
+
+- **タッチイベント**：Quest Browser はタッチイベントをサポート。クリックイベントと併用
+- **メモリ管理**：大きなファイルを扱う際は、適切にメモリを解放
+- **エラーハンドリング**：Quest では開発者ツールが使いにくいため、UI上でエラーを表示
+- **パフォーマンス**：重い処理は Web Worker で非同期実行（可能な範囲で）
+
+### AI バイブコーディングのポイント
+
+- プロンプトで要件を明確に伝え、動作する最小限のコードを生成
+- 複雑な処理は段階的に実装し、各段階でテスト
+- Quest 3 での動作確認は実機で行い、問題があれば AI にフィードバック
+- コードの重複や不要な部分は定期的にリファクタリング
 
 ---
 
-## Roadmap（例）
+## Roadmap
 
+### 完了済み
 - ✅ Firebase SDK → Workers フォールバックの冗長化実装
-- PWA の安定化（iPad/Safari の挙動差分吸収）
-- 同期の衝突解決（最終更新タイムスタンプベース、マージ方針）
-- 複数端末間のリアルタイム同期（Firebase onSnapshot 活用）
-- オフライン対応の強化（IndexedDB との同期キュー）
+- ✅ Quest 3 基本対応（ファイル読み込み、ページ送り、同期）
+
+### 実装中
+- 🔄 PWA の安定化（iPad/Safari の挙動差分吸収）
+- 🔄 Quest 3 UI の最適化（コントローラー操作の改善）
+
+### 今後の予定
+- ⏳ 同期の衝突解決（最終更新タイムスタンプベース、マージ方針）
+- ⏳ 複数端末間のリアルタイム同期（Firebase onSnapshot 活用）
+- ⏳ オフライン対応の強化（IndexedDB との同期キュー）
+- ⏳ Quest 3 専用機能
+  - VR 空間での読書体験の最適化
+  - 3D UI要素の追加（実験的）
+  - ハンドトラッキング対応（将来的に）
+- ⏳ パフォーマンス改善
+  - 大容量ファイルの段階的読み込み
+  - Web Worker を活用した非同期処理
+  - Quest 3 でのメモリ使用量最適化
+
+---
+
+## トラブルシューティング
+
+### Quest 3 で同期が失敗する
+
+1. Quest のネットワーク設定を確認
+2. Firebase SDK と Workers の両方の URL にアクセスできるか確認
+3. アプリ内のデバッグログで詳細なエラーメッセージを確認
+
+### Quest 3 でファイルが開けない
+
+1. ファイルが Quest のストレージに正しく保存されているか確認
+2. ファイルサイズが大きすぎないか確認（200MB 以下推奨）
+3. ファイル形式が正しいか確認（.epub, .cbz, .zip）
+
+### Quest 3 でパフォーマンスが悪い
+
+1. 他のアプリやブラウザタブを閉じる
+2. Quest を再起動する
+3. ファイルサイズを小さくする（画像圧縮など）
+4. IndexedDB をクリアして再度ファイルを読み込む
 
 ---
 
 ## ライセンス
 
 本リポジトリのコードはプロジェクト要件に従い自由に利用してください。
+
+---
+
+## 貢献
+
+バグ報告や機能要望は GitHub Issues でお願いします。特に Quest 3 での動作に関するフィードバックは大歓迎です。
+
+プルリクエストも歓迎しますが、以下の点にご注意ください：
+- Quest 3 での動作確認を行ってください
+- コードは可能な限りシンプルに保ってください
+- 新しい依存関係の追加は最小限にしてください
