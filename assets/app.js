@@ -516,12 +516,6 @@ const ui = new UIController({
   },
   onFloatToggle: () => {
     toggleFloatOverlay();
-    // グリッドオーバーレイの表示切替
-    if (floatVisible) {
-      ui.showClickAreas();
-    } else {
-      ui.hideClickAreas();
-    }
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -860,11 +854,6 @@ function toggleFloatOverlay(forceVisible) {
   }
 
   updateProgressBarDisplay();
-  if (floatVisible) {
-    ui.showClickAreas();
-  } else {
-    ui.hideClickAreas();
-  }
 }
 
 function updateFloatProgressBar(percentage) {
