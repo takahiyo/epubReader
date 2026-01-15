@@ -1200,6 +1200,8 @@ function buildCloudStatePayload(localBookId, cloudBookId) {
     bookmarks: bookmarks.map((bookmark) => ({
       ...bookmark,
       bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
+      deviceId: bookmark.deviceId ?? null,
+      deviceColor: bookmark.deviceColor ?? null,
       updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
     })),
     // historyフィールドを削除
@@ -2225,7 +2227,11 @@ function addBookmark() {
     return;
   }
 
-  const bookmark = reader.addBookmark(t("bookmarkDefault"));
+  const deviceSettings = storage.getSettings();
+  const bookmark = reader.addBookmark(t("bookmarkDefault"), {
+    deviceId: deviceSettings.deviceId,
+    deviceColor: deviceSettings.deviceColor,
+  });
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
     renderBookmarks(bookmarkMenuMode);
