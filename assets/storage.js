@@ -74,6 +74,14 @@ const ensureDeviceSettings = (settings) => {
   };
 };
 
+const getBookmarkKey = (bookmark) => {
+  const cfi = bookmark?.cfi;
+  if (cfi) return `cfi:${cfi}`;
+  const createdAt = bookmark?.createdAt;
+  if (!createdAt) return null;
+  return `createdAt:${createdAt}`;
+};
+
 const defaultData = {
   library: {},
   bookmarks: {},
@@ -203,13 +211,14 @@ export class StorageService {
     const currentList = this.data.bookmarks[bookId] ?? [];
     const map = new Map();
 
-    // 既存と新規をマージ（createdAtをキーに重複排除）
+    // 既存と新規をマージ（cfi をキーに重複排除、なければ createdAt にフォールバック）
     [...currentList, ...incomingList].forEach((bookmark) => {
-      if (!bookmark?.createdAt) return;
-      const existing = map.get(bookmark.createdAt);
+      const key = getBookmarkKey(bookmark);
+      if (!key) return;
+      const existing = map.get(key);
       // ラベルがある方を優先、あるいは新しい方を優先する
       if (!existing || (!existing.label && bookmark.label)) {
-        map.set(bookmark.createdAt, bookmark);
+        map.set(key, bookmark);
       }
     });
 
@@ -352,10 +361,11 @@ export class StorageService {
       const currentList = mergedBookmarks[bookId] ?? [];
       const map = new Map();
       [...incomingList, ...currentList].forEach((bookmark) => {
-        if (!bookmark?.createdAt) return;
-        const existing = map.get(bookmark.createdAt);
+        const key = getBookmarkKey(bookmark);
+        if (!key) return;
+        const existing = map.get(key);
         if (!existing || (!existing.label && bookmark.label)) {
-          map.set(bookmark.createdAt, bookmark);
+          map.set(key, bookmark);
         }
       });
       const mergedList = Array.from(map.values())

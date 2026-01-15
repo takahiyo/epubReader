@@ -1853,9 +1853,11 @@ export class ReaderController {
       if (!this.pagination?.pages?.length) return null;
       const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
       const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
+      const cfi = locator ? `${locator.spineIndex}:${locator.segmentIndex}` : null;
       const bookmark = {
         label,
         location: locator,
+        cfi,
         percentage,
         createdAt: Date.now(),
         bookType: "epub", // bookType として保存
@@ -1866,9 +1868,11 @@ export class ReaderController {
     }
 
     // 画像書庫の場合
+    const cfi = `image:${this.imageIndex}`;
     const bookmark = {
       label,
       location: this.imageIndex, // imageIndex を location として保存
+      cfi,
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
       createdAt: Date.now(),
       bookType: this.type, // "zip" | "rar"
