@@ -97,6 +97,9 @@ const UI_STRINGS = {
     progressDisplayPage: "ページ数",
     progressDisplayPercentage: "パーセンテージ",
     settingsAccountTitle: "アカウント",
+    settingsDeviceTitle: "デバイス",
+    deviceIdLabel: "デバイスID",
+    deviceColorLabel: "デバイスカラー",
     settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Googleログイン",
     googleLogoutLabel: "ログオフ",
@@ -183,6 +186,9 @@ const UI_STRINGS = {
     progressDisplayPage: "Pages",
     progressDisplayPercentage: "Percentage",
     settingsAccountTitle: "Account",
+    settingsDeviceTitle: "Device",
+    deviceIdLabel: "Device ID",
+    deviceColorLabel: "Device color",
     settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Sign in with Google",
     googleLogoutLabel: "Sign out",
@@ -426,10 +432,15 @@ const elements = {
   historyModalTitle: document.getElementById("historyModalTitle"),
   settingsModalTitle: document.getElementById("settingsModalTitle"),
   settingsDisplayTitle: document.getElementById("settingsDisplayTitle"),
+  settingsDeviceTitle: document.getElementById("settingsDeviceTitle"),
   themeLabel: document.getElementById("themeLabel"),
   writingModeLabel: document.getElementById("writingModeLabel"),
   pageDirectionLabel: document.getElementById("pageDirectionLabel"),
   progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
+  deviceIdLabel: document.getElementById("deviceIdLabel"),
+  deviceIdInput: document.getElementById("deviceId"),
+  deviceColorLabel: document.getElementById("deviceColorLabel"),
+  deviceColorInput: document.getElementById("deviceColor"),
   settingsAccountTitle: document.getElementById("settingsAccountTitle"),
   googleLoginButton: document.getElementById("googleLoginButton"),
   syncToggleButton: document.getElementById("syncToggleButton"),
@@ -2704,10 +2715,13 @@ function applyUiLanguage(nextLanguage) {
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
+  if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
   if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
+  if (elements.deviceIdLabel) elements.deviceIdLabel.textContent = strings.deviceIdLabel;
+  if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
@@ -2986,6 +3000,8 @@ function showSettings() {
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
   if (elements.settingsDefaultDirection) elements.settingsDefaultDirection.value = defaultDirection;
   if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  if (elements.deviceIdInput) elements.deviceIdInput.value = currentSettings.deviceId ?? "";
+  if (elements.deviceColorInput) elements.deviceColorInput.value = currentSettings.deviceColor ?? "";
   if (elements.firebaseApiKey) elements.firebaseApiKey.value = firebaseConfig.apiKey ?? "";
   if (elements.firebaseAuthDomain) {
     elements.firebaseAuthDomain.value = firebaseConfig.authDomain ?? "";
