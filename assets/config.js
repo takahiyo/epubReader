@@ -7,5 +7,7 @@ window.EPUB_READER_CONFIG.googleClientId =
 
 // アプリ共通設定
 window.APP_CONFIG = {
-  FIREBASE_SYNC_ENDPOINT: ""
+  FIREBASE_SYNC_ENDPOINT: "bookreader.taka-hiyo.workers.dev
+
+"
 };
