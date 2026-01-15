@@ -905,174 +905,7 @@ function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
     return false;
   }
   const settings = storage.getSettings();
-  const hasGasEndpoint = Boolean(settings.gasEndpoint);
-  const hasFirebaseEndpoint = Boolean(
-    cloudSync.getFirebaseSyncEndpoint(settings) ||
-      settings.firebaseEndpoint ||
-      settings.firebaseSyncEndpoint
-  );
-  return hasGasEndpoint || hasFirebaseEndpoint;
-}
-
-function getSyncWriteOrder(settings = storage.getSettings()) {
-  const provider = cloudSync.getSyncProvider(settings);
-  return provider === "firebase" ? ["firebase", "gas"] : ["gas", "firebase"];
-}
-
-function getSyncResolvePolicy(settings = storage.getSettings()) {
-  const policy = settings.syncResolvePolicy;
-  if (policy === "firebaseFirst") return "firebase-first";
-  if (
-    policy === "firebase" ||
-    policy === "firebase-first" ||
-    policy === "gas" ||
-    policy === "updatedAt"
-  ) {
-    return policy;
-  }
-  return "firebase";
-}
-
-function buildGasSyncUrl(endpoint, path) {
-  if (!endpoint) return null;
-  const separator = endpoint.includes("?") ? "&" : "?";
-  return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
-}
-
-async function getGasIdToken() {
-  const user = auth.currentUser;
-  if (!user) return null;
-  try {
-    return await user.getIdToken();
-  } catch (error) {
-    console.warn("[Sync] GAS idToken 取得に失敗しました:", error);
-    return null;
-  }
-}
-
-async function pushStateToGas(cloudBookId, state, updatedAt) {
-  const settings = storage.getSettings();
-  if (!settings.gasEndpoint) {
-    return { status: "skipped", reason: "no-endpoint" };
-  }
-  const idToken = await getGasIdToken();
-  if (!idToken) {
-    return { status: "skipped", reason: "no-id-token" };
-  }
-  const url = buildGasSyncUrl(settings.gasEndpoint, "/sync/state/push");
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ idToken, cloudBookId, state, updatedAt }),
-  });
-  if (!response.ok) {
-    throw new Error(`GAS state push failed (${response.status})`);
-  }
-  const data = await response.json().catch(() => ({}));
-  return { status: "success", data };
-}
-
-async function pullStateFromGas(cloudBookId) {
-  const settings = storage.getSettings();
-  if (!settings.gasEndpoint) {
-    return { status: "skipped", reason: "no-endpoint" };
-  }
-  const idToken = await getGasIdToken();
-  if (!idToken) {
-    return { status: "skipped", reason: "no-id-token" };
-  }
-  const url = buildGasSyncUrl(settings.gasEndpoint, "/sync/state/pull");
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ idToken, cloudBookId }),
-  });
-  if (!response.ok) {
-    throw new Error(`GAS state pull failed (${response.status})`);
-  }
-  const data = await response.json().catch(() => ({}));
-  return { status: "success", data };
-}
-
-async function pushIndexDeltaToGas(indexDelta, updatedAt) {
-  const settings = storage.getSettings();
-  if (!settings.gasEndpoint) {
-    return { status: "skipped", reason: "no-endpoint" };
-  }
-  const idToken = await getGasIdToken();
-  if (!idToken) {
-    return { status: "skipped", reason: "no-id-token" };
-  }
-  const url = buildGasSyncUrl(settings.gasEndpoint, "/sync/index/push");
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ idToken, indexDelta, updatedAt }),
-  });
-  if (!response.ok) {
-    throw new Error(`GAS index push failed (${response.status})`);
-  }
-  const data = await response.json().catch(() => ({}));
-  return { status: "success", data };
-}
-
-async function runSyncTask({ label, target, task }) {
-  try {
-    const result = await task();
-    if (result?.status === "skipped") {
-      console.log(`[Sync:${label}] ${target} skipped`, result);
-      return { target, ok: false, skipped: true, result };
-    }
-    console.log(`[Sync:${label}] ${target} success`, result);
-    return { target, ok: true, result };
-  } catch (error) {
-    console.warn(`[Sync:${label}] ${target} failed`, error);
-    return { target, ok: false, error };
-  }
-}
-
-async function pushStateDual(cloudBookId, state, updatedAt, label) {
-  const order = getSyncWriteOrder();
-  const results = [];
-  for (const target of order) {
-    if (target === "gas") {
-      results.push(await runSyncTask({
-        label,
-        target: "GAS",
-        task: () => pushStateToGas(cloudBookId, state, updatedAt),
-      }));
-    } else {
-      results.push(await runSyncTask({
-        label,
-        target: "Firebase",
-        task: () => cloudSync.pushState(cloudBookId, state, updatedAt),
-      }));
-    }
-  }
-  const okAny = results.some((result) => result.ok);
-  return { okAny, results };
-}
-
-async function pushIndexDeltaDual(indexDelta, updatedAt, label) {
-  const order = getSyncWriteOrder();
-  const results = [];
-  for (const target of order) {
-    if (target === "gas") {
-      results.push(await runSyncTask({
-        label,
-        target: "GAS",
-        task: () => pushIndexDeltaToGas(indexDelta, updatedAt),
-      }));
-    } else {
-      results.push(await runSyncTask({
-        label,
-        target: "Firebase",
-        task: () => cloudSync.pushIndexDelta(indexDelta, updatedAt),
-      }));
-    }
-  }
-  const okAny = results.some((result) => result.ok);
-  return { okAny, results };
+  return cloudSync.resolveSource(null, settings) === "firebase";
 }
 
 function formatLibraryMeta({ progressPercentage, timestamp }) {
@@ -1280,61 +1113,6 @@ function buildSyncRemoteLabel(timestamp) {
   return t("syncPromptRemote").replace("{time}", timeText || "--");
 }
 
-function promptSyncChoice({ mode, remoteProgress }) {
-  return new Promise((resolve) => {
-    if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
-      resolve("local");
-      return;
-    }
-
-    if (elements.syncModalTitle) {
-      elements.syncModalTitle.textContent = t("syncPromptTitle");
-    }
-
-    // Remote update available (Continuity Prompt)
-    if (mode === "remote") {
-      const pageStr = remoteProgress.progressDisplayMode === "page"
-        ? `${remoteProgress.location ?? "?"}ページ`
-        : `${(remoteProgress.percentage ?? 0).toFixed(0)}%`;
-
-      const message = t("syncPromptJump").replace("{page}", pageStr);
-
-      if (elements.syncModalMessage) {
-        elements.syncModalMessage.textContent = message;
-      }
-      elements.syncUseRemote.textContent = t("syncPromptRemote").replace("{time}", new Date(remoteProgress.updatedAt).toLocaleString());
-      elements.syncUseLocal.textContent = t("syncPromptLocal");
-    }
-    // Local is newer (Conflict/Reverse Sync)
-    else {
-      if (elements.syncModalMessage) {
-        elements.syncModalMessage.textContent = t("syncPromptLocalMessage");
-      }
-      elements.syncUseRemote.textContent = t("syncPromptUpload");
-      elements.syncUseLocal.textContent = t("syncPromptLocal");
-    }
-
-    const cleanup = () => {
-      elements.syncUseRemote.removeEventListener("click", onRemote);
-      elements.syncUseLocal.removeEventListener("click", onLocal);
-    };
-    const onRemote = () => {
-      cleanup();
-      closeModal(elements.syncModal);
-      resolve(mode === "local" ? "upload" : "remote");
-    };
-    const onLocal = () => {
-      cleanup();
-      closeModal(elements.syncModal);
-      resolve("local");
-    };
-
-    elements.syncUseRemote.addEventListener("click", onRemote, { once: true });
-    elements.syncUseLocal.addEventListener("click", onLocal, { once: true });
-    openModal(elements.syncModal);
-  });
-}
-
 function promptSyncCandidate(candidates) {
   return new Promise((resolve) => {
     if (!elements.candidateModal || !elements.candidateList || !elements.candidateUseLocal) {
@@ -1453,14 +1231,6 @@ function applyCloudStateToLocal(localBookId, cloudBookId, state) {
   }
 }
 
-function pickLatestCloudState(firebaseState, gasState) {
-  if (isEmptyCloudState(firebaseState)) return gasState;
-  if (isEmptyCloudState(gasState)) return firebaseState;
-  const firebaseUpdatedAt = firebaseState?.updatedAt ?? 0;
-  const gasUpdatedAt = gasState?.updatedAt ?? 0;
-  return firebaseUpdatedAt >= gasUpdatedAt ? firebaseState : gasState;
-}
-
 async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloudBookId(localBookId)) {
   const localProgress = storage.getProgress(localBookId);
   if (!isCloudSyncEnabled() || !cloudBookId) {
@@ -1468,102 +1238,14 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
   }
 
   try {
-    const policy = getSyncResolvePolicy();
-    const compareByUpdatedAtOnly = policy === "updatedAt";
-    const preferFirebase = policy === "firebase" || policy === "firebase-first";
-    const preferGas = policy === "gas";
-    const fetchFirebaseState = async () => {
-      const response = await cloudSync.pullStateFirebase(cloudBookId);
-      return response?.state ?? null;
-    };
-    const fetchGasState = async () => {
-      const response = await pullStateFromGas(cloudBookId);
-      if (response?.status === "skipped") {
-        return null;
-      }
-      return response?.data?.state ?? null;
-    };
-
-    let firebaseState = null;
-    let gasState = null;
-
-    if (preferFirebase) {
-      firebaseState = await fetchFirebaseState();
-      if (isEmptyCloudState(firebaseState)) {
-        gasState = await fetchGasState();
-      }
-    } else if (preferGas) {
-      gasState = await fetchGasState();
-      if (isEmptyCloudState(gasState)) {
-        firebaseState = await fetchFirebaseState();
-      }
-    } else {
-      [firebaseState, gasState] = await Promise.all([
-        fetchFirebaseState(),
-        fetchGasState(),
-      ]);
-    }
-
-    let remoteState = null;
-    if (policy === "updatedAt") {
-      remoteState = pickLatestCloudState(firebaseState, gasState);
-    } else if (preferGas) {
-      remoteState = isEmptyCloudState(gasState) ? firebaseState : gasState;
-    } else {
-      remoteState = isEmptyCloudState(firebaseState) ? gasState : firebaseState;
-    }
-    const localPayload = buildCloudStatePayload(localBookId, cloudBookId);
-    const localUpdatedAt = localPayload.updatedAt ?? 0;
-
+    const response = await cloudSync.pullState(cloudBookId);
+    const remoteState = response?.state ?? response;
     if (isEmptyCloudState(remoteState)) {
-      if (localUpdatedAt > 0) {
-        const result = await pushStateDual(
-          cloudBookId,
-          localPayload.state,
-          localPayload.updatedAt,
-          "state-initial-upload"
-        );
-        if (result.okAny) {
-          storage.setSettings({ lastSyncAt: Date.now() });
-        }
-      }
       return localProgress;
     }
-
-    const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
-    // クラウドの方が新しい場合（かつ、読書位置が異なる場合のみプロンプト）
-    if (remoteUpdatedAt > localUpdatedAt) {
-      // 5%以上、または5ページ以上の差があるか？ (あまりに細かい差は無視するか、ユーザー体験次第)
-      // 今回は純粋にタイムスタンプと位置の違いで判定
-      if (compareByUpdatedAtOnly || remoteState.location !== localProgress?.location) {
-        const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteState });
-        if (choice === "remote") {
-          applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-          storage.setSettings({ lastSyncAt: Date.now() });
-          return storage.getProgress(localBookId);
-        }
-        // cancel selected: use local progress (and effectively ignore remote for this session)
-        // optionally we could push local to overwrite, but "Cancel" usually means "Don't change anything"
-        return localProgress;
-      }
-      return localProgress;
-    }
-
-    if (localUpdatedAt > remoteUpdatedAt) {
-      const choice = await promptSyncChoice({ mode: "local" });
-      if (choice === "upload") {
-        const result = await pushStateDual(
-          cloudBookId,
-          localPayload.state,
-          localPayload.updatedAt,
-          "state-local-upload"
-        );
-        if (result.okAny) {
-          storage.setSettings({ lastSyncAt: Date.now() });
-        }
-      }
-      return localProgress;
-    }
+    applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
+    storage.setSettings({ lastSyncAt: Date.now() });
+    return storage.getProgress(localBookId);
   } catch (error) {
     console.warn("同期情報の取得に失敗しました:", error);
   }
@@ -1604,7 +1286,7 @@ async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, overrides =
   storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
   if (isCloudSyncEnabled()) {
     try {
-      await pushIndexDeltaDual({ [cloudBookId]: meta }, meta.updatedAt, "index-upsert");
+      await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
     } catch (error) {
       console.warn("クラウドインデックスの更新に失敗しました:", error);
     }
@@ -3164,34 +2846,12 @@ async function pushCurrentBookSync() {
   if (!currentBookId || !currentCloudBookId) return;
   if (!isCloudSyncEnabled()) return;
   const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-  const settings = storage.getSettings();
-  const hasFirebaseEndpoint = Boolean(cloudSync.getFirebaseSyncEndpoint(settings));
-  let result = null;
-  if (hasFirebaseEndpoint) {
-    const firebaseResult = await runSyncTask({
-      label: "state-current-book",
-      target: "Firebase",
-      task: () => cloudSync.pushStateFirebase(currentCloudBookId, payload.state, payload.updatedAt, settings),
-    });
-    if (firebaseResult.ok) {
-      result = { okAny: true, results: [firebaseResult] };
-    } else {
-      const gasResult = await runSyncTask({
-        label: "state-current-book",
-        target: "GAS",
-        task: () => pushStateToGas(currentCloudBookId, payload.state, payload.updatedAt),
-      });
-      result = { okAny: gasResult.ok, results: [firebaseResult, gasResult] };
-    }
-  } else {
-    result = await pushStateDual(
-      currentCloudBookId,
-      payload.state,
-      payload.updatedAt,
-      "state-current-book"
-    );
-  }
-  if (result?.okAny) {
+  const result = await cloudSync.pushState(
+    currentCloudBookId,
+    payload.state,
+    payload.updatedAt
+  );
+  if (result) {
     storage.setSettings({ lastSyncAt: Date.now() });
     updateSyncStatusDisplay();
   }

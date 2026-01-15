@@ -1,8 +1,5 @@
 const STORAGE_KEY = "epubReader:data";
 
-const defaultGasEndpoint =
-  (typeof window !== "undefined" && window.APP_CONFIG?.GAS_SYNC_ENDPOINT) || "";
-
 const defaultFirebaseConfig = {
   apiKey: "AIzaSyD2xMk1bbez1Y2crBcgzxUhghU9bFnU1gI",
   authDomain: "bookreader-1d3a3.firebaseapp.com",
@@ -35,7 +32,6 @@ const defaultData = {
   cloudIndexUpdatedAt: null,
   bookLinkMap: {},
   settings: {
-    gasEndpoint: defaultGasEndpoint,
     syncEnabled: false,
     lastSyncAt: null,
     apiKey: "<必要ならキー>",
@@ -51,7 +47,6 @@ const defaultData = {
     uiLanguage: "en",
     fontSize: 16,
     autoSyncEnabled: null,
-    syncResolvePolicy: "firebase",
   },
 };
 
@@ -86,7 +81,6 @@ export class StorageService {
         bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
-          gasEndpoint: defaultGasEndpoint || settings.gasEndpoint || "",
           syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
           lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
@@ -100,7 +94,6 @@ export class StorageService {
           onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
           firebaseConfig,
           autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
-          syncResolvePolicy: settings.syncResolvePolicy ?? defaultData.settings.syncResolvePolicy,
         },
       };
     } catch (error) {
@@ -244,7 +237,6 @@ export class StorageService {
         bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
           ...settings,
-          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
           syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
           lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
           apiKey: settings.apiKey || defaultData.settings.apiKey,
