@@ -20,11 +20,11 @@ export class CloudSync {
 
   resolveSource(source, settings = this.storage.getSettings()) {
     const selected = source || settings.saveDestination || settings.source || "local";
-    // "gas" is now treated as "firebase" (default cloud)
-    if (["local", "gas", "firebase", "onedrive", "pcloud"].includes(selected)) {
-      if (selected === "gas") return "firebase";
+    if (["local", "firebase", "onedrive", "pcloud"].includes(selected)) {
       return selected;
     }
+    // "gas" などの古い設定値は firebase (default cloud) として扱う
+    if (selected === "gas") return "firebase";
     return "local";
   }
 
@@ -39,10 +39,6 @@ export class CloudSync {
     const settings = this.storage.getSettings();
     const resolvedSource = this.resolveSource(source, settings);
     return { settings, resolvedSource };
-  }
-
-  getSyncProvider(settings = this.storage.getSettings()) {
-    return settings?.syncProvider || "gas";
   }
 
   getUserIdOrThrow() {
@@ -67,11 +63,8 @@ export class CloudSync {
     if (endpoint.includes("{path}")) {
       return endpoint.replace("{path}", encodeURIComponent(path));
     }
-    if (endpoint.includes("?")) {
-      const separator = endpoint.includes("?") ? "&" : "?";
-      return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
-    }
-    return `${endpoint.replace(/\/$/, "")}${path}`;
+    const separator = endpoint.includes("?") ? "&" : "?";
+    return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
   }
 
   async getFirebaseIdToken() {
@@ -94,14 +87,39 @@ export class CloudSync {
     };
   }
 
+  // ===============================
+  // Failover Logic (SDK -> Workers)
+  // ===============================
+
+  async executeWithFailover(sdkTask, apiTask, label) {
+    try {
+      const result = await sdkTask();
+      return result;
+    } catch (sdkError) {
+      console.warn(`[CloudSync:${label}] SDK failed, trying Workers fallback...`, sdkError);
+    }
+
+    try {
+      const result = await apiTask();
+      return result;
+    } catch (apiError) {
+      console.error(`[CloudSync:${label}] All sync methods failed.`, apiError);
+      throw apiError;
+    }
+  }
+
+  // ===============================
+  // Workers (REST API) Methods
+  // ===============================
+
   async postFirebaseSync(path, payload, settings = this.storage.getSettings()) {
     const endpoint = this.getFirebaseSyncEndpoint(settings);
     if (!endpoint) {
-      return { source: "firebase", status: "skipped", reason: "no-endpoint" };
+      throw new Error("No Workers endpoint configured");
     }
     const idToken = await this.getFirebaseIdToken();
     if (!idToken) {
-      return { source: "firebase", status: "skipped", reason: "no-id-token" };
+      throw new Error("No ID Token available");
     }
     const url = this.buildFirebaseSyncUrl(endpoint, path);
     const response = await fetch(url, {
@@ -110,9 +128,10 @@ export class CloudSync {
       body: JSON.stringify({ idToken, ...payload }),
     });
     if (!response.ok) {
-      throw new Error(`Firebase sync failed (${response.status})`);
+      throw new Error(`Workers sync failed (${response.status})`);
     }
-    return response.json().catch(() => ({}));
+    const json = await response.json();
+    return json?.data ?? json;
   }
 
   // ===============================
@@ -172,7 +191,7 @@ export class CloudSync {
     // We'll merge.
     await setDoc(docRef, payload, { merge: true });
 
-    return { status: "success" };
+    return { status: "success", source: "sdk" };
   }
 
   async pullIndexFirestore() {
@@ -210,7 +229,7 @@ export class CloudSync {
       updatedAt
     };
     await setDoc(docRef, payload, { merge: true });
-    return {};
+    return { status: "success", source: "sdk" };
   }
 
   async matchBookFirestore(fingerprint, meta) {
@@ -227,82 +246,7 @@ export class CloudSync {
     // Return the first match
     const doc = querySnapshot.docs[0];
     const data = doc.data();
-    return {
-      found: true,
-      bookId: doc.id,
-      meta: data // or parts of data
-    };
-  }
-
-  // ===============================
-  // Firebase Sync API (Index / State)
-  // ===============================
-
-  async pullBookDataFirebase(bookId, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    return this.pullBookDataFirestore(bookId);
-  }
-
-  async pushBookDataFirebase(bookId, payload, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    return this.pushBookDataFirestore(bookId, payload);
-  }
-
-  async matchBookFirebase(fingerprint, meta, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    return this.matchBookFirestore(fingerprint, meta);
-  }
-
-  async pullIndexFirebase(settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    const response = await this.postFirebaseSync("/sync/index/pull", {}, settings);
-    return response?.data ?? response;
-  }
-
-  async pushIndexDeltaFirebase(indexDelta, updatedAt, settings = this.storage.getSettings()) {
-    return this.pushIndexFirebase(indexDelta, updatedAt, settings);
-  }
-
-  async pushIndexFirebase(indexDelta, updatedAt, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    return this.postFirebaseSync("/sync/index/push", { indexDelta, updatedAt }, settings);
-  }
-
-  async pullStateFirebase(cloudBookId, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    const response = await this.postFirebaseSync("/sync/state/pull", { cloudBookId }, settings);
-    return response?.data ?? response;
-  }
-
-  async pushStateFirebase(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
-      return { source: resolvedSource, status: "skipped" };
-    }
-    const normalizedState = this.normalizeCloudState(state, updatedAt);
-    return this.postFirebaseSync(
-      "/sync/state/push",
-      { cloudBookId, state: normalizedState, updatedAt: normalizedState.updatedAt },
-      settings
-    );
+    return { found: true, cloudBookId: doc.id, meta: data };
   }
 
   // ===============================
@@ -334,7 +278,7 @@ export class CloudSync {
       return this.pushToPCloud(settings);
     }
 
-    // Fallback for custom endpoints if any (though GAS endpoint code is removed)
+    // Fallback for custom endpoints if any
     if (settings.endpoint) {
       return this.pushToEndpoint(settings);
     }
@@ -409,10 +353,7 @@ export class CloudSync {
   }
 
   async pullBookData(bookId, settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.pullBookDataFirebase(bookId, settings);
-    }
-    const resolvedSource = this.resolveSource("location", settings); // Or just use default logic
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
@@ -420,10 +361,7 @@ export class CloudSync {
   }
 
   async pushBookData(bookId, payload, settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.pushBookDataFirebase(bookId, payload, settings);
-    }
-    const resolvedSource = this.resolveSource("location", settings);
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
@@ -431,10 +369,7 @@ export class CloudSync {
   }
 
   async matchBook(fingerprint, meta, settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.matchBookFirebase(fingerprint, meta, settings);
-    }
-    const resolvedSource = this.resolveSource("gas", settings);
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
@@ -442,54 +377,53 @@ export class CloudSync {
   }
 
   async pullIndex(settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.pullIndexFirebase(settings);
-    }
-    const resolvedSource = this.resolveSource("gas", settings);
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.pullIndexFirestore();
+    return this.executeWithFailover(
+      () => this.pullIndexFirestore(),
+      () => this.postFirebaseSync("/sync/index/pull", {}, settings),
+      "pullIndex"
+    );
   }
 
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.pushIndexDeltaFirebase(indexDelta, updatedAt, settings);
-    }
-    const resolvedSource = this.resolveSource("gas", settings);
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.pushIndexDeltaFirestore(indexDelta, updatedAt);
+    return this.executeWithFailover(
+      () => this.pushIndexDeltaFirestore(indexDelta, updatedAt),
+      () => this.postFirebaseSync("/sync/index/push", { indexDelta, updatedAt }, settings),
+      "pushIndex"
+    );
   }
 
   async pullState(cloudBookId, settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.pullStateFirebase(cloudBookId, settings);
-    }
-    const resolvedSource = this.resolveSource("gas", settings);
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    // pullState maps to pullBookDataFirestore but might expect slightly different return structure in app.js
-    // app.js usage: const stateResponse = await cloudSync.pullState(cloudBookId);
-    // stateResponse should contain { state, updatedAt } probably.
-    // pullBookDataFirestore returns book document data.
-    return this.pullBookDataFirestore(cloudBookId);
+    return this.executeWithFailover(
+      () => this.pullBookDataFirestore(cloudBookId),
+      () => this.postFirebaseSync("/sync/state/pull", { cloudBookId }, settings),
+      "pullState"
+    );
   }
 
   async pushState(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
-    if (this.getSyncProvider(settings) === "firebase") {
-      return this.pushStateFirebase(cloudBookId, state, updatedAt, settings);
-    }
-    const resolvedSource = this.resolveSource("gas", settings);
+    const resolvedSource = this.resolveSource("firebase", settings);
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    // pushState maps to pushBookDataFirestore
-    // Firestore expects payload object.
-    const payload = { state, updatedAt };
-    return this.pushBookDataFirestore(cloudBookId, payload);
+    const normalizedState = this.normalizeCloudState(state, updatedAt);
+    const payload = { state: normalizedState, updatedAt: normalizedState.updatedAt };
+    return this.executeWithFailover(
+      () => this.pushBookDataFirestore(cloudBookId, payload),
+      () => this.postFirebaseSync("/sync/state/push", { cloudBookId, ...payload }, settings),
+      "pushState"
+    );
   }
 
 

@@ -16,7 +16,7 @@
  *   20%   20%   20%   20%   20%
  * 
  * メニュー表示: M3（中央）
- * 縦書き時ページ移動: M2(前), M4(次) + 横スワイプ
+ * 縦書き時ページ移動: M1/M2(前), M4/M5(次) + 横スワイプ
  * 横書き時ページ移動: U3(前), B3(次) + 縦スワイプ
  */
 
@@ -44,13 +44,9 @@ export class UIController {
     this.touchStartX = null;
     this.touchStartY = null;
 
-    this.gridOverlay = null;
-    this.longPressTimer = null;
-
     this.setupClickHandler();
     this.setupTouchHandlers();
     this.setupResizeHandler();
-    this.createGridOverlay();
   }
 
   /**
@@ -276,13 +272,13 @@ export class UIController {
     // 画像書庫または縦書き
     if (writingMode === "vertical" || this.isImageBook?.()) {
       const direction = this.getReadingDirection?.() || 'rtl';
-      if (area === "M2") {
+      if (area === "M1" || area === "M2") {
         if (direction === 'ltr') {
           this.onPagePrev?.(); // LTRなら左で戻る
         } else {
           this.onPageNext?.(); // RTLなら左で進む
         }
-      } else if (area === "M4") {
+      } else if (area === "M4" || area === "M5") {
         if (direction === 'ltr') {
           this.onPageNext?.(); // LTRなら右で進む
         } else {
@@ -528,45 +524,6 @@ export class UIController {
   }
 
   /**
-   * クリックエリア可視化グリッドを生成
-   */
-  createGridOverlay() {
-    this.gridOverlay = document.createElement('div');
-    this.gridOverlay.className = 'area-grid-overlay';
-    this.gridOverlay.style.pointerEvents = 'none'; // 初期状態は操作不可
-
-    // 3x5グリッド (U1-U5, M1-M5, B1-B5)
-    const areas = [];
-    ['U', 'M', 'B'].forEach(row => {
-      for (let i = 1; i <= 5; i++) {
-        areas.push(`${row}${i}`);
-      }
-    });
-
-    areas.forEach(area => {
-      const cell = document.createElement('div');
-      cell.className = 'area-cell';
-      cell.dataset.area = area;
-
-      // 長押しイベント
-      const start = (e) => this.startGridLongPress(area, cell, e);
-      const end = (e) => this.endGridLongPress(e);
-
-      cell.addEventListener('mousedown', start);
-      cell.addEventListener('touchstart', start, { passive: false });
-      cell.addEventListener('mouseup', end);
-      cell.addEventListener('touchend', end);
-      cell.addEventListener('mouseleave', end);
-
-      this.gridOverlay.appendChild(cell);
-    });
-
-    // fullscreenReaderに追加
-    const container = document.getElementById('fullscreenReader') || document.body;
-    container.appendChild(this.gridOverlay);
-  }
-
-  /**
    * エリアの機能ラベルを取得
    */
   getFunctionLabel(area) {
@@ -578,8 +535,13 @@ export class UIController {
 
     // 縦書き or 画像
     if (writingMode === "vertical" || isImage) {
-      if (area === "M2") return "前のページ";
-      if (area === "M4") return "次のページ";
+      const direction = this.getReadingDirection?.() || 'rtl';
+      if (area === "M1" || area === "M2") {
+        return direction === 'ltr' ? "前のページ" : "次のページ";
+      }
+      if (area === "M4" || area === "M5") {
+        return direction === 'ltr' ? "次のページ" : "前のページ";
+      }
       if (isSpread) {
         if (area === "U3") return "前のページ (1枚)";
         if (area === "B3") return "次のページ (1枚)";
@@ -592,89 +554,6 @@ export class UIController {
     return null;
   }
 
-  /**
-   * グリッド長押し開始
-   */
-  startGridLongPress(area, cell, e) {
-    // 機能がないエリアは無視
-    const labelText = this.getFunctionLabel(area);
-    if (!labelText) return;
-
-    this.isLongProcessing = true;
-    this.longPressTimer = setTimeout(() => {
-      // 長押し成立：全ラベルを表示状態にトグル
-      this.toggleAllGridLabels();
-      this.isLongProcessing = false;
-    }, 500);
-  }
-
-  /**
-   * グリッド長押し終了
-   */
-  endGridLongPress(e) {
-    if (this.longPressTimer) {
-      clearTimeout(this.longPressTimer);
-      this.longPressTimer = null;
-    }
-  }
-
-  /**
-   * 全グリッドラベルの表示切替
-   */
-  toggleAllGridLabels() {
-    if (!this.gridOverlay) return;
-
-    const cells = this.gridOverlay.querySelectorAll('.area-cell.has-function');
-    const isAnyShown = Array.from(cells).some(c => c.classList.contains('show-label'));
-
-    cells.forEach(cell => {
-      if (isAnyShown) {
-        cell.classList.remove('show-label');
-      } else {
-        cell.classList.add('show-label');
-      }
-    });
-  }
-
-  /**
-   * グリッドオーバーレイ表示（フローティング表示時）
-   */
-  showClickAreas() {
-    if (!this.gridOverlay) return;
-
-    // 機能があるセルに色をつける
-    const cells = this.gridOverlay.querySelectorAll('.area-cell');
-    cells.forEach(cell => {
-      const area = cell.dataset.area;
-      const labelText = this.getFunctionLabel(area);
-
-      let label = cell.querySelector('.area-label');
-      if (labelText) {
-        cell.classList.add('has-function');
-        if (!label) {
-          label = document.createElement('div');
-          label.className = 'area-label';
-          cell.appendChild(label);
-        }
-        label.textContent = labelText;
-      } else {
-        cell.classList.remove('has-function', 'show-label');
-        if (label) label.remove();
-      }
-    });
-
-    this.gridOverlay.classList.add('visible');
-  }
-
-  /**
-   * グリッドオーバーレイ非表示
-   */
-  hideClickAreas() {
-    if (!this.gridOverlay) return;
-    this.gridOverlay.classList.remove('visible');
-    const cells = this.gridOverlay.querySelectorAll('.area-cell');
-    cells.forEach(cell => cell.classList.remove('show-label'));
-  }
 }
 
 /**

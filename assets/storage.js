@@ -1,8 +1,5 @@
 const STORAGE_KEY = "epubReader:data";
 
-const defaultGasEndpoint =
-  (typeof window !== "undefined" && window.APP_CONFIG?.GAS_SYNC_ENDPOINT) || "";
-
 const defaultFirebaseConfig = {
   apiKey: "AIzaSyD2xMk1bbez1Y2crBcgzxUhghU9bFnU1gI",
   authDomain: "bookreader-1d3a3.firebaseapp.com",
@@ -25,6 +22,66 @@ const normalizeFirebaseConfig = (settings = {}) => {
   return merged;
 };
 
+const DEVICE_COLOR_PALETTE = [
+  "#ff6b6b",
+  "#f7b731",
+  "#4b7bec",
+  "#20bf6b",
+  "#a55eea",
+  "#0fb9b1",
+  "#eb3b5a",
+  "#fa8231",
+];
+
+const generateDeviceId = () => {
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const randomPart = Math.random().toString(36).slice(2);
+  const timePart = Date.now().toString(36);
+  return `device-${timePart}-${randomPart}`;
+};
+
+const selectDeviceColor = (deviceId) => {
+  if (!deviceId) return DEVICE_COLOR_PALETTE[0];
+  let hash = 0;
+  for (let i = 0; i < deviceId.length; i += 1) {
+    hash = (hash * 31 + deviceId.charCodeAt(i)) % 1000000007;
+  }
+  const index = Math.abs(hash) % DEVICE_COLOR_PALETTE.length;
+  return DEVICE_COLOR_PALETTE[index];
+};
+
+const ensureDeviceSettings = (settings) => {
+  let updated = false;
+  let deviceId = settings.deviceId;
+  if (!deviceId) {
+    deviceId = generateDeviceId();
+    updated = true;
+  }
+  let deviceColor = settings.deviceColor;
+  if (!deviceColor) {
+    deviceColor = selectDeviceColor(deviceId);
+    updated = true;
+  }
+  return {
+    updated,
+    settings: {
+      ...settings,
+      deviceId,
+      deviceColor,
+    },
+  };
+};
+
+const getBookmarkKey = (bookmark) => {
+  const cfi = bookmark?.cfi;
+  if (cfi) return `cfi:${cfi}`;
+  const createdAt = bookmark?.createdAt;
+  if (!createdAt) return null;
+  return `createdAt:${createdAt}`;
+};
+
 const defaultData = {
   library: {},
   bookmarks: {},
@@ -35,7 +92,6 @@ const defaultData = {
   cloudIndexUpdatedAt: null,
   bookLinkMap: {},
   settings: {
-    gasEndpoint: defaultGasEndpoint,
     syncEnabled: false,
     lastSyncAt: null,
     apiKey: "<必要ならキー>",
@@ -51,7 +107,8 @@ const defaultData = {
     uiLanguage: "en",
     fontSize: 16,
     autoSyncEnabled: null,
-    syncResolvePolicy: "firebase",
+    deviceId: "",
+    deviceColor: "",
   },
 };
 
@@ -70,10 +127,12 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const deviceNormalized = ensureDeviceSettings(settings);
+      const normalizedSettings = deviceNormalized.settings;
       const firebaseConfig = normalizeFirebaseConfig(settings);
       const normalizedSource = settings.source === "drive" ? "local" : settings.source;
       const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
-      return {
+      const data = {
         ...defaultData,
         ...parsed,
         library: parsed.library ?? {},
@@ -85,24 +144,26 @@ export class StorageService {
         cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
         bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
-          ...settings,
-          gasEndpoint: defaultGasEndpoint || settings.gasEndpoint || "",
-          syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
-          lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
-          apiKey: settings.apiKey || defaultData.settings.apiKey,
-          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          ...normalizedSettings,
+          syncEnabled: normalizedSettings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: normalizedSettings.lastSyncAt ?? defaultData.settings.lastSyncAt,
+          apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
+          endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
           source: normalizedSource || defaultData.settings.source,
           saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
-          onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
-          onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
-          onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
-          onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
-          onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
+          onedriveClientId: normalizedSettings.onedriveClientId || defaultData.settings.onedriveClientId,
+          onedriveRedirectUri: normalizedSettings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
+          onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
+          onedriveFileId: normalizedSettings.onedriveFileId || defaultData.settings.onedriveFileId,
+          onedriveToken: normalizedSettings.onedriveToken || defaultData.settings.onedriveToken,
           firebaseConfig,
-          autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
-          syncResolvePolicy: settings.syncResolvePolicy ?? defaultData.settings.syncResolvePolicy,
+          autoSyncEnabled: normalizedSettings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
+      if (deviceNormalized.updated) {
+        localStorage.setItem(this.key, JSON.stringify(data));
+      }
+      return data;
     } catch (error) {
       console.error("ストレージの読み込みに失敗しました", error);
       return { ...defaultData };
@@ -150,13 +211,14 @@ export class StorageService {
     const currentList = this.data.bookmarks[bookId] ?? [];
     const map = new Map();
 
-    // 既存と新規をマージ（createdAtをキーに重複排除）
+    // 既存と新規をマージ（cfi をキーに重複排除、なければ createdAt にフォールバック）
     [...currentList, ...incomingList].forEach((bookmark) => {
-      if (!bookmark?.createdAt) return;
-      const existing = map.get(bookmark.createdAt);
+      const key = getBookmarkKey(bookmark);
+      if (!key) return;
+      const existing = map.get(key);
       // ラベルがある方を優先、あるいは新しい方を優先する
       if (!existing || (!existing.label && bookmark.label)) {
-        map.set(bookmark.createdAt, bookmark);
+        map.set(key, bookmark);
       }
     });
 
@@ -228,6 +290,8 @@ export class StorageService {
         ...defaultData.settings,
         ...(parsed.settings ?? {}),
       };
+      const deviceNormalized = ensureDeviceSettings(settings);
+      const normalizedSettings = deviceNormalized.settings;
       const firebaseConfig = normalizeFirebaseConfig(settings);
       const normalizedSource = settings.source === "drive" ? "local" : settings.source;
       const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
@@ -243,21 +307,20 @@ export class StorageService {
         cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
         bookLinkMap: parsed.bookLinkMap ?? {},
         settings: {
-          ...settings,
-          gasEndpoint: settings.gasEndpoint || defaultData.settings.gasEndpoint,
-          syncEnabled: settings.syncEnabled ?? defaultData.settings.syncEnabled,
-          lastSyncAt: settings.lastSyncAt ?? defaultData.settings.lastSyncAt,
-          apiKey: settings.apiKey || defaultData.settings.apiKey,
-          endpoint: settings.endpoint || defaultData.settings.endpoint,
+          ...normalizedSettings,
+          syncEnabled: normalizedSettings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: normalizedSettings.lastSyncAt ?? defaultData.settings.lastSyncAt,
+          apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
+          endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
           source: normalizedSource || defaultData.settings.source,
           saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
-          onedriveClientId: settings.onedriveClientId || defaultData.settings.onedriveClientId,
-          onedriveRedirectUri: settings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
-          onedriveFilePath: settings.onedriveFilePath || defaultData.settings.onedriveFilePath,
-          onedriveFileId: settings.onedriveFileId || defaultData.settings.onedriveFileId,
-          onedriveToken: settings.onedriveToken || defaultData.settings.onedriveToken,
+          onedriveClientId: normalizedSettings.onedriveClientId || defaultData.settings.onedriveClientId,
+          onedriveRedirectUri: normalizedSettings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
+          onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
+          onedriveFileId: normalizedSettings.onedriveFileId || defaultData.settings.onedriveFileId,
+          onedriveToken: normalizedSettings.onedriveToken || defaultData.settings.onedriveToken,
           firebaseConfig,
-          autoSyncEnabled: settings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
+          autoSyncEnabled: normalizedSettings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
       };
       this.save();
@@ -298,10 +361,11 @@ export class StorageService {
       const currentList = mergedBookmarks[bookId] ?? [];
       const map = new Map();
       [...incomingList, ...currentList].forEach((bookmark) => {
-        if (!bookmark?.createdAt) return;
-        const existing = map.get(bookmark.createdAt);
+        const key = getBookmarkKey(bookmark);
+        if (!key) return;
+        const existing = map.get(key);
         if (!existing || (!existing.label && bookmark.label)) {
-          map.set(bookmark.createdAt, bookmark);
+          map.set(key, bookmark);
         }
       });
       const mergedList = Array.from(map.values())
@@ -372,6 +436,10 @@ export class StorageService {
       bookLinkMap: mergedBookLinkMap,
       settings: this.data.settings,
     };
+    const deviceNormalized = ensureDeviceSettings(this.data.settings ?? defaultData.settings);
+    if (deviceNormalized.updated) {
+      this.data.settings = deviceNormalized.settings;
+    }
     this.save();
   }
 
