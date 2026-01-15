@@ -1809,6 +1809,10 @@ function renderBookmarkMarkers() {
     marker.className = "bookmark-marker";
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
+    if (bookmark.deviceColor) {
+      marker.style.background = bookmark.deviceColor;
+      marker.style.borderColor = "rgba(255, 255, 255, 0.9)";
+    }
 
     // ツールチップの表示内容を進捗表示モードに合わせる
     let tooltipText = bookmark.label ?? t("bookmarkDefault");
@@ -1860,6 +1864,10 @@ function renderFloatBookmarkMarkers() {
     marker.className = "bookmark-marker";
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
+    if (bookmark.deviceColor) {
+      marker.style.background = bookmark.deviceColor;
+      marker.style.borderColor = "rgba(255, 255, 255, 0.9)";
+    }
     marker.title = bookmark.label ?? t("bookmarkDefault");
     marker.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -2084,6 +2092,9 @@ function renderBookmarks(mode = "current") {
     entries.forEach(({ bookId, book, bookmark }) => {
       const item = document.createElement("li");
       item.className = "bookmark-item";
+      if (bookmark.deviceColor) {
+        item.style.borderLeftColor = bookmark.deviceColor;
+      }
 
       const info = document.createElement("div");
       info.className = "bookmark-info";
@@ -2098,7 +2109,14 @@ function renderBookmarks(mode = "current") {
 
       const label = document.createElement("div");
       label.className = "bookmark-label";
-      label.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
+      const colorDot = document.createElement("span");
+      colorDot.className = "bookmark-color-dot";
+      if (bookmark.deviceColor) {
+        colorDot.style.background = bookmark.deviceColor;
+      }
+      const labelText = document.createElement("span");
+      labelText.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
+      label.append(colorDot, labelText);
 
       const meta = document.createElement("div");
       meta.className = "bookmark-meta";
@@ -2161,6 +2179,9 @@ function renderBookmarks(mode = "current") {
   bookmarks.forEach((bookmark) => {
     const item = document.createElement("li");
     item.className = "bookmark-item";
+    if (bookmark.deviceColor) {
+      item.style.borderLeftColor = bookmark.deviceColor;
+    }
 
     const info = document.createElement("div");
     info.className = "bookmark-info";
@@ -2171,7 +2192,14 @@ function renderBookmarks(mode = "current") {
 
     const label = document.createElement("div");
     label.className = "bookmark-label";
-    label.textContent = bookmark.label || t("bookmarkDefault");
+    const colorDot = document.createElement("span");
+    colorDot.className = "bookmark-color-dot";
+    if (bookmark.deviceColor) {
+      colorDot.style.background = bookmark.deviceColor;
+    }
+    const labelText = document.createElement("span");
+    labelText.textContent = bookmark.label || t("bookmarkDefault");
+    label.append(colorDot, labelText);
 
     const meta = document.createElement("div");
     meta.className = "bookmark-meta";
