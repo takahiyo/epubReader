@@ -3277,7 +3277,19 @@ async function importData(file) {
 }
 
 function openFileDialog() {
-  elements.fileInput?.click();
+  if (elements.fileInput) {
+    // ユーザー操作同期ハンドラ内であれば showPicker が推奨される
+    if (typeof elements.fileInput.showPicker === 'function') {
+      try {
+        elements.fileInput.showPicker();
+        return;
+      } catch (e) {
+        console.warn('showPicker failed, falling back to click:', e);
+      }
+    }
+    // フォールバック or 非対応ブラウザ
+    elements.fileInput.click();
+  }
 }
 
 function showLibrary() {

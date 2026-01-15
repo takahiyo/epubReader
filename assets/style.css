@@ -1184,12 +1184,13 @@ body.google-auth-active .modal-backdrop {
 ======================================== */
 
 .file-input-hidden {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
+  position: fixed;
+  top: -100px;
+  left: 0;
   width: 1px;
   height: 1px;
+  opacity: 0;
+  /* display:none; visibility:hidden; pointer-events:none; removed */
 }
 
 .file-input-label {
