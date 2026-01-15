@@ -1,0 +1,7 @@
+name = "bookreader"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# 環境変数 (FirebaseプロジェクトID)
+[vars]
+FIREBASE_PROJECT_ID = "bookreader-1d3a3"
