@@ -129,6 +129,17 @@ export class UIController {
       if (document.body.classList.contains("google-auth-active")) {
         return;
       }
+      // ズーム中は一切のクリック操作を無効化（ボタン以外）
+      if (document.body.classList.contains('is-zoomed')) {
+        // 例外: ズームボタンなど特定要素は許可したいが、それはイベントバブリングで
+        // ここに来る前に処理済みか、あるいはここで target チェックが必要。
+        // ただし、style.css で pointer-events を制御しているので、
+        // ここに来るイベントは基本的に「許可された要素」か「無効化漏れ」
+        // 念のため、明確に許可リスト（ズームボタン等）以外は弾くのが安全
+        if (!e.target.closest('#toggleZoom, .zoom-slider-container')) {
+          return;
+        }
+      }
       // メニューやボタン内のクリックは無視
       if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgressBar')) {
         return;
@@ -182,6 +193,10 @@ export class UIController {
       if (this.isAnyMenuVisible()) {
         return;
       }
+      // ズーム中はスワイプ無効
+      if (document.body.classList.contains('is-zoomed')) {
+        return;
+      }
 
       const touch = e.touches[0];
       this.touchStartX = touch.clientX;
@@ -190,6 +205,13 @@ export class UIController {
 
     reader.addEventListener('touchend', (e) => {
       if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      // ズーム中はスワイプ無効
+      if (document.body.classList.contains('is-zoomed')) {
         this.touchStartX = null;
         this.touchStartY = null;
         return;

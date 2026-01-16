@@ -1885,3 +1885,45 @@ body.is-zoomed .viewer:active {
   margin-bottom: 24px;
   /* 下のボタン群と距離を離す */
 }
+
+/* ========================================
+   Phase 1: ズーム専用モード (Strict Mode)
+   既存のスタイルを上書きして完全に分離する
+======================================== */
+
+body.is-zoomed #floatOverlay {
+  display: block !important;
+  pointer-events: none !important;
+  /* パン操作を阻害しないが、非表示ボタンはクリックさせない */
+  background: transparent !important;
+}
+
+/* ズーム操作UIのみ操作許可 */
+body.is-zoomed #toggleZoom,
+body.is-zoomed .zoom-slider-container,
+body.is-zoomed .zoom-slider-container input {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+  /* 絶対的最前面 */
+}
+
+/* その他すべてのフローティングUIを隠蔽・無効化 */
+body.is-zoomed .float-main-menu,
+body.is-zoomed .float-settings,
+body.is-zoomed .float-top-right,
+body.is-zoomed #floatProgress,
+body.is-zoomed .font-buttons,
+body.is-zoomed #toggleTheme,
+body.is-zoomed #toggleLanguage,
+body.is-zoomed #openLangMenu,
+body.is-zoomed .menu-backdrop,
+body.is-zoomed .left-menu,
+body.is-zoomed .progress-bar-panel,
+body.is-zoomed .bookmark-menu,
+body.is-zoomed .modal {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}

@@ -818,6 +818,11 @@ function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
 }
 
 function toggleFloatOverlay(forceVisible) {
+  // ズーム中はフローティングメニュー制御を完全に無視
+  if (document.body.classList.contains('is-zoomed')) {
+    return;
+  }
+
   if (!elements.floatOverlay) return;
   const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
   floatVisible = nextVisible;
