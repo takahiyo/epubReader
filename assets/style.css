@@ -455,13 +455,8 @@ body.google-auth-active .modal-backdrop {
   margin: 0 auto;
 }
 
-.image-viewer .spread-left {
-  /* 左ページ */
-}
-
-.image-viewer .spread-right {
-  /* 右ページ */
-}
+/* .image-viewer .spread-left { } */
+/* .image-viewer .spread-right { } */
 
 /* ズーム状態 */
 .image-viewer.zoomed {
@@ -1797,14 +1792,66 @@ body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
 
 /* 明示的な指定（念のため） */
 body.is-zoomed #floatOverlay .float-buttons .font-buttons,
-body.is-zoomed #floatOverlay .float-buttons .float-top-right,
-body.is-zoomed #floatOverlay .float-main-menu,
-body.is-zoomed #floatOverlay .top-bar-title,
-/* 追加: ソフトタイトルがあれば */
-body.is-zoomed #toggleLanguage,
-body.is-zoomed #toggleTheme {
+/* ズームスライダー */
+.zoom-slider-container {
+  position: absolute;
+  right: 10px;
+  /* 位置微調整 */
+  top: calc(50% + 100px);
+  width: 160px;
+  height: 40px;
+  transform-origin: right center;
+  transform: rotate(-90deg) translateX(50%);
+  /* 縦向き */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+  background: rgba(17, 24, 39, 0.85);
+  border-radius: 20px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.is-zoomed .zoom-slider-container {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#zoomSlider {
+  width: 100%;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* ズーム時のUI制御 - 包括的に非表示 */
+body.is-zoomed .float-title,
+body.is-zoomed #floatProgress,
+body.is-zoomed #progressBarPanel,
+body.is-zoomed .font-buttons,
+body.is-zoomed .float-main-menu,
+body.is-zoomed .float-settings,
+body.is-zoomed .float-top-right,
+body.is-zoomed #toggleLanguage,
+body.is-zoomed #toggleTheme,
+body.is-zoomed #openLangMenu {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ズーム時のカーソル */
+body.is-zoomed #viewer,
+body.is-zoomed .viewer {
+  cursor: grab;
+}
+
+body.is-zoomed #viewer:active,
+body.is-zoomed .viewer:active {
+  cursor: grabbing;
 }
 
 /* ズーム時はスクロールを有効化（パン操作） */

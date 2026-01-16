@@ -82,6 +82,18 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
+
+    // [New] Zoom State
+    this.zoomScale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.isDragging = false;
+    this.lastMouseX = 0;
+    this.lastMouseY = 0;
+
+    // Bind global pan events
+    this.bindPanEvents();
+    this.setupZoomSlider();
   }
 
   resetReaderState() {
@@ -137,6 +149,16 @@ export class ReaderController {
       this.pageIndicator.textContent = "";
     }
     this.imageZoomBound = false;
+    this.zoomScale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.isDragging = false;
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('is-zoomed');
+      const slider = document.getElementById('zoomSlider');
+      if (slider) slider.value = 1.0;
+    }
+    this.updateTransform();
   }
 
   async ensureJSZip() {
@@ -2147,5 +2169,165 @@ export class ReaderController {
       }
       this.onImageZoom?.(getSrc());
     });
+  }
+
+  // ========================================
+  // ズーム・パン・ドラッグ制御
+  // ========================================
+
+  getActiveViewer() {
+    // 画像モード（zip/rar）なら imageViewer
+    if (this.type === "zip" || this.type === "rar") {
+      return this.imageViewer;
+    }
+    // EPUBなら viewer
+    return this.viewer;
+  }
+
+  setupZoomSlider() {
+    if (typeof document === 'undefined') return;
+    const slider = document.getElementById('zoomSlider');
+    if (slider) {
+      // 既存のリスナーを削除できないため、クローンして置換（簡易的な方法）
+      // またはそのまま追加（重複に注意）
+      // ここでは初回のみ実行されると想定
+      slider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        this.setZoomLevel(val);
+      });
+    }
+  }
+
+  bindPanEvents() {
+    if (typeof window === 'undefined') return;
+
+    this.panStartX = 0;
+    this.panStartY = 0;
+
+    const startDrag = (x, y) => {
+      // ズームしていない、またはクリックした場所がビューア内でないならドラッグしない
+      // しかし window イベントで捕捉するため、ここで判定する
+      const active = this.getActiveViewer();
+      if (!active || this.zoomScale <= 1.0) return;
+
+      this.isDragging = true;
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+
+      // カーソル変更
+      document.body.classList.add('is-dragging');
+      if (active) active.style.cursor = 'grabbing';
+    };
+
+    const moveDrag = (x, y) => {
+      if (!this.isDragging) return;
+
+      const dx = x - this.lastMouseX;
+      const dy = y - this.lastMouseY;
+
+      this.panX += dx;
+      this.panY += dy;
+
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+
+      this.updateTransform();
+    };
+
+    const endDrag = () => {
+      if (!this.isDragging) return;
+      this.isDragging = false;
+      document.body.classList.remove('is-dragging');
+      const active = this.getActiveViewer();
+      if (active) active.style.cursor = ''; // CSS class handles grab/grabbing
+    };
+
+    // マウスイベント
+    window.addEventListener('mousedown', (e) => {
+      const active = this.getActiveViewer();
+      if (active && active.contains(e.target)) {
+        // 右クリック等は除外
+        if (e.button !== 0) return;
+        startDrag(e.clientX, e.clientY);
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      moveDrag(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mouseup', endDrag);
+
+    // タッチイベント
+    // タッチは viewer に対してバインドしてしまうと、拡大時に領域外がありうるが、
+    // 基本は viewer 内で開始されるはず
+    // パン操作中はデフォルトのスクロールなどを防ぐ必要がある
+
+    // パッシブでないリスナーが必要（preventDefaultするため）
+    const touchOpts = { passive: false };
+
+    window.addEventListener('touchstart', (e) => {
+      const active = this.getActiveViewer();
+      if (active && active.contains(e.target) && this.zoomScale > 1.0) {
+        if (e.touches.length === 1) {
+          startDrag(e.touches[0].clientX, e.touches[0].clientY);
+          // ズーム中はブラウザのスクロール等を防ぐ
+          // e.preventDefault(); // これをするとクリックも効かなくなる可能性があるが、ズーム中はクリック無効でよいか？
+        }
+      }
+    }, { passive: true }); // start は passive でよいことが多い
+
+    window.addEventListener('touchmove', (e) => {
+      if (this.isDragging && e.touches.length === 1) {
+        e.preventDefault(); // ドラッグ中は画面スクロール停止
+        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, touchOpts);
+
+    window.addEventListener('touchend', endDrag);
+  }
+
+  setZoomLevel(scale) {
+    this.zoomScale = parseFloat(scale);
+    const body = document.body;
+    const slider = document.getElementById('zoomSlider');
+
+    // 範囲制限
+    if (this.zoomScale < 1.0) this.zoomScale = 1.0;
+    if (this.zoomScale > 3.0) this.zoomScale = 3.0;
+
+    if (this.zoomScale > 1.0) {
+      body.classList.add('is-zoomed');
+      this.imageZoomed = true; // 旧プロパティとの互換性
+      if (slider) slider.value = this.zoomScale;
+    } else {
+      body.classList.remove('is-zoomed');
+      this.imageZoomed = false;
+      this.panX = 0;
+      this.panY = 0;
+      if (slider) slider.value = 1.0;
+    }
+    this.updateTransform();
+  }
+
+  updateTransform() {
+    const target = this.getActiveViewer();
+    if (!target) return;
+
+    if (this.zoomScale <= 1.0) {
+      target.style.transform = '';
+    } else {
+      target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    }
+  }
+
+  toggleZoom() {
+    if (this.zoomScale > 1.0) {
+      this.setZoomLevel(1.0);
+      return false;
+    } else {
+      this.setZoomLevel(1.5);
+      return true;
+    }
   }
 }

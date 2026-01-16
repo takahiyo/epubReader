@@ -253,6 +253,11 @@ export class UIController {
    * エリアクリックを処理
    */
   handleAreaClick(area, event) {
+    // ズーム中は操作無効（ドラッグ優先）
+    if (document.body.classList.contains('is-zoomed')) {
+      return;
+    }
+
     // フローティングメニューが表示されている場合
     if (this.isFloatVisible?.()) {
       // 機能なしエリア、またはM3（メニュー開閉）ならフローティングを閉じる
