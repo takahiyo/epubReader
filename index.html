@@ -9,6 +9,7 @@
   <link rel="apple-touch-icon" href="assets/icon_BookReader_512.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon_BookReader_192.png">
   <title>Epub Reader</title>
+  <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./assets/style.css" />
   <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
@@ -299,6 +300,18 @@
         </div>
 
         <div class="settings-section">
+          <h4 id="settingsDeviceTitle">デバイス</h4>
+          <div class="setting-item">
+            <label for="deviceId" id="deviceIdLabel">デバイスID</label>
+            <input id="deviceId" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label for="deviceColor" id="deviceColorLabel">デバイスカラー</label>
+            <input id="deviceColor" type="text" readonly />
+          </div>
+        </div>
+
+        <div class="settings-section">
           <h4 id="settingsAccountTitle">アカウント</h4>
           <div class="setting-item">
             <div class="setting-actions">
@@ -313,6 +326,8 @@
             </p>
           </div>
         </div>
+
+
 
       </div>
     </div>

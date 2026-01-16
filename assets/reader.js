@@ -1870,28 +1870,38 @@ export class ReaderController {
     await this.goTo(targetIndex);
   }
 
-  addBookmark(label = "しおり") {
+  addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
     if (this.type === "epub") {
       if (!this.pagination?.pages?.length) return null;
       const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
       const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
-      return {
+      const cfi = locator ? `${locator.spineIndex}:${locator.segmentIndex}` : null;
+      const bookmark = {
         label,
         location: locator,
+        cfi,
         percentage,
         createdAt: Date.now(),
         bookType: "epub", // bookType として保存
       };
+      if (deviceId !== undefined) bookmark.deviceId = deviceId;
+      if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
+      return bookmark;
     }
 
     // 画像書庫の場合
-    return {
+    const cfi = `image:${this.imageIndex}`;
+    const bookmark = {
       label,
       location: this.imageIndex, // imageIndex を location として保存
+      cfi,
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
       createdAt: Date.now(),
       bookType: this.type, // "zip" | "rar"
     };
+    if (deviceId !== undefined) bookmark.deviceId = deviceId;
+    if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
+    return bookmark;
   }
 
   async goTo(bookmark) {

@@ -13,6 +13,7 @@ import {
   onGoogleLoginStart as startGoogleLoginUi,
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
+import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 
 // ========================================
@@ -96,6 +97,10 @@ const UI_STRINGS = {
     progressDisplayPage: "ページ数",
     progressDisplayPercentage: "パーセンテージ",
     settingsAccountTitle: "アカウント",
+    settingsDeviceTitle: "デバイス",
+    deviceIdLabel: "デバイスID",
+    deviceColorLabel: "デバイスカラー",
+    settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Googleログイン",
     googleLogoutLabel: "ログオフ",
     googleLoginStatusSignedOut: "未ログイン",
@@ -107,6 +112,7 @@ const UI_STRINGS = {
     syncStatusLabel: "最終同期: {time}",
     syncStatusNever: "最終同期: 未実施",
     syncNeedsLogin: "同期には Google ログインが必要です。",
+
     settingsDataTitle: "データ管理",
     exportData: "設定・データを書き出す",
     importData: "設定・データを読み込む",
@@ -174,6 +180,10 @@ const UI_STRINGS = {
     progressDisplayPage: "Pages",
     progressDisplayPercentage: "Percentage",
     settingsAccountTitle: "Account",
+    settingsDeviceTitle: "Device",
+    deviceIdLabel: "Device ID",
+    deviceColorLabel: "Device color",
+    settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Sign in with Google",
     googleLogoutLabel: "Sign out",
     googleLoginStatusSignedOut: "Signed out",
@@ -185,6 +195,7 @@ const UI_STRINGS = {
     syncStatusLabel: "Last sync: {time}",
     syncStatusNever: "Last sync: never",
     syncNeedsLogin: "Sign in with Google to enable sync.",
+
     settingsDataTitle: "Data",
     exportData: "Export settings & data",
     importData: "Import settings & data",
@@ -409,15 +420,21 @@ const elements = {
   historyModalTitle: document.getElementById("historyModalTitle"),
   settingsModalTitle: document.getElementById("settingsModalTitle"),
   settingsDisplayTitle: document.getElementById("settingsDisplayTitle"),
+  settingsDeviceTitle: document.getElementById("settingsDeviceTitle"),
   themeLabel: document.getElementById("themeLabel"),
   writingModeLabel: document.getElementById("writingModeLabel"),
   pageDirectionLabel: document.getElementById("pageDirectionLabel"),
   progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
+  deviceIdLabel: document.getElementById("deviceIdLabel"),
+  deviceIdInput: document.getElementById("deviceId"),
+  deviceColorLabel: document.getElementById("deviceColorLabel"),
+  deviceColorInput: document.getElementById("deviceColor"),
   settingsAccountTitle: document.getElementById("settingsAccountTitle"),
   googleLoginButton: document.getElementById("googleLoginButton"),
   syncToggleButton: document.getElementById("syncToggleButton"),
   userInfo: document.getElementById("userInfo"),
   syncStatus: document.getElementById("syncStatus"),
+
   settingsDataTitle: document.getElementById("settingsDataTitle"),
   importDataLabel: document.getElementById("importDataLabel"),
 
@@ -473,12 +490,6 @@ const ui = new UIController({
   },
   onFloatToggle: () => {
     toggleFloatOverlay();
-    // グリッドオーバーレイの表示切替
-    if (floatVisible) {
-      ui.showClickAreas();
-    } else {
-      ui.hideClickAreas();
-    }
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -817,11 +828,6 @@ function toggleFloatOverlay(forceVisible) {
   }
 
   updateProgressBarDisplay();
-  if (floatVisible) {
-    ui.showClickAreas();
-  } else {
-    ui.hideClickAreas();
-  }
 }
 
 function updateFloatProgressBar(percentage) {
@@ -873,7 +879,7 @@ function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
     return false;
   }
   const settings = storage.getSettings();
-  return Boolean(settings.gasEndpoint);
+  return cloudSync.resolveSource(null, settings) === "firebase";
 }
 
 function formatLibraryMeta({ progressPercentage, timestamp }) {
@@ -1081,57 +1087,52 @@ function buildSyncRemoteLabel(timestamp) {
   return t("syncPromptRemote").replace("{time}", timeText || "--");
 }
 
-function promptSyncChoice({ mode, remoteProgress }) {
+function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }) {
   return new Promise((resolve) => {
     if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
-      resolve("local");
+      resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
       return;
     }
 
-    if (elements.syncModalTitle) {
-      elements.syncModalTitle.textContent = t("syncPromptTitle");
+    const strings = getUiStrings(uiLanguage);
+    const preferRemote = remoteUpdatedAt >= localUpdatedAt;
+
+    if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
+    if (elements.syncModalMessage) {
+      elements.syncModalMessage.textContent = preferRemote
+        ? strings.syncPromptMessage
+        : strings.syncPromptLocalMessage;
     }
-
-    // Remote update available (Continuity Prompt)
-    if (mode === "remote") {
-      const pageStr = remoteProgress.progressDisplayMode === "page"
-        ? `${remoteProgress.location ?? "?"}ページ`
-        : `${(remoteProgress.percentage ?? 0).toFixed(0)}%`;
-
-      const message = t("syncPromptJump").replace("{page}", pageStr);
-
-      if (elements.syncModalMessage) {
-        elements.syncModalMessage.textContent = message;
-      }
-      elements.syncUseRemote.textContent = t("syncPromptRemote").replace("{time}", new Date(remoteProgress.updatedAt).toLocaleString());
-      elements.syncUseLocal.textContent = t("syncPromptLocal");
+    if (elements.syncUseRemote) {
+      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteUpdatedAt);
     }
-    // Local is newer (Conflict/Reverse Sync)
-    else {
-      if (elements.syncModalMessage) {
-        elements.syncModalMessage.textContent = t("syncPromptLocalMessage");
-      }
-      elements.syncUseRemote.textContent = t("syncPromptUpload");
-      elements.syncUseLocal.textContent = t("syncPromptLocal");
+    if (elements.syncUseLocal) {
+      elements.syncUseLocal.textContent = preferRemote
+        ? strings.syncPromptLocal
+        : strings.syncPromptUpload;
     }
 
     const cleanup = () => {
-      elements.syncUseRemote.removeEventListener("click", onRemote);
-      elements.syncUseLocal.removeEventListener("click", onLocal);
-    };
-    const onRemote = () => {
-      cleanup();
-      closeModal(elements.syncModal);
-      resolve(mode === "local" ? "upload" : "remote");
-    };
-    const onLocal = () => {
-      cleanup();
-      closeModal(elements.syncModal);
-      resolve("local");
+      if (elements.syncUseRemote) elements.syncUseRemote.onclick = null;
+      if (elements.syncUseLocal) elements.syncUseLocal.onclick = null;
     };
 
-    elements.syncUseRemote.addEventListener("click", onRemote, { once: true });
-    elements.syncUseLocal.addEventListener("click", onLocal, { once: true });
+    if (elements.syncUseRemote) {
+      elements.syncUseRemote.onclick = () => {
+        cleanup();
+        closeModal(elements.syncModal);
+        resolve("remote");
+      };
+    }
+
+    if (elements.syncUseLocal) {
+      elements.syncUseLocal.onclick = async () => {
+        cleanup();
+        closeModal(elements.syncModal);
+        resolve("local");
+      };
+    }
+
     openModal(elements.syncModal);
   });
 }
@@ -1212,6 +1213,8 @@ function buildCloudStatePayload(localBookId, cloudBookId) {
     bookmarks: bookmarks.map((bookmark) => ({
       ...bookmark,
       bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
+      deviceId: bookmark.deviceId ?? null,
+      deviceColor: bookmark.deviceColor ?? null,
       updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
     })),
     // historyフィールドを削除
@@ -1261,46 +1264,41 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
   }
 
   try {
-    const remote = await cloudSync.pullState(cloudBookId);
-    const remoteState = remote?.state;
-    const localPayload = buildCloudStatePayload(localBookId, cloudBookId);
-    const localUpdatedAt = localPayload.updatedAt ?? 0;
-
+    const response = await cloudSync.pullState(cloudBookId);
+    const remoteState = response?.state ?? response;
     if (isEmptyCloudState(remoteState)) {
-      if (localUpdatedAt > 0) {
-        await cloudSync.pushState(cloudBookId, localPayload.state, localPayload.updatedAt);
-        storage.setSettings({ lastSyncAt: Date.now() });
-      }
       return localProgress;
     }
 
+    const localUpdatedAt = localProgress?.updatedAt ?? 0;
     const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
-    // クラウドの方が新しい場合（かつ、読書位置が異なる場合のみプロンプト）
-    if (remoteUpdatedAt > localUpdatedAt) {
-      // 5%以上、または5ページ以上の差があるか？ (あまりに細かい差は無視するか、ユーザー体験次第)
-      // 今回は純粋にタイムスタンプと位置の違いで判定
-      if (remoteState.location !== localProgress?.location) {
-        const choice = await promptSyncChoice({ mode: "remote", remoteProgress: remoteState });
-        if (choice === "remote") {
-          applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-          storage.setSettings({ lastSyncAt: Date.now() });
-          return storage.getProgress(localBookId);
+    const localLocation = localProgress?.location ?? null;
+    const remoteLocation = remoteState?.lastCfi ?? null;
+
+    if (
+      localUpdatedAt !== remoteUpdatedAt &&
+      localLocation !== null &&
+      remoteLocation !== null &&
+      localLocation !== remoteLocation
+    ) {
+      const choice = await promptSyncResolution({ localUpdatedAt, remoteUpdatedAt });
+      if (choice === "remote") {
+        applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
+        storage.setSettings({ lastSyncAt: Date.now() });
+        updateSyncStatusDisplay();
+      } else {
+        storage.setCloudState(cloudBookId, remoteState);
+        if (localUpdatedAt > remoteUpdatedAt) {
+          await pushCurrentBookSync();
         }
-        // cancel selected: use local progress (and effectively ignore remote for this session)
-        // optionally we could push local to overwrite, but "Cancel" usually means "Don't change anything"
-        return localProgress;
       }
-      return localProgress;
+      return storage.getProgress(localBookId);
     }
 
-    if (localUpdatedAt > remoteUpdatedAt) {
-      const choice = await promptSyncChoice({ mode: "local" });
-      if (choice === "upload") {
-        await cloudSync.pushState(cloudBookId, localPayload.state, localPayload.updatedAt);
-        storage.setSettings({ lastSyncAt: Date.now() });
-      }
-      return localProgress;
-    }
+    applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
+    storage.setSettings({ lastSyncAt: Date.now() });
+    updateSyncStatusDisplay();
+    return storage.getProgress(localBookId);
   } catch (error) {
     console.warn("同期情報の取得に失敗しました:", error);
   }
@@ -1851,6 +1849,10 @@ function renderBookmarkMarkers() {
     marker.className = "bookmark-marker";
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
+    if (bookmark.deviceColor) {
+      marker.style.background = bookmark.deviceColor;
+      marker.style.borderColor = "rgba(255, 255, 255, 0.9)";
+    }
 
     // ツールチップの表示内容を進捗表示モードに合わせる
     let tooltipText = bookmark.label ?? t("bookmarkDefault");
@@ -1902,6 +1904,10 @@ function renderFloatBookmarkMarkers() {
     marker.className = "bookmark-marker";
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
+    if (bookmark.deviceColor) {
+      marker.style.background = bookmark.deviceColor;
+      marker.style.borderColor = "rgba(255, 255, 255, 0.9)";
+    }
     marker.title = bookmark.label ?? t("bookmarkDefault");
     marker.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -2126,6 +2132,9 @@ function renderBookmarks(mode = "current") {
     entries.forEach(({ bookId, book, bookmark }) => {
       const item = document.createElement("li");
       item.className = "bookmark-item";
+      if (bookmark.deviceColor) {
+        item.style.borderLeftColor = bookmark.deviceColor;
+      }
 
       const info = document.createElement("div");
       info.className = "bookmark-info";
@@ -2140,7 +2149,14 @@ function renderBookmarks(mode = "current") {
 
       const label = document.createElement("div");
       label.className = "bookmark-label";
-      label.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
+      const colorDot = document.createElement("span");
+      colorDot.className = "bookmark-color-dot";
+      if (bookmark.deviceColor) {
+        colorDot.style.background = bookmark.deviceColor;
+      }
+      const labelText = document.createElement("span");
+      labelText.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
+      label.append(colorDot, labelText);
 
       const meta = document.createElement("div");
       meta.className = "bookmark-meta";
@@ -2203,6 +2219,9 @@ function renderBookmarks(mode = "current") {
   bookmarks.forEach((bookmark) => {
     const item = document.createElement("li");
     item.className = "bookmark-item";
+    if (bookmark.deviceColor) {
+      item.style.borderLeftColor = bookmark.deviceColor;
+    }
 
     const info = document.createElement("div");
     info.className = "bookmark-info";
@@ -2213,7 +2232,14 @@ function renderBookmarks(mode = "current") {
 
     const label = document.createElement("div");
     label.className = "bookmark-label";
-    label.textContent = bookmark.label || t("bookmarkDefault");
+    const colorDot = document.createElement("span");
+    colorDot.className = "bookmark-color-dot";
+    if (bookmark.deviceColor) {
+      colorDot.style.background = bookmark.deviceColor;
+    }
+    const labelText = document.createElement("span");
+    labelText.textContent = bookmark.label || t("bookmarkDefault");
+    label.append(colorDot, labelText);
 
     const meta = document.createElement("div");
     meta.className = "bookmark-meta";
@@ -2269,7 +2295,11 @@ function addBookmark() {
     return;
   }
 
-  const bookmark = reader.addBookmark(t("bookmarkDefault"));
+  const deviceSettings = storage.getSettings();
+  const bookmark = reader.addBookmark(t("bookmarkDefault"), {
+    deviceId: deviceSettings.deviceId,
+    deviceColor: deviceSettings.deviceColor,
+  });
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
     renderBookmarks(bookmarkMenuMode);
@@ -2759,12 +2789,31 @@ function applyUiLanguage(nextLanguage) {
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
+  if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
   if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
+  if (elements.deviceIdLabel) elements.deviceIdLabel.textContent = strings.deviceIdLabel;
+  if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
+  if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
+  if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
+  if (elements.firebaseAuthDomainLabel) {
+    elements.firebaseAuthDomainLabel.textContent = strings.firebaseAuthDomainLabel;
+  }
+  if (elements.firebaseProjectIdLabel) elements.firebaseProjectIdLabel.textContent = strings.firebaseProjectIdLabel;
+  if (elements.firebaseStorageBucketLabel) {
+    elements.firebaseStorageBucketLabel.textContent = strings.firebaseStorageBucketLabel;
+  }
+  if (elements.firebaseMessagingSenderIdLabel) {
+    elements.firebaseMessagingSenderIdLabel.textContent = strings.firebaseMessagingSenderIdLabel;
+  }
+  if (elements.firebaseAppIdLabel) elements.firebaseAppIdLabel.textContent = strings.firebaseAppIdLabel;
+  if (elements.firebaseMeasurementIdLabel) {
+    elements.firebaseMeasurementIdLabel.textContent = strings.firebaseMeasurementIdLabel;
+  }
   if (elements.syncStatus) {
     updateSyncStatusDisplay();
   }
@@ -2875,13 +2924,21 @@ function applyProgressDisplayMode(mode) {
   renderBookmarkMarkers();
 }
 
+
+
 async function pushCurrentBookSync() {
   if (!currentBookId || !currentCloudBookId) return;
   if (!isCloudSyncEnabled()) return;
   const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-  await cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
-  storage.setSettings({ lastSyncAt: Date.now() });
-  updateSyncStatusDisplay();
+  const result = await cloudSync.pushState(
+    currentCloudBookId,
+    payload.state,
+    payload.updatedAt
+  );
+  if (result) {
+    storage.setSettings({ lastSyncAt: Date.now() });
+    updateSyncStatusDisplay();
+  }
 }
 
 function toggleAutoSync(enabled) {
@@ -2970,7 +3027,19 @@ async function importData(file) {
 }
 
 function openFileDialog() {
-  elements.fileInput?.click();
+  if (elements.fileInput) {
+    // ユーザー操作同期ハンドラ内であれば showPicker が推奨される
+    if (typeof elements.fileInput.showPicker === 'function') {
+      try {
+        elements.fileInput.showPicker();
+        return;
+      } catch (e) {
+        console.warn('showPicker failed, falling back to click:', e);
+      }
+    }
+    // フォールバック or 非対応ブラウザ
+    elements.fileInput.click();
+  }
 }
 
 function showLibrary() {
@@ -3006,11 +3075,8 @@ function showHistory() {
 
 function showSettings() {
   openExclusiveMenu(elements.settingsModal);
-  if (elements.themeSelect) elements.themeSelect.value = theme;
-  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-  if (elements.settingsDefaultDirection) elements.settingsDefaultDirection.value = defaultDirection;
-  if (elements.progressDisplayModeSelect) elements.progressDisplayModeSelect.value = progressDisplayMode;
+  const currentSettings = storage.getSettings();
+
   updateAuthStatusDisplay();
 }
 
@@ -3230,6 +3296,8 @@ function setupEvents() {
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
     applyProgressDisplayMode(e.target.value);
   });
+
+
 
   elements.googleLoginButton?.addEventListener('click', () => {
     const authStatus = checkAuthStatus();
@@ -3531,11 +3599,24 @@ function initializeGoogleLogin() {
   }
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  navigator.serviceWorker
+    .register("./service-worker.js")
+    .catch((error) => {
+      console.warn("Service worker registration failed:", error);
+    });
+}
+
 function startApp() {
   init();
 }
 
 function startAfterDomReady() {
+  registerServiceWorker();
   initializeGoogleLogin();
   startApp();
 }
