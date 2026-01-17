@@ -3080,59 +3080,51 @@ function showSettings() {
   updateAuthStatusDisplay();
 }
 
+const MENU_ACTIONS = {
+  open: () => openFileDialog(),
+  library: () => showLibrary(),
+  search: () => showSearch(),
+  bookmarks: () => showBookmarks(),
+  history: () => showHistory(),
+  settings: () => showSettings(),
+};
+
+function handleMenuAction(action) {
+  const handler = MENU_ACTIONS[action];
+  if (!handler) return;
+  if (floatVisible) {
+    toggleFloatOverlay(false);
+  }
+  if (typeof ui?.closeAllMenus === "function") {
+    ui.closeAllMenus();
+  }
+  handler();
+}
+
+function bindMenuAction(element, action) {
+  element?.addEventListener("click", () => handleMenuAction(action));
+}
+
 // ========================================
 // イベントハンドラー
 // ========================================
 
 function setupEvents() {
   // メニューアクション
-  elements.menuOpen?.addEventListener('click', () => {
-    openFileDialog();
-  });
-
-  elements.menuLibrary?.addEventListener('click', () => {
-    showLibrary();
-  });
-
-  elements.menuSearch?.addEventListener('click', () => {
-    showSearch();
-  });
-
-  elements.menuBookmarks?.addEventListener('click', () => {
-    showBookmarks();
-  });
-
-  elements.menuHistory?.addEventListener('click', () => {
-    showHistory();
-  });
-
-  elements.floatOpen?.addEventListener('click', () => {
-    openFileDialog();
-  });
-
-  elements.floatLibrary?.addEventListener('click', () => {
-    showLibrary();
-  });
-
-  elements.floatSearch?.addEventListener('click', () => {
-    showSearch();
-  });
-
-  elements.floatBookmarks?.addEventListener('click', () => {
-    showBookmarks();
-  });
-
-  elements.floatHistory?.addEventListener('click', () => {
-    showHistory();
-  });
-
-  elements.floatSettings?.addEventListener('click', () => {
-    showSettings();
-  });
-
-  elements.menuSettings?.addEventListener('click', () => {
-    showSettings();
-  });
+  [
+    { element: elements.menuOpen, action: "open" },
+    { element: elements.menuLibrary, action: "library" },
+    { element: elements.menuSearch, action: "search" },
+    { element: elements.menuBookmarks, action: "bookmarks" },
+    { element: elements.menuHistory, action: "history" },
+    { element: elements.menuSettings, action: "settings" },
+    { element: elements.floatOpen, action: "open" },
+    { element: elements.floatLibrary, action: "library" },
+    { element: elements.floatSearch, action: "search" },
+    { element: elements.floatBookmarks, action: "bookmarks" },
+    { element: elements.floatHistory, action: "history" },
+    { element: elements.floatSettings, action: "settings" },
+  ].forEach(({ element, action }) => bindMenuAction(element, action));
 
 
   elements.langJa?.addEventListener('click', () => applyUiLanguage("ja"));
