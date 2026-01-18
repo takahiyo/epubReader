@@ -1,10 +1,31 @@
-const CACHE_NAME = 'bookreader-v4'; // バージョンを上げてください
+/**
+ * sw.js - Service Worker
+ * 
+ * PWA オフラインサポート用 Service Worker
+ * 
+ * 注意: Service Worker は ES Modules をサポートしないため、
+ * constants.js から直接 import できません。
+ * 設定変更時は constants.js と同期してください。
+ * 
+ * SSOT 参照元: assets/constants.js
+ * - PWA_CONFIG.CACHE_NAME
+ * - CDN_URLS.*
+ * - SW_CACHE_ASSETS
+ */
+
+// PWA_CONFIG.CACHE_NAME と同期 (constants.js)
+const CACHE_NAME = 'bookreader-v4';
+
+// SW_CACHE_ASSETS + CDN_URLS と同期 (constants.js)
 const ASSETS_TO_CACHE = [
+    // ローカルアセット (SW_CACHE_ASSETS)
     './',
     './index.html',
     './manifest.json',
     './assets/style.css',
     './assets/app.js',
+    './assets/constants.js',
+    './assets/i18n.js',
     './assets/config.js',
     './assets/ui.js',
     './assets/reader.js',
@@ -18,6 +39,7 @@ const ASSETS_TO_CACHE = [
     './assets/Flag_America.svg',
     './assets/icon_BookReader_192.png',
     './assets/icon_BookReader_512.png',
+    // CDN URLs (CDN_URLS.*)
     'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js',
     'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
     'https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js'

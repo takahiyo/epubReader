@@ -1,3 +1,10 @@
+/**
+ * cloudSync.js - クラウド同期
+ * 
+ * Firebase SDK直接通信 → Cloudflare Workers フォールバックの冗長化構成を提供します。
+ */
+
+import { CDN_URLS } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { db } from "./firebaseConfig.js";

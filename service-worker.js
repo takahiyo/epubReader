@@ -1,4 +1,17 @@
+/**
+ * service-worker.js - Service Worker (代替版)
+ * 
+ * 注意: Service Worker は ES Modules をサポートしないため、
+ * constants.js から直接 import できません。
+ * 設定変更時は constants.js と同期してください。
+ * 
+ * SSOT 参照元: assets/constants.js
+ */
+
+// PWA_CONFIG.CACHE_NAME と同期
 const CACHE_NAME = "epub-reader-static-v1";
+
+// SW_CACHE_ASSETS と同期
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -6,10 +19,13 @@ const STATIC_ASSETS = [
   "./assets/style.css",
   "./assets/login.css",
   "./assets/app.js",
+  "./assets/constants.js",
+  "./assets/i18n.js",
   "./assets/auth.js",
   "./assets/cloudSync.js",
   "./assets/config.js",
   "./assets/fileStore.js",
+  "./assets/firebaseConfig.js",
   "./assets/reader.js",
   "./assets/storage.js",
   "./assets/ui.js",
@@ -18,6 +34,8 @@ const STATIC_ASSETS = [
   "./assets/menu-title.svg",
   "./assets/Flag_America.svg",
   "./assets/Flag_Japan.svg",
+  "./assets/icon_BookReader_192.png",
+  "./assets/icon_BookReader_512.png",
   "./assets/vendor/jszip.min.js",
   "./assets/vendor/unrar.js",
   "./assets/vendor/unrar.wasm"

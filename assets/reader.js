@@ -1,6 +1,13 @@
-import { EpubPaginator } from "../src/reader/epubPaginator.js";
+/**
+ * reader.js - リーダーコントローラー
+ * 
+ * EPUB/画像書庫の表示とナビゲーションを管理します。
+ */
 
-const TEXT_SEGMENT_STEP = 24; // epubPaginator.js の MIN_TEXT_UNIT_STEP と合わせる
+import { EpubPaginator } from "../src/reader/epubPaginator.js";
+import { CDN_URLS, ASSET_PATHS, READER_CONFIG } from "./constants.js";
+
+const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 
 class PageController {
   constructor(onChange) {
@@ -185,7 +192,7 @@ export class ReaderController {
       return window.JSZip;
     }
     console.log("Loading JSZip from local vendor...");
-    await this.loadScript("./assets/vendor/jszip.min.js");
+    await this.loadScript(ASSET_PATHS.VENDOR_JSZIP);
     const localJszip = typeof window !== "undefined" ? window.JSZip : null;
     if (!localJszip) {
       throw new Error("JSZipの読み込みに失敗しました。ベンダーファイルを確認してください。");
@@ -199,9 +206,10 @@ export class ReaderController {
   }
 
   async loadJSZipFromCdn(isPlaceholder) {
+    // CDN URLs from constants.js (SSOT)
     const sources = [
-      "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
-      "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
+      CDN_URLS.JSZIP,
+      CDN_URLS.JSZIP_FALLBACK,
     ];
 
     for (const src of sources) {
@@ -235,12 +243,11 @@ export class ReaderController {
 
     // CDNから読み込む
     try {
-      console.log("Loading node-unrar-js from esm.sh...");
+      console.log("Loading node-unrar-js from CDN...");
 
-      // JS: ブラウザ互換に変換してくれる esm.sh を使用
-      const JS_URL = "https://esm.sh/node-unrar-js@2.0.2";
-      // WASM: 静的ファイルは jsdelivr から取得
-      const WASM_URL = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm";
+      // CDN URLs from constants.js (SSOT)
+      const JS_URL = CDN_URLS.UNRAR_JS;
+      const WASM_URL = CDN_URLS.UNRAR_WASM;
 
       // 1. WASMバイナリを取得
       console.log(`Fetching WASM from: ${WASM_URL}`);
