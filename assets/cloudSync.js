@@ -4,10 +4,11 @@
  * Firebase SDK直接通信 → Cloudflare Workers フォールバックの冗長化構成を提供します。
  */
 
-import { CDN_URLS } from "./constants.js";
+import { CDN_URLS, SYNC_CONFIG } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { db } from "./firebaseConfig.js";
+import { t } from "./i18n.js";
 import {
   doc,
   getDoc,
@@ -18,21 +19,22 @@ import {
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const AUTH_REQUIRED_MESSAGE = "ログインが必要です。設定からログインしてください。";
-
 export class CloudSync {
   constructor(storage) {
     this.storage = storage;
   }
 
   resolveSource(source, settings = this.storage.getSettings()) {
-    const selected = source || settings.saveDestination || settings.source || "local";
-    if (["local", "firebase", "onedrive", "pcloud"].includes(selected)) {
-      return selected;
+    const selected =
+      source ||
+      settings.saveDestination ||
+      settings.source ||
+      SYNC_CONFIG.DEFAULT_SOURCE;
+    const normalized = SYNC_CONFIG.LEGACY_ALIASES[selected] ?? selected;
+    if (SYNC_CONFIG.ALLOWED_SOURCES.includes(normalized)) {
+      return normalized;
     }
-    // "gas" などの古い設定値は firebase (default cloud) として扱う
-    if (selected === "gas") return "firebase";
-    return "local";
+    return SYNC_CONFIG.DEFAULT_SOURCE;
   }
 
   isPCloudConfigured(settings) {
@@ -51,7 +53,7 @@ export class CloudSync {
   getUserIdOrThrow() {
     const uid = getCurrentUserId();
     if (!uid) {
-      throw new Error(AUTH_REQUIRED_MESSAGE);
+      throw new Error(t("cloudSyncAuthRequired"));
     }
     return uid;
   }
@@ -122,11 +124,11 @@ export class CloudSync {
   async postFirebaseSync(path, payload, settings = this.storage.getSettings()) {
     const endpoint = this.getFirebaseSyncEndpoint(settings);
     if (!endpoint) {
-      throw new Error("No Workers endpoint configured");
+      throw new Error(t("cloudSyncNoEndpoint"));
     }
     const idToken = await this.getFirebaseIdToken();
     if (!idToken) {
-      throw new Error("No ID Token available");
+      throw new Error(t("cloudSyncNoIdToken"));
     }
     const url = this.buildFirebaseSyncUrl(endpoint, path);
     const response = await fetch(url, {
@@ -338,7 +340,7 @@ export class CloudSync {
 
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) {
-        throw new Error("OneDrive の認証が必要です");
+        throw new Error(t("cloudSyncOneDriveAuthRequired"));
       }
       const result = await this.pullFromOneDrive(settings, { merge: false });
       return result?.data ?? result;
@@ -346,7 +348,7 @@ export class CloudSync {
 
     if (resolvedSource === "pcloud") {
       if (!this.isPCloudConfigured(settings)) {
-        throw new Error("pCloud の設定が必要です");
+        throw new Error(t("cloudSyncPCloudConfigRequired"));
       }
       const result = await this.pullFromPCloud(settings, { merge: false });
       return result?.data ?? result;
