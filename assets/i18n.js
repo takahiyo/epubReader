@@ -145,6 +145,13 @@ export const UI_STRINGS = Object.freeze({
     syncBlockedDetail: "広告ブロック等の拡張機能をOFFにして再試行してください。\\n(Firebaseへの接続が遮断されています)",
     syncPermissionError: "権限エラー",
     syncPermissionDetail: "ログインし直してください。",
+
+    // クラウド同期メッセージ
+    cloudSyncAuthRequired: "ログインが必要です。設定からログインしてください。",
+    cloudSyncNoEndpoint: "Workers のエンドポイントが設定されていません",
+    cloudSyncNoIdToken: "ID トークンが取得できません",
+    cloudSyncOneDriveAuthRequired: "OneDrive の認証が必要です",
+    cloudSyncPCloudConfigRequired: "pCloud の設定が必要です",
     
     // エラーメッセージ
     errorFileLoadFailed: "ファイルの読み込みに失敗しました。",
@@ -297,6 +304,13 @@ export const UI_STRINGS = Object.freeze({
     syncBlockedDetail: "Please disable ad blockers and try again.\\n(Firebase connection is blocked)",
     syncPermissionError: "Permission error",
     syncPermissionDetail: "Please sign in again.",
+
+    // Cloud sync messages
+    cloudSyncAuthRequired: "Login is required. Please sign in from settings.",
+    cloudSyncNoEndpoint: "Workers endpoint is not configured",
+    cloudSyncNoIdToken: "ID token is not available",
+    cloudSyncOneDriveAuthRequired: "OneDrive authentication is required",
+    cloudSyncPCloudConfigRequired: "pCloud configuration is required",
     
     // Error messages
     errorFileLoadFailed: "Failed to load file.",
