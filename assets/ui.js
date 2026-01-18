@@ -6,6 +6,8 @@ import {
   UI_CLASSES,
   DOM_IDS,
   DOM_SELECTORS,
+  WRITING_MODES,
+  READING_DIRECTIONS,
 } from "./constants.js";
 
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
@@ -43,11 +45,11 @@ export class UIController {
     this.isBookOpen = options.isBookOpen || (() => false);
     this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
-    this.getWritingMode = options.getWritingMode || (() => "horizontal");
+    this.getWritingMode = options.getWritingMode || (() => WRITING_MODES.HORIZONTAL);
     this.isFloatVisible = options.isFloatVisible || (() => false);
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
-    this.getReadingDirection = options.getReadingDirection || (() => "ltr");
+    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -238,21 +240,21 @@ export class UIController {
       const absDeltaY = Math.abs(deltaY);
 
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
-        const mode = this.getWritingMode?.() || "horizontal";
+        const mode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
         // 画像書庫または縦書きモードなら横スワイプ
-        if (mode === "vertical" || this.isImageBook?.()) {
-          const direction = this.getReadingDirection?.() || 'rtl';
+        if (mode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
+          const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
           if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
             if (deltaX > 0) {
               // 右方向へのスワイプ
-              if (direction === 'ltr') {
+              if (direction === READING_DIRECTIONS.LTR) {
                 this.onPagePrev?.(); // LTRなら「右スワイプ」で戻る
               } else {
                 this.onPageNext?.(); // RTLなら「右スワイプ」で進む
               }
             } else {
               // 左方向へのスワイプ
-              if (direction === 'ltr') {
+              if (direction === READING_DIRECTIONS.LTR) {
                 this.onPageNext?.(); // LTRなら「左スワイプ」で進む
               } else {
                 this.onPagePrev?.(); // RTLなら「左スワイプ」で戻る
@@ -304,19 +306,19 @@ export class UIController {
 
     if (!this.isBookOpen()) return;
 
-    const writingMode = this.getWritingMode?.() || "horizontal";
+    const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
 
     // 画像書庫または縦書き
-    if (writingMode === "vertical" || this.isImageBook?.()) {
-      const direction = this.getReadingDirection?.() || 'rtl';
+    if (writingMode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
+      const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
       if (area === "M1" || area === "M2") {
-        if (direction === 'ltr') {
+        if (direction === READING_DIRECTIONS.LTR) {
           this.onPagePrev?.(); // LTRなら左で戻る
         } else {
           this.onPageNext?.(); // RTLなら左で進む
         }
       } else if (area === "M4" || area === "M5") {
-        if (direction === 'ltr') {
+        if (direction === READING_DIRECTIONS.LTR) {
           this.onPageNext?.(); // LTRなら右で進む
         } else {
           this.onPagePrev?.(); // RTLなら右で戻る
@@ -329,7 +331,7 @@ export class UIController {
         if (area === "U3") {
           console.log('Spread adjustment: Prev 1 page');
           // U3 (上中央) -> 1ページ戻る
-          if (direction === 'rtl') {
+          if (direction === READING_DIRECTIONS.RTL) {
             this.onPageNext?.(1); // RTLの「戻る」は物理的に左(Index増) = next()
           } else {
             this.onPagePrev?.(1); // LTRの「戻る」は物理的に左(Index減) = prev()
@@ -338,7 +340,7 @@ export class UIController {
         } else if (area === "B3") {
           console.log('Spread adjustment: Next 1 page');
           // B3 (下中央) -> 1ページ進む
-          if (direction === 'rtl') {
+          if (direction === READING_DIRECTIONS.RTL) {
             this.onPagePrev?.(1); // RTLの「進む」は物理的に右(Index減) = prev()
           } else {
             this.onPageNext?.(1); // LTRの「進む」は物理的に右(Index増) = next()
@@ -512,12 +514,12 @@ export class UIController {
     // グリッド線を描画
     const lines = [
       ...DEBUG_GRID_CONFIG.HORIZONTAL_LINES.map((percent) => ({
-        type: 'horizontal',
+        type: WRITING_MODES.HORIZONTAL,
         percent,
         label: `${percent}%`,
       })),
       ...DEBUG_GRID_CONFIG.VERTICAL_LINES.map((percent) => ({
-        type: 'vertical',
+        type: WRITING_MODES.VERTICAL,
         percent,
         label: `${percent}%`,
       })),
@@ -527,7 +529,7 @@ export class UIController {
       const el = document.createElement('div');
       el.className = UI_CLASSES.DEBUG_GRID_LINE;
       el.style.position = 'absolute';
-      if (line.type === 'horizontal') {
+      if (line.type === WRITING_MODES.HORIZONTAL) {
         el.style.top = `${line.percent}%`;
         el.style.left = '0';
         el.style.right = '0';
@@ -545,7 +547,7 @@ export class UIController {
       label.textContent = line.label;
       label.className = UI_CLASSES.DEBUG_GRID_LABEL;
       label.style.position = 'absolute';
-      if (line.type === 'horizontal') {
+      if (line.type === WRITING_MODES.HORIZONTAL) {
         label.style.top = `${line.percent}%`;
         label.style.left = '50%';
       } else {
@@ -568,18 +570,18 @@ export class UIController {
   getFunctionLabel(area) {
     if (area === "M3") return "areaMenuToggle";
 
-    const writingMode = this.getWritingMode?.() || "horizontal";
+    const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
     const isImage = this.isImageBook?.();
     const isSpread = this.isSpreadMode?.();
 
     // 縦書き or 画像
-    if (writingMode === "vertical" || isImage) {
-      const direction = this.getReadingDirection?.() || 'rtl';
+    if (writingMode === WRITING_MODES.VERTICAL || isImage) {
+      const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
       if (area === "M1" || area === "M2") {
-        return direction === 'ltr' ? "areaPagePrev" : "areaPageNext";
+        return direction === READING_DIRECTIONS.LTR ? "areaPagePrev" : "areaPageNext";
       }
       if (area === "M4" || area === "M5") {
-        return direction === 'ltr' ? "areaPageNext" : "areaPagePrev";
+        return direction === READING_DIRECTIONS.LTR ? "areaPageNext" : "areaPagePrev";
       }
       if (isSpread) {
         if (area === "U3") return "areaPagePrevSingle";

@@ -31,6 +31,12 @@ import {
   UI_ICONS,
   UI_SYMBOLS,
   UI_DEFAULTS,
+  BOOK_TYPES,
+  WRITING_MODES,
+  READING_DIRECTIONS,
+  IMAGE_VIEW_MODES,
+  FILESTORE_CONFIG,
+  FILE_EXTENSIONS,
   DOM_IDS,
   DOM_SELECTORS,
   CSS_VARS,
@@ -377,12 +383,14 @@ const ui = new UIController({
   isPageNavigationEnabled: () => currentBookId !== null,
   isProgressBarAvailable: () => currentBookId !== null,
   isFloatVisible: () => floatVisible,
-  isImageBook: () => currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar"),
-  isSpreadMode: () => reader.imageViewMode === "spread",
-  getWritingMode: () => (writingMode === "vertical" ? "vertical" : "horizontal"),
+  isImageBook: () =>
+    currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR),
+  isSpreadMode: () => reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD,
+  getWritingMode: () =>
+    writingMode === WRITING_MODES.VERTICAL ? WRITING_MODES.VERTICAL : WRITING_MODES.HORIZONTAL,
   getReadingDirection: () => {
     // EPUBの場合は pageDirection (ltr/rtl)
-    if (currentBookInfo?.type === 'epub') {
+    if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
       return pageDirection;
     }
     // 画像書庫の場合は reader.imageReadingDirection
@@ -479,11 +487,11 @@ const progressBarHandler = new ProgressBarHandler({
   container: elements.progressBarPanel?.querySelector(DOM_SELECTORS.PROGRESS_TRACK),
   thumb: elements.progressThumb,
   getIsRtl: () => {
-    if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
-      return reader.imageReadingDirection === "rtl";
+    if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
+      return reader.imageReadingDirection === READING_DIRECTIONS.RTL;
     }
-    if (currentBookInfo?.type === 'epub') {
-      return pageDirection === 'rtl';
+    if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
+      return pageDirection === READING_DIRECTIONS.RTL;
     }
     return false;
   },
@@ -497,11 +505,11 @@ const floatProgressHandler = new ProgressBarHandler({
   container: elements.floatProgressTrack,
   thumb: elements.floatProgressThumb,
   getIsRtl: () => {
-    if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
-      return reader.imageReadingDirection === "rtl";
+    if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
+      return reader.imageReadingDirection === READING_DIRECTIONS.RTL;
     }
-    if (currentBookInfo?.type === 'epub') {
-      return pageDirection === 'rtl';
+    if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
+      return pageDirection === READING_DIRECTIONS.RTL;
     }
     return false;
   },
@@ -513,7 +521,7 @@ const floatProgressHandler = new ProgressBarHandler({
 function updateSearchButtonState() {
   if (!elements.menuSearch) return;
 
-  const isEpubOpen = currentBookId && currentBookInfo?.type === 'epub';
+  const isEpubOpen = currentBookId && currentBookInfo?.type === BOOK_TYPES.EPUB;
   elements.menuSearch.disabled = !isEpubOpen;
   if (elements.openToc) {
     elements.openToc.disabled = !isEpubOpen;
@@ -552,8 +560,8 @@ function setMaterialIconLabel(button, iconName, labelText) {
 // フローティングUIの切替ボタン表示を更新
 function updateFloatingUIButtons() {
   // 画像書庫かどうかを判定 (type が "zip" または "rar")
-  const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
-  const isEpub = currentBookInfo && currentBookInfo.type === "epub";
+  const isImageBook = currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR);
+  const isEpub = currentBookInfo && currentBookInfo.type === BOOK_TYPES.EPUB;
   const isBookOpen = currentBookId !== null;
 
   // 目次ボタン (#openToc)
@@ -631,7 +639,7 @@ function handleToggleZoom() {
 // 見開きボタンのラベルを更新
 function updateSpreadModeButtonLabel() {
   if (!elements.toggleSpreadMode) return;
-  const isSpread = reader.imageViewMode === "spread";
+  const isSpread = reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD;
 
   if (isSpread) {
     setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_DOUBLE, t('spreadModeDouble'));
@@ -645,7 +653,7 @@ function updateSpreadModeButtonLabel() {
 // 左開き/右開きボタンのラベルを更新 (画像用)
 function updateReadingDirectionButtonLabel() {
   if (!elements.toggleReadingDirectionImage) return;
-  const isRtl = reader.imageReadingDirection === "rtl";
+  const isRtl = reader.imageReadingDirection === READING_DIRECTIONS.RTL;
   elements.toggleReadingDirectionImage.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
   elements.toggleReadingDirectionImage.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
 }
@@ -653,7 +661,7 @@ function updateReadingDirectionButtonLabel() {
 // 左開き/右開きボタンのラベルを更新 (EPUB用)
 function updateReadingDirectionEpubButtonLabel() {
   if (!elements.toggleReadingDirectionEpub) return;
-  const isRtl = pageDirection === "rtl";
+  const isRtl = pageDirection === READING_DIRECTIONS.RTL;
   elements.toggleReadingDirectionEpub.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
   elements.toggleReadingDirectionEpub.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
 }
@@ -668,13 +676,13 @@ function updateZoomButtonLabel() {
 
 // 進捗バーの方向を更新（RTL時は反転）
 function updateProgressBarDirection() {
-  const isImageBook = currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar");
+  const isImageBook = currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR);
   let isRtl = false;
 
   if (isImageBook) {
-    isRtl = reader.imageReadingDirection === "rtl";
-  } else if (currentBookInfo?.type === 'epub') {
-    isRtl = pageDirection === 'rtl';
+    isRtl = reader.imageReadingDirection === READING_DIRECTIONS.RTL;
+  } else if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
+    isRtl = pageDirection === READING_DIRECTIONS.RTL;
   }
 
   const floatProgressBar = document.getElementById(DOM_IDS.FLOAT_PROGRESS);
@@ -1346,7 +1354,7 @@ async function handleFile(file) {
 
     hideCloudEmptyState();
     // isImageBook: zip または rar の場合
-    const isImageBook = info.type === "zip" || info.type === "rar";
+    const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
     if (!isImageBook) {
       console.log("Opening EPUB...");
 
@@ -1530,7 +1538,7 @@ async function openFromLibrary(bookId, options = {}) {
 
     hideCloudEmptyState();
     // isImageBook: zip または rar の場合
-    const isImageBook = info.type === "zip" || info.type === "rar";
+    const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
     if (!isImageBook) {
       // 空の状態を非表示、ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -1576,10 +1584,10 @@ async function openFromLibrary(bookId, options = {}) {
 }
 
 function detectFileType(file) {
-  const ext = file.name.split('.').pop().toLowerCase();
-  if (ext === 'epub') return 'epub';
-  if (ext === 'rar' || ext === 'cbr') return 'rar'; // Treat .cbr as RAR
-  return 'zip'; // Treat .zip, .cbz as ZIP
+  const ext = file.name.split(".").pop().toLowerCase();
+  if (ext === FILE_EXTENSIONS.EPUB) return BOOK_TYPES.EPUB;
+  if (ext === FILE_EXTENSIONS.RAR || ext === FILE_EXTENSIONS.CBR) return BOOK_TYPES.RAR; // Treat .cbr as RAR
+  return BOOK_TYPES.ZIP; // Treat .zip, .cbz as ZIP
 }
 
 function fileTitle(name) {
@@ -1587,20 +1595,20 @@ function fileTitle(name) {
 }
 
 function guessMime(type, file) {
-  if (type === "epub") return "application/epub+zip";
-  if (type === "image") {
+  if (type === BOOK_TYPES.EPUB) return MIME_TYPES.EPUB;
+  if (type === BOOK_TYPES.IMAGE) {
     // This branch is for internal image files inside archives, likely unused for the main file
     // But keeping logic consistent if it were used
-    return "application/octet-stream";
+    return FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
   }
 
   // For the main file passed to saveFile/handleFile
   const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext === "cbr") return "application/x-cbr";
-  if (ext === "cbz") return "application/vnd.comicbook+zip";
-  if (ext === "rar") return "application/vnd.rar";
+  if (ext === FILE_EXTENSIONS.CBR) return MIME_TYPES.CBR;
+  if (ext === FILE_EXTENSIONS.CBZ) return MIME_TYPES.CBZ;
+  if (ext === FILE_EXTENSIONS.RAR) return MIME_TYPES.RAR;
 
-  return file.type || "application/octet-stream";
+  return file.type || FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
 }
 
 async function hashBuffer(buffer) {
@@ -1706,7 +1714,7 @@ function updateProgressBarDisplay() {
   if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
     if (progressDisplayMode === "page") {
       // ページ数モード
-      if (currentBookInfo?.type === 'epub') {
+      if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
         // EPUBの場合はページ数を表示
         const totalPages = getEpubPaginationTotal();
         if (totalPages) {
@@ -1723,7 +1731,7 @@ function updateProgressBarDisplay() {
             elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
           }
         }
-      } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
+      } else if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
         // 画像書籍の場合はページ数
         const totalPages = reader.imagePages?.length || 1;
         const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
@@ -1774,7 +1782,7 @@ function renderBookmarkMarkers() {
     let tooltipText = bookmark.label ?? t("bookmarkDefault");
     if (progressDisplayMode === "page") {
       // ページ数モードの場合
-      if (currentBookInfo?.type === 'epub') {
+      if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
         const totalPages = getEpubPaginationTotal();
         if (totalPages) {
           const pageIndex = Math.max(1, Math.round((percentage / 100) * totalPages));
@@ -1782,7 +1790,7 @@ function renderBookmarkMarkers() {
         } else {
           tooltipText += ` (${percentage}%)`;
         }
-      } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
+      } else if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
         tooltipText += ` (${pageNumber}/${totalPages})`;
@@ -1835,7 +1843,7 @@ function renderFloatBookmarkMarkers() {
 async function seekToPercentage(percentage) {
   if (!currentBookId || !currentBookInfo) return;
 
-  if (currentBookInfo.type === "epub") {
+  if (currentBookInfo.type === BOOK_TYPES.EPUB) {
     // EPUBの場合はlocation（CFI）ベースでシーク
     console.log(`Seeking to ${percentage}%`);
 
@@ -1870,7 +1878,7 @@ function handleBookReady(payload) {
   currentToc = toc;
 
   // 方向判定とUI更新
-  if (currentBookInfo.type === 'epub') {
+  if (currentBookInfo.type === BOOK_TYPES.EPUB) {
     // メタデータから方向を取得（設定値があればそちらを優先）
     const metadataDirection = metadata.direction;
     if (metadataDirection && !userOverrodeDirection) {
@@ -1912,7 +1920,7 @@ function handleBookReady(payload) {
   scheduleEpubScrollModeUpdate();
 
   // locations生成完了時に進捗バーを更新
-  if (currentBookInfo.type === 'epub') {
+  if (currentBookInfo.type === BOOK_TYPES.EPUB) {
     console.log('[handleBookReady] Setting up locations listener for progress updates');
     // locations生成完了を監視
     const checkLocations = setInterval(() => {
@@ -1934,18 +1942,18 @@ function handleBookReady(payload) {
 }
 
 function updateEpubScrollMode() {
-  if (currentBookInfo?.type !== 'epub' || !elements.fullscreenReader) return;
+  if (currentBookInfo?.type !== BOOK_TYPES.EPUB || !elements.fullscreenReader) return;
   if (reader?.usingPaginator) {
     elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
     return;
   }
   const resolvedWritingMode = reader?.writingMode ?? currentBookInfo?.writingMode ?? writingMode;
-  if (resolvedWritingMode === "vertical") {
+  if (resolvedWritingMode === WRITING_MODES.VERTICAL) {
     console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
     elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
     return;
   }
-  if (resolvedWritingMode === "horizontal") {
+  if (resolvedWritingMode === WRITING_MODES.HORIZONTAL) {
     console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
     elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL);
   }
@@ -1962,7 +1970,7 @@ function renderToc(tocItems = []) {
     elements.tocList.innerHTML = "";
   }
   elements.tocModalList.innerHTML = "";
-  const isEpub = currentBookInfo?.type === "epub";
+  const isEpub = currentBookInfo?.type === BOOK_TYPES.EPUB;
 
   if (!isEpub || !tocItems.length) {
     elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
@@ -2162,7 +2170,7 @@ function renderBookmarks(mode = "current") {
     // メタ情報を進捗表示モードに合わせて表示
     let metaText = new Date(bookmark.createdAt).toLocaleString();
     if (progressDisplayMode === "page") {
-      if (currentBookInfo?.type === 'epub') {
+      if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
         const totalPages = getEpubPaginationTotal();
         if (totalPages) {
           const pageIndex = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
@@ -2170,7 +2178,7 @@ function renderBookmarks(mode = "current") {
         } else {
           metaText += ` / ${bookmark.percentage}%`;
         }
-      } else if (currentBookInfo?.type === 'image') {
+      } else if (currentBookInfo?.type === BOOK_TYPES.IMAGE) {
         const totalPages = reader.imagePages?.length || 1;
         const pageNumber = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
         metaText += ` / ${pageNumber}/${totalPages}`;
@@ -2371,7 +2379,7 @@ function renderHistory() {
 // ========================================
 
 async function performSearch(query) {
-  if (!query || !currentBookId || currentBookInfo?.type !== 'epub' || !reader.book) {
+  if (!query || !currentBookId || currentBookInfo?.type !== BOOK_TYPES.EPUB || !reader.book) {
     return [];
   }
 
@@ -2844,7 +2852,7 @@ function applyUiLanguage(nextLanguage) {
 
 function updateWritingModeToggleLabel() {
   if (!elements.toggleWritingMode) return;
-  const isVertical = writingMode === "vertical";
+  const isVertical = writingMode === WRITING_MODES.VERTICAL;
   elements.toggleWritingMode.textContent = isVertical
     ? t("writingModeToggleVertical")
     : t("writingModeToggleHorizontal");
@@ -2868,7 +2876,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   updateFloatingUIButtons();
 
   // [修正] ローディング表示を追加し、レンダリングを待機
-  const isEpubOpen = currentBookInfo?.type === 'epub';
+  const isEpubOpen = currentBookInfo?.type === BOOK_TYPES.EPUB;
   if (isEpubOpen) {
     showLoading();
     // スピナーが表示されるよう、ブラウザの描画サイクルを1回回す
@@ -3030,7 +3038,7 @@ function showLibrary() {
 }
 
 function showSearch() {
-  if (!currentBookId || currentBookInfo?.type !== 'epub') {
+  if (!currentBookId || currentBookInfo?.type !== BOOK_TYPES.EPUB) {
     alert(t("searchEpubOnly"));
     return;
   }
@@ -3121,7 +3129,8 @@ function setupEvents() {
   elements.langEn?.addEventListener('click', () => applyUiLanguage("en"));
 
   elements.toggleWritingMode?.addEventListener('click', async () => {
-    const nextMode = writingMode === "vertical" ? "horizontal" : "vertical";
+    const nextMode =
+      writingMode === WRITING_MODES.VERTICAL ? WRITING_MODES.HORIZONTAL : WRITING_MODES.VERTICAL;
     await applyReadingSettings(nextMode, null);
     if (elements.writingModeSelect) {
       elements.writingModeSelect.value = writingMode;
@@ -3144,7 +3153,8 @@ function setupEvents() {
   // 左開き/右開き切替ボタン (EPUB用)
   elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
     userOverrodeDirection = true;
-    const nextDirection = pageDirection === "rtl" ? "ltr" : "rtl";
+    const nextDirection =
+      pageDirection === READING_DIRECTIONS.RTL ? READING_DIRECTIONS.LTR : READING_DIRECTIONS.RTL;
     await applyReadingSettings(null, nextDirection);
     if (elements.pageDirectionSelect) {
       elements.pageDirectionSelect.value = pageDirection;
@@ -3190,7 +3200,7 @@ function setupEvents() {
   });
 
   elements.openToc?.addEventListener('click', () => {
-    if (!currentBookInfo || currentBookInfo.type !== "epub") return;
+    if (!currentBookInfo || currentBookInfo.type !== BOOK_TYPES.EPUB) return;
     openModal(elements.tocModal);
   });
 
@@ -3230,7 +3240,7 @@ function setupEvents() {
       if (!isNaN(value)) {
         if (progressDisplayMode === "page") {
           // ページ数モード
-          if (currentBookInfo?.type === 'epub') {
+          if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
             // EPUBの場合はページ数として扱う
             const totalPages = getEpubPaginationTotal();
             if (totalPages) {
@@ -3239,7 +3249,7 @@ function setupEvents() {
             } else {
               seekToPercentage(Math.max(0, Math.min(value, 100)));
             }
-          } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
+          } else if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
             // 画像書籍の場合はページ数として扱う
             const totalPages = reader.imagePages?.length || 1;
             const percentage = ((value - 1) / (totalPages - 1)) * 100;
@@ -3486,14 +3496,14 @@ function setupEvents() {
 
     switch (e.key) {
       case 'ArrowLeft':
-        if (pageDirection === 'rtl') {
+        if (pageDirection === READING_DIRECTIONS.RTL) {
           reader.next(); // 右開きの場合、左キーで次ページ
         } else {
           reader.prev();
         }
         break;
       case 'ArrowRight':
-        if (pageDirection === 'rtl') {
+        if (pageDirection === READING_DIRECTIONS.RTL) {
           reader.prev(); // 右開きの場合、右キーで前ページ
         } else {
           reader.next();
