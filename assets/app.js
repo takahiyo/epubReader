@@ -142,7 +142,7 @@ async function initLoadingAnimation() {
 function showLoading() {
   const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
   if (overlay) {
-    overlay.classList.add('visible');
+    overlay.classList.add(UI_CLASSES.VISIBLE);
     lottieInstance?.play();
   }
 }
@@ -150,7 +150,7 @@ function showLoading() {
 function hideLoading() {
   const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
   if (overlay) {
-    overlay.classList.remove('visible');
+    overlay.classList.remove(UI_CLASSES.VISIBLE);
     lottieInstance?.stop(); // 非表示時は停止してリソース節約
   }
 }
@@ -620,9 +620,9 @@ function handleToggleZoom() {
 
   // Bodyにクラス適用（UI制御用）
   if (isZoomed) {
-    document.body.classList.add('is-zoomed');
+  document.body.classList.add(UI_CLASSES.IS_ZOOMED);
   } else {
-    document.body.classList.remove('is-zoomed');
+  document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
   }
 
   updateZoomButtonLabel();
@@ -635,10 +635,10 @@ function updateSpreadModeButtonLabel() {
 
   if (isSpread) {
     setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_DOUBLE, t('spreadModeDouble'));
-    elements.toggleSpreadMode.classList.add('active');
+    elements.toggleSpreadMode.classList.add(UI_CLASSES.ACTIVE);
   } else {
     setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_SINGLE, t('spreadModeSingle'));
-    elements.toggleSpreadMode.classList.remove('active');
+    elements.toggleSpreadMode.classList.remove(UI_CLASSES.ACTIVE);
   }
 }
 
@@ -680,27 +680,27 @@ function updateProgressBarDirection() {
   const floatProgressBar = document.getElementById(DOM_IDS.FLOAT_PROGRESS);
   if (floatProgressBar) {
     if (isRtl) {
-      floatProgressBar.classList.add("rtl-progress");
+      floatProgressBar.classList.add(UI_CLASSES.RTL_PROGRESS);
     } else {
-      floatProgressBar.classList.remove("rtl-progress");
+      floatProgressBar.classList.remove(UI_CLASSES.RTL_PROGRESS);
     }
   }
 
   const progressBarWrapper = document.querySelector(DOM_SELECTORS.PROGRESS_BAR_WRAPPER);
   if (progressBarWrapper) {
     if (isRtl) {
-      progressBarWrapper.classList.add('rtl-mode');
+      progressBarWrapper.classList.add(UI_CLASSES.RTL_MODE);
     } else {
-      progressBarWrapper.classList.remove('rtl-mode');
+      progressBarWrapper.classList.remove(UI_CLASSES.RTL_MODE);
     }
   }
 
   // [追加] 画像ビューア自体のRTLクラス切替 (スプレッド表示の順序制御用)
   if (elements.imageViewer) {
     if (isRtl) {
-      elements.imageViewer.classList.add('rtl-mode');
+      elements.imageViewer.classList.add(UI_CLASSES.RTL_MODE);
     } else {
-      elements.imageViewer.classList.remove('rtl-mode');
+      elements.imageViewer.classList.remove(UI_CLASSES.RTL_MODE);
     }
   }
 }
@@ -743,14 +743,14 @@ function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
 
 function toggleFloatOverlay(forceVisible) {
   // ズーム中はフローティングメニュー制御を完全に無視
-  if (document.body.classList.contains('is-zoomed')) {
+  if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
     return;
   }
 
   if (!elements.floatOverlay) return;
   const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
   floatVisible = nextVisible;
-  elements.floatOverlay.classList.toggle("visible", floatVisible);
+  elements.floatOverlay.classList.toggle(UI_CLASSES.VISIBLE, floatVisible);
 
   if (floatVisible) {
     updateFloatingUIButtons();
@@ -1355,11 +1355,11 @@ async function handleFile(file) {
       if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
-        elements.viewer.classList.add('visible');
+        elements.viewer.classList.add(UI_CLASSES.VISIBLE);
       }
       // EPUBスクロールモードを解除（ページ分割描画のため）
       if (elements.fullscreenReader) {
-        elements.fullscreenReader.classList.remove('epub-scroll');
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
 
       showLoading();
@@ -1383,7 +1383,7 @@ async function handleFile(file) {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.add(UI_CLASSES.HIDDEN);
-        elements.viewer.classList.remove('visible');
+        elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
       }
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
@@ -1457,7 +1457,7 @@ function openCloudOnlyBook(cloudBookId) {
 
   if (elements.viewer) {
     elements.viewer.classList.add(UI_CLASSES.HIDDEN);
-    elements.viewer.classList.remove("visible");
+  elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
   }
   if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
   if (elements.emptyState) elements.emptyState.classList.remove(UI_CLASSES.HIDDEN);
@@ -1537,11 +1537,11 @@ async function openFromLibrary(bookId, options = {}) {
       if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
-        elements.viewer.classList.add('visible');
+        elements.viewer.classList.add(UI_CLASSES.VISIBLE);
       }
       // EPUBスクロールモードを解除（ページ分割描画のため）
       if (elements.fullscreenReader) {
-        elements.fullscreenReader.classList.remove('epub-scroll');
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
 
       await reader.openEpub(file, { location: start, percentage: startProgress });
@@ -1550,7 +1550,7 @@ async function openFromLibrary(bookId, options = {}) {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.add(UI_CLASSES.HIDDEN);
-        elements.viewer.classList.remove('visible');
+        elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
       }
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
@@ -1936,18 +1936,18 @@ function handleBookReady(payload) {
 function updateEpubScrollMode() {
   if (currentBookInfo?.type !== 'epub' || !elements.fullscreenReader) return;
   if (reader?.usingPaginator) {
-    elements.fullscreenReader.classList.remove('epub-scroll');
+    elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
     return;
   }
   const resolvedWritingMode = reader?.writingMode ?? currentBookInfo?.writingMode ?? writingMode;
   if (resolvedWritingMode === "vertical") {
     console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
-    elements.fullscreenReader.classList.remove('epub-scroll');
+    elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
     return;
   }
   if (resolvedWritingMode === "horizontal") {
     console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
-    elements.fullscreenReader.classList.add('epub-scroll');
+    elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL);
   }
 }
 
@@ -2549,8 +2549,8 @@ function renderSearchResults(results, query) {
 
 function isModalVisible(modal) {
   if (!modal) return false;
-  if (modal.classList.contains("bookmark-menu")) {
-    return modal.classList.contains("visible");
+  if (modal.classList.contains(UI_CLASSES.BOOKMARK_MENU)) {
+    return modal.classList.contains(UI_CLASSES.VISIBLE);
   }
   return !modal.classList.contains(UI_CLASSES.HIDDEN);
 }
@@ -2563,10 +2563,10 @@ function openModal(modal) {
     elements.modalOverlay.appendChild(modal);
   }
   if (elements.modalOverlay) {
-    elements.modalOverlay.classList.add("visible");
+    elements.modalOverlay.classList.add(UI_CLASSES.VISIBLE);
   }
-  if (modal.classList.contains("bookmark-menu")) {
-    modal.classList.add("visible");
+  if (modal.classList.contains(UI_CLASSES.BOOKMARK_MENU)) {
+    modal.classList.add(UI_CLASSES.VISIBLE);
     ui.bookmarkMenuVisible = true;
   } else {
     modal.classList.remove(UI_CLASSES.HIDDEN);
@@ -2576,8 +2576,8 @@ function openModal(modal) {
 
 function closeModal(modal) {
   if (!modal) return;
-  if (modal.classList.contains("bookmark-menu")) {
-    modal.classList.remove("visible");
+  if (modal.classList.contains(UI_CLASSES.BOOKMARK_MENU)) {
+    modal.classList.remove(UI_CLASSES.VISIBLE);
     ui.bookmarkMenuVisible = false;
   } else {
     modal.classList.add(UI_CLASSES.HIDDEN);
@@ -2588,7 +2588,7 @@ function closeModal(modal) {
     return isModalVisible(child);
   });
   if (!hasVisibleModal) {
-    elements.modalOverlay.classList.remove("visible");
+    elements.modalOverlay.classList.remove(UI_CLASSES.VISIBLE);
   }
 }
 
@@ -2644,8 +2644,8 @@ function applyUiLanguage(nextLanguage) {
   uiLanguage = nextLanguage;
   storage.setSettings({ uiLanguage });
   document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
-  elements.langJa?.classList.toggle("active", uiLanguage === "ja");
-  elements.langEn?.classList.toggle("active", uiLanguage === "en");
+  elements.langJa?.classList.toggle(UI_CLASSES.ACTIVE, uiLanguage === "ja");
+  elements.langEn?.classList.toggle(UI_CLASSES.ACTIVE, uiLanguage === "en");
   if (elements.langIcon) {
     elements.langIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
   }
@@ -2894,8 +2894,8 @@ function applyLibraryViewMode(mode) {
   if (elements.libraryGrid) {
     elements.libraryGrid.dataset.view = mode;
   }
-  elements.libraryViewGrid?.classList.toggle("active", mode === "grid");
-  elements.libraryViewList?.classList.toggle("active", mode === "list");
+  elements.libraryViewGrid?.classList.toggle(UI_CLASSES.ACTIVE, mode === "grid");
+  elements.libraryViewList?.classList.toggle(UI_CLASSES.ACTIVE, mode === "list");
   storage.setSettings({ libraryViewMode: mode });
 }
 
@@ -3449,7 +3449,7 @@ function setupEvents() {
     }
 
     const targetElement = event.target instanceof Element ? event.target : null;
-    if (targetElement?.closest('.left-menu, .progress-bar-panel, .bookmark-menu')) {
+    if (targetElement?.closest(DOM_SELECTORS.CLICK_EXCLUDE_MENU)) {
       return;
     }
 
