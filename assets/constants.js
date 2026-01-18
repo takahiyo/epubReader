@@ -53,6 +53,14 @@ export const STORAGE_CONFIG = Object.freeze({
 });
 
 // ============================================
+// ストレージソース正規化
+// ============================================
+export const STORAGE_SOURCE_DEFAULT = "local";
+export const STORAGE_SOURCE_ALIASES = Object.freeze({
+  drive: STORAGE_SOURCE_DEFAULT,
+});
+
+// ============================================
 // デバイスカラーパレット
 // ============================================
 export const DEVICE_COLOR_PALETTE = Object.freeze([
@@ -74,8 +82,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   lastSyncAt: null,
   apiKey: "<必要ならキー>",
   endpoint: "",
-  source: "local",
-  saveDestination: "local",
+  source: STORAGE_SOURCE_DEFAULT,
+  saveDestination: STORAGE_SOURCE_DEFAULT,
   onedriveClientId: "",
   onedriveRedirectUri: "",
   onedriveFilePath: "epub-reader-data.json",
