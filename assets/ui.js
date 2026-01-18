@@ -1,5 +1,7 @@
 import {
   DEBUG_GRID_CONFIG,
+  INTERACTION_AREA_CODES,
+  INTERACTION_AREA_LABELS,
   INTERACTION_GRID_CONFIG,
   TIMING_CONFIG,
   TOUCH_CONFIG,
@@ -292,14 +294,14 @@ export class UIController {
     if (this.isFloatVisible?.()) {
       // 機能なしエリア、またはM3（メニュー開閉）ならフローティングを閉じる
       const label = this.getFunctionLabel(area);
-      if (!label || area === "M3") {
+      if (!label || area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
         this.onFloatToggle?.();
       }
       return;
     }
 
     // M3でメニュー表示
-    if (area === 'M3') {
+    if (area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
       this.onFloatToggle?.();
       return;
     }
@@ -311,13 +313,13 @@ export class UIController {
     // 画像書庫または縦書き
     if (writingMode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
       const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
-      if (area === "M1" || area === "M2") {
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.PREV.includes(area)) {
         if (direction === READING_DIRECTIONS.LTR) {
           this.onPagePrev?.(); // LTRなら左で戻る
         } else {
           this.onPageNext?.(); // RTLなら左で進む
         }
-      } else if (area === "M4" || area === "M5") {
+      } else if (INTERACTION_AREA_CODES.VERTICAL_NAV.NEXT.includes(area)) {
         if (direction === READING_DIRECTIONS.LTR) {
           this.onPageNext?.(); // LTRなら右で進む
         } else {
@@ -328,7 +330,7 @@ export class UIController {
       // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動
       if (this.isImageBook?.() && this.isSpreadMode?.()) {
         const direction = this.getReadingDirection();
-        if (area === "U3") {
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
           console.log('Spread adjustment: Prev 1 page');
           // U3 (上中央) -> 1ページ戻る
           if (direction === READING_DIRECTIONS.RTL) {
@@ -337,7 +339,7 @@ export class UIController {
             this.onPagePrev?.(1); // LTRの「戻る」は物理的に左(Index減) = prev()
           }
           return;
-        } else if (area === "B3") {
+        } else if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
           console.log('Spread adjustment: Next 1 page');
           // B3 (下中央) -> 1ページ進む
           if (direction === READING_DIRECTIONS.RTL) {
@@ -352,9 +354,9 @@ export class UIController {
     }
 
     // 横書き
-    if (area === "U3") {
+    if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
       this.onPagePrev?.();
-    } else if (area === "B3") {
+    } else if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
       this.onPageNext?.();
     }
   }
@@ -568,7 +570,9 @@ export class UIController {
    * エリアの機能ラベルを取得
    */
   getFunctionLabel(area) {
-    if (area === "M3") return "areaMenuToggle";
+    if (area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
+      return INTERACTION_AREA_LABELS.MENU_TOGGLE;
+    }
 
     const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
     const isImage = this.isImageBook?.();
@@ -577,20 +581,32 @@ export class UIController {
     // 縦書き or 画像
     if (writingMode === WRITING_MODES.VERTICAL || isImage) {
       const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
-      if (area === "M1" || area === "M2") {
-        return direction === READING_DIRECTIONS.LTR ? "areaPagePrev" : "areaPageNext";
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.PREV.includes(area)) {
+        return direction === READING_DIRECTIONS.LTR
+          ? INTERACTION_AREA_LABELS.PAGE_PREV
+          : INTERACTION_AREA_LABELS.PAGE_NEXT;
       }
-      if (area === "M4" || area === "M5") {
-        return direction === READING_DIRECTIONS.LTR ? "areaPageNext" : "areaPagePrev";
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.NEXT.includes(area)) {
+        return direction === READING_DIRECTIONS.LTR
+          ? INTERACTION_AREA_LABELS.PAGE_NEXT
+          : INTERACTION_AREA_LABELS.PAGE_PREV;
       }
       if (isSpread) {
-        if (area === "U3") return "areaPagePrevSingle";
-        if (area === "B3") return "areaPageNextSingle";
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
+          return INTERACTION_AREA_LABELS.PAGE_PREV_SINGLE;
+        }
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
+          return INTERACTION_AREA_LABELS.PAGE_NEXT_SINGLE;
+        }
       }
     } else {
       // 横書き
-      if (area === "U3") return "areaPagePrev";
-      if (area === "B3") return "areaPageNext";
+      if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
+        return INTERACTION_AREA_LABELS.PAGE_PREV;
+      }
+      if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
+        return INTERACTION_AREA_LABELS.PAGE_NEXT;
+      }
     }
     return null;
   }
