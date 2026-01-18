@@ -1,50 +1,60 @@
-const CACHE_NAME = "epub-reader-static-v1";
-const STATIC_ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./assets/style.css",
-  "./assets/login.css",
-  "./assets/app.js",
-  "./assets/auth.js",
-  "./assets/cloudSync.js",
-  "./assets/config.js",
-  "./assets/fileStore.js",
-  "./assets/reader.js",
-  "./assets/storage.js",
-  "./assets/ui.js",
-  "./assets/bookreader.png",
-  "./assets/BookReader_Titlle.png",
-  "./assets/menu-title.svg",
-  "./assets/Flag_America.svg",
-  "./assets/Flag_Japan.svg",
-  "./assets/vendor/jszip.min.js",
-  "./assets/vendor/unrar.js",
-  "./assets/vendor/unrar.wasm"
-];
+/**
+ * service-worker.js - Service Worker (代替版)
+ * 
+ * 注意: Service Worker は ES Modules をサポートしないため、
+ * constants.js から直接 import できません。
+ * 設定変更時は constants.js と同期してください。
+ * 
+ * SSOT 参照元: assets/constants.js
+ *
+ * 生成物: assets/sw-cache-config.json
+ */
 
-const ASSET_URLS = new Set(
-  STATIC_ASSETS.map((asset) => new URL(asset, self.location).toString())
-);
+const CONFIG_URL = "./assets/sw-cache-config.json";
+let configPromise;
+let assetUrlsPromise;
+
+const loadConfig = () => {
+  if (!configPromise) {
+    configPromise = fetch(CONFIG_URL, { cache: "no-store" }).then((response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to load ${CONFIG_URL}`);
+      }
+      return response.json();
+    });
+  }
+  return configPromise;
+};
+
+const loadAssetUrls = () => {
+  if (!assetUrlsPromise) {
+    assetUrlsPromise = loadConfig().then((config) => {
+      return new Set(
+        config.assets.map((asset) => new URL(asset, self.location).toString())
+      );
+    });
+  }
+  return assetUrlsPromise;
+};
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(STATIC_ASSETS))
+    loadConfig()
+      .then((config) => caches.open(config.cacheName).then((cache) => cache.addAll(config.assets)))
       .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
+    loadConfig()
+      .then((config) =>
+        caches.keys().then((keys) =>
+          Promise.all(
+            keys
+              .filter((key) => key !== config.cacheName)
+              .map((key) => caches.delete(key))
+          )
         )
       )
       .then(() => self.clients.claim())
@@ -56,14 +66,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const requestUrl = event.request.url;
-  if (!ASSET_URLS.has(requestUrl)) {
-    return;
-  }
-
   event.respondWith(
-    caches
-      .match(event.request)
-      .then((cached) => cached || fetch(event.request))
+    loadAssetUrls()
+      .then((assetUrls) => {
+        if (!assetUrls.has(event.request.url)) {
+          return fetch(event.request);
+        }
+        return caches.match(event.request).then((cached) => cached || fetch(event.request));
+      })
+      .catch(() => fetch(event.request))
   );
 });

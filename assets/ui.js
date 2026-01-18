@@ -1,4 +1,20 @@
+import {
+  DEBUG_GRID_CONFIG,
+  INTERACTION_AREA_CODES,
+  INTERACTION_AREA_LABELS,
+  INTERACTION_GRID_CONFIG,
+  TIMING_CONFIG,
+  TOUCH_CONFIG,
+  UI_CLASSES,
+  DOM_IDS,
+  DOM_SELECTORS,
+  WRITING_MODES,
+  READING_DIRECTIONS,
+} from "./constants.js";
+
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
+
+const getById = (id) => document.getElementById(id);
 
 /**
  * 画面を15エリアに分割して判定
@@ -31,11 +47,11 @@ export class UIController {
     this.isBookOpen = options.isBookOpen || (() => false);
     this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
-    this.getWritingMode = options.getWritingMode || (() => "horizontal");
+    this.getWritingMode = options.getWritingMode || (() => WRITING_MODES.HORIZONTAL);
     this.isFloatVisible = options.isFloatVisible || (() => false);
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
-    this.getReadingDirection = options.getReadingDirection || (() => "ltr");
+    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -58,7 +74,7 @@ export class UIController {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
         console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
-      }, 250);
+      }, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
     });
   }
 
@@ -91,29 +107,27 @@ export class UIController {
     console.log(`Area size: ${areaRect.width}x${areaRect.height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
 
     // 下10%は進捗バー専用エリア（クリック処理しない）
-    if (yPercent > 90) {
+    if (yPercent > INTERACTION_GRID_CONFIG.PROGRESS_BAR_EXCLUDE_FROM) {
       console.log('Progress bar area - ignoring click');
       return null;
     }
 
     // 縦方向: U(0-30%), M(30-60%), B(60-90%)
     let vArea = 'U';
-    if (yPercent >= 30 && yPercent < 60) vArea = 'M';
-    else if (yPercent >= 60) vArea = 'B';
+    if (yPercent >= INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.TOP
+      && yPercent < INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.MIDDLE) {
+      vArea = 'M';
+    } else if (yPercent >= INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.MIDDLE
+      && yPercent < INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.BOTTOM) {
+      vArea = 'B';
+    }
 
     // 横方向: 20%ずつ5分割
-    let hArea;
-    if (xPercent < 20) {
-      hArea = 1;
-    } else if (xPercent < 40) {
-      hArea = 2;
-    } else if (xPercent < 60) {
-      hArea = 3;
-    } else if (xPercent < 80) {
-      hArea = 4;
-    } else {
-      hArea = 5;
-    }
+    const segmentWidth = 100 / INTERACTION_GRID_CONFIG.HORIZONTAL_SEGMENTS;
+    const hArea = Math.min(
+      INTERACTION_GRID_CONFIG.HORIZONTAL_SEGMENTS,
+      Math.floor(xPercent / segmentWidth) + 1
+    );
 
     return `${vArea}${hArea}`;
   }
@@ -126,11 +140,22 @@ export class UIController {
 
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
-      if (document.body.classList.contains("google-auth-active")) {
+      if (document.body.classList.contains(UI_CLASSES.GOOGLE_AUTH_ACTIVE)) {
         return;
       }
+      // ズーム中は一切のクリック操作を無効化（ボタン以外）
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        // 例外: ズームボタンなど特定要素は許可したいが、それはイベントバブリングで
+        // ここに来る前に処理済みか、あるいはここで target チェックが必要。
+        // ただし、style.css で pointer-events を制御しているので、
+        // ここに来るイベントは基本的に「許可された要素」か「無効化漏れ」
+        // 念のため、明確に許可リスト（ズームボタン等）以外は弾くのが安全
+        if (!e.target.closest(DOM_SELECTORS.ZOOM_ALLOWED_TARGETS)) {
+          return;
+        }
+      }
       // メニューやボタン内のクリックは無視
-      if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgressBar')) {
+      if (e.target.closest(DOM_SELECTORS.CLICK_EXCLUDE_ALL)) {
         return;
       }
 
@@ -142,7 +167,7 @@ export class UIController {
 
       isProcessing = true;
 
-      const baseElement = document.getElementById('fullscreenReader');
+      const baseElement = getById(DOM_IDS.FULLSCREEN_READER);
       try {
         const area = this.getClickArea(e.clientX, e.clientY, baseElement);
         if (!area) {
@@ -155,10 +180,10 @@ export class UIController {
       } catch (error) {
         console.error('Error handling click:', error);
       } finally {
-        // 処理完了後、フラグをリセット（100ms後）
+        // 処理完了後、フラグをリセット
         setTimeout(() => {
           isProcessing = false;
-        }, 100);
+        }, TIMING_CONFIG.CLICK_PROCESS_RESET_MS);
       }
     };
 
@@ -170,16 +195,20 @@ export class UIController {
    * タッチスワイプハンドラーをセットアップ
    */
   setupTouchHandlers() {
-    const reader = document.getElementById('fullscreenReader');
+    const reader = getById(DOM_IDS.FULLSCREEN_READER);
     if (!reader) {
       return;
     }
 
-    const minSwipeDistance = 40;
-    const axisDifference = 20;
+    const minSwipeDistance = TOUCH_CONFIG.MIN_SWIPE_DISTANCE;
+    const axisDifference = TOUCH_CONFIG.AXIS_DIFFERENCE;
 
     reader.addEventListener('touchstart', (e) => {
       if (this.isAnyMenuVisible()) {
+        return;
+      }
+      // ズーム中はスワイプ無効
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
         return;
       }
 
@@ -190,6 +219,13 @@ export class UIController {
 
     reader.addEventListener('touchend', (e) => {
       if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      // ズーム中はスワイプ無効
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
         this.touchStartX = null;
         this.touchStartY = null;
         return;
@@ -206,21 +242,21 @@ export class UIController {
       const absDeltaY = Math.abs(deltaY);
 
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
-        const mode = this.getWritingMode?.() || "horizontal";
+        const mode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
         // 画像書庫または縦書きモードなら横スワイプ
-        if (mode === "vertical" || this.isImageBook?.()) {
-          const direction = this.getReadingDirection?.() || 'rtl';
+        if (mode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
+          const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
           if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
             if (deltaX > 0) {
               // 右方向へのスワイプ
-              if (direction === 'ltr') {
+              if (direction === READING_DIRECTIONS.LTR) {
                 this.onPagePrev?.(); // LTRなら「右スワイプ」で戻る
               } else {
                 this.onPageNext?.(); // RTLなら「右スワイプ」で進む
               }
             } else {
               // 左方向へのスワイプ
-              if (direction === 'ltr') {
+              if (direction === READING_DIRECTIONS.LTR) {
                 this.onPageNext?.(); // LTRなら「左スワイプ」で進む
               } else {
                 this.onPagePrev?.(); // RTLなら「左スワイプ」で戻る
@@ -249,37 +285,42 @@ export class UIController {
    * エリアクリックを処理
    */
   handleAreaClick(area, event) {
+    // ズーム中は操作無効（ドラッグ優先）
+    if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+      return;
+    }
+
     // フローティングメニューが表示されている場合
     if (this.isFloatVisible?.()) {
       // 機能なしエリア、またはM3（メニュー開閉）ならフローティングを閉じる
       const label = this.getFunctionLabel(area);
-      if (!label || area === "M3") {
+      if (!label || area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
         this.onFloatToggle?.();
       }
       return;
     }
 
     // M3でメニュー表示
-    if (area === 'M3') {
+    if (area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
       this.onFloatToggle?.();
       return;
     }
 
     if (!this.isBookOpen()) return;
 
-    const writingMode = this.getWritingMode?.() || "horizontal";
+    const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
 
     // 画像書庫または縦書き
-    if (writingMode === "vertical" || this.isImageBook?.()) {
-      const direction = this.getReadingDirection?.() || 'rtl';
-      if (area === "M1" || area === "M2") {
-        if (direction === 'ltr') {
+    if (writingMode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
+      const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.PREV.includes(area)) {
+        if (direction === READING_DIRECTIONS.LTR) {
           this.onPagePrev?.(); // LTRなら左で戻る
         } else {
           this.onPageNext?.(); // RTLなら左で進む
         }
-      } else if (area === "M4" || area === "M5") {
-        if (direction === 'ltr') {
+      } else if (INTERACTION_AREA_CODES.VERTICAL_NAV.NEXT.includes(area)) {
+        if (direction === READING_DIRECTIONS.LTR) {
           this.onPageNext?.(); // LTRなら右で進む
         } else {
           this.onPagePrev?.(); // RTLなら右で戻る
@@ -289,19 +330,19 @@ export class UIController {
       // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動
       if (this.isImageBook?.() && this.isSpreadMode?.()) {
         const direction = this.getReadingDirection();
-        if (area === "U3") {
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
           console.log('Spread adjustment: Prev 1 page');
           // U3 (上中央) -> 1ページ戻る
-          if (direction === 'rtl') {
+          if (direction === READING_DIRECTIONS.RTL) {
             this.onPageNext?.(1); // RTLの「戻る」は物理的に左(Index増) = next()
           } else {
             this.onPagePrev?.(1); // LTRの「戻る」は物理的に左(Index減) = prev()
           }
           return;
-        } else if (area === "B3") {
+        } else if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
           console.log('Spread adjustment: Next 1 page');
           // B3 (下中央) -> 1ページ進む
-          if (direction === 'rtl') {
+          if (direction === READING_DIRECTIONS.RTL) {
             this.onPagePrev?.(1); // RTLの「進む」は物理的に右(Index減) = prev()
           } else {
             this.onPageNext?.(1); // LTRの「進む」は物理的に右(Index増) = next()
@@ -313,9 +354,9 @@ export class UIController {
     }
 
     // 横書き
-    if (area === "U3") {
+    if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
       this.onPagePrev?.();
-    } else if (area === "B3") {
+    } else if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
       this.onPageNext?.();
     }
   }
@@ -328,13 +369,13 @@ export class UIController {
     this.leftMenuVisible = true;
     this.onLeftMenu?.('show');
 
-    const menu = document.getElementById('leftMenu');
-    const backdrop = document.getElementById('leftMenuBackdrop');
-    const overlay = document.getElementById('clickOverlay');
+    const menu = getById(DOM_IDS.LEFT_MENU);
+    const backdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('leftMenu element:', menu);
     if (menu) {
-      menu.classList.add('visible');
+      menu.classList.add(UI_CLASSES.VISIBLE);
       console.log('Added visible class to leftMenu');
     } else {
       console.error('leftMenu element not found!');
@@ -342,7 +383,7 @@ export class UIController {
 
     // バックドロップを表示
     if (backdrop) {
-      backdrop.classList.add('visible');
+      backdrop.classList.add(UI_CLASSES.VISIBLE);
       // バックドロップクリックでメニューを閉じる
       backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
       console.log('Showed menu backdrop');
@@ -369,13 +410,13 @@ export class UIController {
     this.progressBarVisible = !persistent;
     this.onProgressBar?.('show');
 
-    const bar = document.getElementById('progressBarPanel');
-    const backdrop = document.getElementById('progressBarBackdrop');
-    const overlay = document.getElementById('clickOverlay');
+    const bar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const backdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('progressBarPanel element:', bar);
     if (bar) {
-      bar.classList.add('visible');
+      bar.classList.add(UI_CLASSES.VISIBLE);
       console.log('Added visible class to progressBarPanel');
     } else {
       console.error('progressBarPanel element not found!');
@@ -384,7 +425,7 @@ export class UIController {
     if (!persistent) {
       // バックドロップを表示
       if (backdrop) {
-        backdrop.classList.add('visible');
+        backdrop.classList.add(UI_CLASSES.VISIBLE);
         // バックドロップクリックで進捗バーを閉じる
         backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
         console.log('Showed progress bar backdrop');
@@ -397,7 +438,7 @@ export class UIController {
       }
     } else {
       if (backdrop) {
-        backdrop.classList.remove('visible');
+        backdrop.classList.remove(UI_CLASSES.VISIBLE);
       }
     }
   }
@@ -410,12 +451,12 @@ export class UIController {
     this.bookmarkMenuVisible = true;
     this.onBookmarkMenu?.('show');
 
-    const menu = document.getElementById('bookmarkMenu');
-    const overlay = document.getElementById('clickOverlay');
+    const menu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('bookmarkMenu element:', menu);
     if (menu) {
-      menu.classList.add('visible');
+      menu.classList.add(UI_CLASSES.VISIBLE);
       console.log('Added visible class to bookmarkMenu');
     } else {
       console.error('bookmarkMenu element not found!');
@@ -436,22 +477,22 @@ export class UIController {
     this.progressBarVisible = false;
     this.bookmarkMenuVisible = false;
 
-    const leftMenu = document.getElementById('leftMenu');
-    const leftMenuBackdrop = document.getElementById('leftMenuBackdrop');
-    const progressBar = document.getElementById('progressBarPanel');
-    const progressBarBackdrop = document.getElementById('progressBarBackdrop');
-    const bookmarkMenu = document.getElementById('bookmarkMenu');
-    const overlay = document.getElementById('clickOverlay');
+    const leftMenu = getById(DOM_IDS.LEFT_MENU);
+    const leftMenuBackdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const progressBar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const progressBarBackdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const bookmarkMenu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
-    if (leftMenu) leftMenu.classList.remove('visible');
-    if (leftMenuBackdrop) leftMenuBackdrop.classList.remove('visible');
+    if (leftMenu) leftMenu.classList.remove(UI_CLASSES.VISIBLE);
+    if (leftMenuBackdrop) leftMenuBackdrop.classList.remove(UI_CLASSES.VISIBLE);
     if (!this.progressBarPinned) {
-      if (progressBar) progressBar.classList.remove('visible');
-      if (progressBarBackdrop) progressBarBackdrop.classList.remove('visible');
+      if (progressBar) progressBar.classList.remove(UI_CLASSES.VISIBLE);
+      if (progressBarBackdrop) progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
     } else if (progressBarBackdrop) {
-      progressBarBackdrop.classList.remove('visible');
+      progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
     }
-    if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
+    if (bookmarkMenu) bookmarkMenu.classList.remove(UI_CLASSES.VISIBLE);
 
     // オーバーレイを再度有効化
     if (overlay) {
@@ -470,86 +511,102 @@ export class UIController {
   showDebugGrid() {
     const overlay = document.createElement('div');
     overlay.id = 'debug-grid';
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 9999;
-    `;
+    overlay.className = UI_CLASSES.DEBUG_GRID;
 
     // グリッド線を描画
     const lines = [
-      { type: 'horizontal', percent: 10, label: '10%' },
-      { type: 'horizontal', percent: 90, label: '90%' },
-      { type: 'vertical', percent: 20, label: '20%' },
-      { type: 'vertical', percent: 40, label: '40%' },
-      { type: 'vertical', percent: 60, label: '60%' },
-      { type: 'vertical', percent: 80, label: '80%' },
+      ...DEBUG_GRID_CONFIG.HORIZONTAL_LINES.map((percent) => ({
+        type: WRITING_MODES.HORIZONTAL,
+        percent,
+        label: `${percent}%`,
+      })),
+      ...DEBUG_GRID_CONFIG.VERTICAL_LINES.map((percent) => ({
+        type: WRITING_MODES.VERTICAL,
+        percent,
+        label: `${percent}%`,
+      })),
     ];
 
     lines.forEach(line => {
       const el = document.createElement('div');
-      el.style.cssText = `
-        position: absolute;
-        background: rgba(255, 0, 0, 0.3);
-        ${line.type === 'horizontal' ?
-          `top: ${line.percent}%; left: 0; right: 0; height: 2px;` :
-          `left: ${line.percent}%; top: 0; bottom: 0; width: 2px;`
-        }
-      `;
+      el.className = UI_CLASSES.DEBUG_GRID_LINE;
+      el.style.position = 'absolute';
+      if (line.type === WRITING_MODES.HORIZONTAL) {
+        el.style.top = `${line.percent}%`;
+        el.style.left = '0';
+        el.style.right = '0';
+        el.style.height = `${DEBUG_GRID_CONFIG.LINE_THICKNESS_PX}px`;
+      } else {
+        el.style.left = `${line.percent}%`;
+        el.style.top = '0';
+        el.style.bottom = '0';
+        el.style.width = `${DEBUG_GRID_CONFIG.LINE_THICKNESS_PX}px`;
+      }
       overlay.appendChild(el);
 
       // ラベル
       const label = document.createElement('div');
       label.textContent = line.label;
-      label.style.cssText = `
-        position: absolute;
-        background: rgba(0, 0, 0, 0.7);
-        color: white;
-        padding: 2px 4px;
-        font-size: 10px;
-        ${line.type === 'horizontal' ?
-          `top: ${line.percent}%; left: 50%;` :
-          `left: ${line.percent}%; top: 50%;`
-        }
-        transform: translate(-50%, -50%);
-      `;
+      label.className = UI_CLASSES.DEBUG_GRID_LABEL;
+      label.style.position = 'absolute';
+      if (line.type === WRITING_MODES.HORIZONTAL) {
+        label.style.top = `${line.percent}%`;
+        label.style.left = '50%';
+      } else {
+        label.style.left = `${line.percent}%`;
+        label.style.top = '50%';
+      }
+      label.style.transform = 'translate(-50%, -50%)';
       overlay.appendChild(label);
     });
 
     document.body.appendChild(overlay);
 
     // 10秒後に自動削除
-    setTimeout(() => overlay.remove(), 10000);
+    setTimeout(() => overlay.remove(), TIMING_CONFIG.DEBUG_GRID_AUTO_HIDE_MS);
   }
 
   /**
    * エリアの機能ラベルを取得
    */
   getFunctionLabel(area) {
-    if (area === "M3") return "メニュー開閉";
+    if (area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
+      return INTERACTION_AREA_LABELS.MENU_TOGGLE;
+    }
 
-    const writingMode = this.getWritingMode?.() || "horizontal";
+    const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
     const isImage = this.isImageBook?.();
     const isSpread = this.isSpreadMode?.();
 
     // 縦書き or 画像
-    if (writingMode === "vertical" || isImage) {
-      const direction = this.getReadingDirection?.() || 'rtl';
-      if (area === "M1" || area === "M2") {
-        return direction === 'ltr' ? "前のページ" : "次のページ";
+    if (writingMode === WRITING_MODES.VERTICAL || isImage) {
+      const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.PREV.includes(area)) {
+        return direction === READING_DIRECTIONS.LTR
+          ? INTERACTION_AREA_LABELS.PAGE_PREV
+          : INTERACTION_AREA_LABELS.PAGE_NEXT;
       }
-      if (area === "M4" || area === "M5") {
-        return direction === 'ltr' ? "次のページ" : "前のページ";
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.NEXT.includes(area)) {
+        return direction === READING_DIRECTIONS.LTR
+          ? INTERACTION_AREA_LABELS.PAGE_NEXT
+          : INTERACTION_AREA_LABELS.PAGE_PREV;
       }
       if (isSpread) {
-        if (area === "U3") return "前のページ (1枚)";
-        if (area === "B3") return "次のページ (1枚)";
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
+          return INTERACTION_AREA_LABELS.PAGE_PREV_SINGLE;
+        }
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
+          return INTERACTION_AREA_LABELS.PAGE_NEXT_SINGLE;
+        }
       }
     } else {
       // 横書き
-      if (area === "U3") return "前のページ";
-      if (area === "B3") return "次のページ";
+      if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
+        return INTERACTION_AREA_LABELS.PAGE_PREV;
+      }
+      if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
+        return INTERACTION_AREA_LABELS.PAGE_NEXT;
+      }
     }
     return null;
   }
@@ -606,7 +663,7 @@ export class ProgressBarHandler {
   handleDragStart(e) {
     e.preventDefault();
     this.isDragging = true;
-    this.thumb.classList.add('dragging');
+    this.thumb.classList.add(UI_CLASSES.DRAGGING);
     console.log('Drag started');
   }
 
@@ -647,7 +704,7 @@ export class ProgressBarHandler {
     this.onSeek?.(percentage);
 
     this.isDragging = false;
-    this.thumb.classList.remove('dragging');
+    this.thumb.classList.remove(UI_CLASSES.DRAGGING);
   }
 
   updatePosition(percentage) {

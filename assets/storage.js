@@ -1,17 +1,27 @@
-const STORAGE_KEY = "epubReader:data";
+/**
+ * storage.js - ローカルストレージ管理
+ * 
+ * 読書データの永続化とデータマージ機能を提供します。
+ * 設定値は constants.js (SSOT) から参照します。
+ */
 
+import {
+  STORAGE_CONFIG,
+  STORAGE_SOURCE_ALIASES,
+  STORAGE_SOURCE_DEFAULT,
+  DEVICE_COLOR_PALETTE,
+  DEFAULT_SETTINGS,
+  DEFAULT_DATA_SHAPE,
+} from "./constants.js";
 
+const STORAGE_KEY = STORAGE_CONFIG.KEY;
+const MAX_HISTORY_ENTRIES = STORAGE_CONFIG.MAX_HISTORY_ENTRIES;
+const MAX_BOOKMARKS_PER_BOOK = STORAGE_CONFIG.MAX_BOOKMARKS_PER_BOOK;
 
-const DEVICE_COLOR_PALETTE = [
-  "#ff6b6b",
-  "#f7b731",
-  "#4b7bec",
-  "#20bf6b",
-  "#a55eea",
-  "#0fb9b1",
-  "#eb3b5a",
-  "#fa8231",
-];
+const normalizeStorageSource = (source) => {
+  if (!source) return null;
+  return STORAGE_SOURCE_ALIASES[source] ?? source;
+};
 
 const generateDeviceId = () => {
   if (typeof crypto?.randomUUID === "function") {
@@ -62,34 +72,10 @@ const getBookmarkKey = (bookmark) => {
   return `createdAt:${createdAt}`;
 };
 
+// デフォルトデータ構造（設定はSSOTから参照）
 const defaultData = {
-  library: {},
-  bookmarks: {},
-  progress: {},
-  history: [],
-  cloudIndex: {},
-  cloudStates: {},
-  cloudIndexUpdatedAt: null,
-  bookLinkMap: {},
-  settings: {
-    syncEnabled: false,
-    lastSyncAt: null,
-    apiKey: "<必要ならキー>",
-    endpoint: "",
-    source: "local",
-    saveDestination: "local",
-    onedriveClientId: "",
-    onedriveRedirectUri: "",
-    onedriveFilePath: "epub-reader-data.json",
-    onedriveFileId: "",
-    onedriveToken: null,
-
-    uiLanguage: "en",
-    fontSize: 16,
-    autoSyncEnabled: null,
-    deviceId: "",
-    deviceColor: "",
-  },
+  ...DEFAULT_DATA_SHAPE,
+  settings: { ...DEFAULT_SETTINGS },
 };
 
 export class StorageService {
@@ -110,8 +96,8 @@ export class StorageService {
       const deviceNormalized = ensureDeviceSettings(settings);
       const normalizedSettings = deviceNormalized.settings;
 
-      const normalizedSource = settings.source === "drive" ? "local" : settings.source;
-      const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
+      const normalizedSource = normalizeStorageSource(settings.source) ?? STORAGE_SOURCE_DEFAULT;
+      const normalizedDestination = normalizeStorageSource(settings.saveDestination);
       const data = {
         ...defaultData,
         ...parsed,
@@ -130,7 +116,8 @@ export class StorageService {
           apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
           endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
           source: normalizedSource || defaultData.settings.source,
-          saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
+          saveDestination:
+            normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
           onedriveClientId: normalizedSettings.onedriveClientId || defaultData.settings.onedriveClientId,
           onedriveRedirectUri: normalizedSettings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
           onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
@@ -170,13 +157,13 @@ export class StorageService {
     this.data.history = [
       { bookId, openedAt: Date.now() },
       ...this.data.history.filter((item) => item.bookId !== bookId),
-    ].slice(0, 30);
+    ].slice(0, MAX_HISTORY_ENTRIES);
     this.save();
   }
 
   addBookmark(bookId, bookmark) {
     const list = this.data.bookmarks[bookId] ?? [];
-    this.data.bookmarks[bookId] = [bookmark, ...list].slice(0, 50);
+    this.data.bookmarks[bookId] = [bookmark, ...list].slice(0, MAX_BOOKMARKS_PER_BOOK);
     this.save();
   }
 
@@ -204,7 +191,7 @@ export class StorageService {
 
     const mergedList = Array.from(map.values())
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-      .slice(0, 50);
+      .slice(0, MAX_BOOKMARKS_PER_BOOK);
 
     this.data.bookmarks[bookId] = mergedList;
     this.save();
@@ -242,7 +229,7 @@ export class StorageService {
     const normalized = Array.isArray(entries)
       ? entries.map((entry) => ({ bookId, openedAt: entry?.openedAt ?? Date.now() }))
       : [];
-    this.data.history = [...normalized, ...filtered].slice(0, 30);
+    this.data.history = [...normalized, ...filtered].slice(0, MAX_HISTORY_ENTRIES);
     this.save();
   }
 
@@ -350,7 +337,7 @@ export class StorageService {
       });
       const mergedList = Array.from(map.values())
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-        .slice(0, 50);
+        .slice(0, STORAGE_CONFIG.MAX_BOOKMARKS_PER_BOOK);
       mergedBookmarks[bookId] = mergedList;
     });
 

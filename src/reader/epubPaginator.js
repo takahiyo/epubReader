@@ -31,21 +31,23 @@
  * - Guards against infinite loops with max iterations and progress checks.
  */
 
+import { READER_CONFIG } from "../../assets/constants.js";
+
 const DEFAULTS = {
-  viewportWidth: 800,
-  viewportHeight: 600,
-  fontSize: "16px",
-  writingMode: "horizontal-tb",
-  lineHeight: 1.6,
-  margin: "0",
-  padding: "16px"
+  viewportWidth: READER_CONFIG.viewportWidth,
+  viewportHeight: READER_CONFIG.viewportHeight,
+  fontSize: READER_CONFIG.fontSize,
+  writingMode: READER_CONFIG.writingMode,
+  lineHeight: READER_CONFIG.lineHeight,
+  margin: READER_CONFIG.margin,
+  padding: READER_CONFIG.padding
 };
 
-const MAX_BINARY_SEARCH_ITERATIONS = 24;
-const MAX_PAGES_PER_SPINE = 5000;
-const MIN_TEXT_UNIT_STEP = 24;
-const FIT_TOLERANCE_PX = 3;
-const MAX_FIT_ATTEMPTS = 3;
+const MAX_BINARY_SEARCH_ITERATIONS = READER_CONFIG.MAX_BINARY_SEARCH_ITERATIONS;
+const MAX_PAGES_PER_SPINE = READER_CONFIG.MAX_PAGES_PER_SPINE;
+const MIN_TEXT_UNIT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
+const FIT_TOLERANCE_PX = READER_CONFIG.FIT_TOLERANCE_PX;
+const MAX_FIT_ATTEMPTS = READER_CONFIG.MAX_FIT_ATTEMPTS;
 
 function normalizeSettings(settings) {
   return {

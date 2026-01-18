@@ -1,6 +1,29 @@
-import { EpubPaginator } from "../src/reader/epubPaginator.js";
+/**
+ * reader.js - リーダーコントローラー
+ * 
+ * EPUB/画像書庫の表示とナビゲーションを管理します。
+ */
 
-const TEXT_SEGMENT_STEP = 24; // epubPaginator.js の MIN_TEXT_UNIT_STEP と合わせる
+import { EpubPaginator } from "../src/reader/epubPaginator.js";
+import {
+  CDN_URLS,
+  ASSET_PATHS,
+  READER_CONFIG,
+  DOM_IDS,
+  DOM_SELECTORS,
+  UI_CLASSES,
+  DATA_ATTRS,
+  BOOK_TYPES,
+  WRITING_MODES,
+  READING_DIRECTIONS,
+  IMAGE_VIEW_MODES,
+  CSS_WRITING_MODES,
+  MIME_TYPES,
+  FILE_EXTENSIONS,
+  UI_DEFAULTS,
+} from "./constants.js";
+
+const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 
 class PageController {
   constructor(onChange) {
@@ -59,12 +82,12 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
-    this.imageViewMode = "single"; // "single" | "spread"
-    this.imageReadingDirection = "ltr"; // "ltr" = 左開き, "rtl" = 右開き
+    this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
+    this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
-    this.theme = "dark";
-    this.writingMode = "horizontal";
-    this.pageDirection = "ltr";
+    this.theme = UI_DEFAULTS.theme;
+    this.writingMode = WRITING_MODES.HORIZONTAL;
+    this.pageDirection = READING_DIRECTIONS.LTR;
     this.preferredWritingMode = null;
     this.paginator = null;
     this.pagination = null;
@@ -82,6 +105,18 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
+
+    // [New] Zoom State
+    this.zoomScale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.isDragging = false;
+    this.lastMouseX = 0;
+    this.lastMouseY = 0;
+
+    // Bind global pan events
+    this.bindPanEvents();
+    this.setupZoomSlider();
   }
 
   resetReaderState() {
@@ -107,8 +142,8 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
-    this.imageViewMode = "single"; // "single" | "spread"
-    this.imageReadingDirection = "ltr"; // "ltr" = 左開き, "rtl" = 右開き
+    this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
+    this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
     this.toc = [];
     if (this.paginator?.destroy) {
@@ -137,6 +172,16 @@ export class ReaderController {
       this.pageIndicator.textContent = "";
     }
     this.imageZoomBound = false;
+    this.zoomScale = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.isDragging = false;
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+      if (slider) slider.value = 1.0;
+    }
+    this.updateTransform();
   }
 
   async ensureJSZip() {
@@ -163,7 +208,7 @@ export class ReaderController {
       return window.JSZip;
     }
     console.log("Loading JSZip from local vendor...");
-    await this.loadScript("./assets/vendor/jszip.min.js");
+    await this.loadScript(ASSET_PATHS.VENDOR_JSZIP);
     const localJszip = typeof window !== "undefined" ? window.JSZip : null;
     if (!localJszip) {
       throw new Error("JSZipの読み込みに失敗しました。ベンダーファイルを確認してください。");
@@ -177,9 +222,10 @@ export class ReaderController {
   }
 
   async loadJSZipFromCdn(isPlaceholder) {
+    // CDN URLs from constants.js (SSOT)
     const sources = [
-      "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
-      "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
+      CDN_URLS.JSZIP,
+      CDN_URLS.JSZIP_FALLBACK,
     ];
 
     for (const src of sources) {
@@ -213,12 +259,11 @@ export class ReaderController {
 
     // CDNから読み込む
     try {
-      console.log("Loading node-unrar-js from esm.sh...");
+      console.log("Loading node-unrar-js from CDN...");
 
-      // JS: ブラウザ互換に変換してくれる esm.sh を使用
-      const JS_URL = "https://esm.sh/node-unrar-js@2.0.2";
-      // WASM: 静的ファイルは jsdelivr から取得
-      const WASM_URL = "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm";
+      // CDN URLs from constants.js (SSOT)
+      const JS_URL = CDN_URLS.UNRAR_JS;
+      const WASM_URL = CDN_URLS.UNRAR_WASM;
 
       // 1. WASMバイナリを取得
       console.log(`Fetching WASM from: ${WASM_URL}`);
@@ -264,7 +309,7 @@ export class ReaderController {
     if (typeof document === "undefined") {
       throw new Error(`Script load requires document: ${src}`);
     }
-    const existing = document.querySelector(`script[data-reader-src="${src}"]`);
+    const existing = document.querySelector(`script[${DATA_ATTRS.READER_SRC}="${src}"]`);
     if (existing) {
       if (existing.dataset.loaded === "true") return;
       await new Promise((resolve, reject) => {
@@ -289,7 +334,7 @@ export class ReaderController {
 
   async openEpub(file, startLocation) {
     this.resetReaderState();
-    this.type = "epub";
+    this.type = BOOK_TYPES.EPUB;
     this.usingPaginator = true;
 
     // JSZipを先にロード
@@ -727,7 +772,7 @@ export class ReaderController {
 
   interceptInternalLinks(container, page) {
     if (!container) return;
-    const anchors = Array.from(container.querySelectorAll("a[href]"));
+    const anchors = Array.from(container.querySelectorAll(DOM_SELECTORS.ANCHOR_WITH_HREF));
     if (!anchors.length) return;
     anchors.forEach((anchor) => {
       anchor.addEventListener("click", (event) => {
@@ -749,7 +794,7 @@ export class ReaderController {
     if (!page) return;
     this.currentPageIndex = clampedIndex;
     this.viewer.innerHTML = `<div class="epub-page"></div>`;
-    this.pageContainer = this.viewer.querySelector(".epub-page");
+    this.pageContainer = this.viewer.querySelector(DOM_SELECTORS.EPUB_PAGE);
     if (!this.pageContainer) return;
 
     // --- [修正開始] ---
@@ -770,7 +815,7 @@ export class ReaderController {
     this.pageContainer.innerHTML = safeHtml;
     // --- [修正終了] ---
 
-    this.pageContainer.querySelectorAll("img").forEach((img) => {
+    this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
       img.style.maxWidth = "100%";
       img.style.maxHeight = "70vh";
       img.style.display = "block";
@@ -800,12 +845,12 @@ export class ReaderController {
     if (page?.spineIndex == null || page.spineIndex < 0) return;
     const spineItem = this.spineItems[page.spineIndex];
     if (!spineItem) return;
-    const images = Array.from(this.pageContainer.querySelectorAll("img, svg image"));
+    const images = Array.from(this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG));
     if (!images.length) return;
     await Promise.all(
       images.map(async (img) => {
         const tagName = img.tagName.toLowerCase();
-        const isSvgImage = tagName === "image";
+        const isSvgImage = tagName === BOOK_TYPES.IMAGE;
         const attrName = isSvgImage
           ? (img.getAttribute("href") ? "href" : "xlink:href")
           : "src";
@@ -853,7 +898,7 @@ export class ReaderController {
   }
 
   async buildPagination() {
-    if (this.type !== "epub" || !this.book?.spine) {
+    if (this.type !== BOOK_TYPES.EPUB || !this.book?.spine) {
       return null;
     }
     if (this.pagination) {
@@ -868,7 +913,10 @@ export class ReaderController {
     const baseFontSize = Number.parseFloat(
       window.getComputedStyle(this.viewer || document.body)?.fontSize
     ) || 16;
-    const writingMode = this.writingMode === "vertical" ? "vertical-rl" : "horizontal-tb";
+    const writingMode =
+      this.writingMode === WRITING_MODES.VERTICAL
+        ? CSS_WRITING_MODES.VERTICAL
+        : CSS_WRITING_MODES.HORIZONTAL;
     const edgePadding = this.getEdgePadding();
 
     this.paginationPromise = (async () => {
@@ -1074,9 +1122,15 @@ export class ReaderController {
     this.resetReaderState();
     this.toc = [];
     const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar = bookType === "rar" || ext === "rar" || ext === "cbr" || file.type === "application/vnd.rar" || file.type === "application/x-rar-compressed" || file.type === "application/x-cbr";
+    const isRar =
+      bookType === BOOK_TYPES.RAR ||
+      ext === FILE_EXTENSIONS.RAR ||
+      ext === FILE_EXTENSIONS.CBR ||
+      file.type === MIME_TYPES.RAR ||
+      file.type === MIME_TYPES.CBR ||
+      file.type === MIME_TYPES.RAR_LEGACY;
     // type: "zip" | "rar" として設定
-    this.type = isRar ? "rar" : "zip";
+    this.type = isRar ? BOOK_TYPES.RAR : BOOK_TYPES.ZIP;
     const buffer = await file.arrayBuffer();
     let images = [];
 
@@ -1325,10 +1379,10 @@ export class ReaderController {
 
     // RTL モードクラスを適用
     if (this.imageViewer) {
-      if (this.imageReadingDirection === "rtl") {
-        this.imageViewer.classList.add('rtl-mode');
+      if (this.imageReadingDirection === READING_DIRECTIONS.RTL) {
+        this.imageViewer.classList.add(UI_CLASSES.RTL_MODE);
       } else {
-        this.imageViewer.classList.remove('rtl-mode');
+        this.imageViewer.classList.remove(UI_CLASSES.RTL_MODE);
       }
     }
 
@@ -1338,7 +1392,7 @@ export class ReaderController {
     // ここでは描画時に判定して動的にモード切替相当の処理を行うアプローチをとる。
 
     // 見開きモードの場合
-    if (this.imageViewMode === "spread" && this.imageViewer) {
+    if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD && this.imageViewer) {
       // 横長チェックは renderSpreadPage 内で実施し、必要なら単ページ表示にフォールバック
       // ただし描画遅延を防ぐため、Imageオブジェクトでサイズ取得を試みる
       this.checkWideAndRender(targetIndex);
@@ -1432,33 +1486,33 @@ export class ReaderController {
     this.imageElement.style.display = '';
 
     // 単ページでも画像書庫ならクリック無効化
-    if (this.type !== "epub") {
+    if (this.type !== BOOK_TYPES.EPUB) {
       this.imageElement.onclick = null;
       this.imageElement.style.pointerEvents = "none";
     }
 
     // ズーム適用
     if (this.imageZoomed) {
-      this.imageViewer?.classList.add('zoomed');
+      this.imageViewer?.classList.add(UI_CLASSES.ZOOMED);
       this.imageElement.style.transform = 'scale(2)';
       this.imageElement.style.transformOrigin = 'center center';
     } else {
-      this.imageViewer?.classList.remove('zoomed');
+      this.imageViewer?.classList.remove(UI_CLASSES.ZOOMED);
       this.imageElement.style.transform = 'scale(1)';
     }
 
     // 見開きコンテナ削除
     if (this.imageViewer) {
-      const spreadContainer = this.imageViewer.querySelector('.spread-container');
+      const spreadContainer = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
       if (spreadContainer) spreadContainer.remove();
 
       // ズーム状態の適用（単ページ）
       if (this.imageZoomed) {
-        this.imageViewer.classList.add('zoomed');
+        this.imageViewer.classList.add(UI_CLASSES.ZOOMED);
         this.imageElement.style.transform = 'scale(2)';
         this.imageElement.style.transformOrigin = 'center center';
       } else {
-        this.imageViewer.classList.remove('zoomed');
+        this.imageViewer.classList.remove(UI_CLASSES.ZOOMED);
         this.imageElement.style.transform = 'scale(1)';
       }
     }
@@ -1495,7 +1549,7 @@ export class ReaderController {
 
     // --- 修正箇所 ---
     // 以前のコードではここで this.imageViewer 自体のクラスを書き換えてしまうバグがありました
-    let container = this.imageViewer.querySelector('.spread-container');
+    let container = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
     if (!container) {
       // コンテナが存在しない場合は新規作成して追加する
       container = document.createElement('div');
@@ -1504,17 +1558,17 @@ export class ReaderController {
     }
 
     // 画像書庫ならクリック無効
-    if (this.type !== "epub") {
+    if (this.type !== BOOK_TYPES.EPUB) {
       container.style.pointerEvents = "none";
     }
 
     // ズーム状態を適用
     if (this.imageZoomed) {
-      this.imageViewer.classList.add('zoomed');
+      this.imageViewer.classList.add(UI_CLASSES.ZOOMED);
       container.style.transform = 'scale(2)';
       container.style.transformOrigin = '0 0';
     } else {
-      this.imageViewer.classList.remove('zoomed');
+      this.imageViewer.classList.remove(UI_CLASSES.ZOOMED);
       container.style.transform = 'scale(1)';
       container.style.transformOrigin = 'center center';
     }
@@ -1537,7 +1591,7 @@ export class ReaderController {
       const img = document.createElement('img');
       img.src = page1Src;
       img.className = 'spread-page wide'; //.wide -> max-width: 100%
-      if (this.type !== "epub") img.style.pointerEvents = "none";
+      if (this.type !== BOOK_TYPES.EPUB) img.style.pointerEvents = "none";
       container.appendChild(img);
 
       this.currentSpreadStep = 1;
@@ -1575,13 +1629,13 @@ export class ReaderController {
         const leftImg = document.createElement('img');
         leftImg.src = leftImgSrc;
         leftImg.className = 'spread-page spread-left';
-        if (this.type !== "epub") leftImg.style.pointerEvents = "none";
+        if (this.type !== BOOK_TYPES.EPUB) leftImg.style.pointerEvents = "none";
         container.appendChild(leftImg);
 
         const rightImg = document.createElement('img');
         rightImg.src = rightImgSrc;
         rightImg.className = 'spread-page spread-right';
-        if (this.type !== "epub") rightImg.style.pointerEvents = "none";
+        if (this.type !== BOOK_TYPES.EPUB) rightImg.style.pointerEvents = "none";
         container.appendChild(rightImg);
 
       } else {
@@ -1589,7 +1643,7 @@ export class ReaderController {
         const img1 = document.createElement('img');
         img1.src = page1Src;
         img1.className = 'spread-page single-view';
-        if (this.type !== "epub") img1.style.pointerEvents = "none";
+        if (this.type !== BOOK_TYPES.EPUB) img1.style.pointerEvents = "none";
         container.appendChild(img1);
 
         this.currentSpreadStep = 1;
@@ -1607,25 +1661,29 @@ export class ReaderController {
   }
 
   setImageViewMode(mode) {
-    if (mode !== "single" && mode !== "spread") return;
+    if (mode !== IMAGE_VIEW_MODES.SINGLE && mode !== IMAGE_VIEW_MODES.SPREAD) return;
     this.imageViewMode = mode;
     this.renderImagePage();
   }
 
   toggleImageViewMode() {
-    this.setImageViewMode(this.imageViewMode === "single" ? "spread" : "single");
+    this.setImageViewMode(
+      this.imageViewMode === IMAGE_VIEW_MODES.SINGLE ? IMAGE_VIEW_MODES.SPREAD : IMAGE_VIEW_MODES.SINGLE
+    );
     return this.imageViewMode;
   }
 
   // 左開き/右開き切替
   setImageReadingDirection(direction) {
-    if (direction !== "ltr" && direction !== "rtl") return;
+    if (direction !== READING_DIRECTIONS.LTR && direction !== READING_DIRECTIONS.RTL) return;
     this.imageReadingDirection = direction;
     this.renderImagePage();
   }
 
   toggleImageReadingDirection() {
-    this.setImageReadingDirection(this.imageReadingDirection === "ltr" ? "rtl" : "ltr");
+    this.setImageReadingDirection(
+      this.imageReadingDirection === READING_DIRECTIONS.LTR ? READING_DIRECTIONS.RTL : READING_DIRECTIONS.LTR
+    );
     return this.imageReadingDirection;
   }
 
@@ -1640,8 +1698,8 @@ export class ReaderController {
   resetImageZoom() {
     this.imageZoomed = false;
     if (this.imageViewer) {
-      this.imageViewer.classList.remove('zoomed');
-      const spreadContainer = this.imageViewer.querySelector('.spread-container');
+      this.imageViewer.classList.remove(UI_CLASSES.ZOOMED);
+      const spreadContainer = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
       if (spreadContainer) spreadContainer.style.transform = 'scale(1)';
     }
     if (this.imageElement) {
@@ -1665,7 +1723,7 @@ export class ReaderController {
   }
 
   isImageBook() {
-    return this.type === "zip" || this.type === "rar";
+    return this.type === BOOK_TYPES.ZIP || this.type === BOOK_TYPES.RAR;
   }
 
   // 現在のページが横長かどうかを確認（Navigation用）
@@ -1704,7 +1762,7 @@ export class ReaderController {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
     // EPUBの場合はPageControllerを使用
-    if (this.type === "epub") {
+    if (this.type === BOOK_TYPES.EPUB) {
       this.pageController?.prev();
       return;
     }
@@ -1715,7 +1773,7 @@ export class ReaderController {
     }
 
     let targetIndex;
-    if (this.imageViewMode === "spread") {
+    if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
       // 戻る場合、戻り先のページが「ワイド」かどうかを事前にチェックする必要がある
       // 1つ前のページ(index-1)がワイドなら、そこは「1枚表示」だったはずなので -1 戻る
       // ワイドでないなら、そこは「2枚表示の右側(または左側)」だったはずなので -2 戻る
@@ -1822,7 +1880,7 @@ export class ReaderController {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
     // EPUBの場合はPageControllerを使用
-    if (this.type === "epub") {
+    if (this.type === BOOK_TYPES.EPUB) {
       this.pageController?.next();
       return;
     }
@@ -1833,7 +1891,7 @@ export class ReaderController {
     }
 
     let targetIndex;
-    if (this.imageViewMode === "spread") {
+    if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
       // 表示時に計算したステップ数分だけ進む
       // (ワイド表示なら+1、通常なら+2)
       // 引数 step が指定されている場合(1など)はそれを優先するか、
@@ -1849,7 +1907,7 @@ export class ReaderController {
   }
 
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
-    if (this.type === "epub") {
+    if (this.type === BOOK_TYPES.EPUB) {
       if (!this.pagination?.pages?.length) return null;
       const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
       const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
@@ -1860,7 +1918,7 @@ export class ReaderController {
         cfi,
         percentage,
         createdAt: Date.now(),
-        bookType: "epub", // bookType として保存
+        bookType: BOOK_TYPES.EPUB, // bookType として保存
       };
       if (deviceId !== undefined) bookmark.deviceId = deviceId;
       if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
@@ -1888,7 +1946,7 @@ export class ReaderController {
 
     // 数値が渡された場合（next/prevからの呼び出しなど）は、現在のモードに合わせて移動
     if (typeof bookmark === "number") {
-      if (this.type === "epub") {
+      if (this.type === BOOK_TYPES.EPUB) {
         this.pageController.goTo(bookmark);
       } else {
         // 画像書庫の場合、範囲チェックをして移動
@@ -1904,7 +1962,7 @@ export class ReaderController {
     // bookmarkオブジェクトにtypeが無い場合は現在のthis.typeをフォールバックとして使用
     const bookType = bookmark.bookType || bookmark.type || this.type;
 
-    if (bookType === "epub") {
+    if (bookType === BOOK_TYPES.EPUB) {
       if (
         bookmark.location &&
         typeof bookmark.location === "object" &&
@@ -1922,7 +1980,7 @@ export class ReaderController {
         const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
         this.pageController.goTo(index);
       }
-    } else if (bookType === "zip" || bookType === "rar" || bookType === "image") {
+    } else if (bookType === BOOK_TYPES.ZIP || bookType === BOOK_TYPES.RAR || bookType === BOOK_TYPES.IMAGE) {
       // 画像書庫: location は imageIndex
       const targetIndex = typeof bookmark.location === "number"
         ? bookmark.location
@@ -1944,7 +2002,7 @@ export class ReaderController {
     if (this.viewer) {
       this.viewer.style.fontSize = `${fontSize}px`;
     }
-    if (this.type !== "epub") {
+    if (this.type !== BOOK_TYPES.EPUB) {
       return;
     }
     this.pagination = null;
@@ -1961,7 +2019,7 @@ export class ReaderController {
       this.preferredWritingMode = writingMode;
     }
 
-    if (this.type !== "epub") {
+    if (this.type !== BOOK_TYPES.EPUB) {
       return;
     }
 
@@ -1976,11 +2034,11 @@ export class ReaderController {
   }
 
   applyWritingModeToContents() {
-    if (this.type !== "epub") return;
-    const isVertical = this.writingMode === "vertical";
-    const writingMode = isVertical ? "vertical-rl" : "horizontal-tb";
+    if (this.type !== BOOK_TYPES.EPUB) return;
+    const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+    const writingMode = isVertical ? CSS_WRITING_MODES.VERTICAL : CSS_WRITING_MODES.HORIZONTAL;
     const textOrientation = isVertical ? "mixed" : "initial";
-    const contentDirection = "ltr";
+    const contentDirection = READING_DIRECTIONS.LTR;
     const target = this.pageContainer || this.viewer;
     if (!target) return;
     target.style.setProperty("writing-mode", writingMode);
@@ -1991,9 +2049,9 @@ export class ReaderController {
   }
 
   updateEpubTheme() {
-    if (this.type !== "epub") return;
-    const isVertical = this.writingMode === "vertical";
-    const contentDirection = "ltr";
+    if (this.type !== BOOK_TYPES.EPUB) return;
+    const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+    const contentDirection = READING_DIRECTIONS.LTR;
 
     console.log("[updateEpubTheme] Applying theme:", {
       isVertical,
@@ -2004,8 +2062,8 @@ export class ReaderController {
     // 縦書き・横書きともに縦スクロールで表示するため、
     // writing-modeはそのまま適用するが、レイアウトは縦スクロール用に最適化
     if (this.viewer) {
-      this.viewer.style.background = this.theme === "dark" ? "#0b1020" : "#ffffff";
-      this.viewer.style.color = this.theme === "dark" ? "#e5e7eb" : "#0f172a";
+      this.viewer.style.background = "var(--reader-bg)";
+      this.viewer.style.color = "var(--reader-text)";
       this.viewer.style.width = "100%";
       this.viewer.style.height = "100%";
     }
@@ -2078,14 +2136,14 @@ export class ReaderController {
           ]
             .filter(Boolean)
             .join(" ");
-          const styleText = Array.from(doc.querySelectorAll("style"))
+          const styleText = Array.from(doc.querySelectorAll(DOM_SELECTORS.STYLE))
             .map((style) => style.textContent || "")
             .join(" ");
           const combined = `${inlineStyles} ${styleText}`.toLowerCase();
-          if (combined.includes("writing-mode: vertical")) {
-            writingMode = "vertical";
-          } else if (combined.includes("writing-mode: horizontal")) {
-            writingMode = "horizontal";
+          if (combined.includes(`writing-mode: ${WRITING_MODES.VERTICAL}`)) {
+            writingMode = WRITING_MODES.VERTICAL;
+          } else if (combined.includes(`writing-mode: ${WRITING_MODES.HORIZONTAL}`)) {
+            writingMode = WRITING_MODES.HORIZONTAL;
           }
         }
       } catch (error) {
@@ -2110,8 +2168,8 @@ export class ReaderController {
 
   injectImageZoom() {
     /* Image zoom on click is disabled per user request
-    if (this.type === "epub") {
-      this.viewer?.querySelectorAll("img").forEach((img) => {
+    if (this.type === BOOK_TYPES.EPUB) {
+      this.viewer?.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
         img.style.cursor = "zoom-in";
         this.bindElementZoomHandlers(img, () => img.src);
       });
@@ -2157,5 +2215,165 @@ export class ReaderController {
       }
       this.onImageZoom?.(getSrc());
     });
+  }
+
+  // ========================================
+  // ズーム・パン・ドラッグ制御
+  // ========================================
+
+  getActiveViewer() {
+    // 画像モード（zip/rar）なら imageViewer
+    if (this.type === BOOK_TYPES.ZIP || this.type === BOOK_TYPES.RAR) {
+      return this.imageViewer;
+    }
+    // EPUBなら viewer
+    return this.viewer;
+  }
+
+  setupZoomSlider() {
+    if (typeof document === 'undefined') return;
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+    if (slider) {
+      // 既存のリスナーを削除できないため、クローンして置換（簡易的な方法）
+      // またはそのまま追加（重複に注意）
+      // ここでは初回のみ実行されると想定
+      slider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        this.setZoomLevel(val);
+      });
+    }
+  }
+
+  bindPanEvents() {
+    if (typeof window === 'undefined') return;
+
+    this.panStartX = 0;
+    this.panStartY = 0;
+
+    const startDrag = (x, y) => {
+      // ズームしていない、またはクリックした場所がビューア内でないならドラッグしない
+      // しかし window イベントで捕捉するため、ここで判定する
+      const active = this.getActiveViewer();
+      if (!active || this.zoomScale <= 1.0) return;
+
+      this.isDragging = true;
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+
+      // カーソル変更
+      document.body.classList.add(UI_CLASSES.IS_DRAGGING);
+      if (active) active.style.cursor = 'grabbing';
+    };
+
+    const moveDrag = (x, y) => {
+      if (!this.isDragging) return;
+
+      const dx = x - this.lastMouseX;
+      const dy = y - this.lastMouseY;
+
+      this.panX += dx;
+      this.panY += dy;
+
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+
+      this.updateTransform();
+    };
+
+    const endDrag = () => {
+      if (!this.isDragging) return;
+      this.isDragging = false;
+      document.body.classList.remove(UI_CLASSES.IS_DRAGGING);
+      const active = this.getActiveViewer();
+      if (active) active.style.cursor = ''; // CSS class handles grab/grabbing
+    };
+
+    // マウスイベント
+    window.addEventListener('mousedown', (e) => {
+      const active = this.getActiveViewer();
+      if (active && active.contains(e.target)) {
+        // 右クリック等は除外
+        if (e.button !== 0) return;
+        startDrag(e.clientX, e.clientY);
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      moveDrag(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mouseup', endDrag);
+
+    // タッチイベント
+    // タッチは viewer に対してバインドしてしまうと、拡大時に領域外がありうるが、
+    // 基本は viewer 内で開始されるはず
+    // パン操作中はデフォルトのスクロールなどを防ぐ必要がある
+
+    // パッシブでないリスナーが必要（preventDefaultするため）
+    const touchOpts = { passive: false };
+
+    window.addEventListener('touchstart', (e) => {
+      const active = this.getActiveViewer();
+      if (active && active.contains(e.target) && this.zoomScale > 1.0) {
+        if (e.touches.length === 1) {
+          startDrag(e.touches[0].clientX, e.touches[0].clientY);
+          // ズーム中はブラウザのスクロール等を防ぐ
+          // e.preventDefault(); // これをするとクリックも効かなくなる可能性があるが、ズーム中はクリック無効でよいか？
+        }
+      }
+    }, { passive: true }); // start は passive でよいことが多い
+
+    window.addEventListener('touchmove', (e) => {
+      if (this.isDragging && e.touches.length === 1) {
+        e.preventDefault(); // ドラッグ中は画面スクロール停止
+        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, touchOpts);
+
+    window.addEventListener('touchend', endDrag);
+  }
+
+  setZoomLevel(scale) {
+    this.zoomScale = parseFloat(scale);
+    const body = document.body;
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+
+    // 範囲制限
+    if (this.zoomScale < 1.0) this.zoomScale = 1.0;
+    if (this.zoomScale > 3.0) this.zoomScale = 3.0;
+
+    if (this.zoomScale > 1.0) {
+      body.classList.add(UI_CLASSES.IS_ZOOMED);
+      this.imageZoomed = true; // 旧プロパティとの互換性
+      if (slider) slider.value = this.zoomScale;
+    } else {
+      body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      this.imageZoomed = false;
+      this.panX = 0;
+      this.panY = 0;
+      if (slider) slider.value = 1.0;
+    }
+    this.updateTransform();
+  }
+
+  updateTransform() {
+    const target = this.getActiveViewer();
+    if (!target) return;
+
+    if (this.zoomScale <= 1.0) {
+      target.style.transform = '';
+    } else {
+      target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    }
+  }
+
+  toggleZoom() {
+    if (this.zoomScale > 1.0) {
+      this.setZoomLevel(1.0);
+      return false;
+    } else {
+      this.setZoomLevel(1.5);
+      return true;
+    }
   }
 }
