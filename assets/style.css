@@ -10,6 +10,20 @@
   --reader-text: #e5e7eb;
   --reader-safe-inline: clamp(12px, 4vw, 36px);
   --reader-safe-block: clamp(12px, 5vh, 48px);
+  --status-success-color: #4caf50;
+  --status-error-color: #f44336;
+  --status-neutral-color: #666666;
+  --bookmark-marker-border: rgba(255, 255, 255, 0.9);
+  --bookmark-marker-default: #fbbf24;
+  --debug-grid-line: rgba(255, 0, 0, 0.3);
+  --debug-grid-label-bg: rgba(0, 0, 0, 0.7);
+  --debug-grid-label-color: #ffffff;
+  --debug-grid-label-padding: 2px 4px;
+  --debug-grid-label-font-size: 10px;
+  --float-lang-toggle-left: 24px;
+  --float-lang-toggle-bottom: 24px;
+  --float-lang-toggle-font-size: 1.5rem;
+  --loading-animation-size: 120px;
 }
 
 [data-theme="light"] {
@@ -213,6 +227,49 @@ body.google-auth-active .modal-backdrop {
 
 .float-buttons button:hover {
   background: rgba(17, 24, 39, 0.95);
+}
+
+.float-lang-toggle {
+  position: absolute;
+  left: var(--float-lang-toggle-left);
+  bottom: var(--float-lang-toggle-bottom);
+  font-size: var(--float-lang-toggle-font-size);
+  pointer-events: auto;
+}
+
+.status-success {
+  color: var(--status-success-color);
+}
+
+.status-error {
+  color: var(--status-error-color);
+}
+
+.status-neutral {
+  color: var(--status-neutral-color);
+}
+
+.debug-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.debug-grid-line {
+  background: var(--debug-grid-line);
+}
+
+.debug-grid-label {
+  background: var(--debug-grid-label-bg);
+  color: var(--debug-grid-label-color);
+  padding: var(--debug-grid-label-padding);
+  font-size: var(--debug-grid-label-font-size);
+}
+
+.loading-animation {
+  width: var(--loading-animation-size);
+  height: var(--loading-animation-size);
 }
 
 .float-top-right {
@@ -880,8 +937,8 @@ body.google-auth-active .modal-backdrop {
   transform: translate(-50%, -50%);
   width: 12px;
   height: 12px;
-  background: #fbbf24;
-  border: 2px solid white;
+  background: var(--bookmark-marker-default);
+  border: 2px solid var(--bookmark-marker-border);
   border-radius: 50%;
   cursor: pointer;
   padding: 0;

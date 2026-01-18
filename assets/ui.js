@@ -1,4 +1,10 @@
-import { TIMING_CONFIG, UI_COLORS } from "./constants.js";
+import {
+  DEBUG_GRID_CONFIG,
+  INTERACTION_GRID_CONFIG,
+  TIMING_CONFIG,
+  TOUCH_CONFIG,
+  UI_CLASSES,
+} from "./constants.js";
 
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
 
@@ -93,29 +99,27 @@ export class UIController {
     console.log(`Area size: ${areaRect.width}x${areaRect.height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
 
     // 下10%は進捗バー専用エリア（クリック処理しない）
-    if (yPercent > 90) {
+    if (yPercent > INTERACTION_GRID_CONFIG.PROGRESS_BAR_EXCLUDE_FROM) {
       console.log('Progress bar area - ignoring click');
       return null;
     }
 
     // 縦方向: U(0-30%), M(30-60%), B(60-90%)
     let vArea = 'U';
-    if (yPercent >= 30 && yPercent < 60) vArea = 'M';
-    else if (yPercent >= 60) vArea = 'B';
+    if (yPercent >= INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.TOP
+      && yPercent < INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.MIDDLE) {
+      vArea = 'M';
+    } else if (yPercent >= INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.MIDDLE
+      && yPercent < INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.BOTTOM) {
+      vArea = 'B';
+    }
 
     // 横方向: 20%ずつ5分割
-    let hArea;
-    if (xPercent < 20) {
-      hArea = 1;
-    } else if (xPercent < 40) {
-      hArea = 2;
-    } else if (xPercent < 60) {
-      hArea = 3;
-    } else if (xPercent < 80) {
-      hArea = 4;
-    } else {
-      hArea = 5;
-    }
+    const segmentWidth = 100 / INTERACTION_GRID_CONFIG.HORIZONTAL_SEGMENTS;
+    const hArea = Math.min(
+      INTERACTION_GRID_CONFIG.HORIZONTAL_SEGMENTS,
+      Math.floor(xPercent / segmentWidth) + 1
+    );
 
     return `${vArea}${hArea}`;
   }
@@ -168,10 +172,10 @@ export class UIController {
       } catch (error) {
         console.error('Error handling click:', error);
       } finally {
-        // 処理完了後、フラグをリセット（100ms後）
+        // 処理完了後、フラグをリセット
         setTimeout(() => {
           isProcessing = false;
-        }, 100);
+        }, TIMING_CONFIG.CLICK_PROCESS_RESET_MS);
       }
     };
 
@@ -188,8 +192,8 @@ export class UIController {
       return;
     }
 
-    const minSwipeDistance = 40;
-    const axisDifference = 20;
+    const minSwipeDistance = TOUCH_CONFIG.MIN_SWIPE_DISTANCE;
+    const axisDifference = TOUCH_CONFIG.AXIS_DIFFERENCE;
 
     reader.addEventListener('touchstart', (e) => {
       if (this.isAnyMenuVisible()) {
@@ -499,57 +503,59 @@ export class UIController {
   showDebugGrid() {
     const overlay = document.createElement('div');
     overlay.id = 'debug-grid';
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 9999;
-    `;
+    overlay.className = UI_CLASSES.DEBUG_GRID;
 
     // グリッド線を描画
     const lines = [
-      { type: 'horizontal', percent: 10, label: '10%' },
-      { type: 'horizontal', percent: 90, label: '90%' },
-      { type: 'vertical', percent: 20, label: '20%' },
-      { type: 'vertical', percent: 40, label: '40%' },
-      { type: 'vertical', percent: 60, label: '60%' },
-      { type: 'vertical', percent: 80, label: '80%' },
+      ...DEBUG_GRID_CONFIG.HORIZONTAL_LINES.map((percent) => ({
+        type: 'horizontal',
+        percent,
+        label: `${percent}%`,
+      })),
+      ...DEBUG_GRID_CONFIG.VERTICAL_LINES.map((percent) => ({
+        type: 'vertical',
+        percent,
+        label: `${percent}%`,
+      })),
     ];
 
     lines.forEach(line => {
       const el = document.createElement('div');
-      el.style.cssText = `
-        position: absolute;
-        background: ${UI_COLORS.DEBUG_GRID_LINE};
-        ${line.type === 'horizontal' ?
-          `top: ${line.percent}%; left: 0; right: 0; height: 2px;` :
-          `left: ${line.percent}%; top: 0; bottom: 0; width: 2px;`
-        }
-      `;
+      el.className = UI_CLASSES.DEBUG_GRID_LINE;
+      el.style.position = 'absolute';
+      if (line.type === 'horizontal') {
+        el.style.top = `${line.percent}%`;
+        el.style.left = '0';
+        el.style.right = '0';
+        el.style.height = `${DEBUG_GRID_CONFIG.LINE_THICKNESS_PX}px`;
+      } else {
+        el.style.left = `${line.percent}%`;
+        el.style.top = '0';
+        el.style.bottom = '0';
+        el.style.width = `${DEBUG_GRID_CONFIG.LINE_THICKNESS_PX}px`;
+      }
       overlay.appendChild(el);
 
       // ラベル
       const label = document.createElement('div');
       label.textContent = line.label;
-      label.style.cssText = `
-        position: absolute;
-        background: ${UI_COLORS.DEBUG_GRID_LABEL_BG};
-        color: white;
-        padding: 2px 4px;
-        font-size: 10px;
-        ${line.type === 'horizontal' ?
-          `top: ${line.percent}%; left: 50%;` :
-          `left: ${line.percent}%; top: 50%;`
-        }
-        transform: translate(-50%, -50%);
-      `;
+      label.className = UI_CLASSES.DEBUG_GRID_LABEL;
+      label.style.position = 'absolute';
+      if (line.type === 'horizontal') {
+        label.style.top = `${line.percent}%`;
+        label.style.left = '50%';
+      } else {
+        label.style.left = `${line.percent}%`;
+        label.style.top = '50%';
+      }
+      label.style.transform = 'translate(-50%, -50%)';
       overlay.appendChild(label);
     });
 
     document.body.appendChild(overlay);
 
     // 10秒後に自動削除
-    setTimeout(() => overlay.remove(), 10000);
+    setTimeout(() => overlay.remove(), TIMING_CONFIG.DEBUG_GRID_AUTO_HIDE_MS);
   }
 
   /**

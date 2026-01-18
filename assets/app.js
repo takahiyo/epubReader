@@ -26,7 +26,10 @@ import {
   MIME_TYPES,
   SUPPORTED_FORMATS,
   TIMING_CONFIG,
-  UI_COLORS,
+  PROGRESS_CONFIG,
+  UI_CLASSES,
+  UI_ICONS,
+  UI_SYMBOLS,
   UI_DEFAULTS,
 } from "./constants.js";
 
@@ -507,6 +510,32 @@ function updateSearchButtonState() {
   }
 }
 
+function setElementVisibility(element, isVisible) {
+  if (!element) return;
+  element.classList.toggle(UI_CLASSES.HIDDEN, !isVisible);
+}
+
+function setStatusClass(element, statusClass) {
+  if (!element) return;
+  element.classList.remove(
+    UI_CLASSES.STATUS_SUCCESS,
+    UI_CLASSES.STATUS_ERROR,
+    UI_CLASSES.STATUS_NEUTRAL
+  );
+  if (statusClass) {
+    element.classList.add(statusClass);
+  }
+}
+
+function setMaterialIconLabel(button, iconName, labelText) {
+  if (!button) return;
+  const icon = document.createElement("span");
+  icon.className = UI_CLASSES.MATERIAL_ICON;
+  icon.textContent = iconName;
+  const label = document.createTextNode(` ${labelText}`);
+  button.replaceChildren(icon, label);
+}
+
 // フローティングUIの切替ボタン表示を更新
 function updateFloatingUIButtons() {
   // 画像書庫かどうかを判定 (type が "zip" または "rar")
@@ -522,50 +551,50 @@ function updateFloatingUIButtons() {
 
   // 縦/横書き切替ボタン: 常に表示するが、EPUB以外では無効化
   if (elements.toggleWritingMode) {
-    elements.toggleWritingMode.style.display = "";
+    setElementVisibility(elements.toggleWritingMode, true);
     elements.toggleWritingMode.disabled = !isEpub;
   }
 
   // 見開き/単ページ切替ボタン: 画像書庫のみ表示
   if (elements.toggleSpreadMode) {
-    elements.toggleSpreadMode.style.display = isImageBook ? "" : "none";
+    setElementVisibility(elements.toggleSpreadMode, isImageBook);
     updateSpreadModeButtonLabel();
   }
 
   // 左開き/右開き切替ボタン
   if (elements.toggleReadingDirectionEpub) {
     if (isEpub) {
-      elements.toggleReadingDirectionEpub.style.display = "";
+      setElementVisibility(elements.toggleReadingDirectionEpub, true);
       // 【修正】横書きでも開き方向（操作方向）の変更を許可するため、無効化ロジックを削除
       elements.toggleReadingDirectionEpub.disabled = false;
       elements.toggleReadingDirectionEpub.style.opacity = "";
       updateReadingDirectionEpubButtonLabel();
     } else {
-      elements.toggleReadingDirectionEpub.style.display = "none";
+      setElementVisibility(elements.toggleReadingDirectionEpub, false);
     }
   }
 
   if (elements.toggleReadingDirectionImage) {
     if (isImageBook) {
-      elements.toggleReadingDirectionImage.style.display = "";
+      setElementVisibility(elements.toggleReadingDirectionImage, true);
       updateReadingDirectionButtonLabel();
     } else {
-      elements.toggleReadingDirectionImage.style.display = "none";
+      setElementVisibility(elements.toggleReadingDirectionImage, false);
     }
   }
 
   // ズームボタン: ブックが開いている時のみ表示
   if (elements.toggleZoom) {
-    elements.toggleZoom.style.display = isBookOpen ? "" : "none";
+    setElementVisibility(elements.toggleZoom, isBookOpen);
     updateZoomButtonLabel();
   }
 
   // プログレスバーの矢印: 画像書庫のみ表示
   if (elements.progressPrev) {
-    elements.progressPrev.classList.toggle('hidden', !isImageBook);
+    elements.progressPrev.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
   }
   if (elements.progressNext) {
-    elements.progressNext.classList.toggle('hidden', !isImageBook);
+    elements.progressNext.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
   }
 
   // 進捗バーの方向を更新
@@ -592,10 +621,10 @@ function updateSpreadModeButtonLabel() {
   const isSpread = reader.imageViewMode === "spread";
 
   if (isSpread) {
-    elements.toggleSpreadMode.innerHTML = `<span class="material-icons">auto_stories</span> ${t('spreadModeDouble')}`;
+    setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_DOUBLE, t('spreadModeDouble'));
     elements.toggleSpreadMode.classList.add('active');
   } else {
-    elements.toggleSpreadMode.innerHTML = `<span class="material-icons">tablet</span> ${t('spreadModeSingle')}`;
+    setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_SINGLE, t('spreadModeSingle'));
     elements.toggleSpreadMode.classList.remove('active');
   }
 }
@@ -620,7 +649,7 @@ function updateReadingDirectionEpubButtonLabel() {
 function updateZoomButtonLabel() {
   if (!elements.toggleZoom) return;
   const isZoomed = reader.imageZoomed;
-  elements.toggleZoom.textContent = isZoomed ? t('zoomOut') : t('zoomIn');
+  elements.toggleZoom.textContent = isZoomed ? UI_ICONS.ZOOM_OUT : UI_ICONS.ZOOM_IN;
   elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
 }
 
@@ -779,7 +808,7 @@ function buildLibraryEntries() {
       type: "cloud",
       cloudBookId,
       localBookId,
-      title: normalizedMeta.title || localInfo?.title || "Untitled",
+      title: normalizedMeta.title || localInfo?.title || t("untitledBook"),
       author: normalizedMeta.author || "",
       progressPercentage,
       lastTimestamp,
@@ -811,7 +840,7 @@ function buildLibraryEntries() {
 
 function showCloudEmptyState({ cloudBookId, title, progressPercentage, lastTimestamp }) {
   if (elements.cloudEmptyState) {
-    elements.cloudEmptyState.classList.remove("hidden");
+    elements.cloudEmptyState.classList.remove(UI_CLASSES.HIDDEN);
   }
   if (elements.cloudEmptyTitle) {
     elements.cloudEmptyTitle.textContent = `${t("cloudOnlyTitle")}：${title ?? ""}`;
@@ -834,7 +863,7 @@ function showCloudEmptyState({ cloudBookId, title, progressPercentage, lastTimes
 
 function hideCloudEmptyState() {
   if (elements.cloudEmptyState) {
-    elements.cloudEmptyState.classList.add("hidden");
+    elements.cloudEmptyState.classList.add(UI_CLASSES.HIDDEN);
   }
 }
 
@@ -1009,17 +1038,27 @@ function promptSyncCandidate(candidates) {
     candidates.forEach((candidate) => {
       const item = document.createElement("div");
       item.className = "candidate-item";
-      const title = candidate.meta?.title || "Untitled";
+      const title = candidate.meta?.title || t("untitledBook");
       const author = candidate.meta?.author || "";
       const lastRead = candidate.meta?.lastReadAt
         ? formatRelativeTime(candidate.meta.lastReadAt, uiLanguage)
         : "";
 
-      item.innerHTML = `
-        <div class="candidate-title">${title}</div>
-        <div class="candidate-author">${author}</div>
-        <div class="candidate-meta">ID: ${candidate.cloudBookId.slice(0, 8)}... ${lastRead ? `• ${t("syncStatusLabel").replace("{time}", lastRead)}` : ""}</div>
-      `;
+      const titleNode = document.createElement("div");
+      titleNode.className = "candidate-title";
+      titleNode.textContent = title;
+      const authorNode = document.createElement("div");
+      authorNode.className = "candidate-author";
+      authorNode.textContent = author;
+      const metaNode = document.createElement("div");
+      metaNode.className = "candidate-meta";
+      const candidateId = `${candidate.cloudBookId.slice(0, 8)}${UI_SYMBOLS.ELLIPSIS}`;
+      const baseMeta = tReplace("candidateIdLabel", { id: candidateId }, uiLanguage);
+      const lastReadMeta = lastRead
+        ? ` ${UI_SYMBOLS.META_SEPARATOR} ${t("syncStatusLabel").replace("{time}", lastRead)}`
+        : "";
+      metaNode.textContent = `${baseMeta}${lastReadMeta}`;
+      item.append(titleNode, authorNode, metaNode);
 
       item.onclick = () => {
         cleanup();
@@ -1183,7 +1222,7 @@ function buildCloudMeta({ cloudBookId, info, fingerprint, overrides = {} }) {
   if (fingerprint) fingerprints.add(fingerprint);
   return {
     cloudBookId,
-    title: overrides.title ?? info?.title ?? existing.title ?? "Untitled",
+    title: overrides.title ?? info?.title ?? existing.title ?? t("untitledBook"),
     author: overrides.author ?? info?.author ?? existing.author ?? "",
     identifiers: overrides.identifiers ?? existing.identifiers ?? [],
     fingerprints: Array.from(fingerprints),
@@ -1299,10 +1338,10 @@ async function handleFile(file) {
       console.log("Opening EPUB...");
 
       // 空の状態を非表示、ビューアを表示
-      if (elements.emptyState) elements.emptyState.classList.add('hidden');
-      if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
+      if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
-        elements.viewer.classList.remove('hidden');
+        elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
         elements.viewer.classList.add('visible');
       }
       // EPUBスクロールモードを解除（ページ分割描画のため）
@@ -1328,12 +1367,12 @@ async function handleFile(file) {
       console.log(`Start location: ${startLocation}`);
 
       // 空の状態を非表示、画像ビューアを表示
-      if (elements.emptyState) elements.emptyState.classList.add('hidden');
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
-        elements.viewer.classList.add('hidden');
+        elements.viewer.classList.add(UI_CLASSES.HIDDEN);
         elements.viewer.classList.remove('visible');
       }
-      if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
+      if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
       await reader.openImageBook(
         new File([buffer], file.name, { type: mime }),
@@ -1404,13 +1443,13 @@ function openCloudOnlyBook(cloudBookId) {
   currentCloudBookId = cloudBookId;
 
   if (elements.viewer) {
-    elements.viewer.classList.add("hidden");
+    elements.viewer.classList.add(UI_CLASSES.HIDDEN);
     elements.viewer.classList.remove("visible");
   }
-  if (elements.imageViewer) elements.imageViewer.classList.add("hidden");
-  if (elements.emptyState) elements.emptyState.classList.remove("hidden");
-  if (elements.progressBarPanel) elements.progressBarPanel.classList.add("hidden");
-  if (elements.progressBarBackdrop) elements.progressBarBackdrop.classList.add("hidden");
+  if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
+  if (elements.emptyState) elements.emptyState.classList.remove(UI_CLASSES.HIDDEN);
+  if (elements.progressBarPanel) elements.progressBarPanel.classList.add(UI_CLASSES.HIDDEN);
+  if (elements.progressBarBackdrop) elements.progressBarBackdrop.classList.add(UI_CLASSES.HIDDEN);
   showCloudEmptyState({
     cloudBookId,
     title: meta?.title ?? t("cloudOnlyTitle"),
@@ -1481,10 +1520,10 @@ async function openFromLibrary(bookId, options = {}) {
     const isImageBook = info.type === "zip" || info.type === "rar";
     if (!isImageBook) {
       // 空の状態を非表示、ビューアを表示
-      if (elements.emptyState) elements.emptyState.classList.add('hidden');
-      if (elements.imageViewer) elements.imageViewer.classList.add('hidden');
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
+      if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
-        elements.viewer.classList.remove('hidden');
+        elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
         elements.viewer.classList.add('visible');
       }
       // EPUBスクロールモードを解除（ページ分割描画のため）
@@ -1495,12 +1534,12 @@ async function openFromLibrary(bookId, options = {}) {
       await reader.openEpub(file, { location: start, percentage: startProgress });
     } else {
       // 空の状態を非表示、画像ビューアを表示
-      if (elements.emptyState) elements.emptyState.classList.add('hidden');
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
-        elements.viewer.classList.add('hidden');
+        elements.viewer.classList.add(UI_CLASSES.HIDDEN);
         elements.viewer.classList.remove('visible');
       }
-      if (elements.imageViewer) elements.imageViewer.classList.remove('hidden');
+      if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
       await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type);
     }
@@ -1631,10 +1670,10 @@ function updateProgressBarDisplay() {
   if (!currentBookId) return;
 
   if (elements.progressBarPanel) {
-    elements.progressBarPanel.classList.add('hidden');
+    elements.progressBarPanel.classList.add(UI_CLASSES.HIDDEN);
   }
   if (elements.progressBarBackdrop) {
-    elements.progressBarBackdrop.classList.add('hidden');
+    elements.progressBarBackdrop.classList.add(UI_CLASSES.HIDDEN);
   }
 
   const progress = storage.getProgress(currentBookId);
@@ -1668,7 +1707,7 @@ function updateProgressBarDisplay() {
           // ページ数が未生成の場合はパーセンテージ表示
           elements.currentPageInput.value = Math.round(percentage);
           if (elements.totalPages) {
-            elements.totalPages.textContent = '100';
+            elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
           }
         }
       } else if (currentBookInfo && (currentBookInfo.type === 'zip' || currentBookInfo.type === 'rar')) {
@@ -1684,7 +1723,7 @@ function updateProgressBarDisplay() {
         // locations未生成のEPUBはパーセンテージ表示
         elements.currentPageInput.value = Math.round(percentage);
         if (elements.totalPages) {
-          elements.totalPages.textContent = '100';
+          elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
         }
       }
     } else {
@@ -1692,7 +1731,7 @@ function updateProgressBarDisplay() {
       elements.currentPageInput.value = Math.round(percentage);
 
       if (elements.totalPages) {
-        elements.totalPages.textContent = '100';
+        elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
       }
     }
   }
@@ -1716,7 +1755,6 @@ function renderBookmarkMarkers() {
     marker.style.left = `${percentage}%`;
     if (bookmark.deviceColor) {
       marker.style.background = bookmark.deviceColor;
-      marker.style.borderColor = UI_COLORS.BOOKMARK_MARKER_BORDER;
     }
 
     // ツールチップの表示内容を進捗表示モードに合わせる
@@ -1771,7 +1809,6 @@ function renderFloatBookmarkMarkers() {
     marker.style.left = `${percentage}%`;
     if (bookmark.deviceColor) {
       marker.style.background = bookmark.deviceColor;
-      marker.style.borderColor = UI_COLORS.BOOKMARK_MARKER_BORDER;
     }
     marker.title = bookmark.label ?? t("bookmarkDefault");
     marker.addEventListener("click", (event) => {
@@ -1915,13 +1952,13 @@ function renderToc(tocItems = []) {
   const isEpub = currentBookInfo?.type === "epub";
 
   if (!isEpub || !tocItems.length) {
-    elements.tocSection?.classList.add("hidden");
+    elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
     console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocItems.length });
     return;
   }
 
   console.log('[renderToc] Showing TOC section with', tocItems.length, 'items');
-  elements.tocSection?.classList.add("hidden");
+  elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
   renderTocEntries(tocItems, elements.tocModalList, 0);
 }
 
@@ -2040,7 +2077,7 @@ function renderBookmarks(mode = "current") {
 
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "bookmark-delete";
-      deleteBtn.textContent = t('deleteIcon');
+      deleteBtn.textContent = UI_ICONS.DELETE;
       deleteBtn.onclick = (e) => {
         e.stopPropagation();
         if (confirm(t("bookmarkDeleteConfirm"))) {
@@ -2136,7 +2173,7 @@ function renderBookmarks(mode = "current") {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "bookmark-delete";
-    deleteBtn.textContent = t('deleteIcon');
+    deleteBtn.textContent = UI_ICONS.DELETE;
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
       if (confirm(t("bookmarkDeleteConfirm"))) {
@@ -2208,7 +2245,7 @@ function renderLibrary() {
 
     const cover = document.createElement("div");
     cover.className = "library-cover";
-    cover.textContent = entry.title?.slice(0, 2) || t('bookIcon');
+    cover.textContent = entry.title?.slice(0, 2) || UI_ICONS.BOOK;
 
     const title = document.createElement("div");
     title.className = "library-title";
@@ -2302,7 +2339,7 @@ function renderHistory() {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "history-delete";
-    deleteBtn.textContent = t('deleteIcon');
+    deleteBtn.textContent = UI_ICONS.DELETE;
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
       if (confirm(t("historyDeleteConfirm"))) {
@@ -2502,7 +2539,7 @@ function isModalVisible(modal) {
   if (modal.classList.contains("bookmark-menu")) {
     return modal.classList.contains("visible");
   }
-  return !modal.classList.contains("hidden");
+  return !modal.classList.contains(UI_CLASSES.HIDDEN);
 }
 
 function openModal(modal) {
@@ -2519,7 +2556,7 @@ function openModal(modal) {
     modal.classList.add("visible");
     ui.bookmarkMenuVisible = true;
   } else {
-    modal.classList.remove("hidden");
+    modal.classList.remove(UI_CLASSES.HIDDEN);
   }
 
 }
@@ -2530,7 +2567,7 @@ function closeModal(modal) {
     modal.classList.remove("visible");
     ui.bookmarkMenuVisible = false;
   } else {
-    modal.classList.add("hidden");
+    modal.classList.add(UI_CLASSES.HIDDEN);
   }
   if (!elements.modalOverlay) return;
   const hasVisibleModal = Array.from(elements.modalOverlay.children).some((child) => {
@@ -2576,7 +2613,7 @@ function applyTheme(newTheme) {
 
 function updateThemeToggleIcon() {
   if (!elements.toggleTheme) return;
-  elements.toggleTheme.textContent = theme === "dark" ? "🌙" : "☀️";
+  elements.toggleTheme.textContent = theme === "dark" ? UI_ICONS.THEME_DARK : UI_ICONS.THEME_LIGHT;
   elements.toggleTheme.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
 }
 
@@ -2626,41 +2663,55 @@ function applyUiLanguage(nextLanguage) {
     });
   }
 
-  const setMenuLabel = (button, text) => {
+  const setMenuLabel = (button, icon, text) => {
+    const iconSpan = button?.querySelector("span.menu-icon");
+    if (iconSpan) iconSpan.textContent = icon;
     const label = button?.querySelector("span:last-child");
     if (label) label.textContent = text;
+  };
+  const setIconOnly = (button, icon) => {
+    if (!button) return;
+    button.textContent = icon;
   };
   const setFloatLabel = (button, icon, text) => {
     if (!button) return;
     button.textContent = `${icon} ${text}`;
   };
-  setMenuLabel(elements.menuOpen, strings.menuOpen);
-  setMenuLabel(elements.menuLibrary, strings.menuLibrary);
-  setMenuLabel(elements.menuSearch, strings.menuSearch);
-  setMenuLabel(elements.menuBookmarks, strings.menuBookmarks);
-  setMenuLabel(elements.menuHistory, strings.menuHistory);
-  setMenuLabel(elements.menuSettings, strings.menuSettings);
+  setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
+  setMenuLabel(elements.menuLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
+  setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
+  setMenuLabel(elements.menuBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
+  setMenuLabel(elements.menuHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
+  setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
   if (elements.langJa) elements.langJa.textContent = strings.languageLabelJa;
   if (elements.langEn) elements.langEn.textContent = strings.languageLabelEn;
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
-  setFloatLabel(elements.floatOpen, "📂", strings.menuOpen);
-  setFloatLabel(elements.floatLibrary, "📚", strings.menuLibrary);
-  setFloatLabel(elements.floatSearch, "🔍", strings.menuSearch);
-  setFloatLabel(elements.floatBookmarks, "🔖", strings.menuBookmarks);
-  setFloatLabel(elements.floatHistory, "🕘", strings.menuHistory);
+  setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
+  setFloatLabel(elements.floatLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
+  setFloatLabel(elements.floatSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
+  setFloatLabel(elements.floatBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
+  setFloatLabel(elements.floatHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
 
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    elements.floatSettings.textContent = strings.settingsIcon;
+    elements.floatSettings.textContent = UI_ICONS.SETTINGS;
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
+  if (elements.openLangMenu) {
+    elements.openLangMenu.textContent = UI_ICONS.LANGUAGE;
+    elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
+  }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
-  if (elements.addBookmarkBtn) elements.addBookmarkBtn.textContent = strings.addBookmark;
+  if (elements.addBookmarkBtn) {
+    elements.addBookmarkBtn.textContent = `${UI_ICONS.ADD} ${strings.addBookmark}`;
+  }
   if (elements.searchModalTitle) elements.searchModalTitle.textContent = strings.searchTitle;
   if (elements.searchInput) elements.searchInput.placeholder = strings.searchPlaceholder;
-  if (elements.searchBtn) elements.searchBtn.textContent = strings.searchButton;
+  if (elements.searchBtn) {
+    elements.searchBtn.textContent = `${UI_ICONS.MENU_SEARCH} ${strings.searchButton}`;
+  }
   if (elements.tocModalTitle) elements.tocModalTitle.textContent = strings.tocTitle;
   if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
   if (elements.syncModalMessage) elements.syncModalMessage.textContent = strings.syncPromptMessage;
@@ -2673,6 +2724,14 @@ function applyUiLanguage(nextLanguage) {
     elements.candidateModalMessage.innerHTML = strings.candidateModalMessage.replace(/\n/g, "<br>");
   }
   if (elements.candidateUseLocal) elements.candidateUseLocal.textContent = strings.candidateUseLocal;
+  setIconOnly(elements.closeBookmarkMenu, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeSearchModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeTocModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeFileModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeHistoryModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeSettingsModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeImageModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeCandidateModal, UI_ICONS.CLOSE);
   if (elements.closeCandidateModal) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
@@ -3099,17 +3158,17 @@ function setupEvents() {
 
   // 言語メニュー（フロートUI用・地球儀ボタン横）
   elements.openLangMenu?.addEventListener('click', () => {
-    elements.floatLangMenu?.classList.toggle("hidden");
+    elements.floatLangMenu?.classList.toggle(UI_CLASSES.HIDDEN);
   });
 
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    elements.floatLangMenu?.classList.add("hidden");
+    elements.floatLangMenu?.classList.add(UI_CLASSES.HIDDEN);
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
-    elements.floatLangMenu?.classList.add("hidden");
+    elements.floatLangMenu?.classList.add(UI_CLASSES.HIDDEN);
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {
@@ -3228,7 +3287,7 @@ function setupEvents() {
     if (!authStatus.authenticated) {
       if (syncStatus) {
         syncStatus.textContent = t('syncNeedsLoginStatus');
-        syncStatus.style.color = UI_COLORS.ERROR;
+        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
       }
       return;
     }
@@ -3238,7 +3297,7 @@ function setupEvents() {
       manualSyncButton.textContent = t('syncInProgress');
       if (syncStatus) {
         syncStatus.textContent = t('syncStarting');
-        syncStatus.style.color = UI_COLORS.NEUTRAL;
+        setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
       }
 
       // Pull index
@@ -3250,10 +3309,11 @@ function setupEvents() {
       }
 
       if (syncStatus) {
-        syncStatus.textContent = t('syncCompleted');
-        syncStatus.style.color = UI_COLORS.SUCCESS;
+        syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
+        setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
         setTimeout(() => {
           syncStatus.textContent = '';
+          setStatusClass(syncStatus, null);
         }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
@@ -3274,8 +3334,8 @@ function setupEvents() {
           detailMessage = t('syncPermissionDetail');
         }
 
-        syncStatus.textContent = `✗ ${userMessage}`;
-        syncStatus.style.color = UI_COLORS.ERROR;
+        syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
+        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
 
         // 詳細をアラートでも表示（ユーザーに気づかせるため）
         alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);
@@ -3366,12 +3426,12 @@ function setupEvents() {
 
   wheelTarget?.addEventListener('wheel', (event) => {
     // モーダルが開いている場合は無視
-    if (!elements.openFileModal?.classList.contains('hidden') ||
-      !elements.historyModal?.classList.contains('hidden') ||
-      !elements.settingsModal?.classList.contains('hidden') ||
-      !elements.imageModal?.classList.contains('hidden') ||
-      !elements.searchModal?.classList.contains('hidden') ||
-      !elements.syncModal?.classList.contains('hidden')) {
+    if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.settingsModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.imageModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.searchModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.syncModal?.classList.contains(UI_CLASSES.HIDDEN)) {
       return;
     }
 
@@ -3401,11 +3461,11 @@ function setupEvents() {
   // キーボード操作
   document.addEventListener('keydown', (e) => {
     // モーダルが開いている場合は無視
-    if (!elements.openFileModal?.classList.contains('hidden') ||
-      !elements.historyModal?.classList.contains('hidden') ||
-      !elements.settingsModal?.classList.contains('hidden') ||
-      !elements.imageModal?.classList.contains('hidden') ||
-      !elements.searchModal?.classList.contains('hidden')) {
+    if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.settingsModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.imageModal?.classList.contains(UI_CLASSES.HIDDEN) ||
+      !elements.searchModal?.classList.contains(UI_CLASSES.HIDDEN)) {
       return;
     }
 
@@ -3469,8 +3529,8 @@ function init() {
   console.log("Initializing Epub Reader...");
 
   // ライブラリ読み込み確認
-  console.log("JSZip:", typeof JSZip !== "undefined" ? "✓" : "✗");
-  console.log("ePub:", typeof ePub !== "undefined" ? "✓" : "✗");
+  console.log("JSZip:", typeof JSZip !== "undefined" ? UI_ICONS.CHECK_MARK : UI_ICONS.ERROR_MARK);
+  console.log("ePub:", typeof ePub !== "undefined" ? UI_ICONS.CHECK_MARK : UI_ICONS.ERROR_MARK);
 
   // イベント設定
   setupEvents();

@@ -177,20 +177,51 @@ export const PWA_CONFIG = Object.freeze({
 });
 
 // ============================================
-// UI カラー設定
+// UI アイコン
 // ============================================
-export const UI_COLORS = Object.freeze({
-  // ステータス色
-  SUCCESS: "#4caf50",
-  ERROR: "#f44336",
-  NEUTRAL: "#666",
-  
-  // ブックマークマーカー
-  BOOKMARK_MARKER_BORDER: "rgba(255, 255, 255, 0.9)",
+export const UI_ICONS = Object.freeze({
+  THEME_DARK: "🌙",
+  THEME_LIGHT: "☀️",
+  MENU_OPEN: "📂",
+  MENU_LIBRARY: "📚",
+  MENU_SEARCH: "🔍",
+  MENU_BOOKMARKS: "🔖",
+  MENU_HISTORY: "🕘",
+  LANGUAGE: "🌐",
+  SETTINGS: "⚙",
+  CLOSE: "✕",
+  ERROR_MARK: "✗",
+  CHECK_MARK: "✓",
+  ADD: "✚",
+  DELETE: "🗑️",
+  BOOK: "📖",
+  ZOOM_IN: "🔍+",
+  ZOOM_OUT: "🔍−",
+  READING_DIRECTION_TOGGLE: "⇄",
+  SPREAD_DOUBLE: "auto_stories",
+  SPREAD_SINGLE: "tablet",
+});
 
-  // デバッグ表示
-  DEBUG_GRID_LINE: "rgba(255, 0, 0, 0.3)",
-  DEBUG_GRID_LABEL_BG: "rgba(0, 0, 0, 0.7)",
+// ============================================
+// UI シンボル
+// ============================================
+export const UI_SYMBOLS = Object.freeze({
+  ELLIPSIS: "...",
+  META_SEPARATOR: "•",
+});
+
+// ============================================
+// UI クラス名
+// ============================================
+export const UI_CLASSES = Object.freeze({
+  HIDDEN: "hidden",
+  STATUS_SUCCESS: "status-success",
+  STATUS_ERROR: "status-error",
+  STATUS_NEUTRAL: "status-neutral",
+  DEBUG_GRID: "debug-grid",
+  DEBUG_GRID_LINE: "debug-grid-line",
+  DEBUG_GRID_LABEL: "debug-grid-label",
+  MATERIAL_ICON: "material-icons",
 });
 
 // ============================================
@@ -244,6 +275,34 @@ export const READER_CONFIG = Object.freeze({
 });
 
 // ============================================
+// 操作判定設定
+// ============================================
+export const INTERACTION_GRID_CONFIG = Object.freeze({
+  VERTICAL_BREAKPOINTS: Object.freeze({
+    TOP: 30,
+    MIDDLE: 60,
+    BOTTOM: 90,
+  }),
+  PROGRESS_BAR_EXCLUDE_FROM: 90,
+  HORIZONTAL_SEGMENTS: 5,
+});
+
+export const TOUCH_CONFIG = Object.freeze({
+  MIN_SWIPE_DISTANCE: 40,
+  AXIS_DIFFERENCE: 20,
+});
+
+export const PROGRESS_CONFIG = Object.freeze({
+  MAX_PERCENT: 100,
+});
+
+export const DEBUG_GRID_CONFIG = Object.freeze({
+  HORIZONTAL_LINES: Object.freeze([10, 90]),
+  VERTICAL_LINES: Object.freeze([20, 40, 60, 80]),
+  LINE_THICKNESS_PX: 2,
+});
+
+// ============================================
 // タイミング設定 (ミリ秒)
 // ============================================
 export const TIMING_CONFIG = Object.freeze({
@@ -257,6 +316,8 @@ export const TIMING_CONFIG = Object.freeze({
   ANIMATION_FRAME_DELAY_MS: 20,        // アニメーションフレーム遅延
   MODAL_CLOSE_DELAY_MS: 300,           // モーダルクローズ遅延
   STATUS_MESSAGE_DISPLAY_MS: 3000,     // ステータスメッセージ表示時間 (3秒)
+  CLICK_PROCESS_RESET_MS: 100,         // クリック連続防止リセット
+  DEBUG_GRID_AUTO_HIDE_MS: 10000,      // デバッググリッド自動非表示
 });
 
 // ============================================
@@ -359,5 +420,13 @@ if (typeof window !== "undefined") {
     SW_CACHE_ASSETS,
     ERROR_CODES,
     ERROR_MESSAGE_MATCHERS,
+    UI_ICONS,
+    UI_SYMBOLS,
+    UI_CLASSES,
+    INTERACTION_GRID_CONFIG,
+    TOUCH_CONFIG,
+    PROGRESS_CONFIG,
+    DEBUG_GRID_CONFIG,
+    TIMING_CONFIG,
   };
 }
