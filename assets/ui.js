@@ -4,9 +4,12 @@ import {
   TIMING_CONFIG,
   TOUCH_CONFIG,
   UI_CLASSES,
+  DOM_IDS,
 } from "./constants.js";
 
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
+
+const getById = (id) => document.getElementById(id);
 
 /**
  * 画面を15エリアに分割して判定
@@ -159,7 +162,7 @@ export class UIController {
 
       isProcessing = true;
 
-      const baseElement = document.getElementById('fullscreenReader');
+      const baseElement = getById(DOM_IDS.FULLSCREEN_READER);
       try {
         const area = this.getClickArea(e.clientX, e.clientY, baseElement);
         if (!area) {
@@ -187,7 +190,7 @@ export class UIController {
    * タッチスワイプハンドラーをセットアップ
    */
   setupTouchHandlers() {
-    const reader = document.getElementById('fullscreenReader');
+    const reader = getById(DOM_IDS.FULLSCREEN_READER);
     if (!reader) {
       return;
     }
@@ -361,9 +364,9 @@ export class UIController {
     this.leftMenuVisible = true;
     this.onLeftMenu?.('show');
 
-    const menu = document.getElementById('leftMenu');
-    const backdrop = document.getElementById('leftMenuBackdrop');
-    const overlay = document.getElementById('clickOverlay');
+    const menu = getById(DOM_IDS.LEFT_MENU);
+    const backdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('leftMenu element:', menu);
     if (menu) {
@@ -402,9 +405,9 @@ export class UIController {
     this.progressBarVisible = !persistent;
     this.onProgressBar?.('show');
 
-    const bar = document.getElementById('progressBarPanel');
-    const backdrop = document.getElementById('progressBarBackdrop');
-    const overlay = document.getElementById('clickOverlay');
+    const bar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const backdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('progressBarPanel element:', bar);
     if (bar) {
@@ -443,8 +446,8 @@ export class UIController {
     this.bookmarkMenuVisible = true;
     this.onBookmarkMenu?.('show');
 
-    const menu = document.getElementById('bookmarkMenu');
-    const overlay = document.getElementById('clickOverlay');
+    const menu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('bookmarkMenu element:', menu);
     if (menu) {
@@ -469,12 +472,12 @@ export class UIController {
     this.progressBarVisible = false;
     this.bookmarkMenuVisible = false;
 
-    const leftMenu = document.getElementById('leftMenu');
-    const leftMenuBackdrop = document.getElementById('leftMenuBackdrop');
-    const progressBar = document.getElementById('progressBarPanel');
-    const progressBarBackdrop = document.getElementById('progressBarBackdrop');
-    const bookmarkMenu = document.getElementById('bookmarkMenu');
-    const overlay = document.getElementById('clickOverlay');
+    const leftMenu = getById(DOM_IDS.LEFT_MENU);
+    const leftMenuBackdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const progressBar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const progressBarBackdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const bookmarkMenu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     if (leftMenu) leftMenu.classList.remove('visible');
     if (leftMenuBackdrop) leftMenuBackdrop.classList.remove('visible');
