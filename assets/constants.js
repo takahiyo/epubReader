@@ -196,6 +196,17 @@ export const ASSET_PATHS = Object.freeze({
 // リーダー設定
 // ============================================
 export const READER_CONFIG = Object.freeze({
+  viewportWidth: 800,
+  viewportHeight: 600,
+  fontSize: "16px",
+  writingMode: "horizontal-tb",
+  lineHeight: 1.6,
+  margin: "0",
+  padding: "16px",
+  MAX_BINARY_SEARCH_ITERATIONS: 24,
+  MAX_PAGES_PER_SPINE: 5000,
+  FIT_TOLERANCE_PX: 3,
+  MAX_FIT_ATTEMPTS: 3,
   TEXT_SEGMENT_STEP: 24,
   DEFAULT_LINE_HEIGHT: 1.8,
   LOCATIONS_CHARS_PER_PAGE: 1600,
