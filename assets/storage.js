@@ -11,6 +11,7 @@ import {
   STORAGE_SOURCE_DEFAULT,
   DEVICE_COLOR_PALETTE,
   DEFAULT_SETTINGS,
+  DEFAULT_DATA_SHAPE,
 } from "./constants.js";
 
 const STORAGE_KEY = STORAGE_CONFIG.KEY;
@@ -73,14 +74,7 @@ const getBookmarkKey = (bookmark) => {
 
 // デフォルトデータ構造（設定はSSOTから参照）
 const defaultData = {
-  library: {},
-  bookmarks: {},
-  progress: {},
-  history: [],
-  cloudIndex: {},
-  cloudStates: {},
-  cloudIndexUpdatedAt: null,
-  bookLinkMap: {},
+  ...DEFAULT_DATA_SHAPE,
   settings: { ...DEFAULT_SETTINGS },
 };
 

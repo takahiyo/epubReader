@@ -1,20 +1,8 @@
+import { FILESTORE_CONFIG, DEFAULT_DATA_SHAPE } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
-const DB_NAME = "epubReader-files";
-const STORE = "files";
-const VERSION = 1;
-const STORAGE_KEY = "epubReader:data";
-const EMPTY_DATA = {
-  library: {},
-  bookmarks: {},
-  progress: {},
-  history: [],
-  cloudIndex: {},
-  cloudStates: {},
-  cloudIndexUpdatedAt: null,
-  bookLinkMap: {},
-  settings: {},
-};
+const { DB_NAME, STORE, VERSION, STORAGE_KEY } = FILESTORE_CONFIG;
+const EMPTY_DATA = DEFAULT_DATA_SHAPE;
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -141,8 +129,10 @@ export async function deleteFile(id) {
 export function bufferToFile(record) {
   if (!record) return null;
   const { buffer, meta } = record;
-  const blob = new Blob([buffer], { type: meta.mime || "application/octet-stream" });
-  return new File([blob], meta.fileName, { type: meta.mime || "application/octet-stream" });
+  const mime = meta.mime || FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
+  const fileName = meta.fileName || FILESTORE_CONFIG.DEFAULT_FILE_NAME;
+  const blob = new Blob([buffer], { type: mime });
+  return new File([blob], fileName, { type: mime });
 }
 
 async function notImplemented(source) {
@@ -162,7 +152,7 @@ async function ensureOneDriveToken() {
   return await ensureOneDriveAccessToken(settings, (onedriveToken) => persistSettings({ onedriveToken }));
 }
 
-const ONEDRIVE_BASE_FOLDER = "epub-reader";
+const { ONEDRIVE_BASE_FOLDER } = FILESTORE_CONFIG;
 
 async function ensureOneDriveFolder(accessToken) {
   const baseUrl = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${ONEDRIVE_BASE_FOLDER}`;
@@ -202,14 +192,17 @@ async function findOneDriveFile(accessToken, id) {
 
 async function uploadOneDriveFile(accessToken, id, buffer, meta) {
   await ensureOneDriveFolder(accessToken);
-  const safeName = meta?.fileName || "book.bin";
+  const safeName = meta?.fileName || FILESTORE_CONFIG.DEFAULT_FILE_NAME;
   const fileName = `${id}-${safeName}`;
   const url = `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${ONEDRIVE_BASE_FOLDER}/${encodeURIComponent(
     fileName,
   )}:/content`;
   const response = await fetch(url, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": meta?.mime || "application/octet-stream" },
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": meta?.mime || FILESTORE_CONFIG.DEFAULT_MIME_TYPE,
+    },
     body: buffer,
   });
   if (!response.ok) {
@@ -233,8 +226,11 @@ async function downloadOneDriveRecord(accessToken, item) {
     id: item.id,
     buffer,
     meta: {
-      fileName: item.name?.replace(/^[^-]+-/, "") || item.name || `onedrive-${item.id}.bin`,
-      mime: blob.type || "application/octet-stream",
+      fileName:
+        item.name?.replace(/^[^-]+-/, "") ||
+        item.name ||
+        `${FILESTORE_CONFIG.ONEDRIVE_FALLBACK_PREFIX}-${item.id}.bin`,
+      mime: blob.type || FILESTORE_CONFIG.DEFAULT_MIME_TYPE,
     },
   };
 }
@@ -265,7 +261,7 @@ const externalSourceHandlers = {
       const response = await fetch(url, {
         method: "PUT",
         headers: {
-          "Content-Type": meta?.mime || "application/octet-stream",
+          "Content-Type": meta?.mime || FILESTORE_CONFIG.DEFAULT_MIME_TYPE,
           ...pCloudHeaders(settings),
         },
         body: buffer,
@@ -284,11 +280,12 @@ const externalSourceHandlers = {
       }
       const blob = await response.blob();
       const buffer = await blob.arrayBuffer();
-      const fileName = response.headers.get("x-file-name") || `pcloud-${id}`;
+      const fileName =
+        response.headers.get("x-file-name") || `${FILESTORE_CONFIG.PCLOUD_FALLBACK_PREFIX}-${id}`;
       return {
         id,
         buffer,
-        meta: { fileName, mime: blob.type || "application/octet-stream" },
+        meta: { fileName, mime: blob.type || FILESTORE_CONFIG.DEFAULT_MIME_TYPE },
       };
     },
   },

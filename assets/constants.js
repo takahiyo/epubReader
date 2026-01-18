@@ -53,6 +53,36 @@ export const STORAGE_CONFIG = Object.freeze({
 });
 
 // ============================================
+// ファイルストア設定
+// ============================================
+export const FILESTORE_CONFIG = Object.freeze({
+  DB_NAME: "epubReader-files",
+  STORE: "files",
+  VERSION: 1,
+  STORAGE_KEY: STORAGE_CONFIG.KEY,
+  ONEDRIVE_BASE_FOLDER: "epub-reader",
+  DEFAULT_MIME_TYPE: "application/octet-stream",
+  DEFAULT_FILE_NAME: "book.bin",
+  ONEDRIVE_FALLBACK_PREFIX: "onedrive",
+  PCLOUD_FALLBACK_PREFIX: "pcloud",
+});
+
+// ============================================
+// デフォルトデータ構造
+// ============================================
+export const DEFAULT_DATA_SHAPE = Object.freeze({
+  library: {},
+  bookmarks: {},
+  progress: {},
+  history: [],
+  cloudIndex: {},
+  cloudStates: {},
+  cloudIndexUpdatedAt: null,
+  bookLinkMap: {},
+  settings: {},
+});
+
+// ============================================
 // ストレージソース正規化
 // ============================================
 export const STORAGE_SOURCE_DEFAULT = "local";
@@ -249,6 +279,8 @@ if (typeof window !== "undefined") {
     WORKERS_CONFIG,
     GOOGLE_AUTH_CONFIG,
     STORAGE_CONFIG,
+    FILESTORE_CONFIG,
+    DEFAULT_DATA_SHAPE,
     DEVICE_COLOR_PALETTE,
     DEFAULT_SETTINGS,
     PWA_CONFIG,
