@@ -31,6 +31,11 @@ import {
   UI_ICONS,
   UI_SYMBOLS,
   UI_DEFAULTS,
+  DOM_IDS,
+  DOM_SELECTORS,
+  CSS_VARS,
+  ASSET_PATHS,
+  READER_CONFIG,
 } from "./constants.js";
 
 // ========================================
@@ -77,7 +82,6 @@ let userOverrodeDirection = false;
 // UI_STRINGS は i18n.js からインポート済み
 
 // 1. Lottieアニメーションデータ（外部JSONから読み込み）
-// SSOT: assets/animations/loader_book.json
 let LOADER_ANIMATION_DATA = null;
 
 // Lottieアニメーションデータを非同期で読み込む
@@ -85,7 +89,7 @@ async function loadLottieAnimationData() {
   if (LOADER_ANIMATION_DATA) return LOADER_ANIMATION_DATA;
   
   try {
-    const response = await fetch('./assets/animations/loader_book.json');
+    const response = await fetch(ASSET_PATHS.LOADER_ANIMATION);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -101,7 +105,7 @@ async function loadLottieAnimationData() {
 let lottieInstance = null;
 
 async function initLoadingAnimation() {
-  const container = document.getElementById('lottie-loader');
+  const container = document.getElementById(DOM_IDS.LOTTIE_LOADER);
   if (!container) return;
 
   // lottieが読み込まれているか確認
@@ -136,7 +140,7 @@ async function initLoadingAnimation() {
 }
 
 function showLoading() {
-  const overlay = document.getElementById('loadingOverlay');
+  const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
   if (overlay) {
     overlay.classList.add('visible');
     lottieInstance?.play();
@@ -144,7 +148,7 @@ function showLoading() {
 }
 
 function hideLoading() {
-  const overlay = document.getElementById('loadingOverlay');
+  const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
   if (overlay) {
     overlay.classList.remove('visible');
     lottieInstance?.stop(); // 非表示時は停止してリソース節約
@@ -173,170 +177,179 @@ function resolveErrorCode(error) {
   return null;
 }
 
+const getById = (id) => document.getElementById(id);
+const getBySelector = (selector) => document.querySelector(selector);
+
 // ========================================
 // DOM要素
 // ========================================
 
 const elements = {
   // リーダー
-  fullscreenReader: document.getElementById("fullscreenReader"),
-  viewer: document.getElementById("viewer"),
-  imageViewer: document.getElementById("imageViewer"),
-  pageImage: document.getElementById("pageImage"),
-  emptyStateIcon: document.getElementById("emptyStateIcon"),
-  menuTitleImage: document.getElementById("menuTitleImage"),
-  floatTitleImage: document.getElementById("floatTitleImage"),
-  emptyState: document.getElementById("emptyState"),
-  cloudEmptyState: document.getElementById("cloudEmptyState"),
-  cloudEmptyTitle: document.getElementById("cloudEmptyTitle"),
-  cloudEmptyMeta: document.getElementById("cloudEmptyMeta"),
-  cloudAttachButton: document.getElementById("cloudAttachButton"),
-  floatOverlay: document.getElementById("floatOverlay"),
-  floatBackdrop: document.querySelector("#floatOverlay .float-backdrop"),
-  floatOpen: document.getElementById("floatOpen"),
-  floatLibrary: document.getElementById("floatLibrary"),
-  floatSearch: document.getElementById("floatSearch"),
-  floatBookmarks: document.getElementById("floatBookmarks"),
-  floatHistory: document.getElementById("floatHistory"),
-  floatSettings: document.getElementById("floatSettings"),
-  floatProgress: document.getElementById("floatProgress"),
-  floatProgressPercent: document.getElementById("floatProgressPercent"),
-  floatProgressTrack: document.getElementById("floatProgressTrack"),
-  floatProgressMarks: document.getElementById("floatProgressMarks"),
-  floatProgressFill: document.getElementById("floatProgressFill"),
-  floatProgressThumb: document.getElementById("floatProgressThumb"),
-  modalOverlay: document.getElementById("modalOverlay"),
-  fontPlus: document.getElementById("fontPlus"),
-  fontMinus: document.getElementById("fontMinus"),
-  toggleTheme: document.getElementById("toggleTheme"),
-  toggleLanguage: document.getElementById("toggleLanguage"),
-  langIcon: document.getElementById("langIcon"),
-  loadingOverlay: document.getElementById("loadingOverlay"),
-  floatLangMenu: document.getElementById("floatLangMenu"),
-  openLangMenu: document.getElementById("openLangMenu"),
-  floatLangJa: document.getElementById("floatLangJa"),
-  floatLangEn: document.getElementById("floatLangEn"),
-  floatLangJaImg: document.querySelector("#floatLangJa img"),
-  floatLangEnImg: document.querySelector("#floatLangEn img"),
+  fullscreenReader: getById(DOM_IDS.FULLSCREEN_READER),
+  viewer: getById(DOM_IDS.VIEWER),
+  imageViewer: getById(DOM_IDS.IMAGE_VIEWER),
+  pageImage: getById(DOM_IDS.PAGE_IMAGE),
+  emptyStateIcon: getById(DOM_IDS.EMPTY_STATE_ICON),
+  menuTitleImage: getById(DOM_IDS.MENU_TITLE_IMAGE),
+  floatTitleImage: getById(DOM_IDS.FLOAT_TITLE_IMAGE),
+  emptyState: getById(DOM_IDS.EMPTY_STATE),
+  cloudEmptyState: getById(DOM_IDS.CLOUD_EMPTY_STATE),
+  cloudEmptyTitle: getById(DOM_IDS.CLOUD_EMPTY_TITLE),
+  cloudEmptyMeta: getById(DOM_IDS.CLOUD_EMPTY_META),
+  cloudAttachButton: getById(DOM_IDS.CLOUD_ATTACH_BUTTON),
+  floatOverlay: getById(DOM_IDS.FLOAT_OVERLAY),
+  floatBackdrop: getBySelector(DOM_SELECTORS.FLOAT_OVERLAY_BACKDROP),
+  floatOpen: getById(DOM_IDS.FLOAT_OPEN),
+  floatLibrary: getById(DOM_IDS.FLOAT_LIBRARY),
+  floatSearch: getById(DOM_IDS.FLOAT_SEARCH),
+  floatBookmarks: getById(DOM_IDS.FLOAT_BOOKMARKS),
+  floatHistory: getById(DOM_IDS.FLOAT_HISTORY),
+  floatSettings: getById(DOM_IDS.FLOAT_SETTINGS),
+  floatProgress: getById(DOM_IDS.FLOAT_PROGRESS),
+  floatProgressPercent: getById(DOM_IDS.FLOAT_PROGRESS_PERCENT),
+  floatProgressTrack: getById(DOM_IDS.FLOAT_PROGRESS_TRACK),
+  floatProgressMarks: getById(DOM_IDS.FLOAT_PROGRESS_MARKS),
+  floatProgressFill: getById(DOM_IDS.FLOAT_PROGRESS_FILL),
+  floatProgressThumb: getById(DOM_IDS.FLOAT_PROGRESS_THUMB),
+  modalOverlay: getById(DOM_IDS.MODAL_OVERLAY),
+  fontPlus: getById(DOM_IDS.FONT_PLUS),
+  fontMinus: getById(DOM_IDS.FONT_MINUS),
+  toggleTheme: getById(DOM_IDS.TOGGLE_THEME),
+  toggleLanguage: getById(DOM_IDS.TOGGLE_LANGUAGE),
+  langIcon: getById(DOM_IDS.LANG_ICON),
+  loadingOverlay: getById(DOM_IDS.LOADING_OVERLAY),
+  floatLangMenu: getById(DOM_IDS.FLOAT_LANG_MENU),
+  openLangMenu: getById(DOM_IDS.OPEN_LANG_MENU),
+  floatLangJa: getById(DOM_IDS.FLOAT_LANG_JA),
+  floatLangEn: getById(DOM_IDS.FLOAT_LANG_EN),
+  floatLangJaImg: getBySelector(DOM_SELECTORS.FLOAT_LANG_JA_IMG),
+  floatLangEnImg: getBySelector(DOM_SELECTORS.FLOAT_LANG_EN_IMG),
 
   // メニュー
-  leftMenu: document.getElementById("leftMenu"),
-  menuOpen: document.getElementById("menuOpen"),
-  menuLibrary: document.getElementById("menuLibrary"),
-  menuSearch: document.getElementById("menuSearch"),
-  menuBookmarks: document.getElementById("menuBookmarks"),
-  menuHistory: document.getElementById("menuHistory"),
-  menuSettings: document.getElementById("menuSettings"),
-  tocSection: document.getElementById("tocSection"),
-  tocSectionTitle: document.getElementById("tocSectionTitle"),
-  tocList: document.getElementById("tocList"),
-  langJa: document.getElementById("langJa"),
-  langEn: document.getElementById("langEn"),
-  toggleWritingMode: document.getElementById("toggleWritingMode"),
-  openToc: document.getElementById("openToc"),
-  tocModal: document.getElementById("tocModal"),
-  tocModalList: document.getElementById("tocModalList"),
-  closeTocModal: document.getElementById("closeTocModal"),
-  syncModal: document.getElementById("syncModal"),
-  syncModalTitle: document.getElementById("syncModalTitle"),
-  syncModalMessage: document.getElementById("syncModalMessage"),
-  syncUseRemote: document.getElementById("syncUseRemote"),
-  syncUseLocal: document.getElementById("syncUseLocal"),
+  leftMenu: getById(DOM_IDS.LEFT_MENU),
+  menuOpen: getById(DOM_IDS.MENU_OPEN),
+  menuLibrary: getById(DOM_IDS.MENU_LIBRARY),
+  menuSearch: getById(DOM_IDS.MENU_SEARCH),
+  menuBookmarks: getById(DOM_IDS.MENU_BOOKMARKS),
+  menuHistory: getById(DOM_IDS.MENU_HISTORY),
+  menuSettings: getById(DOM_IDS.MENU_SETTINGS),
+  tocSection: getById(DOM_IDS.TOC_SECTION),
+  tocSectionTitle: getById(DOM_IDS.TOC_SECTION_TITLE),
+  tocList: getById(DOM_IDS.TOC_LIST),
+  langJa: getById(DOM_IDS.LANG_JA),
+  langEn: getById(DOM_IDS.LANG_EN),
+  toggleWritingMode: getById(DOM_IDS.TOGGLE_WRITING_MODE),
+  openToc: getById(DOM_IDS.OPEN_TOC),
+  tocModal: getById(DOM_IDS.TOC_MODAL),
+  tocModalList: getById(DOM_IDS.TOC_MODAL_LIST),
+  closeTocModal: getById(DOM_IDS.CLOSE_TOC_MODAL),
+  syncModal: getById(DOM_IDS.SYNC_MODAL),
+  syncModalTitle: getById(DOM_IDS.SYNC_MODAL_TITLE),
+  syncModalMessage: getById(DOM_IDS.SYNC_MODAL_MESSAGE),
+  syncUseRemote: getById(DOM_IDS.SYNC_USE_REMOTE),
+  syncUseLocal: getById(DOM_IDS.SYNC_USE_LOCAL),
 
   // 進捗バー
-  progressBarPanel: document.getElementById("progressBarPanel"),
-  progressBarBackdrop: document.getElementById("progressBarBackdrop"),
-  progressFill: document.getElementById("progressFill"),
-  progressThumb: document.getElementById("progressThumb"),
-  progressTrack: document.querySelector(".progress-track"),
-  currentPageInput: document.getElementById("currentPageInput"),
-  totalPages: document.getElementById("totalPages"),
-  progressPrev: document.getElementById("progressPrev"),
-  progressNext: document.getElementById("progressNext"),
+  progressBarPanel: getById(DOM_IDS.PROGRESS_BAR_PANEL),
+  progressBarBackdrop: getById(DOM_IDS.PROGRESS_BAR_BACKDROP),
+  progressFill: getById(DOM_IDS.PROGRESS_FILL),
+  progressThumb: getById(DOM_IDS.PROGRESS_THUMB),
+  progressTrack: getBySelector(DOM_SELECTORS.PROGRESS_TRACK),
+  currentPageInput: getById(DOM_IDS.CURRENT_PAGE_INPUT),
+  totalPages: getById(DOM_IDS.TOTAL_PAGES),
+  progressPrev: getById(DOM_IDS.PROGRESS_PREV),
+  progressNext: getById(DOM_IDS.PROGRESS_NEXT),
 
   // しおりメニュー
-  bookmarkMenu: document.getElementById("bookmarkMenu"),
-  bookmarkList: document.getElementById("bookmarkList"),
-  addBookmarkBtn: document.getElementById("addBookmarkBtn"),
-  closeBookmarkMenu: document.getElementById("closeBookmarkMenu"),
+  bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
+  bookmarkList: getById(DOM_IDS.BOOKMARK_LIST),
+  addBookmarkBtn: getById(DOM_IDS.ADD_BOOKMARK_BTN),
+  closeBookmarkMenu: getById(DOM_IDS.CLOSE_BOOKMARK_MENU),
 
-  // モーダル
-  openFileModal: document.getElementById("openFileModal"),
-  closeFileModal: document.getElementById("closeFileModal"),
-  fileInput: document.getElementById("fileInput"),
-  libraryGrid: document.getElementById("libraryGrid"),
-  libraryViewGrid: document.getElementById("libraryViewGrid"),
-  libraryViewList: document.getElementById("libraryViewList"),
+  // ファイル選択モーダル
+  openFileModal: getById(DOM_IDS.OPEN_FILE_MODAL),
+  closeFileModal: getById(DOM_IDS.CLOSE_FILE_MODAL),
+  fileInput: getById(DOM_IDS.FILE_INPUT),
+  libraryGrid: getById(DOM_IDS.LIBRARY_GRID),
+  libraryViewGrid: getById(DOM_IDS.LIBRARY_VIEW_GRID),
+  libraryViewList: getById(DOM_IDS.LIBRARY_VIEW_LIST),
 
-  historyModal: document.getElementById("historyModal"),
-  closeHistoryModal: document.getElementById("closeHistoryModal"),
-  historyList: document.getElementById("historyList"),
+  // 履歴
+  historyModal: getById(DOM_IDS.HISTORY_MODAL),
+  closeHistoryModal: getById(DOM_IDS.CLOSE_HISTORY_MODAL),
+  historyList: getById(DOM_IDS.HISTORY_LIST),
 
-  settingsModal: document.getElementById("settingsModal"),
-  closeSettingsModal: document.getElementById("closeSettingsModal"),
-  themeSelect: document.getElementById("themeSelect"),
-  writingModeSelect: document.getElementById("writingMode"),
-  pageDirectionSelect: document.getElementById("pageDirection"),
-  settingsDefaultDirection: document.getElementById("settingsDefaultDirection"),
-  progressDisplayModeSelect: document.getElementById("progressDisplayMode"),
-  exportDataBtn: document.getElementById("exportDataBtn"),
-  importDataInput: document.getElementById("importDataInput"),
+  // 設定
+  settingsModal: getById(DOM_IDS.SETTINGS_MODAL),
+  closeSettingsModal: getById(DOM_IDS.CLOSE_SETTINGS_MODAL),
+  themeSelect: getById(DOM_IDS.THEME_SELECT),
+  writingModeSelect: getById(DOM_IDS.WRITING_MODE_SELECT),
+  pageDirectionSelect: getById(DOM_IDS.PAGE_DIRECTION_SELECT),
+  settingsDefaultDirection: getById(DOM_IDS.SETTINGS_DEFAULT_DIRECTION),
+  progressDisplayModeSelect: getById(DOM_IDS.PROGRESS_DISPLAY_MODE),
+  exportDataBtn: getById(DOM_IDS.EXPORT_DATA_BTN),
+  importDataInput: getById(DOM_IDS.IMPORT_DATA_INPUT),
 
-  imageModal: document.getElementById("imageModal"),
-  closeImageModal: document.getElementById("closeImageModal"),
-  modalImage: document.getElementById("modalImage"),
+  // 画像モーダル
+  imageModal: getById(DOM_IDS.IMAGE_MODAL),
+  closeImageModal: getById(DOM_IDS.CLOSE_IMAGE_MODAL),
+  modalImage: getById(DOM_IDS.MODAL_IMAGE),
 
-  searchModal: document.getElementById("searchModal"),
-  closeSearchModal: document.getElementById("closeSearchModal"),
-  searchInput: document.getElementById("searchInput"),
-  searchBtn: document.getElementById("searchBtn"),
-  searchResults: document.getElementById("searchResults"),
+  // 検索モーダル
+  searchModal: getById(DOM_IDS.SEARCH_MODAL),
+  closeSearchModal: getById(DOM_IDS.CLOSE_SEARCH_MODAL),
+  searchInput: getById(DOM_IDS.SEARCH_INPUT),
+  searchBtn: getById(DOM_IDS.SEARCH_BTN),
+  searchResults: getById(DOM_IDS.SEARCH_RESULTS),
 
-  // UIラベル
-  bookmarkMenuTitle: document.getElementById("bookmarkMenuTitle"),
-  searchModalTitle: document.getElementById("searchModalTitle"),
-  tocModalTitle: document.getElementById("tocModalTitle"),
-  openFileModalTitle: document.getElementById("openFileModalTitle"),
-  librarySectionTitle: document.getElementById("librarySectionTitle"),
-  historyModalTitle: document.getElementById("historyModalTitle"),
-  settingsModalTitle: document.getElementById("settingsModalTitle"),
-  settingsDisplayTitle: document.getElementById("settingsDisplayTitle"),
-  settingsDeviceTitle: document.getElementById("settingsDeviceTitle"),
-  settingsDefaultDirectionLabel: document.getElementById("settingsDefaultDirectionLabel"),
-  themeLabel: document.getElementById("themeLabel"),
-  writingModeLabel: document.getElementById("writingModeLabel"),
-  pageDirectionLabel: document.getElementById("pageDirectionLabel"),
-  progressDisplayModeLabel: document.getElementById("progressDisplayModeLabel"),
-  deviceIdLabel: document.getElementById("deviceIdLabel"),
-  deviceIdInput: document.getElementById("deviceId"),
-  deviceColorLabel: document.getElementById("deviceColorLabel"),
-  deviceColorInput: document.getElementById("deviceColor"),
-  settingsAccountTitle: document.getElementById("settingsAccountTitle"),
-  googleLoginButton: document.getElementById("googleLoginButton"),
-  manualSyncButton: document.getElementById("manualSyncButton"),
-  syncToggleButton: document.getElementById("syncToggleButton"),
-  userInfo: document.getElementById("userInfo"),
-  syncStatus: document.getElementById("syncStatus"),
-  syncHint: document.getElementById("syncHint"),
+  // UIテキスト
+  bookmarkMenuTitle: getById(DOM_IDS.BOOKMARK_MENU_TITLE),
+  searchModalTitle: getById(DOM_IDS.SEARCH_MODAL_TITLE),
+  tocModalTitle: getById(DOM_IDS.TOC_MODAL_TITLE),
+  openFileModalTitle: getById(DOM_IDS.OPEN_FILE_MODAL_TITLE),
+  librarySectionTitle: getById(DOM_IDS.LIBRARY_SECTION_TITLE),
+  historyModalTitle: getById(DOM_IDS.HISTORY_MODAL_TITLE),
+  settingsModalTitle: getById(DOM_IDS.SETTINGS_MODAL_TITLE),
+  settingsDisplayTitle: getById(DOM_IDS.SETTINGS_DISPLAY_TITLE),
+  settingsDeviceTitle: getById(DOM_IDS.SETTINGS_DEVICE_TITLE),
+  settingsDefaultDirectionLabel: getById(DOM_IDS.SETTINGS_DEFAULT_DIRECTION_LABEL),
+  themeLabel: getById(DOM_IDS.THEME_LABEL),
+  writingModeLabel: getById(DOM_IDS.WRITING_MODE_LABEL),
+  pageDirectionLabel: getById(DOM_IDS.PAGE_DIRECTION_LABEL),
+  progressDisplayModeLabel: getById(DOM_IDS.PROGRESS_DISPLAY_MODE_LABEL),
+  deviceIdLabel: getById(DOM_IDS.DEVICE_ID_LABEL),
+  deviceIdInput: getById(DOM_IDS.DEVICE_ID_INPUT),
+  deviceColorLabel: getById(DOM_IDS.DEVICE_COLOR_LABEL),
+  deviceColorInput: getById(DOM_IDS.DEVICE_COLOR_INPUT),
+  settingsAccountTitle: getById(DOM_IDS.SETTINGS_ACCOUNT_TITLE),
+  googleLoginButton: getById(DOM_IDS.GOOGLE_LOGIN_BUTTON),
+  manualSyncButton: getById(DOM_IDS.MANUAL_SYNC_BUTTON),
+  syncToggleButton: getById(DOM_IDS.SYNC_TOGGLE_BUTTON),
+  userInfo: getById(DOM_IDS.USER_INFO),
+  syncStatus: getById(DOM_IDS.SYNC_STATUS),
+  syncHint: getById(DOM_IDS.SYNC_HINT),
 
-  settingsDataTitle: document.getElementById("settingsDataTitle"),
-  importDataLabel: document.getElementById("importDataLabel"),
+  // データ
+  settingsDataTitle: getById(DOM_IDS.SETTINGS_DATA_TITLE),
+  importDataLabel: getById(DOM_IDS.IMPORT_DATA_LABEL),
 
-  // 候補選択モーダル
-  candidateModal: document.getElementById("candidateModal"),
-  candidateModalTitle: document.getElementById("candidateModalTitle"),
-  candidateModalMessage: document.getElementById("candidateModalMessage"),
-  candidateList: document.getElementById("candidateList"),
-  candidateUseLocal: document.getElementById("candidateUseLocal"),
-  closeCandidateModal: document.getElementById("closeCandidateModal"),
+  // 同期候補
+  candidateModal: getById(DOM_IDS.CANDIDATE_MODAL),
+  candidateModalTitle: getById(DOM_IDS.CANDIDATE_MODAL_TITLE),
+  candidateModalMessage: getById(DOM_IDS.CANDIDATE_MODAL_MESSAGE),
+  candidateList: getById(DOM_IDS.CANDIDATE_LIST),
+  candidateUseLocal: getById(DOM_IDS.CANDIDATE_USE_LOCAL),
+  closeCandidateModal: getById(DOM_IDS.CLOSE_CANDIDATE_MODAL),
 
-  // 画像書庫用ボタン
-  toggleSpreadMode: document.getElementById("toggleSpreadMode"),
-  toggleReadingDirectionEpub: document.getElementById("toggleReadingDirectionEpub"),
-  toggleReadingDirectionImage: document.getElementById("toggleReadingDirectionImage"),
-  toggleZoom: document.getElementById("toggleZoom"),
-  loadingText: document.getElementById("loadingText"),
+  // 追加ボタン
+  toggleSpreadMode: getById(DOM_IDS.TOGGLE_SPREAD_MODE),
+  toggleReadingDirectionEpub: getById(DOM_IDS.TOGGLE_READING_DIRECTION_EPUB),
+  toggleReadingDirectionImage: getById(DOM_IDS.TOGGLE_READING_DIRECTION_IMAGE),
+  toggleZoom: getById(DOM_IDS.TOGGLE_ZOOM),
+  loadingText: getById(DOM_IDS.LOADING_TEXT),
 };
+
 
 // ========================================
 // リーダーコントローラー初期化
@@ -441,7 +454,7 @@ function setupViewerIframeClickBridge() {
     }
   };
 
-  elements.viewer.querySelectorAll("iframe").forEach(bindIframe);
+  elements.viewer.querySelectorAll(DOM_SELECTORS.IFRAME).forEach(bindIframe);
 
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
@@ -451,7 +464,7 @@ function setupViewerIframeClickBridge() {
           bindIframe(node);
           return;
         }
-        node.querySelectorAll?.("iframe").forEach(bindIframe);
+        node.querySelectorAll?.(DOM_SELECTORS.IFRAME).forEach(bindIframe);
       });
     });
   });
@@ -463,7 +476,7 @@ setupViewerIframeClickBridge();
 
 // 進捗バーのドラッグハンドラー
 const progressBarHandler = new ProgressBarHandler({
-  container: elements.progressBarPanel?.querySelector('.progress-track'),
+  container: elements.progressBarPanel?.querySelector(DOM_SELECTORS.PROGRESS_TRACK),
   thumb: elements.progressThumb,
   getIsRtl: () => {
     if (currentBookInfo && (currentBookInfo.type === "zip" || currentBookInfo.type === "rar")) {
@@ -664,7 +677,7 @@ function updateProgressBarDirection() {
     isRtl = pageDirection === 'rtl';
   }
 
-  const floatProgressBar = document.getElementById("floatProgress");
+  const floatProgressBar = document.getElementById(DOM_IDS.FLOAT_PROGRESS);
   if (floatProgressBar) {
     if (isRtl) {
       floatProgressBar.classList.add("rtl-progress");
@@ -673,7 +686,7 @@ function updateProgressBarDirection() {
     }
   }
 
-  const progressBarWrapper = document.querySelector('.progress-bar-wrapper');
+  const progressBarWrapper = document.querySelector(DOM_SELECTORS.PROGRESS_BAR_WRAPPER);
   if (progressBarWrapper) {
     if (isRtl) {
       progressBarWrapper.classList.add('rtl-mode');
@@ -1741,7 +1754,7 @@ function updateProgressBarDisplay() {
 
 function renderBookmarkMarkers() {
   if (!elements.progressTrack) return;
-  elements.progressTrack.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
+  elements.progressTrack.querySelectorAll(DOM_SELECTORS.BOOKMARK_MARKER).forEach((node) => node.remove());
   if (!currentBookId) return;
 
   const bookmarks = storage.getBookmarks(currentBookId);
@@ -1750,7 +1763,7 @@ function renderBookmarkMarkers() {
   bookmarks.forEach((bookmark) => {
     const marker = document.createElement("button");
     marker.type = "button";
-    marker.className = "bookmark-marker";
+    marker.className = UI_CLASSES.BOOKMARK_MARKER;
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
     if (bookmark.deviceColor) {
@@ -1795,7 +1808,7 @@ function renderBookmarkMarkers() {
 
 function renderFloatBookmarkMarkers() {
   if (!elements.floatProgressMarks) return;
-  elements.floatProgressMarks.querySelectorAll(".bookmark-marker").forEach((node) => node.remove());
+  elements.floatProgressMarks.querySelectorAll(DOM_SELECTORS.BOOKMARK_MARKER).forEach((node) => node.remove());
   if (!currentBookId) return;
 
   const bookmarks = storage.getBookmarks(currentBookId);
@@ -1804,7 +1817,7 @@ function renderFloatBookmarkMarkers() {
   bookmarks.forEach((bookmark) => {
     const marker = document.createElement("button");
     marker.type = "button";
-    marker.className = "bookmark-marker";
+    marker.className = UI_CLASSES.BOOKMARK_MARKER;
     const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
     marker.style.left = `${percentage}%`;
     if (bookmark.deviceColor) {
@@ -2025,7 +2038,7 @@ function renderBookmarks(mode = "current") {
       const empty = document.createElement("li");
       empty.textContent = t("bookmarkEmpty");
       empty.style.textAlign = "center";
-      empty.style.color = "var(--muted)";
+      empty.style.color = `var(${CSS_VARS.MUTED})`;
       elements.bookmarkList.appendChild(empty);
       renderBookmarkMarkers();
       return;
@@ -2100,7 +2113,7 @@ function renderBookmarks(mode = "current") {
     const empty = document.createElement("li");
     empty.textContent = t("openBookPrompt");
     empty.style.textAlign = "center";
-    empty.style.color = "var(--muted)";
+    empty.style.color = `var(${CSS_VARS.MUTED})`;
     elements.bookmarkList.appendChild(empty);
     renderBookmarkMarkers();
     return;
@@ -2112,7 +2125,7 @@ function renderBookmarks(mode = "current") {
     const empty = document.createElement("li");
     empty.textContent = t("bookmarkEmpty");
     empty.style.textAlign = "center";
-    empty.style.color = "var(--muted)";
+    empty.style.color = `var(${CSS_VARS.MUTED})`;
     elements.bookmarkList.appendChild(empty);
     renderBookmarkMarkers();
     return;
@@ -2226,7 +2239,7 @@ function renderLibrary() {
     const empty = document.createElement("p");
     empty.textContent = t("libraryEmpty");
     empty.style.textAlign = "center";
-    empty.style.color = "var(--muted)";
+    empty.style.color = `var(${CSS_VARS.MUTED})`;
     empty.style.gridColumn = "1 / -1";
     elements.libraryGrid.appendChild(empty);
     return;
@@ -2304,7 +2317,7 @@ function renderHistory() {
     const empty = document.createElement("li");
     empty.textContent = t("historyEmpty");
     empty.style.textAlign = "center";
-    empty.style.color = "var(--muted)";
+    empty.style.color = `var(${CSS_VARS.MUTED})`;
     elements.historyList.appendChild(empty);
     return;
   }
@@ -2619,7 +2632,7 @@ function updateThemeToggleIcon() {
 
 function applyFontSize(nextSize) {
   if (!Number.isFinite(nextSize)) return;
-  const clamped = Math.min(28, Math.max(12, Math.round(nextSize)));
+  const clamped = Math.min(READER_CONFIG.FONT_SIZE_MAX, Math.max(READER_CONFIG.FONT_SIZE_MIN, Math.round(nextSize)));
   fontSize = clamped;
   reader.applyFontSize(fontSize);
   storage.setSettings({ fontSize });
@@ -2634,7 +2647,7 @@ function applyUiLanguage(nextLanguage) {
   elements.langJa?.classList.toggle("active", uiLanguage === "ja");
   elements.langEn?.classList.toggle("active", uiLanguage === "en");
   if (elements.langIcon) {
-    elements.langIcon.src = uiLanguage === "ja" ? "assets/Flag_Japan.svg" : "assets/Flag_America.svg";
+    elements.langIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
   }
   persistReadingState({ uiLanguage });
 
@@ -2646,8 +2659,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.floatTitleImage) elements.floatTitleImage.alt = appIconAlt;
   if (elements.pageImage) elements.pageImage.alt = strings.pageImageAlt;
   if (elements.modalImage) elements.modalImage.alt = strings.modalImageAlt;
-  const emptyTitle = elements.emptyState?.querySelector("h2");
-  const emptyDescription = elements.emptyState?.querySelector("p");
+  const emptyTitle = elements.emptyState?.querySelector(DOM_SELECTORS.EMPTY_STATE_TITLE);
+  const emptyDescription = elements.emptyState?.querySelector(DOM_SELECTORS.EMPTY_STATE_DESCRIPTION);
   if (emptyTitle) emptyTitle.textContent = strings.emptyTitle;
   if (emptyDescription) emptyDescription.textContent = strings.emptyDescription;
   if (elements.cloudAttachButton) elements.cloudAttachButton.textContent = strings.libraryAttachFile;
@@ -2664,9 +2677,9 @@ function applyUiLanguage(nextLanguage) {
   }
 
   const setMenuLabel = (button, icon, text) => {
-    const iconSpan = button?.querySelector("span.menu-icon");
+    const iconSpan = button?.querySelector(DOM_SELECTORS.MENU_ICON);
     if (iconSpan) iconSpan.textContent = icon;
-    const label = button?.querySelector("span:last-child");
+    const label = button?.querySelector(DOM_SELECTORS.MENU_LABEL);
     if (label) label.textContent = text;
   };
   const setIconOnly = (button, icon) => {
@@ -2782,7 +2795,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
   if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
   if (elements.importDataLabel) {
-    const input = elements.importDataLabel.querySelector("input");
+    const input = elements.importDataLabel.querySelector(DOM_SELECTORS.IMPORT_DATA_INPUT);
     elements.importDataLabel.textContent = strings.importData;
     if (input) {
       elements.importDataLabel.appendChild(input);
@@ -3279,8 +3292,8 @@ function setupEvents() {
   });
 
   // Manual sync button
-  const manualSyncButton = document.getElementById('manualSyncButton');
-  const syncStatus = document.getElementById('syncStatus');
+  const manualSyncButton = document.getElementById(DOM_IDS.MANUAL_SYNC_BUTTON);
+  const syncStatus = document.getElementById(DOM_IDS.SYNC_STATUS);
 
   manualSyncButton?.addEventListener('click', async () => {
     const authStatus = checkAuthStatus();
@@ -3385,7 +3398,7 @@ function setupEvents() {
   // モーダルバックドロップクリック
   [elements.openFileModal, elements.historyModal, elements.settingsModal, elements.imageModal, elements.searchModal, elements.tocModal].forEach(modal => {
     modal?.addEventListener('click', (e) => {
-      if (e.target.classList.contains('modal-backdrop') || e.target === modal) {
+      if (e.target.classList.contains(UI_CLASSES.MODAL_BACKDROP) || e.target === modal) {
         closeModal(modal);
       }
     });
