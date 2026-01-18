@@ -18,7 +18,7 @@ import {
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
-import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE } from "./i18n.js";
+import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
   MIME_TYPES,
@@ -582,7 +582,7 @@ function updateReadingDirectionButtonLabel() {
   if (!elements.toggleReadingDirectionImage) return;
   const isRtl = reader.imageReadingDirection === "rtl";
   elements.toggleReadingDirectionImage.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
-  elements.toggleReadingDirectionImage.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
+  elements.toggleReadingDirectionImage.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
 }
 
 // 左開き/右開きボタンのラベルを更新 (EPUB用)
@@ -590,7 +590,7 @@ function updateReadingDirectionEpubButtonLabel() {
   if (!elements.toggleReadingDirectionEpub) return;
   const isRtl = pageDirection === "rtl";
   elements.toggleReadingDirectionEpub.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
-  elements.toggleReadingDirectionEpub.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
+  elements.toggleReadingDirectionEpub.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
 }
 
 // ズームボタンのラベルを更新
@@ -598,7 +598,7 @@ function updateZoomButtonLabel() {
   if (!elements.toggleZoom) return;
   const isZoomed = reader.imageZoomed;
   elements.toggleZoom.textContent = isZoomed ? t('zoomOut') : t('zoomIn');
-  elements.toggleZoom.title = isZoomed ? "ズームを解除" : "ズームする";
+  elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
 }
 
 // 進捗バーの方向を更新（RTL時は反転）
@@ -671,9 +671,7 @@ function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
       elements.syncStatus.textContent = t("syncStatusNever");
       return;
     }
-    const timeText = uiLanguage === "en"
-      ? formatRelativeTimeEn(lastSyncAt)
-      : formatRelativeTime(lastSyncAt);
+    const timeText = formatRelativeTime(lastSyncAt, uiLanguage);
     elements.syncStatus.textContent = t("syncStatusLabel").replace("{time}", timeText || "--");
   }
 }
@@ -710,30 +708,6 @@ function updateFloatProgressBar(percentage) {
   }
 }
 
-function formatRelativeTime(timestamp) {
-  if (!timestamp) return "";
-  const diffMs = Date.now() - timestamp;
-  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
-  if (diffMinutes < 1) return "1分未満";
-  if (diffMinutes < 60) return `${diffMinutes}分前`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}時間前`;
-  const diffDays = Math.round(diffHours / 24);
-  return `${diffDays}日前`;
-}
-
-function formatRelativeTimeEn(timestamp) {
-  if (!timestamp) return "";
-  const diffMs = Date.now() - timestamp;
-  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
-  if (diffMinutes < 1) return "less than a minute ago";
-  if (diffMinutes < 60) return `${diffMinutes} min ago`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} hr ago`;
-  const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} days ago`;
-}
-
 // ========================================
 // ローディングオーバーレイ
 // ========================================
@@ -750,7 +724,7 @@ function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
 
 function formatLibraryMeta({ progressPercentage, timestamp }) {
   const clampedProgress = Math.max(0, Math.min(100, Math.round(progressPercentage ?? 0)));
-  const relativeTime = uiLanguage === "en" ? formatRelativeTimeEn(timestamp) : formatRelativeTime(timestamp);
+  const relativeTime = formatRelativeTime(timestamp, uiLanguage);
   if (!relativeTime) {
     return `${clampedProgress}%`;
   }
@@ -947,9 +921,7 @@ async function handleAuthLogin() {
 }
 
 function buildSyncRemoteLabel(timestamp) {
-  const timeText = uiLanguage === "en"
-    ? formatRelativeTimeEn(timestamp)
-    : formatRelativeTime(timestamp);
+  const timeText = formatRelativeTime(timestamp, uiLanguage);
   return t("syncPromptRemote").replace("{time}", timeText || "--");
 }
 
@@ -1017,7 +989,7 @@ function promptSyncCandidate(candidates) {
       const title = candidate.meta?.title || "Untitled";
       const author = candidate.meta?.author || "";
       const lastRead = candidate.meta?.lastReadAt
-        ? (uiLanguage === "en" ? formatRelativeTimeEn(candidate.meta.lastReadAt) : formatRelativeTime(candidate.meta.lastReadAt))
+        ? formatRelativeTime(candidate.meta.lastReadAt, uiLanguage)
         : "";
 
       item.innerHTML = `
