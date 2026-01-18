@@ -2,16 +2,15 @@ import { FILESTORE_CONFIG, DEFAULT_DATA_SHAPE } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
 const { DB_NAME, STORE, VERSION, STORAGE_KEY } = FILESTORE_CONFIG;
-const EMPTY_DATA = DEFAULT_DATA_SHAPE;
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...EMPTY_DATA };
+    if (!raw) return { ...DEFAULT_DATA_SHAPE };
     const parsed = JSON.parse(raw);
-    return { ...EMPTY_DATA, ...parsed, settings: { ...(parsed.settings ?? {}) } };
+    return { ...DEFAULT_DATA_SHAPE, ...parsed, settings: { ...(parsed.settings ?? {}) } };
   } catch (error) {
     console.warn("データの読み込みに失敗しました", error);
-    return { ...EMPTY_DATA };
+    return { ...DEFAULT_DATA_SHAPE };
   }
 }
 
