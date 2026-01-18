@@ -24,6 +24,7 @@ export const UI_STRINGS = Object.freeze({
     // 言語選択
     languageLabelJa: "日",
     languageLabelEn: "EN",
+    languageMenuLabel: "言語メニュー",
     languageOptionJa: "日本語",
     languageOptionEn: "英語",
 
@@ -46,12 +47,12 @@ export const UI_STRINGS = Object.freeze({
     tocButton: "目次",
     bookmarkTitle: "しおり",
     bookmarkDefault: "しおり",
-    addBookmark: "✚ 現在位置にしおりを追加",
+    addBookmark: "現在位置にしおりを追加",
     
     // 検索
     searchTitle: "テキスト検索",
     searchPlaceholder: "検索キーワードを入力...",
-    searchButton: "🔍 検索",
+    searchButton: "検索",
     
     // 目次
     tocTitle: "目次",
@@ -156,15 +157,12 @@ export const UI_STRINGS = Object.freeze({
     pageDirectionRtlButton: "←右開き",
     readingDirectionLtrTitle: "左開き（左から右へ読む）",
     readingDirectionRtlTitle: "右開き（右から左へ読む）",
-    zoomIn: "🔍+",
-    zoomOut: "🔍−",
     zoomInTitle: "ズームする",
     zoomOutTitle: "ズームを解除",
-    settingsIcon: "⚙",
     fontIncreaseLabel: "A+",
     fontDecreaseLabel: "A-",
-    deleteIcon: "🗑️",
-    bookIcon: "📖",
+    untitledBook: "無題",
+    candidateIdLabel: "ID: {id}",
 
     // 画像の代替テキスト
     pageImageAlt: "ページ画像",
@@ -174,7 +172,7 @@ export const UI_STRINGS = Object.freeze({
     syncNeedsLoginStatus: "Googleログインが必要です",
     syncInProgress: "同期中...",
     syncStarting: "同期を開始しています...",
-    syncCompleted: "✓ 同期完了",
+    syncCompleted: "同期完了",
     syncFailed: "同期に失敗しました",
     syncNowButton: "今すぐ同期",
     syncBlocked: "通信がブロックされました",
@@ -231,6 +229,7 @@ export const UI_STRINGS = Object.freeze({
     // Language selection
     languageLabelJa: "JA",
     languageLabelEn: "EN",
+    languageMenuLabel: "Language menu",
     languageOptionJa: "Japanese",
     languageOptionEn: "English",
 
@@ -253,12 +252,12 @@ export const UI_STRINGS = Object.freeze({
     tocButton: "TOC",
     bookmarkTitle: "Bookmarks",
     bookmarkDefault: "Bookmark",
-    addBookmark: "✚ Add bookmark at current location",
+    addBookmark: "Add bookmark at current location",
     
     // Search
     searchTitle: "Text Search",
     searchPlaceholder: "Enter a search keyword...",
-    searchButton: "🔍 Search",
+    searchButton: "Search",
     
     // TOC
     tocTitle: "Table of Contents",
@@ -362,15 +361,12 @@ export const UI_STRINGS = Object.freeze({
     pageDirectionRtlButton: "←RTL",
     readingDirectionLtrTitle: "Left binding (read left to right)",
     readingDirectionRtlTitle: "Right binding (read right to left)",
-    zoomIn: "🔍+",
-    zoomOut: "🔍−",
     zoomInTitle: "Zoom in",
     zoomOutTitle: "Zoom out",
-    settingsIcon: "⚙",
     fontIncreaseLabel: "A+",
     fontDecreaseLabel: "A-",
-    deleteIcon: "🗑️",
-    bookIcon: "📖",
+    untitledBook: "Untitled",
+    candidateIdLabel: "ID: {id}",
 
     // Image alt text
     pageImageAlt: "Page image",
@@ -380,7 +376,7 @@ export const UI_STRINGS = Object.freeze({
     syncNeedsLoginStatus: "Google sign-in required",
     syncInProgress: "Syncing...",
     syncStarting: "Starting sync...",
-    syncCompleted: "✓ Sync completed",
+    syncCompleted: "Sync completed",
     syncFailed: "Sync failed",
     syncNowButton: "Sync now",
     syncBlocked: "Connection blocked",

@@ -88,27 +88,27 @@
 
     <nav class="menu-nav">
       <button id="menuOpen" class="menu-item">
-        <span class="menu-icon">📂</span>
+        <span class="menu-icon"></span>
         <span></span>
       </button>
       <button id="menuLibrary" class="menu-item">
-        <span class="menu-icon">📚</span>
+        <span class="menu-icon"></span>
         <span></span>
       </button>
       <button id="menuSearch" class="menu-item">
-        <span class="menu-icon">🔍</span>
+        <span class="menu-icon"></span>
         <span></span>
       </button>
       <button id="menuBookmarks" class="menu-item">
-        <span class="menu-icon">🔖</span>
+        <span class="menu-icon"></span>
         <span></span>
       </button>
       <button id="menuHistory" class="menu-item">
-        <span class="menu-icon">📜</span>
+        <span class="menu-icon"></span>
         <span></span>
       </button>
       <button id="menuSettings" class="menu-item">
-        <span class="menu-icon">⚙️</span>
+        <span class="menu-icon"></span>
         <span></span>
       </button>
     </nav>
@@ -155,7 +155,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3 id="bookmarkMenuTitle"></h3>
-        <button id="closeBookmarkMenu" class="close-btn">✕</button>
+        <button id="closeBookmarkMenu" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <ul id="bookmarkList" class="bookmark-list"></ul>
@@ -171,7 +171,7 @@
     <div class="modal-content modal-medium">
       <div class="modal-header">
         <h3 id="searchModalTitle"></h3>
-        <button id="closeSearchModal" class="close-btn">✕</button>
+        <button id="closeSearchModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <div class="search-input-container">
@@ -189,7 +189,7 @@
     <div class="modal-content modal-medium">
       <div class="modal-header">
         <h3 id="tocModalTitle"></h3>
-        <button id="closeTocModal" class="close-btn">✕</button>
+        <button id="closeTocModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <ul id="tocModalList" class="toc-list"></ul>
@@ -203,7 +203,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="candidateModalTitle"></h2>
-        <button id="closeCandidateModal" class="close-btn" aria-label="">&times;</button>
+        <button id="closeCandidateModal" class="close-btn" aria-label=""></button>
       </div>
       <div class="modal-body">
         <p id="candidateModalMessage"></p>
@@ -240,7 +240,7 @@
     <div class="modal-content modal-large">
       <div class="modal-header">
         <h3 id="openFileModalTitle"></h3>
-        <button id="closeFileModal" class="close-btn">✕</button>
+        <button id="closeFileModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <div id="librarySection" class="library-section">
@@ -263,7 +263,7 @@
     <div class="modal-content modal-medium">
       <div class="modal-header">
         <h3 id="historyModalTitle"></h3>
-        <button id="closeHistoryModal" class="close-btn">✕</button>
+        <button id="closeHistoryModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <ul id="historyList" class="history-list"></ul>
@@ -277,7 +277,7 @@
     <div class="modal-content modal-large">
       <div class="modal-header">
         <h3 id="settingsModalTitle"></h3>
-        <button id="closeSettingsModal" class="close-btn">✕</button>
+        <button id="closeSettingsModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <div class="settings-section">
@@ -334,7 +334,7 @@
   <div id="imageModal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
-      <button id="closeImageModal" class="close-btn">✕</button>
+      <button id="closeImageModal" class="close-btn"></button>
       <img id="modalImage" alt="" />
     </div>
   </div>
@@ -361,10 +361,10 @@
 
       <!-- 右上 -->
       <div class="float-top-right">
-        <button id="toggleReadingDirectionEpub" type="button" style="display: none;">⇄</button>
-        <button id="toggleReadingDirectionImage" type="button" style="display: none;">⇄</button>
+        <button id="toggleReadingDirectionEpub" class="hidden" type="button"></button>
+        <button id="toggleReadingDirectionImage" class="hidden" type="button"></button>
         <button id="toggleWritingMode" type="button"></button>
-        <button id="toggleSpreadMode" type="button" style="display: none;"></button>
+        <button id="toggleSpreadMode" class="hidden" type="button"></button>
       </div>
 
       <!-- 右下 -->
@@ -375,7 +375,7 @@
 
       <!-- 右中央 -->
       <button id="toggleTheme" type="button"></button>
-      <button id="toggleZoom" type="button" style="display: none;"></button>
+      <button id="toggleZoom" class="hidden" type="button"></button>
 
       <!-- 【追加】ズームスライダー用コンテナ -->
       <div id="zoomSliderContainer" class="zoom-slider-container">
@@ -383,8 +383,7 @@
       </div>
 
       <!-- 左下 (言語メニュー) -->
-      <button id="openLangMenu" type="button"
-        style="position: absolute; left: 24px; bottom: 24px; font-size: 1.5rem; pointer-events: auto;">🌐</button>
+      <button id="openLangMenu" class="float-lang-toggle" type="button"></button>
     </div>
 
     <div id="floatProgress">
@@ -408,10 +407,10 @@
   </div>
 
   <!-- ローディングオーバーレイ -->
-  <div id="loadingOverlay" class="loading-overlay">
-    <div id="lottie-loader" style="width: 120px; height: 120px;"></div>
-    <p id="loadingText" class="loading-text"></p>
-  </div>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div id="lottie-loader" class="loading-animation"></div>
+      <p id="loadingText" class="loading-text"></p>
+    </div>
 
   <div id="modalOverlay"></div>
 
