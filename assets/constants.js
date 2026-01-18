@@ -233,6 +233,8 @@ export const UI_CLASSES = Object.freeze({
   DRAGGING: "dragging",
   BOOKMARK_MENU: "bookmark-menu",
   GOOGLE_AUTH_ACTIVE: "google-auth-active",
+  ZOOMED: "zoomed",
+  IS_DRAGGING: "is-dragging",
 });
 
 // ============================================
@@ -376,6 +378,7 @@ export const DOM_IDS = Object.freeze({
   LOTTIE_LOADER: "lottie-loader",
   LEFT_MENU_BACKDROP: "leftMenuBackdrop",
   CLICK_OVERLAY: "clickOverlay",
+  ZOOM_SLIDER: "zoomSlider",
 });
 
 export const DOM_SELECTORS = Object.freeze({
@@ -398,6 +401,12 @@ export const DOM_SELECTORS = Object.freeze({
   CLICK_EXCLUDE_MENU: ".left-menu, .progress-bar-panel, .bookmark-menu",
   CLICK_EXCLUDE_ALL: ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgress",
   ZOOM_ALLOWED_TARGETS: "#toggleZoom, .zoom-slider-container",
+  EPUB_PAGE: ".epub-page",
+  SPREAD_CONTAINER: ".spread-container",
+  ANCHOR_WITH_HREF: "a[href]",
+  IMAGE: "img",
+  IMAGE_WITH_SVG: "img, svg image",
+  STYLE: "style",
   EMPTY_STATE_TITLE: "h2",
   EMPTY_STATE_DESCRIPTION: "p",
   IMPORT_DATA_INPUT: "input",
@@ -405,6 +414,10 @@ export const DOM_SELECTORS = Object.freeze({
 
 export const CSS_VARS = Object.freeze({
   MUTED: "--muted",
+});
+
+export const DATA_ATTRS = Object.freeze({
+  READER_SRC: "data-reader-src",
 });
 
 // ============================================
@@ -612,6 +625,7 @@ if (typeof window !== "undefined") {
     DOM_IDS,
     DOM_SELECTORS,
     CSS_VARS,
+    DATA_ATTRS,
     INTERACTION_GRID_CONFIG,
     TOUCH_CONFIG,
     PROGRESS_CONFIG,
