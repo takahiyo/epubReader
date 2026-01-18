@@ -51,12 +51,10 @@ let progressDisplayMode = settings.progressDisplayMode ?? UI_DEFAULTS.progressDi
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
-  if (legacyDirection === "rtl") {
-    writingMode = "vertical";
-    pageDirection = "rtl";
-  } else if (legacyDirection === "ltr") {
-    writingMode = "horizontal";
-    pageDirection = "ltr";
+  const legacyConfig = UI_DEFAULTS.legacyDirectionMap[legacyDirection];
+  if (legacyConfig) {
+    writingMode = legacyConfig.writingMode;
+    pageDirection = legacyConfig.pageDirection;
   }
 }
 if (!writingMode) writingMode = UI_DEFAULTS.writingMode;
@@ -392,7 +390,7 @@ const ui = new UIController({
     if (action === 'show') {
 
       renderBookmarks(bookmarkMenuMode);
-      bookmarkMenuMode = "current";
+      bookmarkMenuMode = UI_DEFAULTS.bookmarkMenuMode;
     }
   },
   onPagePrev: (step) => {
@@ -3084,11 +3082,11 @@ function setupEvents() {
 
 
   elements.fontPlus?.addEventListener('click', () => {
-    applyFontSize((fontSize ?? 16) + 1);
+    applyFontSize((fontSize ?? UI_DEFAULTS.fontSize) + 1);
   });
 
   elements.fontMinus?.addEventListener('click', () => {
-    applyFontSize((fontSize ?? 16) - 1);
+    applyFontSize((fontSize ?? UI_DEFAULTS.fontSize) - 1);
   });
 
   elements.toggleTheme?.addEventListener('click', () => {
@@ -3483,7 +3481,7 @@ function init() {
     const baseFont = Number.parseFloat(
       window.getComputedStyle(elements.viewer || document.body)?.fontSize
     );
-    fontSize = Number.isFinite(baseFont) ? baseFont : 16;
+    fontSize = Number.isFinite(baseFont) ? baseFont : UI_DEFAULTS.fontSize;
   }
   applyFontSize(fontSize);
   applyReadingSettings(writingMode, pageDirection);

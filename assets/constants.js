@@ -121,6 +121,31 @@ export const DEVICE_COLOR_PALETTE = Object.freeze([
 ]);
 
 // ============================================
+// UI 初期設定
+// ============================================
+export const UI_DEFAULTS = Object.freeze({
+  theme: "dark",
+  uiLanguage: "en",
+  fontSize: 16,
+  progressDisplayMode: "page",
+  defaultDirection: "rtl",
+  libraryViewMode: "grid",
+  writingMode: "horizontal",
+  pageDirection: "ltr",
+  bookmarkMenuMode: "current",
+  legacyDirectionMap: Object.freeze({
+    rtl: Object.freeze({
+      writingMode: "vertical",
+      pageDirection: "rtl",
+    }),
+    ltr: Object.freeze({
+      writingMode: "horizontal",
+      pageDirection: "ltr",
+    }),
+  }),
+});
+
+// ============================================
 // デフォルト設定値
 // ============================================
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -135,25 +160,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   onedriveFilePath: "epub-reader-data.json",
   onedriveFileId: "",
   onedriveToken: null,
-  uiLanguage: "en",
-  fontSize: 16,
+  uiLanguage: UI_DEFAULTS.uiLanguage,
+  fontSize: UI_DEFAULTS.fontSize,
   autoSyncEnabled: null,
   deviceId: "",
   deviceColor: "",
-});
-
-// ============================================
-// UI 初期設定
-// ============================================
-export const UI_DEFAULTS = Object.freeze({
-  theme: "dark",
-  uiLanguage: DEFAULT_SETTINGS.uiLanguage,
-  progressDisplayMode: "page",
-  defaultDirection: "rtl",
-  libraryViewMode: "grid",
-  writingMode: "horizontal",
-  pageDirection: "ltr",
-  bookmarkMenuMode: "current",
 });
 
 // ============================================
