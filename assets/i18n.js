@@ -18,6 +18,13 @@ export const UI_STRINGS = Object.freeze({
     // 空の状態
     emptyTitle: "本が選択されていません",
     emptyDescription: "画面中央をクリックしてメニューを表示",
+
+    // 操作エリア
+    areaMenuToggle: "メニュー開閉",
+    areaPagePrev: "前のページ",
+    areaPageNext: "次のページ",
+    areaPagePrevSingle: "前のページ (1枚)",
+    areaPageNextSingle: "次のページ (1枚)",
     
     // メニュー
     menuOpen: "開く",
@@ -182,6 +189,13 @@ export const UI_STRINGS = Object.freeze({
     // Empty state
     emptyTitle: "No book selected",
     emptyDescription: "Tap center of the screen to open menu",
+
+    // Tap areas
+    areaMenuToggle: "Toggle menu",
+    areaPagePrev: "Previous page",
+    areaPageNext: "Next page",
+    areaPagePrevSingle: "Previous page (single)",
+    areaPageNextSingle: "Next page (single)",
     
     // Menu
     menuOpen: "Open",
