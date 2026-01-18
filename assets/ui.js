@@ -4,9 +4,13 @@ import {
   TIMING_CONFIG,
   TOUCH_CONFIG,
   UI_CLASSES,
+  DOM_IDS,
+  DOM_SELECTORS,
 } from "./constants.js";
 
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
+
+const getById = (id) => document.getElementById(id);
 
 /**
  * 画面を15エリアに分割して判定
@@ -132,22 +136,22 @@ export class UIController {
 
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
-      if (document.body.classList.contains("google-auth-active")) {
+      if (document.body.classList.contains(UI_CLASSES.GOOGLE_AUTH_ACTIVE)) {
         return;
       }
       // ズーム中は一切のクリック操作を無効化（ボタン以外）
-      if (document.body.classList.contains('is-zoomed')) {
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
         // 例外: ズームボタンなど特定要素は許可したいが、それはイベントバブリングで
         // ここに来る前に処理済みか、あるいはここで target チェックが必要。
         // ただし、style.css で pointer-events を制御しているので、
         // ここに来るイベントは基本的に「許可された要素」か「無効化漏れ」
         // 念のため、明確に許可リスト（ズームボタン等）以外は弾くのが安全
-        if (!e.target.closest('#toggleZoom, .zoom-slider-container')) {
+        if (!e.target.closest(DOM_SELECTORS.ZOOM_ALLOWED_TARGETS)) {
           return;
         }
       }
       // メニューやボタン内のクリックは無視
-      if (e.target.closest('.left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgressBar')) {
+      if (e.target.closest(DOM_SELECTORS.CLICK_EXCLUDE_ALL)) {
         return;
       }
 
@@ -159,7 +163,7 @@ export class UIController {
 
       isProcessing = true;
 
-      const baseElement = document.getElementById('fullscreenReader');
+      const baseElement = getById(DOM_IDS.FULLSCREEN_READER);
       try {
         const area = this.getClickArea(e.clientX, e.clientY, baseElement);
         if (!area) {
@@ -187,7 +191,7 @@ export class UIController {
    * タッチスワイプハンドラーをセットアップ
    */
   setupTouchHandlers() {
-    const reader = document.getElementById('fullscreenReader');
+    const reader = getById(DOM_IDS.FULLSCREEN_READER);
     if (!reader) {
       return;
     }
@@ -200,7 +204,7 @@ export class UIController {
         return;
       }
       // ズーム中はスワイプ無効
-      if (document.body.classList.contains('is-zoomed')) {
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
         return;
       }
 
@@ -217,7 +221,7 @@ export class UIController {
       }
 
       // ズーム中はスワイプ無効
-      if (document.body.classList.contains('is-zoomed')) {
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
         this.touchStartX = null;
         this.touchStartY = null;
         return;
@@ -278,7 +282,7 @@ export class UIController {
    */
   handleAreaClick(area, event) {
     // ズーム中は操作無効（ドラッグ優先）
-    if (document.body.classList.contains('is-zoomed')) {
+    if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
       return;
     }
 
@@ -361,13 +365,13 @@ export class UIController {
     this.leftMenuVisible = true;
     this.onLeftMenu?.('show');
 
-    const menu = document.getElementById('leftMenu');
-    const backdrop = document.getElementById('leftMenuBackdrop');
-    const overlay = document.getElementById('clickOverlay');
+    const menu = getById(DOM_IDS.LEFT_MENU);
+    const backdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('leftMenu element:', menu);
     if (menu) {
-      menu.classList.add('visible');
+      menu.classList.add(UI_CLASSES.VISIBLE);
       console.log('Added visible class to leftMenu');
     } else {
       console.error('leftMenu element not found!');
@@ -375,7 +379,7 @@ export class UIController {
 
     // バックドロップを表示
     if (backdrop) {
-      backdrop.classList.add('visible');
+      backdrop.classList.add(UI_CLASSES.VISIBLE);
       // バックドロップクリックでメニューを閉じる
       backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
       console.log('Showed menu backdrop');
@@ -402,13 +406,13 @@ export class UIController {
     this.progressBarVisible = !persistent;
     this.onProgressBar?.('show');
 
-    const bar = document.getElementById('progressBarPanel');
-    const backdrop = document.getElementById('progressBarBackdrop');
-    const overlay = document.getElementById('clickOverlay');
+    const bar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const backdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('progressBarPanel element:', bar);
     if (bar) {
-      bar.classList.add('visible');
+      bar.classList.add(UI_CLASSES.VISIBLE);
       console.log('Added visible class to progressBarPanel');
     } else {
       console.error('progressBarPanel element not found!');
@@ -417,7 +421,7 @@ export class UIController {
     if (!persistent) {
       // バックドロップを表示
       if (backdrop) {
-        backdrop.classList.add('visible');
+        backdrop.classList.add(UI_CLASSES.VISIBLE);
         // バックドロップクリックで進捗バーを閉じる
         backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
         console.log('Showed progress bar backdrop');
@@ -430,7 +434,7 @@ export class UIController {
       }
     } else {
       if (backdrop) {
-        backdrop.classList.remove('visible');
+        backdrop.classList.remove(UI_CLASSES.VISIBLE);
       }
     }
   }
@@ -443,12 +447,12 @@ export class UIController {
     this.bookmarkMenuVisible = true;
     this.onBookmarkMenu?.('show');
 
-    const menu = document.getElementById('bookmarkMenu');
-    const overlay = document.getElementById('clickOverlay');
+    const menu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
     console.log('bookmarkMenu element:', menu);
     if (menu) {
-      menu.classList.add('visible');
+      menu.classList.add(UI_CLASSES.VISIBLE);
       console.log('Added visible class to bookmarkMenu');
     } else {
       console.error('bookmarkMenu element not found!');
@@ -469,22 +473,22 @@ export class UIController {
     this.progressBarVisible = false;
     this.bookmarkMenuVisible = false;
 
-    const leftMenu = document.getElementById('leftMenu');
-    const leftMenuBackdrop = document.getElementById('leftMenuBackdrop');
-    const progressBar = document.getElementById('progressBarPanel');
-    const progressBarBackdrop = document.getElementById('progressBarBackdrop');
-    const bookmarkMenu = document.getElementById('bookmarkMenu');
-    const overlay = document.getElementById('clickOverlay');
+    const leftMenu = getById(DOM_IDS.LEFT_MENU);
+    const leftMenuBackdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const progressBar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const progressBarBackdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const bookmarkMenu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
 
-    if (leftMenu) leftMenu.classList.remove('visible');
-    if (leftMenuBackdrop) leftMenuBackdrop.classList.remove('visible');
+    if (leftMenu) leftMenu.classList.remove(UI_CLASSES.VISIBLE);
+    if (leftMenuBackdrop) leftMenuBackdrop.classList.remove(UI_CLASSES.VISIBLE);
     if (!this.progressBarPinned) {
-      if (progressBar) progressBar.classList.remove('visible');
-      if (progressBarBackdrop) progressBarBackdrop.classList.remove('visible');
+      if (progressBar) progressBar.classList.remove(UI_CLASSES.VISIBLE);
+      if (progressBarBackdrop) progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
     } else if (progressBarBackdrop) {
-      progressBarBackdrop.classList.remove('visible');
+      progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
     }
-    if (bookmarkMenu) bookmarkMenu.classList.remove('visible');
+    if (bookmarkMenu) bookmarkMenu.classList.remove(UI_CLASSES.VISIBLE);
 
     // オーバーレイを再度有効化
     if (overlay) {
@@ -641,7 +645,7 @@ export class ProgressBarHandler {
   handleDragStart(e) {
     e.preventDefault();
     this.isDragging = true;
-    this.thumb.classList.add('dragging');
+    this.thumb.classList.add(UI_CLASSES.DRAGGING);
     console.log('Drag started');
   }
 
@@ -682,7 +686,7 @@ export class ProgressBarHandler {
     this.onSeek?.(percentage);
 
     this.isDragging = false;
-    this.thumb.classList.remove('dragging');
+    this.thumb.classList.remove(UI_CLASSES.DRAGGING);
   }
 
   updatePosition(percentage) {

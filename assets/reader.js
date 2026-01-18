@@ -5,7 +5,15 @@
  */
 
 import { EpubPaginator } from "../src/reader/epubPaginator.js";
-import { CDN_URLS, ASSET_PATHS, READER_CONFIG } from "./constants.js";
+import {
+  CDN_URLS,
+  ASSET_PATHS,
+  READER_CONFIG,
+  DOM_IDS,
+  DOM_SELECTORS,
+  UI_CLASSES,
+  DATA_ATTRS,
+} from "./constants.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 
@@ -161,8 +169,8 @@ export class ReaderController {
     this.panY = 0;
     this.isDragging = false;
     if (typeof document !== 'undefined') {
-      document.body.classList.remove('is-zoomed');
-      const slider = document.getElementById('zoomSlider');
+      document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
       if (slider) slider.value = 1.0;
     }
     this.updateTransform();
@@ -293,7 +301,7 @@ export class ReaderController {
     if (typeof document === "undefined") {
       throw new Error(`Script load requires document: ${src}`);
     }
-    const existing = document.querySelector(`script[data-reader-src="${src}"]`);
+    const existing = document.querySelector(`script[${DATA_ATTRS.READER_SRC}="${src}"]`);
     if (existing) {
       if (existing.dataset.loaded === "true") return;
       await new Promise((resolve, reject) => {
@@ -756,7 +764,7 @@ export class ReaderController {
 
   interceptInternalLinks(container, page) {
     if (!container) return;
-    const anchors = Array.from(container.querySelectorAll("a[href]"));
+    const anchors = Array.from(container.querySelectorAll(DOM_SELECTORS.ANCHOR_WITH_HREF));
     if (!anchors.length) return;
     anchors.forEach((anchor) => {
       anchor.addEventListener("click", (event) => {
@@ -778,7 +786,7 @@ export class ReaderController {
     if (!page) return;
     this.currentPageIndex = clampedIndex;
     this.viewer.innerHTML = `<div class="epub-page"></div>`;
-    this.pageContainer = this.viewer.querySelector(".epub-page");
+    this.pageContainer = this.viewer.querySelector(DOM_SELECTORS.EPUB_PAGE);
     if (!this.pageContainer) return;
 
     // --- [修正開始] ---
@@ -799,7 +807,7 @@ export class ReaderController {
     this.pageContainer.innerHTML = safeHtml;
     // --- [修正終了] ---
 
-    this.pageContainer.querySelectorAll("img").forEach((img) => {
+    this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
       img.style.maxWidth = "100%";
       img.style.maxHeight = "70vh";
       img.style.display = "block";
@@ -829,7 +837,7 @@ export class ReaderController {
     if (page?.spineIndex == null || page.spineIndex < 0) return;
     const spineItem = this.spineItems[page.spineIndex];
     if (!spineItem) return;
-    const images = Array.from(this.pageContainer.querySelectorAll("img, svg image"));
+    const images = Array.from(this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG));
     if (!images.length) return;
     await Promise.all(
       images.map(async (img) => {
@@ -1355,9 +1363,9 @@ export class ReaderController {
     // RTL モードクラスを適用
     if (this.imageViewer) {
       if (this.imageReadingDirection === "rtl") {
-        this.imageViewer.classList.add('rtl-mode');
+        this.imageViewer.classList.add(UI_CLASSES.RTL_MODE);
       } else {
-        this.imageViewer.classList.remove('rtl-mode');
+        this.imageViewer.classList.remove(UI_CLASSES.RTL_MODE);
       }
     }
 
@@ -1468,26 +1476,26 @@ export class ReaderController {
 
     // ズーム適用
     if (this.imageZoomed) {
-      this.imageViewer?.classList.add('zoomed');
+      this.imageViewer?.classList.add(UI_CLASSES.ZOOMED);
       this.imageElement.style.transform = 'scale(2)';
       this.imageElement.style.transformOrigin = 'center center';
     } else {
-      this.imageViewer?.classList.remove('zoomed');
+      this.imageViewer?.classList.remove(UI_CLASSES.ZOOMED);
       this.imageElement.style.transform = 'scale(1)';
     }
 
     // 見開きコンテナ削除
     if (this.imageViewer) {
-      const spreadContainer = this.imageViewer.querySelector('.spread-container');
+      const spreadContainer = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
       if (spreadContainer) spreadContainer.remove();
 
       // ズーム状態の適用（単ページ）
       if (this.imageZoomed) {
-        this.imageViewer.classList.add('zoomed');
+        this.imageViewer.classList.add(UI_CLASSES.ZOOMED);
         this.imageElement.style.transform = 'scale(2)';
         this.imageElement.style.transformOrigin = 'center center';
       } else {
-        this.imageViewer.classList.remove('zoomed');
+        this.imageViewer.classList.remove(UI_CLASSES.ZOOMED);
         this.imageElement.style.transform = 'scale(1)';
       }
     }
@@ -1524,7 +1532,7 @@ export class ReaderController {
 
     // --- 修正箇所 ---
     // 以前のコードではここで this.imageViewer 自体のクラスを書き換えてしまうバグがありました
-    let container = this.imageViewer.querySelector('.spread-container');
+    let container = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
     if (!container) {
       // コンテナが存在しない場合は新規作成して追加する
       container = document.createElement('div');
@@ -1539,11 +1547,11 @@ export class ReaderController {
 
     // ズーム状態を適用
     if (this.imageZoomed) {
-      this.imageViewer.classList.add('zoomed');
+      this.imageViewer.classList.add(UI_CLASSES.ZOOMED);
       container.style.transform = 'scale(2)';
       container.style.transformOrigin = '0 0';
     } else {
-      this.imageViewer.classList.remove('zoomed');
+      this.imageViewer.classList.remove(UI_CLASSES.ZOOMED);
       container.style.transform = 'scale(1)';
       container.style.transformOrigin = 'center center';
     }
@@ -1669,8 +1677,8 @@ export class ReaderController {
   resetImageZoom() {
     this.imageZoomed = false;
     if (this.imageViewer) {
-      this.imageViewer.classList.remove('zoomed');
-      const spreadContainer = this.imageViewer.querySelector('.spread-container');
+      this.imageViewer.classList.remove(UI_CLASSES.ZOOMED);
+      const spreadContainer = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
       if (spreadContainer) spreadContainer.style.transform = 'scale(1)';
     }
     if (this.imageElement) {
@@ -2107,7 +2115,7 @@ export class ReaderController {
           ]
             .filter(Boolean)
             .join(" ");
-          const styleText = Array.from(doc.querySelectorAll("style"))
+          const styleText = Array.from(doc.querySelectorAll(DOM_SELECTORS.STYLE))
             .map((style) => style.textContent || "")
             .join(" ");
           const combined = `${inlineStyles} ${styleText}`.toLowerCase();
@@ -2140,7 +2148,7 @@ export class ReaderController {
   injectImageZoom() {
     /* Image zoom on click is disabled per user request
     if (this.type === "epub") {
-      this.viewer?.querySelectorAll("img").forEach((img) => {
+      this.viewer?.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
         img.style.cursor = "zoom-in";
         this.bindElementZoomHandlers(img, () => img.src);
       });
@@ -2203,7 +2211,7 @@ export class ReaderController {
 
   setupZoomSlider() {
     if (typeof document === 'undefined') return;
-    const slider = document.getElementById('zoomSlider');
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
     if (slider) {
       // 既存のリスナーを削除できないため、クローンして置換（簡易的な方法）
       // またはそのまま追加（重複に注意）
@@ -2232,7 +2240,7 @@ export class ReaderController {
       this.lastMouseY = y;
 
       // カーソル変更
-      document.body.classList.add('is-dragging');
+      document.body.classList.add(UI_CLASSES.IS_DRAGGING);
       if (active) active.style.cursor = 'grabbing';
     };
 
@@ -2254,7 +2262,7 @@ export class ReaderController {
     const endDrag = () => {
       if (!this.isDragging) return;
       this.isDragging = false;
-      document.body.classList.remove('is-dragging');
+      document.body.classList.remove(UI_CLASSES.IS_DRAGGING);
       const active = this.getActiveViewer();
       if (active) active.style.cursor = ''; // CSS class handles grab/grabbing
     };
@@ -2307,18 +2315,18 @@ export class ReaderController {
   setZoomLevel(scale) {
     this.zoomScale = parseFloat(scale);
     const body = document.body;
-    const slider = document.getElementById('zoomSlider');
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
 
     // 範囲制限
     if (this.zoomScale < 1.0) this.zoomScale = 1.0;
     if (this.zoomScale > 3.0) this.zoomScale = 3.0;
 
     if (this.zoomScale > 1.0) {
-      body.classList.add('is-zoomed');
+      body.classList.add(UI_CLASSES.IS_ZOOMED);
       this.imageZoomed = true; // 旧プロパティとの互換性
       if (slider) slider.value = this.zoomScale;
     } else {
-      body.classList.remove('is-zoomed');
+      body.classList.remove(UI_CLASSES.IS_ZOOMED);
       this.imageZoomed = false;
       this.panX = 0;
       this.panY = 0;
