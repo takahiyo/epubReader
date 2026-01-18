@@ -24,6 +24,38 @@
   --float-lang-toggle-bottom: 24px;
   --float-lang-toggle-font-size: 1.5rem;
   --loading-animation-size: 120px;
+  --space-float-base: 24px;
+  --space-float-compact: 20px;
+  --space-float-tight: 12px;
+  --space-float-progress-bottom: 40px;
+  --space-float-lang-menu-left: 76px;
+  --space-zoom-slider-right: 10px;
+  --space-toggle-zoom-offset: 60px;
+  --space-zoom-slider-offset: 100px;
+  --z-reader: 10;
+  --z-click-overlay: 10;
+  --z-overlay: 900;
+  --z-menu: 100;
+  --z-modal: 10000;
+  --z-google-auth: 2147483647;
+  --z-float-backdrop: 1;
+  --z-float-title: 2;
+  --z-float-buttons: 1600;
+  --z-float-progress: 3;
+  --z-debug-grid: 9999;
+  --z-floating-menu-button: 12;
+  --z-reader-controls: 95;
+  --z-menu-backdrop: 99;
+  --z-progress-backdrop: 85;
+  --z-progress-panel: 90;
+  --z-bookmark-marker: 1;
+  --z-bookmark-menu: 110;
+  --z-modal-content: 120;
+  --z-modal-inner: 1;
+  --z-loading-overlay: 2000;
+  --z-float-lang-menu: 910;
+  --z-zoom-slider: 1000;
+  --z-zoom-ui: 10000;
 }
 
 [data-theme="light"] {
@@ -65,7 +97,7 @@ body {
 }
 
 #fullscreenReader {
-  z-index: 10;
+  z-index: var(--z-reader);
 }
 
 #fullscreenReader iframe {
@@ -93,7 +125,7 @@ body {
 .click-overlay {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: var(--z-click-overlay);
   pointer-events: all;
   background: transparent;
   display: none;
@@ -115,7 +147,7 @@ body {
 #floatOverlay {
   position: fixed;
   inset: 0;
-  z-index: 900;
+  z-index: var(--z-overlay);
   display: none;
   pointer-events: none;
 }
@@ -127,7 +159,7 @@ body {
 
 iframe[src*="accounts.google.com"],
 div[id^="g_id_"] {
-  z-index: 2147483647 !important;
+  z-index: var(--z-google-auth) !important;
   position: fixed !important;
 }
 
@@ -151,16 +183,16 @@ body.google-auth-active .modal-backdrop {
   backdrop-filter: blur(4px);
   background: rgba(0, 0, 0, 0.5);
   pointer-events: auto;
-  z-index: 1;
+  z-index: var(--z-float-backdrop);
 }
 
 .float-title {
   position: absolute;
-  top: 24px;
+  top: var(--space-float-base);
   left: 50%;
   transform: translateX(-50%);
   pointer-events: auto;
-  z-index: 2;
+  z-index: var(--z-float-title);
 }
 
 .float-title img {
@@ -190,13 +222,13 @@ body.google-auth-active .modal-backdrop {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
+  z-index: var(--z-float-buttons);
 }
 
 .float-main-menu {
   position: absolute;
   top: 50%;
-  left: 20px;
+  left: var(--space-float-compact);
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
@@ -206,8 +238,8 @@ body.google-auth-active .modal-backdrop {
 
 .float-settings {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: var(--space-float-compact);
+  left: var(--space-float-compact);
 }
 
 .float-buttons button {
@@ -253,7 +285,7 @@ body.google-auth-active .modal-backdrop {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 9999;
+  z-index: var(--z-debug-grid);
 }
 
 .debug-grid-line {
@@ -274,8 +306,8 @@ body.google-auth-active .modal-backdrop {
 
 .float-top-right {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: var(--space-float-compact);
+  right: var(--space-float-compact);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -288,8 +320,8 @@ body.google-auth-active .modal-backdrop {
 
 .font-buttons {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
+  right: var(--space-float-base);
+  bottom: var(--space-float-base);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -298,7 +330,7 @@ body.google-auth-active .modal-backdrop {
 
 #toggleTheme {
   position: absolute;
-  right: 24px;
+  right: var(--space-float-base);
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.2rem;
@@ -307,8 +339,8 @@ body.google-auth-active .modal-backdrop {
 
 #toggleZoom {
   position: absolute;
-  right: 24px;
-  top: calc(50% + 50px);
+  right: var(--space-float-base);
+  top: calc(50% + var(--space-toggle-zoom-offset));
   transform: translateY(-50%);
   font-size: 1.2rem;
   pointer-events: auto;
@@ -316,8 +348,8 @@ body.google-auth-active .modal-backdrop {
 
 #toggleLanguage {
   position: absolute;
-  left: 24px;
-  bottom: 24px;
+  left: var(--space-float-base);
+  bottom: var(--space-float-base);
   padding: 8px 10px;
   pointer-events: auto;
 }
@@ -330,12 +362,12 @@ body.google-auth-active .modal-backdrop {
 
 #floatProgress {
   position: absolute;
-  bottom: 40px;
+  bottom: var(--space-float-progress-bottom);
   left: 50%;
   transform: translateX(-50%);
   width: min(720px, 60%);
   pointer-events: auto;
-  z-index: 3;
+  z-index: var(--z-float-progress);
 }
 
 #floatProgressPercent {
@@ -395,7 +427,7 @@ body.google-auth-active .modal-backdrop {
   position: absolute;
   top: 1rem;
   left: 1rem;
-  z-index: 12;
+  z-index: var(--z-floating-menu-button);
   width: 44px;
   height: 44px;
   border-radius: 999px;
@@ -415,12 +447,12 @@ body.google-auth-active .modal-backdrop {
 
 .reader-controls {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: var(--space-float-tight);
+  right: var(--space-float-tight);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  z-index: 95;
+  z-index: var(--z-reader-controls);
 }
 
 .control-btn {
@@ -614,12 +646,12 @@ body.google-auth-active .modal-backdrop {
 
 /* 左メニュー用バックドロチE�E�E�左メニューの下！E*/
 #leftMenuBackdrop {
-  z-index: 99;
+  z-index: var(--z-menu-backdrop);
 }
 
 /* 進捗バー用バックドロチE�E�E�進捗バーの下！E*/
 #progressBarBackdrop {
-  z-index: 85;
+  z-index: var(--z-progress-backdrop);
 }
 
 .left-menu {
@@ -634,7 +666,7 @@ body.google-auth-active .modal-backdrop {
   display: flex;
   flex-direction: column;
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 100;
+  z-index: var(--z-menu);
 }
 
 .left-menu.visible {
@@ -776,7 +808,7 @@ body.google-auth-active .modal-backdrop {
   justify-content: center;
   padding: 0 2rem;
   transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 90;
+  z-index: var(--z-progress-panel);
 }
 
 [data-theme="light"] .progress-bar-panel {
@@ -944,7 +976,7 @@ body.google-auth-active .modal-backdrop {
   padding: 0;
   appearance: none;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  z-index: 1;
+  z-index: var(--z-bookmark-marker);
 }
 
 .bookmark-marker:hover {
@@ -963,7 +995,7 @@ body.google-auth-active .modal-backdrop {
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
-  z-index: 110;
+  z-index: var(--z-bookmark-menu);
 }
 
 .bookmark-menu.visible {
@@ -1122,7 +1154,7 @@ body.google-auth-active .modal-backdrop {
 #modalOverlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: var(--z-modal);
   /* > #floatOverlay(900). 追加ブラー層が増えてもモーダルを最前面に */
   display: none;
 }
@@ -1137,7 +1169,7 @@ body.google-auth-active .modal-backdrop {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 120;
+  z-index: var(--z-modal-content);
 }
 
 .modal.hidden {
@@ -1160,7 +1192,7 @@ body.google-auth-active .modal-backdrop {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
-  z-index: 1;
+  z-index: var(--z-modal-inner);
 }
 
 .modal-large {
@@ -1762,7 +1794,7 @@ body.google-auth-active .modal-backdrop {
   position: fixed;
   inset: 0;
   background: var(--bg);
-  z-index: 2000;
+  z-index: var(--z-loading-overlay);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1796,8 +1828,8 @@ body.google-auth-active .modal-backdrop {
 
 .float-lang-menu {
   position: absolute;
-  left: 76px;
-  bottom: 24px;
+  left: var(--space-float-lang-menu-left);
+  bottom: var(--space-float-base);
   background: rgba(17, 24, 39, 0.85);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1806,7 +1838,7 @@ body.google-auth-active .modal-backdrop {
   flex-direction: row;
   gap: 6px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-  z-index: 910;
+  z-index: var(--z-float-lang-menu);
   pointer-events: auto;
 }
 
@@ -1840,8 +1872,8 @@ body.google-auth-active .modal-backdrop {
 /* ズームボタン配置 (テーマ切替ボタンの下) */
 #toggleZoom {
   position: absolute;
-  right: 24px;
-  top: calc(50% + 60px);
+  right: var(--space-float-base);
+  top: calc(50% + var(--space-toggle-zoom-offset));
   /* toggleThemeの約60px下 */
   transform: translateY(-50%);
   font-size: 1.2rem;
@@ -1866,9 +1898,9 @@ body.is-zoomed #floatOverlay .float-buttons .font-buttons,
 /* ズームスライダー */
 .zoom-slider-container {
   position: absolute;
-  right: 10px;
+  right: var(--space-zoom-slider-right);
   /* 位置微調整 */
-  top: calc(50% + 100px);
+  top: calc(50% + var(--space-zoom-slider-offset));
   width: 160px;
   height: 40px;
   transform-origin: right center;
@@ -1880,7 +1912,7 @@ body.is-zoomed #floatOverlay .float-buttons .font-buttons,
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease;
-  z-index: 1000;
+  z-index: var(--z-zoom-slider);
   background: rgba(17, 24, 39, 0.85);
   border-radius: 20px;
   padding: 0 10px;
@@ -1933,13 +1965,13 @@ body.is-zoomed .viewer:active {
 }
 
 .float-buttons {
-  z-index: 1600;
+  z-index: var(--z-float-buttons);
   /* GridOverlayより上にする */
 }
 
 /* 追加: フローティングメニューの目次ボタンの配置調整 */
 .float-main-menu #openToc {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-float-base);
   /* 下のボタン群と距離を離す */
 }
 
@@ -1962,7 +1994,7 @@ body.is-zoomed .zoom-slider-container input {
   display: flex !important;
   opacity: 1 !important;
   pointer-events: auto !important;
-  z-index: 10000 !important;
+  z-index: var(--z-zoom-ui) !important;
   /* 絶対的最前面 */
 }
 
