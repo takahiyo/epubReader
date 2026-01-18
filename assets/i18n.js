@@ -14,10 +14,18 @@ export const UI_STRINGS = Object.freeze({
   ja: Object.freeze({
     // ドキュメント
     documentTitle: APP_INFO.DOCUMENT_TITLE,
+    appIconAlt: "EPUBリーダー",
     
     // 空の状態
     emptyTitle: "本が選択されていません",
     emptyDescription: "画面中央をクリックしてメニューを表示",
+    loadingText: "読み込み中...",
+
+    // 言語選択
+    languageLabelJa: "日",
+    languageLabelEn: "EN",
+    languageOptionJa: "日本語",
+    languageOptionEn: "英語",
 
     // 操作エリア
     areaMenuToggle: "メニュー開閉",
@@ -53,10 +61,13 @@ export const UI_STRINGS = Object.freeze({
     openFileTitle: "ライブラリ",
     librarySectionTitle: "ライブラリ",
     historyTitle: "履歴",
+    libraryViewGridLabel: "グリッド表示",
+    libraryViewListLabel: "一覧表示",
     
     // 設定
     settingsTitle: "設定",
     settingsDisplayTitle: "表示設定",
+    settingsDefaultDirectionLabel: "デフォルトの開き方向 (画像書庫等)",
     themeLabel: "テーマ",
     themeDark: "ダークモード",
     themeLight: "ライトモード",
@@ -75,6 +86,7 @@ export const UI_STRINGS = Object.freeze({
     settingsDeviceTitle: "デバイス",
     deviceIdLabel: "デバイスID",
     deviceColorLabel: "デバイスカラー",
+    syncHint: "※ 同期がうまく行かない場合は、広告ブロック機能をこのサイトで「無効」に設定してください。",
     settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Googleログイン",
     googleLogoutLabel: "ログオフ",
@@ -124,6 +136,12 @@ export const UI_STRINGS = Object.freeze({
     syncPromptRemote: "ジャンプする（{time}）",
     syncPromptLocal: "キャンセル",
     syncPromptUpload: "この端末の状態をアップロード",
+
+    // 候補書籍
+    candidateModalTitle: "類似の書籍が見つかりました",
+    candidateModalMessage: "クラウド上にこの書籍と思われるデータが見つかりました。\\n同期して続きから読みますか？",
+    candidateUseLocal: "同期せず新規として扱う",
+    closeButtonLabel: "閉じる",
     
     // クラウド
     libraryCloudMissingBadge: "この端末に未保存",
@@ -142,8 +160,15 @@ export const UI_STRINGS = Object.freeze({
     zoomOut: "🔍−",
     zoomInTitle: "ズームする",
     zoomOutTitle: "ズームを解除",
+    settingsIcon: "⚙",
+    fontIncreaseLabel: "A+",
+    fontDecreaseLabel: "A-",
     deleteIcon: "🗑️",
     bookIcon: "📖",
+
+    // 画像の代替テキスト
+    pageImageAlt: "ページ画像",
+    modalImageAlt: "拡大画像",
     
     // 同期ステータス
     syncNeedsLoginStatus: "Googleログインが必要です",
@@ -185,10 +210,18 @@ export const UI_STRINGS = Object.freeze({
   en: Object.freeze({
     // Document
     documentTitle: APP_INFO.DOCUMENT_TITLE,
+    appIconAlt: "EPUB Reader",
     
     // Empty state
     emptyTitle: "No book selected",
     emptyDescription: "Tap center of the screen to open menu",
+    loadingText: "Loading...",
+
+    // Language selection
+    languageLabelJa: "JA",
+    languageLabelEn: "EN",
+    languageOptionJa: "Japanese",
+    languageOptionEn: "English",
 
     // Tap areas
     areaMenuToggle: "Toggle menu",
@@ -224,10 +257,13 @@ export const UI_STRINGS = Object.freeze({
     openFileTitle: "Library",
     librarySectionTitle: "Library",
     historyTitle: "History",
+    libraryViewGridLabel: "Grid view",
+    libraryViewListLabel: "List view",
     
     // Settings
     settingsTitle: "Settings",
     settingsDisplayTitle: "Display",
+    settingsDefaultDirectionLabel: "Default page direction (image archives)",
     themeLabel: "Theme",
     themeDark: "Dark mode",
     themeLight: "Light mode",
@@ -246,6 +282,7 @@ export const UI_STRINGS = Object.freeze({
     settingsDeviceTitle: "Device",
     deviceIdLabel: "Device ID",
     deviceColorLabel: "Device color",
+    syncHint: "If sync fails, disable ad blockers for this site.",
     settingsFirebaseTitle: "Firebase",
     googleLoginLabel: "Sign in with Google",
     googleLogoutLabel: "Sign out",
@@ -294,6 +331,12 @@ export const UI_STRINGS = Object.freeze({
     syncPromptRemote: "Continue from other device ({time})",
     syncPromptLocal: "Keep this device's position",
     syncPromptUpload: "Upload this device's state",
+
+    // Candidate books
+    candidateModalTitle: "Similar book found",
+    candidateModalMessage: "We found a matching book in the cloud.\\nContinue from the synced position?",
+    candidateUseLocal: "Treat as new without syncing",
+    closeButtonLabel: "Close",
     
     // Cloud
     libraryCloudMissingBadge: "Not on this device",
@@ -312,8 +355,15 @@ export const UI_STRINGS = Object.freeze({
     zoomOut: "🔍−",
     zoomInTitle: "Zoom in",
     zoomOutTitle: "Zoom out",
+    settingsIcon: "⚙",
+    fontIncreaseLabel: "A+",
+    fontDecreaseLabel: "A-",
     deleteIcon: "🗑️",
     bookIcon: "📖",
+
+    // Image alt text
+    pageImageAlt: "Page image",
+    modalImageAlt: "Zoomed image",
     
     // Sync status
     syncNeedsLoginStatus: "Google sign-in required",
