@@ -98,6 +98,19 @@ export const PWA_CONFIG = Object.freeze({
 });
 
 // ============================================
+// UI カラー設定
+// ============================================
+export const UI_COLORS = Object.freeze({
+  // ステータス色
+  SUCCESS: "#4caf50",
+  ERROR: "#f44336",
+  NEUTRAL: "#666",
+  
+  // ブックマークマーカー
+  BOOKMARK_MARKER_BORDER: "rgba(255, 255, 255, 0.9)",
+});
+
+// ============================================
 // 外部ライブラリ CDN URL
 // ============================================
 export const CDN_URLS = Object.freeze({
@@ -134,6 +147,21 @@ export const READER_CONFIG = Object.freeze({
   TEXT_SEGMENT_STEP: 24,
   DEFAULT_LINE_HEIGHT: 1.8,
   LOCATIONS_CHARS_PER_PAGE: 1600,
+});
+
+// ============================================
+// タイミング設定 (ミリ秒)
+// ============================================
+export const TIMING_CONFIG = Object.freeze({
+  AUTO_SYNC_INTERVAL_MS: 30000,        // 自動同期間隔 (30秒)
+  AUTO_SYNC_DEBOUNCE_MS: 1500,         // 自動同期デバウンス (1.5秒)
+  SCROLL_MODE_UPDATE_DELAY_MS: 100,    // スクロールモード更新遅延
+  LOCATIONS_CHECK_INTERVAL_MS: 500,    // ロケーション確認間隔
+  LOCATIONS_CHECK_TIMEOUT_MS: 10000,   // ロケーション確認タイムアウト (10秒)
+  DOM_RENDER_DELAY_MS: 50,             // DOM描画待機
+  ANIMATION_FRAME_DELAY_MS: 20,        // アニメーションフレーム遅延
+  MODAL_CLOSE_DELAY_MS: 300,           // モーダルクローズ遅延
+  STATUS_MESSAGE_DISPLAY_MS: 3000,     // ステータスメッセージ表示時間 (3秒)
 });
 
 // ============================================
@@ -186,6 +214,7 @@ export const SW_CACHE_ASSETS = Object.freeze([
   "./assets/Flag_America.svg",
   "./assets/icon_BookReader_192.png",
   "./assets/icon_BookReader_512.png",
+  "./assets/animations/loader_book.json",
 ]);
 
 // ============================================

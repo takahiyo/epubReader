@@ -123,6 +123,45 @@ export const UI_STRINGS = Object.freeze({
     libraryAttachFile: "ファイルを追加して紐づけ",
     cloudOnlyTitle: "クラウドの読書データのみ表示中",
     cloudOnlyDescription: "ファイルを追加すると続きから読めます",
+    
+    // 表示モード
+    spreadModeDouble: "見開き",
+    spreadModeSingle: "単ページ",
+    pageDirectionLtrButton: "→左開き",
+    pageDirectionRtlButton: "←右開き",
+    zoomIn: "🔍+",
+    zoomOut: "🔍−",
+    deleteIcon: "🗑️",
+    bookIcon: "📖",
+    
+    // 同期ステータス
+    syncNeedsLoginStatus: "Googleログインが必要です",
+    syncInProgress: "同期中...",
+    syncStarting: "同期を開始しています...",
+    syncCompleted: "✓ 同期完了",
+    syncFailed: "同期に失敗しました",
+    syncNowButton: "今すぐ同期",
+    syncBlocked: "通信がブロックされました",
+    syncBlockedDetail: "広告ブロック等の拡張機能をOFFにして再試行してください。\\n(Firebaseへの接続が遮断されています)",
+    syncPermissionError: "権限エラー",
+    syncPermissionDetail: "ログインし直してください。",
+    
+    // エラーメッセージ
+    errorFileLoadFailed: "ファイルの読み込みに失敗しました。",
+    errorFileName: "ファイル名",
+    errorFileSize: "ファイルサイズ",
+    errorDetail: "エラー詳細",
+    errorNoImagesFound: "エラー: アーカイブ内に画像ファイルが見つかりませんでした。\\n\\n対応フォーマット: PNG, JPEG, GIF, WebP, BMP",
+    errorImageLoadFailed: "エラー: 画像ファイルの変換に失敗しました。\\n\\nファイルが破損している可能性があります。",
+    
+    // 相対時間
+    timeJustNow: "たった今",
+    timeMinutesAgo: "{n}分前",
+    timeHoursAgo: "{n}時間前",
+    timeDaysAgo: "{n}日前",
+    timeWeeksAgo: "{n}週間前",
+    timeMonthsAgo: "{n}ヶ月前",
+    timeYearsAgo: "{n}年前",
   }),
   
   en: Object.freeze({
@@ -236,6 +275,45 @@ export const UI_STRINGS = Object.freeze({
     libraryAttachFile: "Attach file to link",
     cloudOnlyTitle: "Viewing cloud reading data",
     cloudOnlyDescription: "Attach the file to continue reading.",
+    
+    // Display modes
+    spreadModeDouble: "Spread",
+    spreadModeSingle: "Single",
+    pageDirectionLtrButton: "→LTR",
+    pageDirectionRtlButton: "←RTL",
+    zoomIn: "🔍+",
+    zoomOut: "🔍−",
+    deleteIcon: "🗑️",
+    bookIcon: "📖",
+    
+    // Sync status
+    syncNeedsLoginStatus: "Google sign-in required",
+    syncInProgress: "Syncing...",
+    syncStarting: "Starting sync...",
+    syncCompleted: "✓ Sync completed",
+    syncFailed: "Sync failed",
+    syncNowButton: "Sync now",
+    syncBlocked: "Connection blocked",
+    syncBlockedDetail: "Please disable ad blockers and try again.\\n(Firebase connection is blocked)",
+    syncPermissionError: "Permission error",
+    syncPermissionDetail: "Please sign in again.",
+    
+    // Error messages
+    errorFileLoadFailed: "Failed to load file.",
+    errorFileName: "File name",
+    errorFileSize: "File size",
+    errorDetail: "Error details",
+    errorNoImagesFound: "Error: No image files found in the archive.\\n\\nSupported formats: PNG, JPEG, GIF, WebP, BMP",
+    errorImageLoadFailed: "Error: Failed to load image file.\\n\\nThe file may be corrupted.",
+    
+    // Relative time
+    timeJustNow: "just now",
+    timeMinutesAgo: "{n}m ago",
+    timeHoursAgo: "{n}h ago",
+    timeDaysAgo: "{n}d ago",
+    timeWeeksAgo: "{n}w ago",
+    timeMonthsAgo: "{n}mo ago",
+    timeYearsAgo: "{n}y ago",
   }),
 });
 

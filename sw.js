@@ -39,6 +39,7 @@ const ASSETS_TO_CACHE = [
     './assets/Flag_America.svg',
     './assets/icon_BookReader_192.png',
     './assets/icon_BookReader_512.png',
+    './assets/animations/loader_book.json',
     // CDN URLs (CDN_URLS.*)
     'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js',
     'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',

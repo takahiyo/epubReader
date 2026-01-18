@@ -18,8 +18,8 @@ import {
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
-import { UI_STRINGS, getUiStrings, t as translate, DEFAULT_LANGUAGE } from "./i18n.js";
-import { APP_INFO, MIME_TYPES, SUPPORTED_FORMATS } from "./constants.js";
+import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE } from "./i18n.js";
+import { APP_INFO, MIME_TYPES, SUPPORTED_FORMATS, TIMING_CONFIG, UI_COLORS } from "./constants.js";
 
 // ========================================
 // 初期化
@@ -66,14 +66,31 @@ let userOverrodeDirection = false;
 
 // UI_STRINGS は i18n.js からインポート済み
 
-// 1. Lottieアニメーションデータ (Book.jsonの内容)
-// TODO: ここに実際のJSONデータをペーストしてください
-const LOADER_ANIMATION_DATA = { "v": "5.5.7", "meta": { "g": "LottieFiles AE 0.1.20", "a": "", "k": "", "d": "", "tc": "" }, "fr": 45, "ip": 0, "op": 54, "w": 400, "h": 400, "nm": "book", "ddd": 0, "assets": [], "layers": [{ "ddd": 0, "ind": 1, "ty": 4, "nm": "Shape Layer 5", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 200, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[0, 0], [0, 0]], "o": [[0, 0], [0, 0]], "v": [[0, 49.5], [0, -24.5]], "c": false }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 0, "k": 100, "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 2, "ty": 4, "nm": "page animation", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [264.109, 208.537, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 1, "k": [{ "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 0, "s": [{ "i": [[17.35, 0], [4.957, -7], [0, 0], [-18.291, 0], [-36.582, 0], [0, 0]], "o": [[-15.698, 0], [0, 0], [5.776, -7], [20.216, 0], [0, 0], [-31.395, 0]], "v": [[-33.105, -43], [-64.5, -31], [-64.5, 43], [-27.918, 31], [64.5, 43], [46.209, -31]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 5, "s": [{ "i": [[17.35, 0], [4.957, -7], [0, 0], [-18.291, 0], [-36.582, 0], [0, 0]], "o": [[-15.698, 0], [0, 0], [5.776, -7], [20.216, 0], [0, 0], [-31.395, 0]], "v": [[-33.105, -43], [-64.5, -31], [-64.5, 43], [-27.918, 31], [64.5, 43], [46.209, -31]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 10, "s": [{ "i": [[17.35, 0.079], [4.989, -6.977], [0, 0], [-18.291, -0.083], [-15.552, 8.301], [3.153, 13.883]], "o": [[-15.697, -0.071], [0, 0], [5.808, -6.974], [20.216, 0.092], [-7.552, -8.699], [-26.847, -1.617]], "v": [[-32.91, -43.15], [-64.359, -31.292], [-64.694, 42.707], [-28.058, 30.873], [65.804, 27.542], [46.349, -30.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 15, "s": [{ "i": [[14.661, -1.007], [4.989, -6.977], [0, 0], [-18.057, 2.916], [-22.302, 15.551], [1.153, 9.633]], "o": [[-15.661, 1.076], [0, 0], [5.808, -6.974], [20.31, -3.28], [-11.802, -22.949], [-17.597, 1.883]], "v": [[-33.41, -46.15], [-64.359, -31.292], [-64.694, 42.707], [-32.058, 25.373], [41.804, 8.292], [26.099, -45.04]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 20, "s": [{ "i": [[12.411, -10.257], [4.989, -6.977], [0, 0], [-15.983, 12.327], [-22.302, 15.551], [1.153, 9.633]], "o": [[-11.657, 9.634], [0, 0], [5.808, -6.974], [11.06, -8.53], [-11.802, -22.949], [-7.347, 9.383]], "v": [[-38.16, -56.15], [-64.359, -31.292], [-64.694, 42.707], [-34.558, 14.873], [18.054, -23.458], [-5.651, -85.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 25, "s": [{ "i": [[1.411, -10.507], [4.611, -10.365], [0, 0], [-4.809, 19.603], [-0.802, 13.801], [1.153, 9.633]], "o": [[-0.861, 6.41], [0, 0], [5.808, -6.974], [3.81, -15.53], [-1.802, -13.199], [-1.597, 17.633]], "v": [[-55.66, -71.15], [-64.359, -31.292], [-64.694, 42.707], [-49.558, -3.627], [-43.446, -50.958], [-51.151, -115.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 30, "s": [{ "i": [[-3.589, -11.507], [-0.889, -11.365], [0, 0], [5.509, 19.418], [5.698, 13.301], [-0.097, 22.633]], "o": [[1.926, 6.175], [0, 0], [-2.054, -11.364], [-4.69, -16.53], [2.198, -15.199], [5.403, 20.133]], "v": [[-72.16, -69.65], [-64.359, -31.292], [-64.694, 42.707], [-75.058, -7.627], [-90.446, -52.458], [-87.651, -119.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 35, "s": [{ "i": [[-9.089, -11.007], [-0.889, -11.365], [0, 0], [14.024, 14.517], [17.198, 3.801], [-4.097, 19.633]], "o": [[6.964, 8.435], [0, 0], [-2.054, -11.364], [-9.69, -10.03], [5.198, -16.199], [15.403, 8.133]], "v": [[-79.66, -66.15], [-64.359, -31.292], [-64.694, 42.707], [-89.058, -2.127], [-138.946, -26.458], [-120.151, -93.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 40, "s": [{ "i": [[-11.744, -2.718], [-0.889, -11.365], [0, 0], [15.81, 1.47], [18.698, 4.301], [-4.097, 19.633]], "o": [[19.411, 4.493], [0, 0], [-2.054, -11.364], [-13.886, -1.291], [5.698, -20.699], [16.403, 5.633]], "v": [[-93.66, -52.65], [-64.359, -31.292], [-64.694, 42.707], [-102.058, 19.373], [-160.946, 12.542], [-143.151, -61.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 45, "s": [{ "i": [[-21.589, -0.007], [-0.889, -11.365], [0, 0], [15.81, 1.47], [21.698, 6.801], [-4.097, 19.633]], "o": [[13.411, 0.005], [0, 0], [-2.054, -11.364], [-13.886, -1.291], [5.698, -16.699], [16.403, 5.633]], "v": [[-95.66, -49.15], [-64.359, -31.292], [-64.694, 42.707], [-102.558, 21.873], [-182.946, 25.542], [-163.651, -42.29]], "c": true }] }, { "t": 50.0000020365418, "s": [{ "i": [[-21.589, -0.007], [-6.389, -7.865], [0, 0], [12.813, 0.384], [31.198, -0.62], [-4.097, 19.633]], "o": [[13.411, 0.005], [0, 0], [-8.554, -6.864], [-20.69, -0.62], [5.698, -16.699], [19.903, -0.62]], "v": [[-96.66, -44.15], [-64.359, -31.292], [-64.694, 42.707], [-99.558, 31.373], [-194.446, 43.542], [-175.151, -32.79]], "c": true }] }], "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 1, "k": [{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 50, "s": [100] }, { "t": 52.0000021180034, "s": [0] }], "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 1, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 1, "k": [{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 50, "s": [100] }, { "t": 52.0000021180034, "s": [0] }], "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0.639, 0.62], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 3, "ty": 4, "nm": "pages", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 209, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[-4.957, -7], [-15.698, 0], [-31.395, 0], [0, 0], [20.216, 0], [5.776, -7], [18.291, 0], [36.582, 0], [0, 0], [-17.35, 0]], "o": [[4.957, -7], [17.35, 0], [0, 0], [-36.582, 0], [-18.291, 0], [-5.776, -7], [-20.216, 0], [0, 0], [31.395, 0], [15.698, 0]], "v": [[0, -31], [31.395, -43], [110.709, -31], [129, 43], [36.582, 31], [0, 43], [-36.582, 31], [-129, 43], [-110.709, -31], [-31.395, -43]], "c": true }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 4, "ty": 4, "nm": "cover", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 264, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[0, 0], [0, 0], [6, 0], [2, 3], [0, 0]], "o": [[0, 0], [-2, 3], [-6, 0], [0, 0], [0, 0]], "v": [[134, -2], [12, -2], [0, 2], [-12, -2], [-134, -2]], "c": false }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 5, "ty": 4, "nm": "bkgr", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [262.668, 179.393, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ty": "rc", "d": 1, "s": { "a": 0, "k": [400, 400], "ix": 2 }, "p": { "a": 0, "k": [0, 0], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 4 }, "nm": "Rectangle Path 1", "mn": "ADBE Vector Shape - Rect", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 0, "k": 100, "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [-62.668, 20.607], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Rectangle 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }], "markers": [] };
+// 1. Lottieアニメーションデータ（外部JSONから読み込み）
+// SSOT: assets/animations/loader_book.json
+let LOADER_ANIMATION_DATA = null;
+
+// Lottieアニメーションデータを非同期で読み込む
+async function loadLottieAnimationData() {
+  if (LOADER_ANIMATION_DATA) return LOADER_ANIMATION_DATA;
+  
+  try {
+    const response = await fetch('./assets/animations/loader_book.json');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    LOADER_ANIMATION_DATA = await response.json();
+    return LOADER_ANIMATION_DATA;
+  } catch (e) {
+    console.warn('Failed to load Lottie animation data:', e);
+    return null;
+  }
+} "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 1, "k": [{ "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 0, "s": [{ "i": [[17.35, 0], [4.957, -7], [0, 0], [-18.291, 0], [-36.582, 0], [0, 0]], "o": [[-15.698, 0], [0, 0], [5.776, -7], [20.216, 0], [0, 0], [-31.395, 0]], "v": [[-33.105, -43], [-64.5, -31], [-64.5, 43], [-27.918, 31], [64.5, 43], [46.209, -31]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 5, "s": [{ "i": [[17.35, 0], [4.957, -7], [0, 0], [-18.291, 0], [-36.582, 0], [0, 0]], "o": [[-15.698, 0], [0, 0], [5.776, -7], [20.216, 0], [0, 0], [-31.395, 0]], "v": [[-33.105, -43], [-64.5, -31], [-64.5, 43], [-27.918, 31], [64.5, 43], [46.209, -31]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 10, "s": [{ "i": [[17.35, 0.079], [4.989, -6.977], [0, 0], [-18.291, -0.083], [-15.552, 8.301], [3.153, 13.883]], "o": [[-15.697, -0.071], [0, 0], [5.808, -6.974], [20.216, 0.092], [-7.552, -8.699], [-26.847, -1.617]], "v": [[-32.91, -43.15], [-64.359, -31.292], [-64.694, 42.707], [-28.058, 30.873], [65.804, 27.542], [46.349, -30.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 15, "s": [{ "i": [[14.661, -1.007], [4.989, -6.977], [0, 0], [-18.057, 2.916], [-22.302, 15.551], [1.153, 9.633]], "o": [[-15.661, 1.076], [0, 0], [5.808, -6.974], [20.31, -3.28], [-11.802, -22.949], [-17.597, 1.883]], "v": [[-33.41, -46.15], [-64.359, -31.292], [-64.694, 42.707], [-32.058, 25.373], [41.804, 8.292], [26.099, -45.04]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 20, "s": [{ "i": [[12.411, -10.257], [4.989, -6.977], [0, 0], [-15.983, 12.327], [-22.302, 15.551], [1.153, 9.633]], "o": [[-11.657, 9.634], [0, 0], [5.808, -6.974], [11.06, -8.53], [-11.802, -22.949], [-7.347, 9.383]], "v": [[-38.16, -56.15], [-64.359, -31.292], [-64.694, 42.707], [-34.558, 14.873], [18.054, -23.458], [-5.651, -85.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 25, "s": [{ "i": [[1.411, -10.507], [4.611, -10.365], [0, 0], [-4.809, 19.603], [-0.802, 13.801], [1.153, 9.633]], "o": [[-0.861, 6.41], [0, 0], [5.808, -6.974], [3.81, -15.53], [-1.802, -13.199], [-1.597, 17.633]], "v": [[-55.66, -71.15], [-64.359, -31.292], [-64.694, 42.707], [-49.558, -3.627], [-43.446, -50.958], [-51.151, -115.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 30, "s": [{ "i": [[-3.589, -11.507], [-0.889, -11.365], [0, 0], [5.509, 19.418], [5.698, 13.301], [-0.097, 22.633]], "o": [[1.926, 6.175], [0, 0], [-2.054, -11.364], [-4.69, -16.53], [2.198, -15.199], [5.403, 20.133]], "v": [[-72.16, -69.65], [-64.359, -31.292], [-64.694, 42.707], [-75.058, -7.627], [-90.446, -52.458], [-87.651, -119.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 35, "s": [{ "i": [[-9.089, -11.007], [-0.889, -11.365], [0, 0], [14.024, 14.517], [17.198, 3.801], [-4.097, 19.633]], "o": [[6.964, 8.435], [0, 0], [-2.054, -11.364], [-9.69, -10.03], [5.198, -16.199], [15.403, 8.133]], "v": [[-79.66, -66.15], [-64.359, -31.292], [-64.694, 42.707], [-89.058, -2.127], [-138.946, -26.458], [-120.151, -93.29]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 40, "s": [{ "i": [[-11.744, -2.718], [-0.889, -11.365], [0, 0], [15.81, 1.47], [18.698, 4.301], [-4.097, 19.633]], "o": [[19.411, 4.493], [0, 0], [-2.054, -11.364], [-13.886, -1.291], [5.698, -20.699], [16.403, 5.633]], "v": [[-93.66, -52.65], [-64.359, -31.292], [-64.694, 42.707], [-102.058, 19.373], [-160.946, 12.542], [-143.151, -61.79]], "c": true }] }, { "i": { "x": 0.833, "y": 0.833 }, "o": { "x": 0.167, "y": 0.167 }, "t": 45, "s": [{ "i": [[-21.589, -0.007], [-0.889, -11.365], [0, 0], [15.81, 1.47], [21.698, 6.801], [-4.097, 19.633]], "o": [[13.411, 0.005], [0, 0], [-2.054, -11.364], [-13.886, -1.291], [5.698, -16.699], [16.403, 5.633]], "v": [[-95.66, -49.15], [-64.359, -31.292], [-64.694, 42.707], [-102.558, 21.873], [-182.946, 25.542], [-163.651, -42.29]], "c": true }] }, { "t": 50.0000020365418, "s": [{ "i": [[-21.589, -0.007], [-6.389, -7.865], [0, 0], [12.813, 0.384], [31.198, -0.62], [-4.097, 19.633]], "o": [[13.411, 0.005], [0, 0], [-8.554, -6.864], [-20.69, -0.62], [5.698, -16.699], [19.903, -0.62]], "v": [[-96.66, -44.15], [-64.359, -31.292], [-64.694, 42.707], [-99.558, 31.373], [-194.446, 43.542], [-175.151, -32.79]], "c": true }] }], "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 1, "k": [{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 50, "s": [100] }, { "t": 52.0000021180034, "s": [0] }], "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 1, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 1, "k": [{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 50, "s": [100] }, { "t": 52.0000021180034, "s": [0] }], "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0.639, 0.62], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 3, "ty": 4, "nm": "pages", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 209, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[-4.957, -7], [-15.698, 0], [-31.395, 0], [0, 0], [20.216, 0], [5.776, -7], [18.291, 0], [36.582, 0], [0, 0], [-17.35, 0]], "o": [[4.957, -7], [17.35, 0], [0, 0], [-36.582, 0], [-18.291, 0], [-5.776, -7], [-20.216, 0], [0, 0], [31.395, 0], [15.698, 0]], "v": [[0, -31], [31.395, -43], [110.709, -31], [129, 43], [36.582, 31], [0, 43], [-36.582, 31], [-129, 43], [-110.709, -31], [-31.395, -43]], "c": true }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 4, "ty": 4, "nm": "cover", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [200, 264, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ind": 0, "ty": "sh", "ix": 1, "ks": { "a": 0, "k": { "i": [[0, 0], [0, 0], [6, 0], [2, 3], [0, 0]], "o": [[0, 0], [-2, 3], [-6, 0], [0, 0], [0, 0]], "v": [[134, -2], [12, -2], [0, 2], [-12, -2], [-134, -2]], "c": false }, "ix": 2 }, "nm": "Path 1", "mn": "ADBE Vector Shape - Group", "hd": false }, { "ty": "st", "c": { "a": 0, "k": [0.3215686274509804, 0.3333333333333333, 0.34509803921568627, 1], "ix": 3 }, "o": { "a": 0, "k": 100, "ix": 4 }, "w": { "a": 0, "k": 7, "ix": 5 }, "lc": 1, "lj": 1, "ml": 4, "bm": 1, "nm": "Stroke 1", "mn": "ADBE Vector Graphic - Stroke", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [0, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Shape 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }, { "ddd": 0, "ind": 5, "ty": 4, "nm": "bkgr", "sr": 1, "ks": { "o": { "a": 0, "k": 100, "ix": 11 }, "r": { "a": 0, "k": 0, "ix": 10 }, "p": { "a": 0, "k": [262.668, 179.393, 0], "ix": 2 }, "a": { "a": 0, "k": [0, 0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100, 100], "ix": 6 } }, "ao": 0, "shapes": [{ "ty": "gr", "it": [{ "ty": "rc", "d": 1, "s": { "a": 0, "k": [400, 400], "ix": 2 }, "p": { "a": 0, "k": [0, 0], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 4 }, "nm": "Rectangle Path 1", "mn": "ADBE Vector Shape - Rect", "hd": false }, { "ty": "fl", "c": { "a": 0, "k": [1, 1, 1, 1], "ix": 4 }, "o": { "a": 0, "k": 100, "ix": 5 }, "r": 1, "bm": 0, "nm": "Fill 1", "mn": "ADBE Vector Graphic - Fill", "hd": false }, { "ty": "tr", "p": { "a": 0, "k": [-62.668, 20.607], "ix": 2 }, "a": { "a": 0, "k": [0, 0], "ix": 1 }, "s": { "a": 0, "k": [100, 100], "ix": 3 }, "r": { "a": 0, "k": 0, "ix": 6 }, "o": { "a": 0, "k": 100, "ix": 7 }, "sk": { "a": 0, "k": 0, "ix": 4 }, "sa": { "a": 0, "k": 0, "ix": 5 }, "nm": "Transform" }], "nm": "Rectangle 1", "np": 3, "cix": 2, "bm": 0, "ix": 1, "mn": "ADBE Vector Group", "hd": false }], "ip": 0, "op": 55.0000022401959, "st": 0, "bm": 0 }], "markers": [] };
 
 // 2. ローディング制御用変数と関数
 let lottieInstance = null;
 
-function initLoadingAnimation() {
+async function initLoadingAnimation() {
   const container = document.getElementById('lottie-loader');
   if (!container) return;
 
@@ -83,15 +100,16 @@ function initLoadingAnimation() {
     return;
   }
 
-  // データがない場合は初期化しない (またはプレースホルダーを表示)
-  if (!LOADER_ANIMATION_DATA) {
+  // 外部JSONからLottieデータを読み込む
+  const animationData = await loadLottieAnimationData();
+  if (!animationData) {
     console.warn('Lottie animation data (LOADER_ANIMATION_DATA) is missing.');
     return;
   }
 
   // ★追加: 背景レイヤー('bkgr')を削除して透過させる
-  if (LOADER_ANIMATION_DATA.layers) {
-    LOADER_ANIMATION_DATA.layers = LOADER_ANIMATION_DATA.layers.filter(layer => layer.nm !== 'bkgr');
+  if (animationData.layers) {
+    animationData.layers = animationData.layers.filter(layer => layer.nm !== 'bkgr');
   }
 
   try {
@@ -100,7 +118,7 @@ function initLoadingAnimation() {
       renderer: 'svg',
       loop: true,
       autoplay: false, // 表示されるまで再生しない
-      animationData: LOADER_ANIMATION_DATA
+      animationData: animationData
     });
   } catch (e) {
     console.error('Failed to initialize Lottie animation:', e);
@@ -123,9 +141,9 @@ function hideLoading() {
   }
 }
 
-// 初期化実行
-document.addEventListener('DOMContentLoaded', () => {
-  initLoadingAnimation();
+// 初期化実行（非同期Lottie読み込み対応）
+document.addEventListener('DOMContentLoaded', async () => {
+  await initLoadingAnimation();
 });
 
 
@@ -544,10 +562,10 @@ function updateSpreadModeButtonLabel() {
   const isSpread = reader.imageViewMode === "spread";
 
   if (isSpread) {
-    elements.toggleSpreadMode.innerHTML = '<span class="material-icons">auto_stories</span> 見開き';
+    elements.toggleSpreadMode.innerHTML = `<span class="material-icons">auto_stories</span> ${t('spreadModeDouble')}`;
     elements.toggleSpreadMode.classList.add('active');
   } else {
-    elements.toggleSpreadMode.innerHTML = '<span class="material-icons">tablet</span> 単ページ';
+    elements.toggleSpreadMode.innerHTML = `<span class="material-icons">tablet</span> ${t('spreadModeSingle')}`;
     elements.toggleSpreadMode.classList.remove('active');
   }
 }
@@ -556,7 +574,7 @@ function updateSpreadModeButtonLabel() {
 function updateReadingDirectionButtonLabel() {
   if (!elements.toggleReadingDirectionImage) return;
   const isRtl = reader.imageReadingDirection === "rtl";
-  elements.toggleReadingDirectionImage.textContent = isRtl ? "←右開き" : "→左開き";
+  elements.toggleReadingDirectionImage.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
   elements.toggleReadingDirectionImage.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
 }
 
@@ -564,7 +582,7 @@ function updateReadingDirectionButtonLabel() {
 function updateReadingDirectionEpubButtonLabel() {
   if (!elements.toggleReadingDirectionEpub) return;
   const isRtl = pageDirection === "rtl";
-  elements.toggleReadingDirectionEpub.textContent = isRtl ? "←右開き" : "→左開き";
+  elements.toggleReadingDirectionEpub.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
   elements.toggleReadingDirectionEpub.title = isRtl ? "右開き（右から左へ読む）" : "左開き（左から右へ読む）";
 }
 
@@ -572,7 +590,7 @@ function updateReadingDirectionEpubButtonLabel() {
 function updateZoomButtonLabel() {
   if (!elements.toggleZoom) return;
   const isZoomed = reader.imageZoomed;
-  elements.toggleZoom.textContent = isZoomed ? "🔍−" : "🔍+";
+  elements.toggleZoom.textContent = isZoomed ? t('zoomOut') : t('zoomIn');
   elements.toggleZoom.title = isZoomed ? "ズームを解除" : "ズームする";
 }
 
@@ -1293,7 +1311,7 @@ async function handleFile(file) {
       showLoading();
 
       // ★追加: UI描画更新のために少し待機
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
         await reader.openEpub(new File([buffer], file.name, { type: mime }), {
@@ -1357,14 +1375,14 @@ async function handleFile(file) {
     }
 
     // より詳細なエラーメッセージ
-    let userMessage = `ファイルの読み込みに失敗しました。\n\nファイル名: ${file.name}\nファイルサイズ: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n`;
+    let userMessage = `${t('errorFileLoadFailed')}\n\n${t('errorFileName')}: ${file.name}\n${t('errorFileSize')}: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n`;
 
-    if (error.message.includes('画像が見つかりませんでした')) {
-      userMessage += 'エラー: アーカイブ内に画像ファイルが見つかりませんでした。\n\n対応フォーマット: PNG, JPEG, GIF, WebP, BMP';
-    } else if (error.message.includes('画像の読み込みに失敗')) {
-      userMessage += 'エラー: 画像ファイルの変換に失敗しました。\n\nファイルが破損している可能性があります。';
+    if (error.message.includes('画像が見つかりませんでした') || error.message.includes('No images found')) {
+      userMessage += t('errorNoImagesFound');
+    } else if (error.message.includes('画像の読み込みに失敗') || error.message.includes('Failed to load image')) {
+      userMessage += t('errorImageLoadFailed');
     } else {
-      userMessage += `エラー詳細: ${error.message}`;
+      userMessage += `${t('errorDetail')}: ${error.message}`;
     }
 
     hideLoading();
@@ -1404,7 +1422,7 @@ function openCloudOnlyBook(cloudBookId) {
 async function openFromLibrary(bookId, options = {}) {
   showLoading();
   // ★追加: UI描画更新のために少し待機
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
   try {
 
@@ -1692,7 +1710,7 @@ function renderBookmarkMarkers() {
     marker.style.left = `${percentage}%`;
     if (bookmark.deviceColor) {
       marker.style.background = bookmark.deviceColor;
-      marker.style.borderColor = "rgba(255, 255, 255, 0.9)";
+      marker.style.borderColor = UI_COLORS.BOOKMARK_MARKER_BORDER;
     }
 
     // ツールチップの表示内容を進捗表示モードに合わせる
@@ -1747,7 +1765,7 @@ function renderFloatBookmarkMarkers() {
     marker.style.left = `${percentage}%`;
     if (bookmark.deviceColor) {
       marker.style.background = bookmark.deviceColor;
-      marker.style.borderColor = "rgba(255, 255, 255, 0.9)";
+      marker.style.borderColor = UI_COLORS.BOOKMARK_MARKER_BORDER;
     }
     marker.title = bookmark.label ?? t("bookmarkDefault");
     marker.addEventListener("click", (event) => {
@@ -1833,7 +1851,7 @@ function handleBookReady(payload) {
       console.warn("[handleBookReady] Writing mode not resolved, skipping epub-scroll update");
       return;
     }
-    setTimeout(() => scheduleEpubScrollModeUpdate(attempt + 1), 100);
+    setTimeout(() => scheduleEpubScrollModeUpdate(attempt + 1), TIMING_CONFIG.SCROLL_MODE_UPDATE_DELAY_MS);
   };
   scheduleEpubScrollModeUpdate();
 
@@ -1848,13 +1866,13 @@ function handleBookReady(payload) {
         clearInterval(checkLocations);
         updateProgressBarDisplay();
       }
-    }, 500);
+    }, TIMING_CONFIG.LOCATIONS_CHECK_INTERVAL_MS);
 
-    // 10秒後にタイムアウト
+    // ロケーション確認タイムアウト
     setTimeout(() => {
       clearInterval(checkLocations);
       console.log('[handleBookReady] Locations check timeout');
-    }, 10000);
+    }, TIMING_CONFIG.LOCATIONS_CHECK_TIMEOUT_MS);
 
   }
 }
@@ -2016,7 +2034,7 @@ function renderBookmarks(mode = "current") {
 
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "bookmark-delete";
-      deleteBtn.textContent = "🗑️";
+      deleteBtn.textContent = t('deleteIcon');
       deleteBtn.onclick = (e) => {
         e.stopPropagation();
         if (confirm(t("bookmarkDeleteConfirm"))) {
@@ -2112,7 +2130,7 @@ function renderBookmarks(mode = "current") {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "bookmark-delete";
-    deleteBtn.textContent = "🗑️";
+    deleteBtn.textContent = t('deleteIcon');
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
       if (confirm(t("bookmarkDeleteConfirm"))) {
@@ -2184,7 +2202,7 @@ function renderLibrary() {
 
     const cover = document.createElement("div");
     cover.className = "library-cover";
-    cover.textContent = entry.title?.slice(0, 2) || "📖";
+    cover.textContent = entry.title?.slice(0, 2) || t('bookIcon');
 
     const title = document.createElement("div");
     title.className = "library-title";
@@ -2278,7 +2296,7 @@ function renderHistory() {
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "history-delete";
-    deleteBtn.textContent = "🗑️";
+    deleteBtn.textContent = t('deleteIcon');
     deleteBtn.onclick = (e) => {
       e.stopPropagation();
       if (confirm(t("historyDeleteConfirm"))) {
@@ -2731,7 +2749,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   if (isEpubOpen) {
     showLoading();
     // スピナーが表示されるよう、ブラウザの描画サイクルを1回回す
-    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 20)));
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, TIMING_CONFIG.ANIMATION_FRAME_DELAY_MS)));
   }
 
   try {
@@ -2796,7 +2814,7 @@ function toggleAutoSync(enabled) {
   }
 
   if (enabled) {
-    // 30秒ごとに自動同期
+    // 定期的に自動同期 (TIMING_CONFIG.AUTO_SYNC_INTERVAL_MS)
     autoSyncInterval = setInterval(async () => {
       try {
         await pushCurrentBookSync();
@@ -2804,7 +2822,7 @@ function toggleAutoSync(enabled) {
       } catch (error) {
         console.error('Auto-sync failed:', error);
       }
-    }, 30000);
+    }, TIMING_CONFIG.AUTO_SYNC_INTERVAL_MS);
   }
 }
 
@@ -2841,7 +2859,7 @@ function scheduleAutoSyncPush() {
     } catch (error) {
       console.error("Auto-sync failed:", error);
     }
-  }, 1500);
+  }, TIMING_CONFIG.AUTO_SYNC_DEBOUNCE_MS);
 }
 
 function exportData() {
@@ -3158,18 +3176,18 @@ function setupEvents() {
     const authStatus = checkAuthStatus();
     if (!authStatus.authenticated) {
       if (syncStatus) {
-        syncStatus.textContent = 'Googleログインが必要です';
-        syncStatus.style.color = '#f44336';
+        syncStatus.textContent = t('syncNeedsLoginStatus');
+        syncStatus.style.color = UI_COLORS.ERROR;
       }
       return;
     }
 
     try {
       manualSyncButton.disabled = true;
-      manualSyncButton.textContent = '同期中...';
+      manualSyncButton.textContent = t('syncInProgress');
       if (syncStatus) {
-        syncStatus.textContent = '同期を開始しています...';
-        syncStatus.style.color = '#666';
+        syncStatus.textContent = t('syncStarting');
+        syncStatus.style.color = UI_COLORS.NEUTRAL;
       }
 
       // Pull index
@@ -3181,16 +3199,16 @@ function setupEvents() {
       }
 
       if (syncStatus) {
-        syncStatus.textContent = '✓ 同期完了';
-        syncStatus.style.color = '#4caf50';
+        syncStatus.textContent = t('syncCompleted');
+        syncStatus.style.color = UI_COLORS.SUCCESS;
         setTimeout(() => {
           syncStatus.textContent = '';
-        }, 3000);
+        }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
       console.error('Manual sync failed:', error);
       if (syncStatus) {
-        let userMessage = '同期に失敗しました';
+        let userMessage = t('syncFailed');
         let detailMessage = error.message;
 
         // ネットワークエラーやブロックの可能性を示唆する判定
@@ -3198,22 +3216,22 @@ function setupEvents() {
           error.message.includes('Failed to fetch') ||
           error.message.includes('Network Error')) {
 
-          userMessage = '通信がブロックされました';
-          detailMessage = '広告ブロック等の拡張機能をOFFにして再試行してください。\n(Firebaseへの接続が遮断されています)';
+          userMessage = t('syncBlocked');
+          detailMessage = t('syncBlockedDetail');
         } else if (error.code === 'permission-denied') {
-          userMessage = '権限エラー';
-          detailMessage = 'ログインし直してください。';
+          userMessage = t('syncPermissionError');
+          detailMessage = t('syncPermissionDetail');
         }
 
         syncStatus.textContent = `✗ ${userMessage}`;
-        syncStatus.style.color = '#f44336';
+        syncStatus.style.color = UI_COLORS.ERROR;
 
         // 詳細をアラートでも表示（ユーザーに気づかせるため）
-        alert(`${userMessage}\n\n${detailMessage}\n\n詳細エラー: ${error.message}`);
+        alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);
       }
     } finally {
       manualSyncButton.disabled = false;
-      manualSyncButton.textContent = '今すぐ同期';
+      manualSyncButton.textContent = t('syncNowButton');
     }
   });
 
