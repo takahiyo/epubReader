@@ -145,6 +145,11 @@ export const IMAGE_VIEW_MODES = Object.freeze({
   SPREAD: "spread",
 });
 
+export const THEME_MODES = Object.freeze({
+  DARK: "dark",
+  LIGHT: "light",
+});
+
 export const CSS_WRITING_MODES = Object.freeze({
   VERTICAL: "vertical-rl",
   HORIZONTAL: "horizontal-tb",
@@ -162,7 +167,7 @@ export const FILE_EXTENSIONS = Object.freeze({
 // UI 初期設定
 // ============================================
 export const UI_DEFAULTS = Object.freeze({
-  theme: "dark",
+  theme: THEME_MODES.DARK,
   uiLanguage: "en",
   fontSize: 16,
   progressDisplayMode: "page",
