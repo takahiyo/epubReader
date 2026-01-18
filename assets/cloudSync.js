@@ -8,7 +8,7 @@ import { CDN_URLS, SYNC_CONFIG } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { db } from "./firebaseConfig.js";
-import { t } from "./i18n.js";
+import { t, tReplace } from "./i18n.js";
 import {
   doc,
   getDoc,
@@ -137,7 +137,7 @@ export class CloudSync {
       body: JSON.stringify({ idToken, ...payload }),
     });
     if (!response.ok) {
-      throw new Error(`Workers sync failed (${response.status})`);
+      throw new Error(tReplace("cloudSyncWorkersFailed", { status: response.status }));
     }
     const json = await response.json();
     return json?.data ?? json;
@@ -292,7 +292,7 @@ export class CloudSync {
       return this.pushToEndpoint(settings);
     }
 
-    throw new Error(`Unknown source: ${resolvedSource}`);
+    throw new Error(tReplace("cloudSyncUnknownSource", { source: resolvedSource }));
   }
 
   async pull(source) {
@@ -324,7 +324,7 @@ export class CloudSync {
       return this.pullFromEndpoint(settings, { merge: true });
     }
 
-    throw new Error(`Unknown source: ${resolvedSource}`);
+    throw new Error(tReplace("cloudSyncUnknownSource", { source: resolvedSource }));
   }
 
   async fetchRemoteSnapshot(source) {
@@ -469,7 +469,7 @@ export class CloudSync {
     });
 
     if (!response.ok) {
-      throw new Error(`同期に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncEndpointSaveFailed", { status: response.status }));
     }
 
     return response.json().catch(() => ({}));
@@ -484,7 +484,7 @@ export class CloudSync {
     });
 
     if (!response.ok) {
-      throw new Error(`データ取得に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncEndpointLoadFailed", { status: response.status }));
     }
 
     const json = await response.json();
@@ -511,14 +511,14 @@ export class CloudSync {
     const accessToken = this.ensureOneDriveToken(settings);
     const item = await this.resolveOneDriveItem(accessToken, settings);
     if (!item?.id) {
-      throw new Error("OneDrive 上に同期ファイルが見つかりませんでした");
+      throw new Error(t("cloudSyncOneDriveFileMissing"));
     }
     const response = await fetch(this.buildOneDriveContentUrl({ ...settings, onedriveFileId: item.id }), {
       method: "GET",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!response.ok) {
-      throw new Error(`OneDrive からの取得に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncOneDriveFetchFailed", { status: response.status }));
     }
     const json = await response.json();
     if (json?.data && merge) {
@@ -571,7 +571,7 @@ export class CloudSync {
         return byId.json();
       }
       if (byId.status !== 404) {
-        throw new Error(`OneDrive のファイル確認に失敗しました (${byId.status})`);
+        throw new Error(tReplace("cloudSyncOneDriveCheckFailed", { status: byId.status }));
       }
     }
 
@@ -583,7 +583,7 @@ export class CloudSync {
       return null;
     }
     if (!response.ok) {
-      throw new Error(`OneDrive のファイル検索に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncOneDriveSearchFailed", { status: response.status }));
     }
     const result = await response.json();
     return result ?? null;
@@ -600,7 +600,7 @@ export class CloudSync {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      throw new Error(`OneDrive への保存に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncOneDriveUploadFailed", { status: response.status }));
     }
     const meta = await response.json().catch(() => null);
     return meta?.id ?? null;
@@ -621,7 +621,7 @@ export class CloudSync {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      throw new Error(`pCloud への保存に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncPCloudSaveFailed", { status: response.status }));
     }
     return response.json().catch(() => ({ source: "pcloud" }));
   }
@@ -636,7 +636,7 @@ export class CloudSync {
       return { source: "pcloud", status: "not_found" };
     }
     if (!response.ok) {
-      throw new Error(`pCloud からの取得に失敗しました (${response.status})`);
+      throw new Error(tReplace("cloudSyncPCloudFetchFailed", { status: response.status }));
     }
     const json = await response.json();
     if (json?.data && merge) {
