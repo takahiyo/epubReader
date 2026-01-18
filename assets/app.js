@@ -19,7 +19,14 @@ import {
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE } from "./i18n.js";
-import { APP_INFO, MIME_TYPES, SUPPORTED_FORMATS, TIMING_CONFIG, UI_COLORS } from "./constants.js";
+import {
+  APP_INFO,
+  MIME_TYPES,
+  SUPPORTED_FORMATS,
+  TIMING_CONFIG,
+  UI_COLORS,
+  UI_DEFAULTS,
+} from "./constants.js";
 
 // ========================================
 // 初期化
@@ -34,11 +41,11 @@ let currentBookId = null;
 let currentBookInfo = null;
 let currentCloudBookId = null;
 let pendingCloudBookId = null;
-let theme = settings.theme ?? "dark";
+let theme = settings.theme ?? UI_DEFAULTS.theme;
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
-let uiLanguage = settings.uiLanguage ?? "en";
-let progressDisplayMode = settings.progressDisplayMode ?? "page";
+let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
+let progressDisplayMode = settings.progressDisplayMode ?? UI_DEFAULTS.progressDisplayMode;
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
@@ -50,14 +57,14 @@ if (!writingMode || !pageDirection) {
     pageDirection = "ltr";
   }
 }
-if (!writingMode) writingMode = "horizontal";
-if (!pageDirection) pageDirection = "ltr";
-let defaultDirection = settings.defaultDirection ?? "rtl";
+if (!writingMode) writingMode = UI_DEFAULTS.writingMode;
+if (!pageDirection) pageDirection = UI_DEFAULTS.pageDirection;
+let defaultDirection = settings.defaultDirection ?? UI_DEFAULTS.defaultDirection;
 let autoSyncEnabled = false;
-let libraryViewMode = settings.libraryViewMode ?? "grid";
+let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
 let autoSyncTimeout = null;
-let bookmarkMenuMode = "current";
+let bookmarkMenuMode = UI_DEFAULTS.bookmarkMenuMode;
 let currentToc = [];
 let uiInitialized = false;
 let floatVisible = false;

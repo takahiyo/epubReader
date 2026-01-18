@@ -89,6 +89,20 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 // ============================================
+// UI 初期設定
+// ============================================
+export const UI_DEFAULTS = Object.freeze({
+  theme: "dark",
+  uiLanguage: DEFAULT_SETTINGS.uiLanguage,
+  progressDisplayMode: "page",
+  defaultDirection: "rtl",
+  libraryViewMode: "grid",
+  writingMode: "horizontal",
+  pageDirection: "ltr",
+  bookmarkMenuMode: "current",
+});
+
+// ============================================
 // PWA / Service Worker 設定
 // ============================================
 export const PWA_CONFIG = Object.freeze({
