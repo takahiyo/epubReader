@@ -20,6 +20,7 @@ import {
   CSS_WRITING_MODES,
   MIME_TYPES,
   FILE_EXTENSIONS,
+  UI_DEFAULTS,
 } from "./constants.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
@@ -84,7 +85,7 @@ export class ReaderController {
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
     this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
-    this.theme = "dark";
+    this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
     this.pageDirection = READING_DIRECTIONS.LTR;
     this.preferredWritingMode = null;
@@ -2061,8 +2062,8 @@ export class ReaderController {
     // 縦書き・横書きともに縦スクロールで表示するため、
     // writing-modeはそのまま適用するが、レイアウトは縦スクロール用に最適化
     if (this.viewer) {
-      this.viewer.style.background = this.theme === "dark" ? "#0b1020" : "#ffffff";
-      this.viewer.style.color = this.theme === "dark" ? "#e5e7eb" : "#0f172a";
+      this.viewer.style.background = "var(--reader-bg)";
+      this.viewer.style.color = "var(--reader-text)";
       this.viewer.style.width = "100%";
       this.viewer.style.height = "100%";
     }
