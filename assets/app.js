@@ -182,6 +182,9 @@ const elements = {
   viewer: document.getElementById("viewer"),
   imageViewer: document.getElementById("imageViewer"),
   pageImage: document.getElementById("pageImage"),
+  emptyStateIcon: document.getElementById("emptyStateIcon"),
+  menuTitleImage: document.getElementById("menuTitleImage"),
+  floatTitleImage: document.getElementById("floatTitleImage"),
   emptyState: document.getElementById("emptyState"),
   cloudEmptyState: document.getElementById("cloudEmptyState"),
   cloudEmptyTitle: document.getElementById("cloudEmptyTitle"),
@@ -212,6 +215,8 @@ const elements = {
   openLangMenu: document.getElementById("openLangMenu"),
   floatLangJa: document.getElementById("floatLangJa"),
   floatLangEn: document.getElementById("floatLangEn"),
+  floatLangJaImg: document.querySelector("#floatLangJa img"),
+  floatLangEnImg: document.querySelector("#floatLangEn img"),
 
   // メニュー
   leftMenu: document.getElementById("leftMenu"),
@@ -222,6 +227,7 @@ const elements = {
   menuHistory: document.getElementById("menuHistory"),
   menuSettings: document.getElementById("menuSettings"),
   tocSection: document.getElementById("tocSection"),
+  tocSectionTitle: document.getElementById("tocSectionTitle"),
   tocList: document.getElementById("tocList"),
   langJa: document.getElementById("langJa"),
   langEn: document.getElementById("langEn"),
@@ -295,6 +301,7 @@ const elements = {
   settingsModalTitle: document.getElementById("settingsModalTitle"),
   settingsDisplayTitle: document.getElementById("settingsDisplayTitle"),
   settingsDeviceTitle: document.getElementById("settingsDeviceTitle"),
+  settingsDefaultDirectionLabel: document.getElementById("settingsDefaultDirectionLabel"),
   themeLabel: document.getElementById("themeLabel"),
   writingModeLabel: document.getElementById("writingModeLabel"),
   pageDirectionLabel: document.getElementById("pageDirectionLabel"),
@@ -305,15 +312,19 @@ const elements = {
   deviceColorInput: document.getElementById("deviceColor"),
   settingsAccountTitle: document.getElementById("settingsAccountTitle"),
   googleLoginButton: document.getElementById("googleLoginButton"),
+  manualSyncButton: document.getElementById("manualSyncButton"),
   syncToggleButton: document.getElementById("syncToggleButton"),
   userInfo: document.getElementById("userInfo"),
   syncStatus: document.getElementById("syncStatus"),
+  syncHint: document.getElementById("syncHint"),
 
   settingsDataTitle: document.getElementById("settingsDataTitle"),
   importDataLabel: document.getElementById("importDataLabel"),
 
   // 候補選択モーダル
   candidateModal: document.getElementById("candidateModal"),
+  candidateModalTitle: document.getElementById("candidateModalTitle"),
+  candidateModalMessage: document.getElementById("candidateModalMessage"),
   candidateList: document.getElementById("candidateList"),
   candidateUseLocal: document.getElementById("candidateUseLocal"),
   closeCandidateModal: document.getElementById("closeCandidateModal"),
@@ -323,6 +334,7 @@ const elements = {
   toggleReadingDirectionEpub: document.getElementById("toggleReadingDirectionEpub"),
   toggleReadingDirectionImage: document.getElementById("toggleReadingDirectionImage"),
   toggleZoom: document.getElementById("toggleZoom"),
+  loadingText: document.getElementById("loadingText"),
 };
 
 // ========================================
@@ -2593,11 +2605,18 @@ function applyUiLanguage(nextLanguage) {
 
   const strings = getUiStrings(nextLanguage);
   document.title = strings.documentTitle;
+  const appIconAlt = strings.appIconAlt ?? strings.documentTitle;
+  if (elements.emptyStateIcon) elements.emptyStateIcon.alt = appIconAlt;
+  if (elements.menuTitleImage) elements.menuTitleImage.alt = appIconAlt;
+  if (elements.floatTitleImage) elements.floatTitleImage.alt = appIconAlt;
+  if (elements.pageImage) elements.pageImage.alt = strings.pageImageAlt;
+  if (elements.modalImage) elements.modalImage.alt = strings.modalImageAlt;
   const emptyTitle = elements.emptyState?.querySelector("h2");
   const emptyDescription = elements.emptyState?.querySelector("p");
   if (emptyTitle) emptyTitle.textContent = strings.emptyTitle;
   if (emptyDescription) emptyDescription.textContent = strings.emptyDescription;
   if (elements.cloudAttachButton) elements.cloudAttachButton.textContent = strings.libraryAttachFile;
+  if (elements.loadingText) elements.loadingText.textContent = strings.loadingText;
   if (!currentBookId && currentCloudBookId) {
     const meta = storage.data.cloudIndex?.[currentCloudBookId];
     const state = storage.getCloudState(currentCloudBookId);
@@ -2623,6 +2642,10 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuBookmarks, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, strings.menuHistory);
   setMenuLabel(elements.menuSettings, strings.menuSettings);
+  if (elements.langJa) elements.langJa.textContent = strings.languageLabelJa;
+  if (elements.langEn) elements.langEn.textContent = strings.languageLabelEn;
+  if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
+  if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
   setFloatLabel(elements.floatOpen, "📂", strings.menuOpen);
   setFloatLabel(elements.floatLibrary, "📚", strings.menuLibrary);
   setFloatLabel(elements.floatSearch, "🔍", strings.menuSearch);
@@ -2630,6 +2653,11 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.floatHistory, "🕘", strings.menuHistory);
 
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
+  if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
+  if (elements.floatSettings) {
+    elements.floatSettings.textContent = strings.settingsIcon;
+    elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
+  }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
   if (elements.addBookmarkBtn) elements.addBookmarkBtn.textContent = strings.addBookmark;
   if (elements.searchModalTitle) elements.searchModalTitle.textContent = strings.searchTitle;
@@ -2638,13 +2666,33 @@ function applyUiLanguage(nextLanguage) {
   if (elements.tocModalTitle) elements.tocModalTitle.textContent = strings.tocTitle;
   if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
   if (elements.syncModalMessage) elements.syncModalMessage.textContent = strings.syncPromptMessage;
+  if (elements.syncUseRemote) {
+    elements.syncUseRemote.textContent = strings.syncPromptRemote.replace("{time}", "--");
+  }
   if (elements.syncUseLocal) elements.syncUseLocal.textContent = strings.syncPromptLocal;
+  if (elements.candidateModalTitle) elements.candidateModalTitle.textContent = strings.candidateModalTitle;
+  if (elements.candidateModalMessage) {
+    elements.candidateModalMessage.innerHTML = strings.candidateModalMessage.replace(/\n/g, "<br>");
+  }
+  if (elements.candidateUseLocal) elements.candidateUseLocal.textContent = strings.candidateUseLocal;
+  if (elements.closeCandidateModal) {
+    elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
+  }
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
   if (elements.librarySectionTitle) elements.librarySectionTitle.textContent = strings.librarySectionTitle;
+  if (elements.libraryViewGrid) {
+    elements.libraryViewGrid.setAttribute("aria-label", strings.libraryViewGridLabel);
+  }
+  if (elements.libraryViewList) {
+    elements.libraryViewList.setAttribute("aria-label", strings.libraryViewListLabel);
+  }
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
+  if (elements.settingsDefaultDirectionLabel) {
+    elements.settingsDefaultDirectionLabel.textContent = strings.settingsDefaultDirectionLabel;
+  }
   if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
@@ -2653,6 +2701,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
+  if (elements.manualSyncButton) elements.manualSyncButton.textContent = strings.syncNowButton;
+  if (elements.syncHint) elements.syncHint.textContent = strings.syncHint;
   if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
   if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
   if (elements.firebaseAuthDomainLabel) {
@@ -2702,6 +2752,13 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.progressDisplayPage;
     if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
   }
+  if (elements.settingsDefaultDirection) {
+    const options = elements.settingsDefaultDirection.options;
+    if (options[0]) options[0].textContent = strings.pageDirectionRtl;
+    if (options[1]) options[1].textContent = strings.pageDirectionLtr;
+  }
+  if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
+  if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
 
   updateWritingModeToggleLabel();
   if (uiInitialized) {
