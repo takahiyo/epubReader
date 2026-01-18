@@ -21,6 +21,8 @@ import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
+  ERROR_CODES,
+  ERROR_MESSAGE_MATCHERS,
   MIME_TYPES,
   SUPPORTED_FORMATS,
   TIMING_CONFIG,
@@ -157,6 +159,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 // i18n.js からインポートした関数をラップ（uiLanguage変数を参照するため）
 function t(key) {
   return translate(key, uiLanguage);
+}
+
+function resolveErrorCode(error) {
+  if (!error?.message) return null;
+  const entries = Object.entries(ERROR_MESSAGE_MATCHERS);
+  for (const [code, matchers] of entries) {
+    if (matchers.some((matcher) => error.message.includes(matcher))) {
+      return code;
+    }
+  }
+  return null;
 }
 
 // ========================================
@@ -1344,9 +1357,13 @@ async function handleFile(file) {
   } catch (error) {
     console.error("Error in handleFile:", error);
     console.error("Error stack:", error.stack);
+    const resolvedCode = resolveErrorCode(error);
+    if (resolvedCode) {
+      error.code = error.code ?? resolvedCode;
+    }
 
     // JSZipエラーは警告のみ（ファイルは正常に開ける可能性が高い）
-    if (error.message && (error.message.includes('JSZip') || error.message.includes('not defined'))) {
+    if (error.code === ERROR_CODES.JSZIP_WARNING) {
       console.warn("JSZip warning detected, but file may have opened successfully");
       // エラーダイアログを表示しない（ファイルが開けているため）
       hideLoading();
@@ -1356,9 +1373,9 @@ async function handleFile(file) {
     // より詳細なエラーメッセージ
     let userMessage = `${t('errorFileLoadFailed')}\n\n${t('errorFileName')}: ${file.name}\n${t('errorFileSize')}: ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n`;
 
-    if (error.message.includes('画像が見つかりませんでした') || error.message.includes('No images found')) {
+    if (error.code === ERROR_CODES.NO_IMAGES_FOUND) {
       userMessage += t('errorNoImagesFound');
-    } else if (error.message.includes('画像の読み込みに失敗') || error.message.includes('Failed to load image')) {
+    } else if (error.code === ERROR_CODES.IMAGE_LOAD_FAILED) {
       userMessage += t('errorImageLoadFailed');
     } else {
       userMessage += `${t('errorDetail')}: ${error.message}`;
