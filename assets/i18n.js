@@ -129,8 +129,12 @@ export const UI_STRINGS = Object.freeze({
     spreadModeSingle: "単ページ",
     pageDirectionLtrButton: "→左開き",
     pageDirectionRtlButton: "←右開き",
+    readingDirectionLtrTitle: "左開き（左から右へ読む）",
+    readingDirectionRtlTitle: "右開き（右から左へ読む）",
     zoomIn: "🔍+",
     zoomOut: "🔍−",
+    zoomInTitle: "ズームする",
+    zoomOutTitle: "ズームを解除",
     deleteIcon: "🗑️",
     bookIcon: "📖",
     
@@ -288,8 +292,12 @@ export const UI_STRINGS = Object.freeze({
     spreadModeSingle: "Single",
     pageDirectionLtrButton: "→LTR",
     pageDirectionRtlButton: "←RTL",
+    readingDirectionLtrTitle: "Left binding (read left to right)",
+    readingDirectionRtlTitle: "Right binding (read right to left)",
     zoomIn: "🔍+",
     zoomOut: "🔍−",
+    zoomInTitle: "Zoom in",
+    zoomOutTitle: "Zoom out",
     deleteIcon: "🗑️",
     bookIcon: "📖",
     
@@ -388,4 +396,40 @@ export function detectBrowserLanguage() {
   if (typeof navigator === "undefined") return DEFAULT_LANGUAGE;
   const browserLang = navigator.language?.split("-")[0];
   return SUPPORTED_LANGUAGES.includes(browserLang) ? browserLang : DEFAULT_LANGUAGE;
+}
+
+/**
+ * 相対時間の表示用文字列を取得
+ * @param {number} timestamp - UNIX timestamp (ms)
+ * @param {string} language - 言語コード
+ * @returns {string} 相対時間の文字列
+ */
+export function formatRelativeTime(timestamp, language = DEFAULT_LANGUAGE) {
+  if (!timestamp) return "";
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMinutes < 1) {
+    return t("timeJustNow", language);
+  }
+  if (diffMinutes < 60) {
+    return tReplace("timeMinutesAgo", { n: diffMinutes }, language);
+  }
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return tReplace("timeHoursAgo", { n: diffHours }, language);
+  }
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 7) {
+    return tReplace("timeDaysAgo", { n: diffDays }, language);
+  }
+  const diffWeeks = Math.round(diffDays / 7);
+  if (diffWeeks < 4) {
+    return tReplace("timeWeeksAgo", { n: diffWeeks }, language);
+  }
+  const diffMonths = Math.round(diffDays / 30);
+  if (diffMonths < 12) {
+    return tReplace("timeMonthsAgo", { n: diffMonths }, language);
+  }
+  const diffYears = Math.max(1, Math.round(diffMonths / 12));
+  return tReplace("timeYearsAgo", { n: diffYears }, language);
 }
