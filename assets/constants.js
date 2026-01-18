@@ -176,6 +176,10 @@ export const UI_COLORS = Object.freeze({
   
   // ブックマークマーカー
   BOOKMARK_MARKER_BORDER: "rgba(255, 255, 255, 0.9)",
+
+  // デバッグ表示
+  DEBUG_GRID_LINE: "rgba(255, 0, 0, 0.3)",
+  DEBUG_GRID_LABEL_BG: "rgba(0, 0, 0, 0.7)",
 });
 
 // ============================================
@@ -234,6 +238,7 @@ export const READER_CONFIG = Object.freeze({
 export const TIMING_CONFIG = Object.freeze({
   AUTO_SYNC_INTERVAL_MS: 30000,        // 自動同期間隔 (30秒)
   AUTO_SYNC_DEBOUNCE_MS: 1500,         // 自動同期デバウンス (1.5秒)
+  RESIZE_DEBOUNCE_MS: 250,             // リサイズデバウンス
   SCROLL_MODE_UPDATE_DELAY_MS: 100,    // スクロールモード更新遅延
   LOCATIONS_CHECK_INTERVAL_MS: 500,    // ロケーション確認間隔
   LOCATIONS_CHECK_TIMEOUT_MS: 10000,   // ロケーション確認タイムアウト (10秒)

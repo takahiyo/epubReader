@@ -1,3 +1,5 @@
+import { TIMING_CONFIG, UI_COLORS } from "./constants.js";
+
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
 
 /**
@@ -58,7 +60,7 @@ export class UIController {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
         console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
-      }, 250);
+      }, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
     });
   }
 
@@ -518,7 +520,7 @@ export class UIController {
       const el = document.createElement('div');
       el.style.cssText = `
         position: absolute;
-        background: rgba(255, 0, 0, 0.3);
+        background: ${UI_COLORS.DEBUG_GRID_LINE};
         ${line.type === 'horizontal' ?
           `top: ${line.percent}%; left: 0; right: 0; height: 2px;` :
           `left: ${line.percent}%; top: 0; bottom: 0; width: 2px;`
@@ -531,7 +533,7 @@ export class UIController {
       label.textContent = line.label;
       label.style.cssText = `
         position: absolute;
-        background: rgba(0, 0, 0, 0.7);
+        background: ${UI_COLORS.DEBUG_GRID_LABEL_BG};
         color: white;
         padding: 2px 4px;
         font-size: 10px;
@@ -554,7 +556,7 @@ export class UIController {
    * エリアの機能ラベルを取得
    */
   getFunctionLabel(area) {
-    if (area === "M3") return "メニュー開閉";
+    if (area === "M3") return "areaMenuToggle";
 
     const writingMode = this.getWritingMode?.() || "horizontal";
     const isImage = this.isImageBook?.();
@@ -564,19 +566,19 @@ export class UIController {
     if (writingMode === "vertical" || isImage) {
       const direction = this.getReadingDirection?.() || 'rtl';
       if (area === "M1" || area === "M2") {
-        return direction === 'ltr' ? "前のページ" : "次のページ";
+        return direction === 'ltr' ? "areaPagePrev" : "areaPageNext";
       }
       if (area === "M4" || area === "M5") {
-        return direction === 'ltr' ? "次のページ" : "前のページ";
+        return direction === 'ltr' ? "areaPageNext" : "areaPagePrev";
       }
       if (isSpread) {
-        if (area === "U3") return "前のページ (1枚)";
-        if (area === "B3") return "次のページ (1枚)";
+        if (area === "U3") return "areaPagePrevSingle";
+        if (area === "B3") return "areaPageNextSingle";
       }
     } else {
       // 横書き
-      if (area === "U3") return "前のページ";
-      if (area === "B3") return "次のページ";
+      if (area === "U3") return "areaPagePrev";
+      if (area === "B3") return "areaPageNext";
     }
     return null;
   }
