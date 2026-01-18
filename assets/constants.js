@@ -121,6 +121,44 @@ export const DEVICE_COLOR_PALETTE = Object.freeze([
 ]);
 
 // ============================================
+// 読書状態の定義
+// ============================================
+export const BOOK_TYPES = Object.freeze({
+  EPUB: "epub",
+  ZIP: "zip",
+  RAR: "rar",
+  IMAGE: "image",
+});
+
+export const WRITING_MODES = Object.freeze({
+  HORIZONTAL: "horizontal",
+  VERTICAL: "vertical",
+});
+
+export const READING_DIRECTIONS = Object.freeze({
+  LTR: "ltr",
+  RTL: "rtl",
+});
+
+export const IMAGE_VIEW_MODES = Object.freeze({
+  SINGLE: "single",
+  SPREAD: "spread",
+});
+
+export const CSS_WRITING_MODES = Object.freeze({
+  VERTICAL: "vertical-rl",
+  HORIZONTAL: "horizontal-tb",
+});
+
+export const FILE_EXTENSIONS = Object.freeze({
+  EPUB: "epub",
+  ZIP: "zip",
+  RAR: "rar",
+  CBR: "cbr",
+  CBZ: "cbz",
+});
+
+// ============================================
 // UI 初期設定
 // ============================================
 export const UI_DEFAULTS = Object.freeze({
@@ -128,19 +166,19 @@ export const UI_DEFAULTS = Object.freeze({
   uiLanguage: "en",
   fontSize: 16,
   progressDisplayMode: "page",
-  defaultDirection: "rtl",
+  defaultDirection: READING_DIRECTIONS.RTL,
   libraryViewMode: "grid",
-  writingMode: "horizontal",
-  pageDirection: "ltr",
+  writingMode: WRITING_MODES.HORIZONTAL,
+  pageDirection: READING_DIRECTIONS.LTR,
   bookmarkMenuMode: "current",
   legacyDirectionMap: Object.freeze({
-    rtl: Object.freeze({
-      writingMode: "vertical",
-      pageDirection: "rtl",
+    [READING_DIRECTIONS.RTL]: Object.freeze({
+      writingMode: WRITING_MODES.VERTICAL,
+      pageDirection: READING_DIRECTIONS.RTL,
     }),
-    ltr: Object.freeze({
-      writingMode: "horizontal",
-      pageDirection: "ltr",
+    [READING_DIRECTIONS.LTR]: Object.freeze({
+      writingMode: WRITING_MODES.HORIZONTAL,
+      pageDirection: READING_DIRECTIONS.LTR,
     }),
   }),
 });
@@ -560,6 +598,7 @@ export const MIME_TYPES = Object.freeze({
   ZIP: "application/zip",
   CBZ: "application/vnd.comicbook+zip",
   RAR: "application/vnd.rar",
+  RAR_LEGACY: "application/x-rar-compressed",
   CBR: "application/x-cbr",
   PNG: "image/png",
   JPEG: "image/jpeg",
@@ -614,6 +653,12 @@ if (typeof window !== "undefined") {
     CDN_URLS,
     ASSET_PATHS,
     READER_CONFIG,
+    BOOK_TYPES,
+    WRITING_MODES,
+    READING_DIRECTIONS,
+    IMAGE_VIEW_MODES,
+    CSS_WRITING_MODES,
+    FILE_EXTENSIONS,
     SUPPORTED_FORMATS,
     MIME_TYPES,
     SW_CACHE_ASSETS,
