@@ -445,8 +445,8 @@ const ui = new UIController({
   },
   onProgressBar: (action) => {
     if (action === 'show') {
-
-      updateProgressBarDisplay();
+      const total = reader.pagination ? reader.pagination.pages.length : 0;
+      ui.updateProgress(reader.currentPageIndex, total);
     }
   },
   onBookmarkMenu: (action) => {

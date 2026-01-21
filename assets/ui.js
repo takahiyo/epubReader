@@ -509,6 +509,48 @@ export class UIController {
   }
 
   /**
+   * 進捗表示を更新
+   */
+  updateProgress(current, total) {
+    // 1. ページ番号表示更新
+    const currentInput = getById(DOM_IDS.CURRENT_PAGE_INPUT);
+    const totalSpan = getById(DOM_IDS.TOTAL_PAGES);
+
+    if (currentInput) currentInput.value = current + 1; // 1-based
+
+    // totalPages が undefined の場合や 0 の場合のガード
+    const validTotal = (typeof total === 'number' && total > 0) ? total : 0;
+    if (totalSpan) totalSpan.textContent = validTotal;
+
+    // 2. プログレスバー更新
+    // 全1ページの場合は0% (または100%にする仕様もあり得るが、ここでは0%スタートとする)
+    // 複数ページ: (current / (validTotal - 1)) * 100
+    // validTotal=1 の時は current=0 なので 0/0 にならないよう注意
+    let percentage = 0;
+    if (validTotal > 1) {
+      percentage = (Math.min(current, validTotal - 1) / (validTotal - 1)) * 100;
+    } else if (validTotal === 1) {
+      // 1ページのみなら常に100%か0%か。ここでは100%とするか、完了として扱う
+      percentage = 100;
+    }
+
+    const fill = getById(DOM_IDS.PROGRESS_FILL);
+    const thumb = getById(DOM_IDS.PROGRESS_THUMB);
+
+    if (fill) fill.style.width = `${percentage}%`;
+    if (thumb) thumb.style.left = `${percentage}%`;
+
+    // 3. フローティングプログレスバー更新
+    const floatFill = getById(DOM_IDS.FLOAT_PROGRESS_FILL);
+    const floatThumb = getById(DOM_IDS.FLOAT_PROGRESS_THUMB);
+    const floatPercent = getById(DOM_IDS.FLOAT_PROGRESS_PERCENT);
+
+    if (floatFill) floatFill.style.width = `${percentage}%`;
+    if (floatThumb) floatThumb.style.left = `${percentage}%`;
+    if (floatPercent) floatPercent.textContent = `${Math.round(percentage)}%`;
+  }
+
+  /**
    * エリアのデバッグ表示（開発用）
    */
   showDebugGrid() {
