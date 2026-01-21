@@ -357,6 +357,7 @@ export const DOM_IDS = Object.freeze({
   OPEN_FILE_MODAL: "openFileModal",
   CLOSE_FILE_MODAL: "closeFileModal",
   FILE_INPUT: "fileInput",
+  LEGACY_FILE_INPUT: "legacy-file-input-fallback",
   LIBRARY_GRID: "libraryGrid",
   LIBRARY_VIEW_GRID: "libraryViewGrid",
   LIBRARY_VIEW_LIST: "libraryViewList",

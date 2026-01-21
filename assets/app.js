@@ -3253,20 +3253,107 @@ async function importData(file) {
   }
 }
 
-function openFileDialog() {
-  if (elements.fileInput) {
-    // ユーザー操作同期ハンドラ内であれば showPicker が推奨される
-    if (typeof elements.fileInput.showPicker === 'function') {
+const FILE_PICKER_ACCEPT_TYPES = Object.freeze([
+  Object.freeze({ mime: MIME_TYPES.EPUB, extensions: SUPPORTED_FORMATS.EPUB }),
+  Object.freeze({ mime: MIME_TYPES.CBZ, extensions: [`.${FILE_EXTENSIONS.CBZ}`] }),
+  Object.freeze({ mime: MIME_TYPES.ZIP, extensions: [`.${FILE_EXTENSIONS.ZIP}`] }),
+  Object.freeze({ mime: MIME_TYPES.RAR, extensions: [`.${FILE_EXTENSIONS.RAR}`] }),
+  Object.freeze({ mime: MIME_TYPES.RAR_LEGACY, extensions: [`.${FILE_EXTENSIONS.RAR}`] }),
+  Object.freeze({ mime: MIME_TYPES.CBR, extensions: [`.${FILE_EXTENSIONS.CBR}`] }),
+]);
+
+const FILE_INPUT_ACCEPT = Object.freeze([
+  ...SUPPORTED_FORMATS.EPUB,
+  ...SUPPORTED_FORMATS.IMAGE_ARCHIVE,
+]);
+
+function buildFilePickerOptions() {
+  const accept = FILE_PICKER_ACCEPT_TYPES.reduce((map, entry) => {
+    map[entry.mime] = entry.extensions;
+    return map;
+  }, {});
+  return {
+    types: [
+      {
+        accept,
+      },
+    ],
+    excludeAcceptAllOption: false,
+    multiple: false,
+  };
+}
+
+function ensureLegacyFileInput() {
+  const acceptValue = FILE_INPUT_ACCEPT.join(",");
+  const existing = elements.fileInput ?? document.getElementById(DOM_IDS.LEGACY_FILE_INPUT);
+  if (existing) {
+    existing.accept = acceptValue;
+    if (existing !== elements.fileInput && existing.dataset.listenerAttached !== "true") {
+      existing.addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          handleFile(file);
+        } else {
+          pendingCloudBookId = null;
+        }
+        e.target.value = "";
+      });
+      existing.dataset.listenerAttached = "true";
+    }
+    return existing;
+  }
+
+  const input = document.createElement("input");
+  input.type = "file";
+  input.id = DOM_IDS.LEGACY_FILE_INPUT;
+  input.accept = acceptValue;
+  input.style.display = "none";
+  input.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFile(file);
+    } else {
+      pendingCloudBookId = null;
+    }
+    e.target.value = "";
+  });
+  input.dataset.listenerAttached = "true";
+  document.body.appendChild(input);
+  return input;
+}
+
+async function openFileDialog() {
+  const openLegacyFileInput = () => {
+    const input = ensureLegacyFileInput();
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
       try {
-        elements.fileInput.showPicker();
+        input.showPicker();
         return;
       } catch (e) {
         console.warn('showPicker failed, falling back to click:', e);
       }
     }
-    // フォールバック or 非対応ブラウザ
-    elements.fileInput.click();
+    input.click();
+  };
+
+  if (typeof window.showOpenFilePicker === 'function') {
+    try {
+      const [fileHandle] = await window.showOpenFilePicker(buildFilePickerOptions());
+      const file = await fileHandle.getFile();
+      if (file) {
+        await handleFile(file);
+      }
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+      console.warn('showOpenFilePicker failed, falling back to legacy input:', error);
+    }
   }
+
+  openLegacyFileInput();
 }
 
 /**
