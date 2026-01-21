@@ -1289,6 +1289,11 @@ async function handleFile(file) {
 
     // ファイルタイプを自動判別
     const type = detectFileType(file);
+    if (!type) {
+      hideLoading();
+      alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
+      return;
+    }
     console.log(`Detected file type: ${type}`);
 
     const buffer = await file.arrayBuffer();
