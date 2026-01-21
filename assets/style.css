@@ -1572,6 +1572,39 @@ body.google-auth-active .modal-backdrop {
   margin-left: 0.5rem;
 }
 
+/* 削除マーク付きカード */
+.library-card.marked-for-delete {
+  opacity: 0.6;
+  filter: grayscale(100%);
+  background: var(--bg-secondary);
+}
+
+.library-card.marked-for-delete::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  /* ボタンクリックを妨げない */
+  z-index: 10;
+}
+
+/* やり直しボタン */
+.library-delete-btn.undo-mode {
+  background: var(--accent);
+  opacity: 1 !important;
+  /* 強制的に表示 */
+  z-index: 20;
+  /* オーバーレイより上に表示 */
+}
+
+.library-delete-btn.undo-mode:hover {
+  background: var(--text);
+}
+
 /* ========================================
    履歴リスト
 ======================================== */

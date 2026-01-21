@@ -84,6 +84,8 @@ let uiInitialized = false;
 let floatVisible = false;
 let googleLoginReady = false;
 let userOverrodeDirection = false;
+// ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
+let pendingDeleteBookIds = new Set();
 
 // UI_STRINGS は i18n.js からインポート済み
 
@@ -2402,7 +2404,18 @@ function renderLibrary() {
     // 検索フィルタ用のdata属性を設定
     card.dataset.title = (entry.title || "").toLowerCase();
     card.dataset.author = (entry.author || "").toLowerCase();
+
+    // 削除マーク済みかどうかをチェック
+    const isMarkedForDelete = entry.localBookId && pendingDeleteBookIds.has(entry.localBookId);
+    if (isMarkedForDelete) {
+      card.classList.add("marked-for-delete");
+    }
+
     card.onclick = () => {
+      // 削除マーク済みの場合はクリックを無効化
+      if (entry.localBookId && pendingDeleteBookIds.has(entry.localBookId)) {
+        return;
+      }
       if (entry.hasLocalFile && entry.localBookId) {
         openFromLibrary(entry.localBookId);
       } else if (entry.cloudBookId) {
@@ -2410,29 +2423,42 @@ function renderLibrary() {
       }
     };
 
-    // 削除ボタン（ローカルファイルがある場合のみ）
+    // 削除/やり直しボタン（ローカルファイルがある場合のみ）
     if (entry.hasLocalFile && entry.localBookId) {
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "library-delete-btn";
-      deleteBtn.textContent = "×";
-      deleteBtn.title = t("delete_button");
-      deleteBtn.onclick = async (event) => {
+      const actionBtn = document.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.className = "library-delete-btn";
+
+      // 削除マーク済みの場合はやり直しボタンを表示
+      if (isMarkedForDelete) {
+        actionBtn.textContent = "↩";
+        actionBtn.title = t("undo_button");
+        actionBtn.classList.add("undo-mode");
+      } else {
+        actionBtn.textContent = UI_ICONS.DELETE;
+        actionBtn.title = t("delete_button");
+      }
+
+      actionBtn.onclick = (event) => {
         event.stopPropagation();
-        if (confirm(t("library_delete_confirm"))) {
-          try {
-            // IndexedDBから削除
-            await deleteBook(entry.localBookId);
-            // storageからも削除
-            storage.removeFromLibrary(entry.localBookId);
-            // 再描画
-            renderLibrary();
-          } catch (error) {
-            console.error("[renderLibrary] 削除に失敗しました:", error);
-          }
+
+        if (pendingDeleteBookIds.has(entry.localBookId)) {
+          // やり直し：削除マークを解除
+          pendingDeleteBookIds.delete(entry.localBookId);
+          card.classList.remove("marked-for-delete");
+          actionBtn.textContent = UI_ICONS.DELETE;
+          actionBtn.title = t("delete_button");
+          actionBtn.classList.remove("undo-mode");
+        } else {
+          // 削除マークを付ける（confirm不要、閉じた時に実際に削除）
+          pendingDeleteBookIds.add(entry.localBookId);
+          card.classList.add("marked-for-delete");
+          actionBtn.textContent = "↩";
+          actionBtn.title = t("undo_button");
+          actionBtn.classList.add("undo-mode");
         }
       };
-      card.appendChild(deleteBtn);
+      card.appendChild(actionBtn);
     }
 
     const cover = document.createElement("div");
@@ -3228,9 +3254,54 @@ function openFileDialog() {
   }
 }
 
+/**
+ * 削除マーク済み書籍を実際に削除する
+ */
+async function commitPendingDeletes() {
+  if (pendingDeleteBookIds.size === 0) return;
+
+  console.log(`[commitPendingDeletes] ${pendingDeleteBookIds.size}冊を削除します`);
+
+  for (const bookId of pendingDeleteBookIds) {
+    try {
+      // IndexedDBから削除
+      await deleteBook(bookId);
+      // storageからも削除
+      storage.removeBook(bookId);
+      console.log(`[commitPendingDeletes] 削除完了: ${bookId}`);
+    } catch (error) {
+      console.error(`[commitPendingDeletes] 削除に失敗: ${bookId}`, error);
+    }
+  }
+
+  // 削除マークをクリア
+  pendingDeleteBookIds.clear();
+}
+
 function showLibrary() {
+  // 削除マークをリセット（前回の状態をクリア）
+  pendingDeleteBookIds.clear();
+
   openModal(elements.openFileModal);
   renderLibrary();
+
+  // モーダルの閉じるボタンにイベントを追加
+  const closeHandler = async () => {
+    await commitPendingDeletes();
+    closeModal(elements.openFileModal);
+    elements.closeFileModal?.removeEventListener('click', closeHandler);
+  };
+  elements.closeFileModal?.addEventListener('click', closeHandler);
+
+  // バックドロップクリックでも閉じる処理を追加
+  const backdropHandler = async (e) => {
+    if (e.target.classList.contains('modal-backdrop')) {
+      await commitPendingDeletes();
+      closeModal(elements.openFileModal);
+      elements.openFileModal?.querySelector('.modal-backdrop')?.removeEventListener('click', backdropHandler);
+    }
+  };
+  elements.openFileModal?.querySelector('.modal-backdrop')?.addEventListener('click', backdropHandler);
 }
 
 function showSearch() {

@@ -223,6 +223,7 @@ export const UI_STRINGS = Object.freeze({
     library_search_placeholder: "タイトルまたは著者名で検索",
     library_delete_confirm: "この本を削除しますか？\n（クラウド上のデータは保持されます）",
     delete_button: "削除",
+    undo_button: "やり直し",
   }),
 
   en: Object.freeze({
@@ -436,6 +437,7 @@ export const UI_STRINGS = Object.freeze({
     library_search_placeholder: "Search by title or author",
     library_delete_confirm: "Delete this book?\n(Cloud data will remain)",
     delete_button: "Delete",
+    undo_button: "Undo",
   }),
 });
 

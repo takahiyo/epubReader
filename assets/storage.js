@@ -224,6 +224,25 @@ export class StorageService {
     this.save();
   }
 
+  /**
+   * ライブラリから書籍を削除（メタデータ、進捗、しおり、履歴も削除）
+   * @param {string} bookId - 削除する書籍のID
+   */
+  removeBook(bookId) {
+    if (!bookId) return;
+    // ライブラリから削除
+    delete this.data.library[bookId];
+    // 進捗を削除
+    delete this.data.progress[bookId];
+    // しおりを削除
+    delete this.data.bookmarks[bookId];
+    // 履歴から削除
+    this.data.history = this.data.history.filter((item) => item.bookId !== bookId);
+    // bookLinkMapから削除
+    delete this.data.bookLinkMap[bookId];
+    this.save();
+  }
+
   setHistoryEntries(bookId, entries) {
     const filtered = this.data.history.filter((item) => item.bookId !== bookId);
     const normalized = Array.isArray(entries)
