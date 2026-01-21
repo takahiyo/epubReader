@@ -505,6 +505,13 @@ export const READER_CONFIG = Object.freeze({
   lineHeight: 1.6,
   margin: "0",
   padding: "16px",
+  // レイアウト設定（レスポンシブ・禁則処理）
+  layout: Object.freeze({
+    maxWidth: "800px",        // コンテンツ最大幅
+    textAlign: "justify",     // 両端揃え
+    lineBreak: "strict",      // 厳格な禁則処理
+    wordBreak: "normal",      // 標準のワードブレーク
+  }),
   FONT_SIZE_MIN: 12,
   FONT_SIZE_MAX: 28,
   MAX_BINARY_SEARCH_ITERATIONS: 24,

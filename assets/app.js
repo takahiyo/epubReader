@@ -93,7 +93,7 @@ let LOADER_ANIMATION_DATA = null;
 // Lottieアニメーションデータを非同期で読み込む
 async function loadLottieAnimationData() {
   if (LOADER_ANIMATION_DATA) return LOADER_ANIMATION_DATA;
-  
+
   try {
     const response = await fetch(ASSET_PATHS.LOADER_ANIMATION);
     if (!response.ok) {
@@ -365,39 +365,78 @@ const reader = new ReaderController({
   viewerId: "viewer",
   imageViewerId: "imageViewer",
   imageElementId: "pageImage",
-  pageIndicatorId: null, // 進捗バーで管理
-  onProgress: handleProgress,
-  onReady: handleBookReady,
-  onImageZoom: openImageModal,
+  pageIndicatorId: "pageIndicator",
+  onProgress: (currentIndex, totalPages) => {
+    ui.updateProgress(currentIndex, totalPages);
+    saveProgressDebounced();
+  },
+  onReady: (data) => {
+    // 起動時の初期化関連
+    if (data.metadata) {
+      document.title = data.metadata.title
+        ? `${data.metadata.title} - ${APP_INFO.NAME}`
+        : APP_INFO.NAME;
+    }
+  },
+  onImageZoom: (isZoomed) => {
+    if (isZoomed) {
+      document.body.classList.add(UI_CLASSES.IS_ZOOMED);
+    } else {
+      document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
+    }
+  },
 });
 
 reader.applyTheme(theme);
 reader.applyReadingDirection(writingMode, pageDirection);
 
 // ========================================
+// CSS変数の注入 (SSOT)
+// ========================================
+function applyCssVariablesFromConfig() {
+  const root = document.documentElement;
+  const layout = READER_CONFIG.layout;
+
+  if (layout) {
+    if (layout.maxWidth) root.style.setProperty('--reader-max-width', layout.maxWidth);
+    if (layout.textAlign) root.style.setProperty('--reader-text-align', layout.textAlign);
+    if (layout.lineBreak) root.style.setProperty('--reader-line-break', layout.lineBreak);
+    if (layout.wordBreak) root.style.setProperty('--reader-word-break', layout.wordBreak);
+  }
+}
+
+// 初期化時に実行
+applyCssVariablesFromConfig();
+
+// ========================================
 // UIコントローラー初期化
 // ========================================
 
 const ui = new UIController({
-  isBookOpen: () => currentBookId !== null,
-  isPageNavigationEnabled: () => currentBookId !== null,
-  isProgressBarAvailable: () => currentBookId !== null,
-  isFloatVisible: () => floatVisible,
-  isImageBook: () =>
-    currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR),
+  isBookOpen: () => reader.book !== null || reader.imagePages.length > 0,
+  isPageNavigationEnabled: () => true, // 常に有効（必要なら調整）
+  isProgressBarAvailable: () => reader.type === BOOK_TYPES.EPUB || reader.type === BOOK_TYPES.ZIP || reader.type === BOOK_TYPES.RAR,
+  isFloatVisible: () => getById(DOM_IDS.FLOAT_OVERLAY).classList.contains(UI_CLASSES.VISIBLE),
+
+  // 追加: 画像/見開き判定用
+  isImageBook: () => reader.type !== BOOK_TYPES.EPUB,
   isSpreadMode: () => reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD,
-  getWritingMode: () =>
-    writingMode === WRITING_MODES.VERTICAL ? WRITING_MODES.VERTICAL : WRITING_MODES.HORIZONTAL,
+
   getReadingDirection: () => {
     // EPUBの場合は pageDirection (ltr/rtl)
-    if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
+    if (reader.type === BOOK_TYPES.EPUB) {
       return pageDirection;
     }
     // 画像書庫の場合は reader.imageReadingDirection
     return reader.imageReadingDirection;
   },
+
   onFloatToggle: () => {
     toggleFloatOverlay();
+  },
+  onResize: () => {
+    // リサイズ時のリペジネーション (EPUBのみ)
+    reader.handleResize?.();
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -628,9 +667,9 @@ function handleToggleZoom() {
 
   // Bodyにクラス適用（UI制御用）
   if (isZoomed) {
-  document.body.classList.add(UI_CLASSES.IS_ZOOMED);
+    document.body.classList.add(UI_CLASSES.IS_ZOOMED);
   } else {
-  document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
+    document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
   }
 
   updateZoomButtonLabel();
@@ -1470,7 +1509,7 @@ function openCloudOnlyBook(cloudBookId) {
 
   if (elements.viewer) {
     elements.viewer.classList.add(UI_CLASSES.HIDDEN);
-  elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
+    elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
   }
   if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
   if (elements.emptyState) elements.emptyState.classList.remove(UI_CLASSES.HIDDEN);

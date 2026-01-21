@@ -184,6 +184,49 @@ export class ReaderController {
     this.updateTransform();
   }
 
+  /**
+   * リサイズ時の処理
+   * ビューポートサイズ変更時にページ分割を再計算
+   */
+  async handleResize() {
+    // EPUB表示中でなければ何もしない
+    if (this.type !== BOOK_TYPES.EPUB || !this.paginator) {
+      return;
+    }
+
+    console.log("handleResize: リペジネーション開始");
+
+    // 現在のページ位置を保存
+    const currentLocator = this.getPageLocator(this.currentPageIndex);
+
+    // リペジネーション実行
+    const newSettings = {
+      viewportWidth: this.viewer?.clientWidth || window.innerWidth,
+      viewportHeight: this.viewer?.clientHeight || window.innerHeight,
+    };
+
+    try {
+      await this.paginator.repaginate(newSettings);
+      this.pagination = { pages: this.paginator.pages };
+      this.pageController.setTotalPages(this.pagination.pages.length);
+
+      // 元の位置に戻る
+      if (currentLocator) {
+        const newIndex = this.findPageContaining(
+          currentLocator.spineIndex,
+          currentLocator.segmentIndex
+        );
+        if (newIndex >= 0) {
+          this.pageController.goTo(newIndex);
+        }
+      }
+
+      console.log(`handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ)`);
+    } catch (error) {
+      console.error("handleResize: リペジネーション失敗", error);
+    }
+  }
+
   async ensureJSZip() {
     const isPlaceholder = (jszip) =>
       typeof jszip?.loadAsync === "function" && jszip.loadAsync.name === "missing";

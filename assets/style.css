@@ -10,6 +10,11 @@
   --reader-text: #e5e7eb;
   --reader-safe-inline: clamp(12px, 4vw, 36px);
   --reader-safe-block: clamp(12px, 5vh, 48px);
+  /* レイアウト設定（JSから注入される前提） */
+  --reader-max-width: 800px;
+  --reader-text-align: justify;
+  --reader-line-break: strict;
+  --reader-word-break: normal;
   --status-success-color: #4caf50;
   --status-error-color: #f44336;
   --status-neutral-color: #666666;
@@ -114,7 +119,22 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* EPUBスクロールモード（縦書き�E横書きともに縦スクロール�E�E*/
+/* EPUBコンテンツのレスポンシブレイアウト */
+.epub-page {
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+  text-align: var(--reader-text-align);
+  line-break: var(--reader-line-break);
+  word-break: var(--reader-word-break);
+}
+
+/* ルビ・画像の途中改ページ防止 */
+.epub-page ruby,
+.epub-page img {
+  break-inside: avoid;
+}
+
+/* EPUBスクロールモード（縦書き・横書きともに縦スクロール） */
 .fullscreen-reader.epub-scroll .viewer {
   overflow-y: auto;
   overflow-x: hidden;

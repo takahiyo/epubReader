@@ -44,6 +44,7 @@ export class UIController {
     this.onPagePrev = options.onPagePrev;
     this.onPageNext = options.onPageNext;
     this.onFloatToggle = options.onFloatToggle;
+    this.onResize = options.onResize;  // リサイズコールバック追加
     this.isBookOpen = options.isBookOpen || (() => false);
     this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
     this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
@@ -74,6 +75,8 @@ export class UIController {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
         console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
+        // リサイズコールバックを呼び出し
+        this.onResize?.();
       }, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
     });
   }
