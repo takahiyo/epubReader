@@ -1264,7 +1264,24 @@ export class ReaderController {
         const JSZipLib = await this.ensureJSZip();
         // ArrayBuffer を Uint8Array に変換して安全に JSZip に渡す
         const zipData = new Uint8Array(buffer);
-        const zip = await JSZipLib.loadAsync(zipData);
+
+        // 【追加】マジックナンバーの最終確認
+        // ZIP として指定されているが、実際には RAR のシグネチャを持つ場合のフォールバック
+        if (zipData[0] === 0x52 && zipData[1] === 0x61 && zipData[2] === 0x72) {
+          console.warn("ZIP/CBZとして指定されましたがRARの署名を検出しました。RARとして開き直します。");
+          return this.openImageBook(file, startPage, BOOK_TYPES.RAR);
+        }
+
+        const zip = await JSZipLib.loadAsync(zipData).catch(err => {
+          // エラー内容を確認し、RAR の可能性がある場合は再試行を検討
+          if (err.message.includes("end of central directory") || err.message.includes("signature")) {
+            // ここでも念のため再チェック
+            if (zipData[0] === 0x52 && zipData[1] === 0x61 && zipData[2] === 0x72) {
+              return this.openImageBook(file, startPage, BOOK_TYPES.RAR);
+            }
+          }
+          throw err;
+        });
 
         const entries = [];
         zip.forEach((path, entry) => {

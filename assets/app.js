@@ -1640,6 +1640,14 @@ async function openFromLibrary(bookId, options = {}) {
     const start = startFromBookmark ?? progress?.location;
     const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
 
+    // 【修正】読み込み時にタイプを再判定（DB内の情報の誤りを補正）
+    const detectedType = detectFileType(record.buffer);
+    if (detectedType && detectedType !== info.type) {
+      console.log(`タイプミスマッチを検出: ${info.type} -> ${detectedType}`);
+      info.type = detectedType;
+      storage.upsertBook(info);
+    }
+
     hideCloudEmptyState();
     // isImageBook: zip または rar の場合
     const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
