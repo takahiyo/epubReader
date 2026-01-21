@@ -2981,6 +2981,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
 
   updateWritingModeToggleLabel();
+  updateReadingDirectionEpubButtonLabel();
+  updateReadingDirectionButtonLabel();
   if (uiInitialized) {
     renderLibrary();
     renderHistory();
