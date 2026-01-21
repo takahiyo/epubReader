@@ -230,6 +230,10 @@ export class StorageService {
    */
   removeBook(bookId) {
     if (!bookId) return;
+
+    // リンクされたクラウドIDを取得
+    const cloudBookId = this.data.bookLinkMap[bookId];
+
     // ライブラリから削除
     delete this.data.library[bookId];
     // 進捗を削除
@@ -240,6 +244,23 @@ export class StorageService {
     this.data.history = this.data.history.filter((item) => item.bookId !== bookId);
     // bookLinkMapから削除
     delete this.data.bookLinkMap[bookId];
+
+    // クラウドデータも削除
+    if (cloudBookId) {
+      this.removeCloudData(cloudBookId);
+    }
+
+    this.save();
+  }
+
+  /**
+   * クラウドインデックスから書籍情報を削除
+   * @param {string} cloudBookId 
+   */
+  removeCloudData(cloudBookId) {
+    if (!cloudBookId) return;
+    delete this.data.cloudIndex[cloudBookId];
+    delete this.data.cloudStates[cloudBookId];
     this.save();
   }
 

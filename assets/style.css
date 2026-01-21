@@ -1441,60 +1441,123 @@ body.google-auth-active .modal-backdrop {
   font-size: 1.25rem;
 }
 
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(calc(-100% + 200px));
+  }
+
+  /* 簡易的なスクロール */
+}
+
 .library-title {
   font-size: 0.875rem;
   font-weight: 500;
-  margin-bottom: 0.25rem;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, black 85%, transparent 100%);
+}
+
+.library-title span {
+  display: inline-block;
+  transition: transform 0.3s;
+}
+
+/* ホバー時にスクロール */
+.library-card:hover .library-title span {
+  /* 文字数に応じた挙動が難しいため、transformで少し動かす程度にするか、
+     またはJSで幅を計算しないと綺麗なループは難しい。
+     ここでは簡易的に左へスクロールさせる */
+  transform: translateX(max(0px, calc(-100% + 100%)));
+  /* 仮 */
+}
+
+/* より単純なアプローチ：ホバーでtitle属性が出るので、CSSではtext-overflow: ellipsisのままにするか、
+   あるいはマーキーアニメーションを適用する。
+   ユーザー要望は「スクロールをループ」なのでmarqueeを採用 */
+
+.library-card:hover .library-title span {
+  animation: marquee 8s linear infinite;
+  min-width: 100%;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  30% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.library-grid[data-view="list"] .library-title {
+  flex: 1;
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+/* 2行目（メタ情報＋バッジ） */
+.library-row-2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  width: 100%;
+  overflow: hidden;
+}
+
+.library-meta {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.library-grid[data-view="list"] .library-title {
-  flex: 1;
-  margin-bottom: 0;
-  white-space: normal;
-}
-
-.library-meta {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
 .library-grid[data-view="list"] .library-meta {
-  margin-left: auto;
+  margin-left: 0;
+  /* list viewでの配置調整 */
+  flex: 0 0 auto;
 }
 
 .library-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
-  align-items: center;
+  display: none;
+  /* 古いactionsは非表示にするか、構造変更で削除 */
 }
 
-.library-grid[data-view="list"] .library-actions {
-  margin-top: 0;
-  margin-left: auto;
-}
-
-.library-badge {
-  font-size: 0.65rem;
-  border-radius: 999px;
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  background: rgba(139, 92, 246, 0.1);
-}
-
+/* バッジ類 */
 .library-type-badge {
   font-size: 0.6rem;
   font-weight: 600;
   color: var(--accent);
-  margin-right: 0.5rem;
+  background: rgba(139, 92, 246, 0.1);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.library-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  overflow: hidden;
+  width: 100%;
 }
 
 .library-attach {
+  /* 既存スタイル維持 */
   font-size: 0.7rem;
   border: 1px solid var(--border);
   background: transparent;
@@ -1502,6 +1565,7 @@ body.google-auth-active .modal-backdrop {
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
   cursor: pointer;
+  margin-left: auto;
 }
 
 .library-attach:hover {

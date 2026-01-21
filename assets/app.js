@@ -85,7 +85,8 @@ let floatVisible = false;
 let googleLoginReady = false;
 let userOverrodeDirection = false;
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
-let pendingDeleteBookIds = new Set();
+// Map<string, { id: string, type: 'local' | 'cloud' }>
+let pendingDeletes = new Map();
 
 // UI_STRINGS は i18n.js からインポート済み
 
@@ -2405,35 +2406,21 @@ function renderLibrary() {
     card.dataset.title = (entry.title || "").toLowerCase();
     card.dataset.author = (entry.author || "").toLowerCase();
 
-    // 削除マーク済みかどうかをチェック
-    const isMarkedForDelete = entry.localBookId && pendingDeleteBookIds.has(entry.localBookId);
-    if (isMarkedForDelete) {
-      card.classList.add("marked-for-delete");
-    }
-
-    card.onclick = () => {
-      // 削除マーク済みの場合はクリックを無効化
-      if (entry.localBookId && pendingDeleteBookIds.has(entry.localBookId)) {
-        return;
-      }
-      if (entry.hasLocalFile && entry.localBookId) {
-        openFromLibrary(entry.localBookId);
-      } else if (entry.cloudBookId) {
-        openCloudOnlyBook(entry.cloudBookId);
-      }
-    };
-
-    // 削除/やり直しボタン（ローカルファイルがある場合のみ）
-    if (entry.hasLocalFile && entry.localBookId) {
+    // 削除/やり直しボタン
+    const deleteId = entry.localBookId || entry.cloudBookId;
+    if (deleteId) {
+      const deleteType = entry.localBookId ? 'local' : 'cloud';
       const actionBtn = document.createElement("button");
       actionBtn.type = "button";
       actionBtn.className = "library-delete-btn";
 
-      // 削除マーク済みの場合はやり直しボタンを表示
-      if (isMarkedForDelete) {
+      const isMarked = pendingDeletes.has(deleteId);
+
+      if (isMarked) {
         actionBtn.textContent = "↩";
         actionBtn.title = t("undo_button");
         actionBtn.classList.add("undo-mode");
+        card.classList.add("marked-for-delete");
       } else {
         actionBtn.textContent = UI_ICONS.DELETE;
         actionBtn.title = t("delete_button");
@@ -2442,16 +2429,16 @@ function renderLibrary() {
       actionBtn.onclick = (event) => {
         event.stopPropagation();
 
-        if (pendingDeleteBookIds.has(entry.localBookId)) {
-          // やり直し：削除マークを解除
-          pendingDeleteBookIds.delete(entry.localBookId);
+        if (pendingDeletes.has(deleteId)) {
+          // やり直し
+          pendingDeletes.delete(deleteId);
           card.classList.remove("marked-for-delete");
           actionBtn.textContent = UI_ICONS.DELETE;
           actionBtn.title = t("delete_button");
           actionBtn.classList.remove("undo-mode");
         } else {
-          // 削除マークを付ける（confirm不要、閉じた時に実際に削除）
-          pendingDeleteBookIds.add(entry.localBookId);
+          // 削除マーク
+          pendingDeletes.set(deleteId, { id: deleteId, type: deleteType });
           card.classList.add("marked-for-delete");
           actionBtn.textContent = "↩";
           actionBtn.title = t("undo_button");
@@ -2461,13 +2448,36 @@ function renderLibrary() {
       card.appendChild(actionBtn);
     }
 
+    // カードクリックイベント（削除マーク時は無効）
+    card.onclick = () => {
+      if (deleteId && pendingDeletes.has(deleteId)) {
+        return;
+      }
+      if (entry.hasLocalFile && entry.localBookId) {
+        openFromLibrary(entry.localBookId);
+      } else if (entry.cloudBookId) {
+        openCloudOnlyBook(entry.cloudBookId);
+      }
+    };
+
     const cover = document.createElement("div");
     cover.className = "library-cover";
     cover.textContent = entry.title?.slice(0, 2) || UI_ICONS.BOOK;
 
+    // --- 情報エリア（新レイアウト） ---
+    const info = document.createElement("div");
+    info.className = "library-info";
+
+    // 1行目：タイトル（スクロール用span包含）
     const title = document.createElement("div");
     title.className = "library-title";
-    title.textContent = entry.title;
+    const titleSpan = document.createElement("span");
+    titleSpan.textContent = entry.title;
+    title.appendChild(titleSpan);
+
+    // 2行目：メタ情報 + バッジ
+    const row2 = document.createElement("div");
+    row2.className = "library-row-2";
 
     const meta = document.createElement("div");
     meta.className = "library-meta";
@@ -2475,39 +2485,44 @@ function renderLibrary() {
       progressPercentage: entry.progressPercentage,
       timestamp: entry.lastTimestamp,
     });
+    row2.appendChild(meta);
 
-    const actions = document.createElement("div");
-    actions.className = "library-actions";
-
-    // ファイルタイプバッジ [EPUB] [ZIP] [RAR]
+    // ファイルタイプバッジ
     if (entry.fileType) {
       const typeBadge = document.createElement("span");
       typeBadge.className = "library-type-badge";
       typeBadge.textContent = `[${entry.fileType.toUpperCase()}]`;
-      actions.appendChild(typeBadge);
+      row2.appendChild(typeBadge);
     }
 
+    // 未ダウンロードバッジ
     if (!entry.hasLocalFile) {
-      const badge = document.createElement("span");
-      badge.className = "library-badge";
-      badge.textContent = t("libraryCloudMissingBadge");
-      actions.appendChild(badge);
+      const cloudBadge = document.createElement("span");
+      cloudBadge.className = "library-type-badge";
+      cloudBadge.style.color = "var(--muted)";
+      cloudBadge.textContent = "☁";
+      cloudBadge.title = t("libraryCloudMissingBadge");
+      row2.appendChild(cloudBadge);
     }
 
+    // アタッチボタン（クラウドのみの場合）
     if (!entry.hasLocalFile && entry.cloudBookId) {
       const attachButton = document.createElement("button");
       attachButton.type = "button";
       attachButton.className = "library-attach";
-      attachButton.textContent = t("libraryAttachFile");
+      attachButton.textContent = "📎";
+      attachButton.title = t("libraryAttachFile");
       attachButton.onclick = (event) => {
         event.stopPropagation();
         pendingCloudBookId = entry.cloudBookId;
         openFileDialog();
       };
-      actions.appendChild(attachButton);
+      row2.appendChild(attachButton);
     }
 
-    card.append(cover, title, meta, actions);
+    info.append(title, row2);
+    card.append(cover, info);
+
     elements.libraryGrid.appendChild(card);
   });
 }
@@ -3258,29 +3273,34 @@ function openFileDialog() {
  * 削除マーク済み書籍を実際に削除する
  */
 async function commitPendingDeletes() {
-  if (pendingDeleteBookIds.size === 0) return;
+  if (pendingDeletes.size === 0) return;
 
-  console.log(`[commitPendingDeletes] ${pendingDeleteBookIds.size}冊を削除します`);
+  console.log(`[commitPendingDeletes] ${pendingDeletes.size}冊を削除します`);
 
-  for (const bookId of pendingDeleteBookIds) {
+  for (const { id, type } of pendingDeletes.values()) {
     try {
-      // IndexedDBから削除
-      await deleteBook(bookId);
-      // storageからも削除
-      storage.removeBook(bookId);
-      console.log(`[commitPendingDeletes] 削除完了: ${bookId}`);
+      if (type === 'local') {
+        // ローカルファイル削除
+        await deleteBook(id);
+        // storageからも削除（リンクされたクラウドデータ含む）
+        storage.removeBook(id);
+      } else if (type === 'cloud') {
+        // クラウドデータのみ削除
+        storage.removeCloudData(id);
+      }
+      console.log(`[commitPendingDeletes] 削除完了 (${type}): ${id}`);
     } catch (error) {
-      console.error(`[commitPendingDeletes] 削除に失敗: ${bookId}`, error);
+      console.error(`[commitPendingDeletes] 削除に失敗 (${type}): ${id}`, error);
     }
   }
 
   // 削除マークをクリア
-  pendingDeleteBookIds.clear();
+  pendingDeletes.clear();
 }
 
 function showLibrary() {
   // 削除マークをリセット（前回の状態をクリア）
-  pendingDeleteBookIds.clear();
+  pendingDeletes.clear();
 
   openModal(elements.openFileModal);
   renderLibrary();
