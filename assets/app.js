@@ -358,6 +358,63 @@ const elements = {
 
 
 // ========================================
+// 進捗保存（デバウンス処理）
+// ========================================
+
+let saveProgressTimeout;
+function saveProgressDebounced() {
+  clearTimeout(saveProgressTimeout);
+  saveProgressTimeout = setTimeout(() => {
+    saveCurrentProgress();
+  }, 1000);
+}
+
+function saveCurrentProgress() {
+  if (!currentBookId) return;
+
+  let progressData = null;
+
+  if (reader.type === BOOK_TYPES.EPUB) {
+    const pageIndex = reader.currentPageIndex;
+    const total = reader.pagination?.pages?.length || 0;
+
+    // CFIの取得（ページオブジェクトから）
+    let cfi = null;
+    if (reader.pagination?.pages?.[pageIndex]) {
+      cfi = reader.pagination.pages[pageIndex].cfi;
+    }
+
+    const percentage = total > 1 ? (pageIndex / (total - 1)) * 100 : 0;
+
+    progressData = {
+      percentage,
+      location: cfi,
+      updatedAt: Date.now()
+    };
+  } else {
+    // 画像書庫
+    const index = reader.imageIndex;
+    const total = reader.imagePages.length;
+    const percentage = total > 1 ? (index / (total - 1)) * 100 : 0;
+
+    progressData = {
+      percentage,
+      location: index,
+      updatedAt: Date.now()
+    };
+  }
+
+  if (progressData) {
+    storage.saveProgress(currentBookId, progressData);
+
+    // 自動同期トリガー（関数が存在する場合のみ）
+    if (typeof triggerAutoSync === 'function' && typeof isCloudSyncEnabled === 'function' && isCloudSyncEnabled() && autoSyncEnabled) {
+      triggerAutoSync();
+    }
+  }
+}
+
+// ========================================
 // リーダーコントローラー初期化
 // ========================================
 
