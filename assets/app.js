@@ -2974,8 +2974,8 @@ function applyUiLanguage(nextLanguage) {
   }
   if (elements.settingsDefaultDirection) {
     const options = elements.settingsDefaultDirection.options;
-    if (options[0]) options[0].textContent = strings.pageDirectionRtl;
-    if (options[1]) options[1].textContent = strings.pageDirectionLtr;
+    if (options[0]) options[0].textContent = strings.settingsLayoutDirectionRtl;
+    if (options[1]) options[1].textContent = strings.settingsLayoutDirectionLtr;
   }
   if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
   if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;

@@ -15,7 +15,7 @@ export const UI_STRINGS = Object.freeze({
     // ドキュメント
     documentTitle: APP_INFO.DOCUMENT_TITLE,
     appIconAlt: "EPUBリーダー",
-    
+
     // 空の状態
     emptyTitle: "本が選択されていません",
     emptyDescription: "画面中央をクリックしてメニューを表示",
@@ -34,7 +34,7 @@ export const UI_STRINGS = Object.freeze({
     areaPageNext: "次のページ",
     areaPagePrevSingle: "前のページ (1枚)",
     areaPageNextSingle: "次のページ (1枚)",
-    
+
     // メニュー
     menuOpen: "開く",
     menuLibrary: "ライブラリ",
@@ -42,29 +42,29 @@ export const UI_STRINGS = Object.freeze({
     menuBookmarks: "しおり",
     menuHistory: "履歴",
     menuSettings: "設定",
-    
+
     // 目次・しおり
     tocButton: "目次",
     bookmarkTitle: "しおり",
     bookmarkDefault: "しおり",
     addBookmark: "現在位置にしおりを追加",
-    
+
     // 検索
     searchTitle: "テキスト検索",
     searchPlaceholder: "検索キーワードを入力...",
     searchButton: "検索",
-    
+
     // 目次
     tocTitle: "目次",
     tocUntitled: "無題",
-    
+
     // ファイル・ライブラリ
     openFileTitle: "ライブラリ",
     librarySectionTitle: "ライブラリ",
     historyTitle: "履歴",
     libraryViewGridLabel: "グリッド表示",
     libraryViewListLabel: "一覧表示",
-    
+
     // 設定
     settingsTitle: "設定",
     settingsDisplayTitle: "表示設定",
@@ -81,7 +81,9 @@ export const UI_STRINGS = Object.freeze({
     progressDisplayModeLabel: "進捗表示形式",
     progressDisplayPage: "ページ数",
     progressDisplayPercentage: "パーセンテージ",
-    
+    settingsLayoutDirectionRtl: "右開き (縦書き)",
+    settingsLayoutDirectionLtr: "左開き (横書き)",
+
     // アカウント
     settingsAccountTitle: "アカウント",
     settingsDeviceTitle: "デバイス",
@@ -95,19 +97,19 @@ export const UI_STRINGS = Object.freeze({
     googleLoginStatusSignedIn: "ログイン済み: {user}",
     googleLoginStatusSignedInShort: "ログイン済み",
     googleLoginFailed: "ログインに失敗しました",
-    
+
     // 同期
     syncToggleLabel: "同期を有効にする",
     syncToggleOff: "同期を無効にする",
     syncStatusLabel: "最終同期: {time}",
     syncStatusNever: "最終同期: 未実施",
     syncNeedsLogin: "同期には Google ログインが必要です。",
-    
+
     // データ管理
     settingsDataTitle: "データ管理",
     exportData: "設定・データを書き出す",
     importData: "設定・データを読み込む",
-    
+
     // ライブラリ・履歴
     libraryEmpty: "ライブラリが空です",
     historyEmpty: "履歴がありません",
@@ -115,7 +117,7 @@ export const UI_STRINGS = Object.freeze({
     progressLabel: "進捗",
     bookmarkEmpty: "しおりがありません",
     bookmarkDeleteConfirm: "このしおりを削除しますか？",
-    
+
     // プロンプト・メッセージ
     openBookPrompt: "本を開いてください",
     searchMissingQuery: "検索キーワードを入力してください",
@@ -124,11 +126,11 @@ export const UI_STRINGS = Object.freeze({
     searchEpubOnly: "EPUB形式の本を開いている時のみ検索できます",
     searchNavigateFailed: "検索結果への移動に失敗しました",
     searchResultFallback: "結果",
-    
+
     // トグルボタン
     writingModeToggleVertical: "縦",
     writingModeToggleHorizontal: "横",
-    
+
     // 同期プロンプト
     syncPromptTitle: "同期の確認",
     syncPromptMessage: "他の端末で、より新しい読書位置があります。",
@@ -143,13 +145,13 @@ export const UI_STRINGS = Object.freeze({
     candidateModalMessage: "クラウド上にこの書籍と思われるデータが見つかりました。\\n同期して続きから読みますか？",
     candidateUseLocal: "同期せず新規として扱う",
     closeButtonLabel: "閉じる",
-    
+
     // クラウド
     libraryCloudMissingBadge: "この端末に未保存",
     libraryAttachFile: "ファイルを追加して紐づけ",
     cloudOnlyTitle: "クラウドの読書データのみ表示中",
     cloudOnlyDescription: "ファイルを追加すると続きから読めます",
-    
+
     // 表示モード
     spreadModeDouble: "見開き",
     spreadModeSingle: "単ページ",
@@ -167,7 +169,7 @@ export const UI_STRINGS = Object.freeze({
     // 画像の代替テキスト
     pageImageAlt: "ページ画像",
     modalImageAlt: "拡大画像",
-    
+
     // 同期ステータス
     syncNeedsLoginStatus: "Googleログインが必要です",
     syncInProgress: "同期中...",
@@ -197,7 +199,7 @@ export const UI_STRINGS = Object.freeze({
     cloudSyncOneDriveUploadFailed: "OneDrive への保存に失敗しました ({status})",
     cloudSyncPCloudSaveFailed: "pCloud への保存に失敗しました ({status})",
     cloudSyncPCloudFetchFailed: "pCloud からの取得に失敗しました ({status})",
-    
+
     // エラーメッセージ
     errorFileLoadFailed: "ファイルの読み込みに失敗しました。",
     errorFileName: "ファイル名",
@@ -205,7 +207,7 @@ export const UI_STRINGS = Object.freeze({
     errorDetail: "エラー詳細",
     errorNoImagesFound: "エラー: アーカイブ内に画像ファイルが見つかりませんでした。\\n\\n対応フォーマット: PNG, JPEG, GIF, WebP, BMP",
     errorImageLoadFailed: "エラー: 画像ファイルの変換に失敗しました。\\n\\nファイルが破損している可能性があります。",
-    
+
     // 相対時間
     timeJustNow: "たった今",
     timeMinutesAgo: "{n}分前",
@@ -215,12 +217,12 @@ export const UI_STRINGS = Object.freeze({
     timeMonthsAgo: "{n}ヶ月前",
     timeYearsAgo: "{n}年前",
   }),
-  
+
   en: Object.freeze({
     // Document
     documentTitle: APP_INFO.DOCUMENT_TITLE,
     appIconAlt: "EPUB Reader",
-    
+
     // Empty state
     emptyTitle: "No book selected",
     emptyDescription: "Tap center of the screen to open menu",
@@ -239,7 +241,7 @@ export const UI_STRINGS = Object.freeze({
     areaPageNext: "Next page",
     areaPagePrevSingle: "Previous page (single)",
     areaPageNextSingle: "Next page (single)",
-    
+
     // Menu
     menuOpen: "Open",
     menuLibrary: "Library",
@@ -247,29 +249,29 @@ export const UI_STRINGS = Object.freeze({
     menuBookmarks: "Bookmarks",
     menuHistory: "History",
     menuSettings: "Settings",
-    
+
     // TOC & Bookmarks
     tocButton: "TOC",
     bookmarkTitle: "Bookmarks",
     bookmarkDefault: "Bookmark",
     addBookmark: "Add bookmark at current location",
-    
+
     // Search
     searchTitle: "Text Search",
     searchPlaceholder: "Enter a search keyword...",
     searchButton: "Search",
-    
+
     // TOC
     tocTitle: "Table of Contents",
     tocUntitled: "Untitled",
-    
+
     // File & Library
     openFileTitle: "Library",
     librarySectionTitle: "Library",
     historyTitle: "History",
     libraryViewGridLabel: "Grid view",
     libraryViewListLabel: "List view",
-    
+
     // Settings
     settingsTitle: "Settings",
     settingsDisplayTitle: "Display",
@@ -286,7 +288,9 @@ export const UI_STRINGS = Object.freeze({
     progressDisplayModeLabel: "Progress format",
     progressDisplayPage: "Pages",
     progressDisplayPercentage: "Percentage",
-    
+    settingsLayoutDirectionRtl: "Right to Left (Vertical)",
+    settingsLayoutDirectionLtr: "Left to Right (Horizontal)",
+
     // Account
     settingsAccountTitle: "Account",
     settingsDeviceTitle: "Device",
@@ -300,19 +304,19 @@ export const UI_STRINGS = Object.freeze({
     googleLoginStatusSignedIn: "Signed in: {user}",
     googleLoginStatusSignedInShort: "Signed in",
     googleLoginFailed: "Failed to sign in",
-    
+
     // Sync
     syncToggleLabel: "Enable sync",
     syncToggleOff: "Disable sync",
     syncStatusLabel: "Last sync: {time}",
     syncStatusNever: "Last sync: never",
     syncNeedsLogin: "Sign in with Google to enable sync.",
-    
+
     // Data management
     settingsDataTitle: "Data",
     exportData: "Export settings & data",
     importData: "Import settings & data",
-    
+
     // Library & History
     libraryEmpty: "Your library is empty",
     historyEmpty: "No history yet",
@@ -320,7 +324,7 @@ export const UI_STRINGS = Object.freeze({
     progressLabel: "Progress",
     bookmarkEmpty: "No bookmarks",
     bookmarkDeleteConfirm: "Delete this bookmark?",
-    
+
     // Prompts & Messages
     openBookPrompt: "Please open a book.",
     searchMissingQuery: "Please enter a search keyword.",
@@ -329,11 +333,11 @@ export const UI_STRINGS = Object.freeze({
     searchEpubOnly: "Search is available only when an EPUB is open.",
     searchNavigateFailed: "Failed to navigate to the search result.",
     searchResultFallback: "Result",
-    
+
     // Toggle buttons
     writingModeToggleVertical: "V",
     writingModeToggleHorizontal: "H",
-    
+
     // Sync prompts
     syncPromptTitle: "Sync available",
     syncPromptMessage: "A newer reading position is available on another device.",
@@ -347,13 +351,13 @@ export const UI_STRINGS = Object.freeze({
     candidateModalMessage: "We found a matching book in the cloud.\\nContinue from the synced position?",
     candidateUseLocal: "Treat as new without syncing",
     closeButtonLabel: "Close",
-    
+
     // Cloud
     libraryCloudMissingBadge: "Not on this device",
     libraryAttachFile: "Attach file to link",
     cloudOnlyTitle: "Viewing cloud reading data",
     cloudOnlyDescription: "Attach the file to continue reading.",
-    
+
     // Display modes
     spreadModeDouble: "Spread",
     spreadModeSingle: "Single",
@@ -371,7 +375,7 @@ export const UI_STRINGS = Object.freeze({
     // Image alt text
     pageImageAlt: "Page image",
     modalImageAlt: "Zoomed image",
-    
+
     // Sync status
     syncNeedsLoginStatus: "Google sign-in required",
     syncInProgress: "Syncing...",
@@ -401,7 +405,7 @@ export const UI_STRINGS = Object.freeze({
     cloudSyncOneDriveUploadFailed: "Failed to save to OneDrive ({status})",
     cloudSyncPCloudSaveFailed: "Failed to save to pCloud ({status})",
     cloudSyncPCloudFetchFailed: "Failed to fetch from pCloud ({status})",
-    
+
     // Error messages
     errorFileLoadFailed: "Failed to load file.",
     errorFileName: "File name",
@@ -409,7 +413,7 @@ export const UI_STRINGS = Object.freeze({
     errorDetail: "Error details",
     errorNoImagesFound: "Error: No image files found in the archive.\\n\\nSupported formats: PNG, JPEG, GIF, WebP, BMP",
     errorImageLoadFailed: "Error: Failed to load image file.\\n\\nThe file may be corrupted.",
-    
+
     // Relative time
     timeJustNow: "just now",
     timeMinutesAgo: "{n}m ago",
