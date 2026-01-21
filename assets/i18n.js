@@ -83,6 +83,8 @@ export const UI_STRINGS = Object.freeze({
     progressDisplayPercentage: "パーセンテージ",
     settingsLayoutDirectionRtl: "右開き (縦書き)",
     settingsLayoutDirectionLtr: "左開き (横書き)",
+    spreadModeDouble: "見開き",
+    spreadModeSingle: "単ページ",
 
     // アカウント
     settingsAccountTitle: "アカウント",
@@ -290,6 +292,8 @@ export const UI_STRINGS = Object.freeze({
     progressDisplayPercentage: "Percentage",
     settingsLayoutDirectionRtl: "Right to Left (Vertical)",
     settingsLayoutDirectionLtr: "Left to Right (Horizontal)",
+    spreadModeDouble: "Spread",
+    spreadModeSingle: "Single",
 
     // Account
     settingsAccountTitle: "Account",

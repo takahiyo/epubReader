@@ -2983,6 +2983,7 @@ function applyUiLanguage(nextLanguage) {
   updateWritingModeToggleLabel();
   updateReadingDirectionEpubButtonLabel();
   updateReadingDirectionButtonLabel();
+  updateSpreadModeButtonLabel();
   if (uiInitialized) {
     renderLibrary();
     renderHistory();
