@@ -218,6 +218,11 @@ export const UI_STRINGS = Object.freeze({
     timeWeeksAgo: "{n}週間前",
     timeMonthsAgo: "{n}ヶ月前",
     timeYearsAgo: "{n}年前",
+
+    // ライブラリ検索・削除
+    library_search_placeholder: "タイトルまたは著者名で検索",
+    library_delete_confirm: "この本を削除しますか？\n（クラウド上のデータは保持されます）",
+    delete_button: "削除",
   }),
 
   en: Object.freeze({
@@ -426,6 +431,11 @@ export const UI_STRINGS = Object.freeze({
     timeWeeksAgo: "{n}w ago",
     timeMonthsAgo: "{n}mo ago",
     timeYearsAgo: "{n}y ago",
+
+    // Library search & delete
+    library_search_placeholder: "Search by title or author",
+    library_delete_confirm: "Delete this book?\n(Cloud data will remain)",
+    delete_button: "Delete",
   }),
 });
 

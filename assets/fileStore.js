@@ -125,6 +125,15 @@ export async function deleteFile(id) {
   await withStore("readwrite", (store) => store.delete(id));
 }
 
+/**
+ * 指定されたbookIdをIndexedDBから削除
+ * ローカルのファイルデータのみを削除（メタデータはstorage側で管理）
+ * @param {string} bookId - 削除する書籍のID
+ */
+export async function deleteBook(bookId) {
+  await deleteFile(bookId);
+}
+
 export function bufferToFile(record) {
   if (!record) return null;
   const { buffer, meta } = record;

@@ -1508,8 +1508,72 @@ body.google-auth-active .modal-backdrop {
   border-color: var(--accent);
 }
 
+/* ライブラリ検索入力欄 */
+.library-search-input {
+  flex: 1;
+  min-width: 120px;
+  max-width: 300px;
+  padding: 0.5rem 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.library-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.library-search-input::placeholder {
+  color: var(--muted);
+}
+
+/* ライブラリカード削除ボタン */
+.library-card {
+  position: relative;
+}
+
+.library-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.library-card:hover .library-delete-btn {
+  opacity: 1;
+}
+
+.library-delete-btn:hover {
+  background: rgba(220, 38, 38, 1);
+}
+
+/* リスト表示時の削除ボタン位置調整 */
+.library-grid[data-view="list"] .library-delete-btn {
+  position: static;
+  opacity: 1;
+  margin-left: 0.5rem;
+}
+
 /* ========================================
-   履歴リスチE
+   履歴リスト
 ======================================== */
 
 .history-list {

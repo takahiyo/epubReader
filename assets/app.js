@@ -17,7 +17,7 @@ import {
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
-import { saveFile, loadFile, bufferToFile } from "./fileStore.js";
+import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
@@ -280,6 +280,7 @@ const elements = {
   libraryGrid: getById(DOM_IDS.LIBRARY_GRID),
   libraryViewGrid: getById(DOM_IDS.LIBRARY_VIEW_GRID),
   libraryViewList: getById(DOM_IDS.LIBRARY_VIEW_LIST),
+  librarySearchInput: getById("library-search-input"),
 
   // 履歴
   historyModal: getById(DOM_IDS.HISTORY_MODAL),
@@ -2398,6 +2399,9 @@ function renderLibrary() {
   entries.forEach((entry) => {
     const card = document.createElement("div");
     card.className = "library-card";
+    // 検索フィルタ用のdata属性を設定
+    card.dataset.title = (entry.title || "").toLowerCase();
+    card.dataset.author = (entry.author || "").toLowerCase();
     card.onclick = () => {
       if (entry.hasLocalFile && entry.localBookId) {
         openFromLibrary(entry.localBookId);
@@ -2405,6 +2409,31 @@ function renderLibrary() {
         openCloudOnlyBook(entry.cloudBookId);
       }
     };
+
+    // 削除ボタン（ローカルファイルがある場合のみ）
+    if (entry.hasLocalFile && entry.localBookId) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "library-delete-btn";
+      deleteBtn.textContent = "×";
+      deleteBtn.title = t("delete_button");
+      deleteBtn.onclick = async (event) => {
+        event.stopPropagation();
+        if (confirm(t("library_delete_confirm"))) {
+          try {
+            // IndexedDBから削除
+            await deleteBook(entry.localBookId);
+            // storageからも削除
+            storage.removeFromLibrary(entry.localBookId);
+            // 再描画
+            renderLibrary();
+          } catch (error) {
+            console.error("[renderLibrary] 削除に失敗しました:", error);
+          }
+        }
+      };
+      card.appendChild(deleteBtn);
+    }
 
     const cover = document.createElement("div");
     cover.className = "library-cover";
@@ -2454,6 +2483,24 @@ function renderLibrary() {
 
     card.append(cover, title, meta, actions);
     elements.libraryGrid.appendChild(card);
+  });
+}
+
+/**
+ * ライブラリカードを検索クエリでフィルタリング
+ * @param {string} query - 検索クエリ
+ */
+function filterLibraryCards(query) {
+  const cards = elements.libraryGrid?.querySelectorAll(".library-card");
+  if (!cards) return;
+
+  const lowerQuery = (query || "").toLowerCase().trim();
+
+  cards.forEach((card) => {
+    const title = card.dataset.title || "";
+    const author = card.dataset.author || "";
+    const matches = !lowerQuery || title.includes(lowerQuery) || author.includes(lowerQuery);
+    card.style.display = matches ? "" : "none";
   });
 }
 
@@ -2905,6 +2952,9 @@ function applyUiLanguage(nextLanguage) {
   }
   if (elements.libraryViewList) {
     elements.libraryViewList.setAttribute("aria-label", strings.libraryViewListLabel);
+  }
+  if (elements.librarySearchInput) {
+    elements.librarySearchInput.placeholder = strings.library_search_placeholder;
   }
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
@@ -3687,6 +3737,11 @@ function setupEvents() {
   elements.progressNext?.addEventListener('click', () => {
 
     reader.next(1); // 1ページずつ進む
+  });
+
+  // ライブラリ検索入力欄
+  elements.librarySearchInput?.addEventListener('input', (e) => {
+    filterLibraryCards(e.target.value);
   });
 }
 
