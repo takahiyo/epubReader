@@ -1262,7 +1262,9 @@ export class ReaderController {
       } else {
         console.log("Opening ZIP/CBZ file...");
         const JSZipLib = await this.ensureJSZip();
-        const zip = await JSZipLib.loadAsync(buffer);
+        // ArrayBuffer を Uint8Array に変換して安全に JSZip に渡す
+        const zipData = new Uint8Array(buffer);
+        const zip = await JSZipLib.loadAsync(zipData);
 
         const entries = [];
         zip.forEach((path, entry) => {

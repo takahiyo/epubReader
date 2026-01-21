@@ -1385,8 +1385,8 @@ async function handleFile(file) {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
 
-    // ファイルタイプを自動判別
-    const type = detectFileType(file);
+    // ファイルタイプを自動判別 (マジックナンバー優先)
+    const type = detectFileType(buffer) || detectFileType(file);
     if (!type) {
       hideLoading();
       alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
@@ -1479,7 +1479,8 @@ async function handleFile(file) {
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
-        await reader.openEpub(new File([buffer], file.name, { type: mime }), {
+        const fileToOpen = new File([new Uint8Array(buffer)], file.name, { type: mime });
+        await reader.openEpub(fileToOpen, {
           location: startLocation,
           percentage: startProgress,
         });
@@ -1499,7 +1500,7 @@ async function handleFile(file) {
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
       await reader.openImageBook(
-        new File([buffer], file.name, { type: mime }),
+        new File([new Uint8Array(buffer)], file.name, { type: mime }),
         typeof startLocation === "number" ? startLocation : 0,
         info.type // "zip" | "rar" を渡す
       );
@@ -1686,11 +1687,39 @@ async function openFromLibrary(bookId, options = {}) {
   }
 }
 
-function detectFileType(file) {
-  const ext = file.name.split(".").pop().toLowerCase();
+function detectFileType(fileOrBuffer) {
+  // ArrayBufferの場合はマジックナンバーチェック
+  if (fileOrBuffer instanceof ArrayBuffer) {
+    const view = new Uint8Array(fileOrBuffer);
+    // EPUB (PK\x03\x04 + mimetype) - 簡易的に PK チェックのみでも ZIP と混同しやすいが
+    // ZIP (PK\x03\x04)
+    if (view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
+      // 内部に "mimetypeapplication/epub+zip" があるかチェック（オフセット 30付近）
+      const str = String.fromCharCode(...view.slice(30, 60));
+      if (str.includes("mimetypeapplication/epub+zip")) {
+        return BOOK_TYPES.EPUB;
+      }
+      return BOOK_TYPES.ZIP;
+    }
+    // RAR (Rar!\x1a\x07\x00) v4
+    if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
+      return BOOK_TYPES.RAR;
+    }
+    // RAR (Rar!\x1a\x07\x01) v5
+    if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07 && view[6] === 0x01) {
+      return BOOK_TYPES.RAR;
+    }
+  }
+
+  // File オブジェクトの場合は名前から判別（フォールバック）
+  const name = fileOrBuffer.name || "";
+  const ext = name.split(".").pop().toLowerCase();
   if (ext === FILE_EXTENSIONS.EPUB) return BOOK_TYPES.EPUB;
-  if (ext === FILE_EXTENSIONS.RAR || ext === FILE_EXTENSIONS.CBR) return BOOK_TYPES.RAR; // Treat .cbr as RAR
-  return BOOK_TYPES.ZIP; // Treat .zip, .cbz as ZIP
+  if (ext === FILE_EXTENSIONS.RAR || ext === FILE_EXTENSIONS.CBR) return BOOK_TYPES.RAR;
+  if (ext === FILE_EXTENSIONS.ZIP || ext === FILE_EXTENSIONS.CBZ) return BOOK_TYPES.ZIP;
+
+  // 不明な場合はnullを返す（呼び出し側でデフォルト処理）
+  return null;
 }
 
 function fileTitle(name) {
