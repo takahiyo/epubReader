@@ -390,9 +390,11 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
+    // 差分同期: 最後の同期時刻以降の更新のみ取得
+    const since = this.storage.data.cloudIndexUpdatedAt ?? null;
     // Worker (KV) 優先、SDK フォールバック
     return this.executePrimaryWithFallback(
-      () => this.postFirebaseSync("/sync/index/pull", {}, settings),
+      () => this.postFirebaseSync("/sync/index/pull", { since }, settings),
       () => this.pullIndexFirestore(),
       "pullIndex"
     );

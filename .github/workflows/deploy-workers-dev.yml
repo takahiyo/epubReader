@@ -1,0 +1,23 @@
+name: Deploy Workers to Development
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'workers/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare Workers (Dev)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: workers
+          command: deploy --env dev

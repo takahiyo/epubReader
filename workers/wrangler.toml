@@ -2,13 +2,32 @@ name = "bookreader"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-# KV Namespace バインディング
-# ※ KV Namespace 'epub_cache' 作成済み
+# ==========================================
+# 本番環境 (デフォルト)
+# ==========================================
+
+# KV Namespace バインディング (本番用)
 [[kv_namespaces]]
 binding = "KV"
 id = "bb277ef0b3cf41d9a0be9fbe295f3743"
-preview_id = "8dc05d6c14080b389e24e1446dfcb"
 
-# 環境変数 (FirebaseプロジェクトID)
+# 環境変数 (本番用)
 [vars]
 FIREBASE_PROJECT_ID = "bookreader-1d3a3"
+ENVIRONMENT = "production"
+
+# ==========================================
+# 開発環境
+# ==========================================
+[env.dev]
+name = "bookreader-dev"
+
+# KV Namespace バインディング (開発用)
+[[env.dev.kv_namespaces]]
+binding = "KV"
+id = "0789b395bb4f418d8edf32ca965aadeb"
+
+# 環境変数 (開発用)
+[env.dev.vars]
+FIREBASE_PROJECT_ID = "bookreader-1d3a3"
+ENVIRONMENT = "development"

@@ -47,8 +47,8 @@ export default {
           result = await pushStateWithCache(env, ctx, projectId, uid, data.cloudBookId, data.state, idToken);
           break;
         case "/sync/index/pull":
-          // Read-through
-          result = await pullIndexWithCache(env, ctx, projectId, uid, idToken);
+          // Read-through (差分同期対応)
+          result = await pullIndexWithCache(env, ctx, projectId, uid, idToken, data.since ?? null);
           break;
         case "/sync/index/push":
           // Write-through
@@ -69,7 +69,7 @@ export default {
 // ==========================================
 // KV キャッシュ制御定数・ヘルパー
 // ==========================================
-const CACHE_TTL = 60; // 60秒キャッシュ
+const CACHE_TTL = 300; // 300秒（5分）キャッシュ
 
 // キー生成ヘルパー
 function getKvKey(uid, type, id = "") {
@@ -82,7 +82,7 @@ function getKvKey(uid, type, id = "") {
 
 async function pullStateWithCache(env, ctx, projectId, uid, bookId, token) {
   const key = getKvKey(uid, "book", bookId);
-  
+
   // 1. KVから取得 (高速応答)
   const cached = await env.KV.get(key, { type: "json" });
   if (cached) {
@@ -96,7 +96,7 @@ async function pullStateWithCache(env, ctx, projectId, uid, bookId, token) {
   if (data && Object.keys(data).length > 0) {
     ctx.waitUntil(env.KV.put(key, JSON.stringify(data), { expirationTtl: CACHE_TTL }));
   }
-  
+
   return data;
 }
 
@@ -111,29 +111,41 @@ async function pushStateWithCache(env, ctx, projectId, uid, bookId, state, token
   return result;
 }
 
-async function pullIndexWithCache(env, ctx, projectId, uid, token) {
+async function pullIndexWithCache(env, ctx, projectId, uid, token, since = null) {
   const key = getKvKey(uid, "index");
 
   // 1. KVから取得
   const cached = await env.KV.get(key, { type: "json" });
   if (cached) {
+    const cachedUpdatedAt = cached.updatedAt ?? 0;
+    // since指定時: 更新がなければunchangedを返す（Firestoreアクセス回避）
+    if (since && cachedUpdatedAt <= since) {
+      return { unchanged: true, updatedAt: cachedUpdatedAt };
+    }
     return cached;
   }
 
   // 2. キャッシュミス時はFirestoreから取得
   const data = await pullIndex(projectId, uid, token);
-  
+
   // 3. KVに保存
   if (data) {
     ctx.waitUntil(env.KV.put(key, JSON.stringify(data), { expirationTtl: CACHE_TTL }));
   }
+
+  // since指定時: Firestoreから取得したデータも更新がなければunchangedを返す
+  const dataUpdatedAt = data?.updatedAt ?? 0;
+  if (since && dataUpdatedAt <= since) {
+    return { unchanged: true, updatedAt: dataUpdatedAt };
+  }
+
   return data;
 }
 
 async function pushIndexWithCache(env, ctx, projectId, uid, indexDelta, updatedAt, token) {
   // 1. 最新のインデックスを取得 (KV or Firestore)
   const current = await pullIndexWithCache(env, ctx, projectId, uid, token);
-  
+
   // 2. マージ
   const newIndex = { ...(current.index || {}), ...indexDelta };
   const finalPayload = { index: newIndex, updatedAt };
@@ -170,7 +182,7 @@ async function pushState(projectId, uid, bookId, state, token) {
   const fields = convertToFirestore(state);
   const keys = Object.keys(state);
   const updateMask = keys.map(k => `updateMask.fieldPaths=${k}`).join("&");
-  
+
   const res = await fetchFirestore(`${url}?${updateMask}`, "PATCH", { fields }, token);
   if (res.error) throw new Error(res.error.message);
   return { status: "success", source: "workers" };
@@ -190,10 +202,10 @@ async function pullIndex(projectId, uid, token) {
 async function pushIndexFull(projectId, uid, fullIndexData, token) {
   const url = `${getBaseUrl(projectId)}/users/${uid}/appData/index`;
   const fields = convertToFirestore(fullIndexData);
-  
+
   // 全フィールドを更新対象にする
   const updateMask = "updateMask.fieldPaths=index&updateMask.fieldPaths=updatedAt";
-  
+
   const res = await fetchFirestore(`${url}?${updateMask}`, "PATCH", { fields }, token);
   if (res.error) throw new Error(res.error.message);
   return { status: "success" };
