@@ -1,7 +1,7 @@
 /**
  * cloudSync.js - クラウド同期
  * 
- * Firebase SDK直接通信 → Cloudflare Workers フォールバックの冗長化構成を提供します。
+ * Cloudflare Workers (KV) 優先 → Firebase SDK フォールバックの冗長化構成を提供します。
  */
 
 import { CDN_URLS, SYNC_CONFIG } from "./constants.js";
@@ -97,23 +97,23 @@ export class CloudSync {
   }
 
   // ===============================
-  // Failover Logic (SDK -> Workers)
+  // Failover Logic (Workers -> SDK)
   // ===============================
 
-  async executeWithFailover(sdkTask, apiTask, label) {
+  async executePrimaryWithFallback(primaryTask, fallbackTask, label) {
     try {
-      const result = await sdkTask();
+      const result = await primaryTask();
       return result;
-    } catch (sdkError) {
-      console.warn(`[CloudSync:${label}] SDK failed, trying Workers fallback...`, sdkError);
+    } catch (primaryError) {
+      console.warn(`[CloudSync:${label}] Primary (Worker) failed, trying Fallback (SDK)...`, primaryError);
     }
 
     try {
-      const result = await apiTask();
+      const result = await fallbackTask();
       return result;
-    } catch (apiError) {
-      console.error(`[CloudSync:${label}] All sync methods failed.`, apiError);
-      throw apiError;
+    } catch (fallbackError) {
+      console.error(`[CloudSync:${label}] All sync methods failed.`, fallbackError);
+      throw fallbackError;
     }
   }
 
@@ -390,9 +390,10 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.executeWithFailover(
-      () => this.pullIndexFirestore(),
+    // Worker (KV) 優先、SDK フォールバック
+    return this.executePrimaryWithFallback(
       () => this.postFirebaseSync("/sync/index/pull", {}, settings),
+      () => this.pullIndexFirestore(),
       "pullIndex"
     );
   }
@@ -402,9 +403,10 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.executeWithFailover(
-      () => this.pushIndexDeltaFirestore(indexDelta, updatedAt),
+    // Worker (KV) 優先、SDK フォールバック
+    return this.executePrimaryWithFallback(
       () => this.postFirebaseSync("/sync/index/push", { indexDelta, updatedAt }, settings),
+      () => this.pushIndexDeltaFirestore(indexDelta, updatedAt),
       "pushIndex"
     );
   }
@@ -414,9 +416,10 @@ export class CloudSync {
     if (resolvedSource !== "firebase") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.executeWithFailover(
-      () => this.pullBookDataFirestore(cloudBookId),
+    // Worker (KV) 優先、SDK フォールバック
+    return this.executePrimaryWithFallback(
       () => this.postFirebaseSync("/sync/state/pull", { cloudBookId }, settings),
+      () => this.pullBookDataFirestore(cloudBookId),
       "pullState"
     );
   }
@@ -428,9 +431,10 @@ export class CloudSync {
     }
     const normalizedState = this.normalizeCloudState(state, updatedAt);
     const payload = { state: normalizedState, updatedAt: normalizedState.updatedAt };
-    return this.executeWithFailover(
-      () => this.pushBookDataFirestore(cloudBookId, payload),
+    // Worker (KV) 優先、SDK フォールバック
+    return this.executePrimaryWithFallback(
       () => this.postFirebaseSync("/sync/state/push", { cloudBookId, ...payload }, settings),
+      () => this.pushBookDataFirestore(cloudBookId, payload),
       "pushState"
     );
   }
