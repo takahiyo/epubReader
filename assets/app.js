@@ -434,6 +434,8 @@ const reader = new ReaderController({
         ? `${data.metadata.title} - ${APP_INFO.NAME}`
         : APP_INFO.NAME;
     }
+    // 進捗バーの向きを更新
+    updateProgressBarDirection();
   },
   onImageZoom: (isZoomed) => {
     if (isZoomed) {
@@ -1957,6 +1959,8 @@ async function seekToPercentage(percentage) {
         } else {
           reader.renderEpubPage(pageIndex);
         }
+        // UI側の進捗表示を即時更新
+        ui.updateProgress(pageIndex, totalPages);
         return;
       }
       console.warn('Locations not generated yet');
@@ -2986,9 +2990,10 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
 
   try {
     await reader.applyReadingDirection(writingMode, pageDirection);
+    updateProgressBarDirection();
     updateEpubScrollMode();
     storage.setSettings({ writingMode, pageDirection });
-    persistReadingState({ writingMode });
+    persistReadingState({ writingMode, pageDirection });
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {

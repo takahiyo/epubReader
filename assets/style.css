@@ -442,6 +442,19 @@ body.google-auth-active .modal-backdrop {
   right: auto;
 }
 
+/* メニュー内進捗バー（.rtl-mode）の反転 */
+.progress-bar-wrapper.rtl-mode .progress-track {
+  transform: scaleX(-1);
+}
+
+.progress-bar-wrapper.rtl-mode .progress-fill {
+  transform: scaleX(-1);
+}
+
+.progress-bar-wrapper.rtl-mode #progressThumb {
+  right: auto;
+}
+
 /* スクロール時�Eメニューボタン */
 .floating-menu-button {
   position: absolute;

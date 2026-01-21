@@ -539,6 +539,10 @@ export class UIController {
     const fill = getById(DOM_IDS.PROGRESS_FILL);
     const thumb = getById(DOM_IDS.PROGRESS_THUMB);
 
+    // RTL時は、CSS側（transform: scaleX(-1)）で反転させるため、
+    // ここで反転させると二重反転になる可能性がある。
+    // しかし、数値表示（floatPercent）などは反転させない。
+
     if (fill) fill.style.width = `${percentage}%`;
     if (thumb) thumb.style.left = `${percentage}%`;
 
