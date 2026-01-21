@@ -375,7 +375,7 @@ function saveCurrentProgress() {
   let progressData = null;
 
   if (reader.type === BOOK_TYPES.EPUB) {
-    const pageIndex = reader.currentPageIndex;
+    const pageIndex = (typeof reader.currentPageIndex === 'object' && reader.currentPageIndex !== null) ? (reader.currentPageIndex.index ?? reader.currentPageIndex.pageIndex ?? 0) : Number(reader.currentPageIndex || 0);
     const total = reader.pagination?.pages?.length || 0;
 
     // CFIの取得（ページオブジェクトから）
@@ -393,7 +393,7 @@ function saveCurrentProgress() {
     };
   } else {
     // 画像書庫
-    const index = reader.imageIndex;
+    const index = (typeof reader.imageIndex === 'object' && reader.imageIndex !== null) ? (reader.imageIndex.index ?? 0) : Number(reader.imageIndex || 0);
     const total = reader.imagePages.length;
     const percentage = total > 1 ? (index / (total - 1)) * 100 : 0;
 
@@ -405,7 +405,7 @@ function saveCurrentProgress() {
   }
 
   if (progressData) {
-    storage.saveProgress(currentBookId, progressData);
+    storage.setProgress(currentBookId, progressData);
 
     // 自動同期トリガー（関数が存在する場合のみ）
     if (typeof triggerAutoSync === 'function' && typeof isCloudSyncEnabled === 'function' && isCloudSyncEnabled() && autoSyncEnabled) {

@@ -512,27 +512,29 @@ export class UIController {
    * 進捗表示を更新
    */
   updateProgress(current, total) {
+    // 数値型に強制変換（オブジェクトが渡された場合の対策）
+    const currentIndex = (typeof current === 'object' && current !== null) ? (current.index ?? current.pageIndex ?? 0) : Number(current || 0);
+    const totalCount = (typeof total === 'object' && total !== null) ? (total.length ?? total.totalPages ?? 0) : Number(total || 0);
+
     // 1. ページ番号表示更新
     const currentInput = getById(DOM_IDS.CURRENT_PAGE_INPUT);
     const totalSpan = getById(DOM_IDS.TOTAL_PAGES);
 
-    if (currentInput) currentInput.value = current + 1; // 1-based
+    if (currentInput) currentInput.value = (isNaN(currentIndex) ? 0 : currentIndex) + 1; // 1-based
 
     // totalPages が undefined の場合や 0 の場合のガード
-    const validTotal = (typeof total === 'number' && total > 0) ? total : 0;
-    if (totalSpan) totalSpan.textContent = validTotal;
+    const validTotal = (typeof totalCount === 'number' && totalCount > 0) ? totalCount : 0;
+    if (totalSpan) totalSpan.textContent = isNaN(validTotal) ? 0 : validTotal;
 
     // 2. プログレスバー更新
-    // 全1ページの場合は0% (または100%にする仕様もあり得るが、ここでは0%スタートとする)
-    // 複数ページ: (current / (validTotal - 1)) * 100
-    // validTotal=1 の時は current=0 なので 0/0 にならないよう注意
     let percentage = 0;
     if (validTotal > 1) {
-      percentage = (Math.min(current, validTotal - 1) / (validTotal - 1)) * 100;
+      percentage = (Math.min(currentIndex, validTotal - 1) / (validTotal - 1)) * 100;
     } else if (validTotal === 1) {
-      // 1ページのみなら常に100%か0%か。ここでは100%とするか、完了として扱う
       percentage = 100;
     }
+
+    if (isNaN(percentage)) percentage = 0;
 
     const fill = getById(DOM_IDS.PROGRESS_FILL);
     const thumb = getById(DOM_IDS.PROGRESS_THUMB);
