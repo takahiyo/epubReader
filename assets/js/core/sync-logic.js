@@ -7,7 +7,7 @@
  */
 
 import { UI_CLASSES, UI_SYMBOLS } from "../../constants.js";
-import { formatRelativeTime } from "../../utils.js";
+import { formatRelativeTime } from "../../i18n.js";
 import { t as t_core, tReplace, getUiStrings } from "../ui/i18n-utils.js";
 import { elements } from "../ui/elements.js";
 import { generateCloudBookId, upsertCloudIndexEntry } from "./file-handler.js";
