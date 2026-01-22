@@ -151,15 +151,16 @@ export function updateFloatingUIButtons() {
 
 /**
  * フローティングオーバーレイの表示切り替え
+ * @param {boolean|undefined} forceVisible - true:表示, false:非表示, undefined:トグル
  */
-export function toggleFloatOverlay() {
+export function toggleFloatOverlay(forceVisible) {
     if (!elements.floatOverlay) return;
     const isVisible = elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE);
 
-    if (isVisible) {
-        elements.floatOverlay.classList.remove(UI_CLASSES.VISIBLE);
-        elements.floatOverlay.setAttribute("aria-hidden", "true");
-    } else {
+    // forceVisible が指定されている場合はそれに従う、そうでなければトグル
+    const shouldShow = forceVisible !== undefined ? forceVisible : !isVisible;
+
+    if (shouldShow) {
         elements.floatOverlay.classList.add(UI_CLASSES.VISIBLE);
         elements.floatOverlay.setAttribute("aria-hidden", "false");
         updateFloatingUIButtons();
@@ -168,6 +169,9 @@ export function toggleFloatOverlay() {
         const progress = _storage.getProgress(_state.currentBookId);
         const percentage = progress?.percentage || 0;
         updateFloatProgressBar(percentage);
+    } else {
+        elements.floatOverlay.classList.remove(UI_CLASSES.VISIBLE);
+        elements.floatOverlay.setAttribute("aria-hidden", "true");
     }
 }
 

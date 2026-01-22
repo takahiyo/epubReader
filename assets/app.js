@@ -1120,7 +1120,7 @@ function isModalVisible(modal) {
 function openModal(modal) {
   if (!modal) return;
   // floatOverlay(blur) がモーダルより前面に残るのを防ぐ
-  toggleFloatOverlay(false);
+  renderers.toggleFloatOverlay(false);
   if (elements.modalOverlay && modal.parentElement !== elements.modalOverlay) {
     elements.modalOverlay.appendChild(modal);
   }
