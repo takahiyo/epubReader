@@ -108,18 +108,23 @@ function t(key) {
 
 // 同期ロジックの初期化
 syncLogic.init({
-  openModal,
-  closeModal,
-  renderLibrary,
-  renderHistory,
-  renderBookmarks,
-  updateSyncStatusDisplay,
-  updateFloatingUIButtons,
-  updateProgressBarDisplay,
-  updateAuthStatusDisplay,
-  syncAutoSyncPolicy,
-  openFileDialog,
-  applyReadingState,
+  storage,
+  cloudSync,
+  checkAuthStatus,
+  callbacks: {
+    openModal,
+    closeModal,
+    renderLibrary,
+    renderHistory,
+    renderBookmarks,
+    updateSyncStatusDisplay,
+    updateFloatingUIButtons,
+    updateProgressBarDisplay,
+    updateAuthStatusDisplay,
+    syncAutoSyncPolicy,
+    openFileDialog,
+    applyReadingState,
+  },
 });
 
 
