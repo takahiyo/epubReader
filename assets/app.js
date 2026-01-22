@@ -332,6 +332,10 @@ renderers.init({
     openCloudOnlyBook,
     openFileDialog,
     closeModal,
+    closeAllMenus: () => {
+      if (ui) ui.closeAllMenus();
+      closeExclusiveMenus();
+    },
     scheduleAutoSyncPush,
     getEpubPaginationTotal,
     setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
@@ -1159,6 +1163,7 @@ function closeExclusiveMenus() {
   closeModal(elements.historyModal);
   closeModal(elements.searchModal);
   closeModal(elements.settingsModal);
+  closeModal(elements.openFileModal);
 }
 
 function openExclusiveMenu(modal) {

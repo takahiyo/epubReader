@@ -463,12 +463,12 @@ export function renderLibrary() {
 
         card.onclick = () => {
             if (deleteId && _state.pendingDeletes.has(deleteId)) return;
+            if (_actions.closeAllMenus) _actions.closeAllMenus();
             if (entry.hasLocalFile && entry.localBookId) {
                 if (_actions.openFromLibrary) _actions.openFromLibrary(entry.localBookId);
             } else if (entry.cloudBookId) {
                 if (_actions.openCloudOnlyBook) _actions.openCloudOnlyBook(entry.cloudBookId);
             }
-            if (_ui) _ui.closeAllMenus();
         };
 
         const cover = document.createElement("div");
@@ -573,8 +573,8 @@ export function renderHistory() {
         const info = document.createElement("div");
         info.className = "history-info";
         info.onclick = () => {
+            if (_actions.closeAllMenus) _actions.closeAllMenus();
             if (_actions.openFromLibrary) _actions.openFromLibrary(entry.bookId);
-            if (_ui) _ui.closeAllMenus();
         };
 
         const title = document.createElement("div");
@@ -645,12 +645,12 @@ export function renderBookmarks(mode = "current") {
             const info = document.createElement("div");
             info.className = "bookmark-info";
             info.onclick = async () => {
+                if (_actions.closeAllMenus) _actions.closeAllMenus();
                 if (bookId === _state.currentBookId && _reader) {
                     _reader.goTo(bookmark);
                 } else if (_actions.openFromLibrary) {
                     await _actions.openFromLibrary(bookId, { bookmark });
                 }
-                if (_ui) _ui.closeAllMenus();
             };
 
             const label = document.createElement("div");
@@ -721,8 +721,8 @@ export function renderBookmarks(mode = "current") {
         const info = document.createElement("div");
         info.className = "bookmark-info";
         info.onclick = () => {
+            if (_actions.closeAllMenus) _actions.closeAllMenus();
             if (_reader) _reader.goTo(bookmark);
-            if (_ui) _ui.closeAllMenus();
         };
 
         const label = document.createElement("div");
@@ -864,11 +864,10 @@ export function renderTocEntries(items, container, depth) {
 
         button.addEventListener("click", async () => {
             try {
+                if (_actions.closeAllMenus) _actions.closeAllMenus();
                 if (_reader?.usingPaginator && item.href) {
                     _reader.navigateToHref(item.href);
                 }
-                if (_ui) _ui.closeAllMenus();
-                if (_actions.closeModal) _actions.closeModal(elements.tocModal);
             } catch (error) {
                 console.warn("目次移動に失敗しました:", error);
             }
@@ -904,9 +903,8 @@ export function renderSearchResults(results, query) {
         text.innerHTML = result.excerpt;
 
         item.onclick = () => {
+            if (_actions.closeAllMenus) _actions.closeAllMenus();
             if (_reader) _reader.goTo(result.cfi);
-            if (_ui) _ui.closeAllMenus();
-            if (_actions.closeModal) _actions.closeModal(elements.searchModal);
         };
 
         item.appendChild(text);
