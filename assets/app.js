@@ -1887,7 +1887,7 @@ function setupEvents() {
 
   elements.floatBackdrop?.addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleFloatOverlay(false);
+    renderers.toggleFloatOverlay(false);
   });
 
   elements.openToc?.addEventListener('click', () => {
