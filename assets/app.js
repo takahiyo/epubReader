@@ -664,6 +664,35 @@ function updateFloatProgressBar(percentage) {
 
 // syncLogic.js に移行済み
 
+function showCloudEmptyState({ cloudBookId, title, progressPercentage, lastTimestamp }) {
+  if (elements.cloudEmptyState) {
+    elements.cloudEmptyState.classList.remove(UI_CLASSES.HIDDEN);
+  }
+  if (elements.cloudEmptyTitle) {
+    elements.cloudEmptyTitle.textContent = `${t("cloudOnlyTitle")}：${title ?? ""}`;
+  }
+  if (elements.cloudEmptyMeta) {
+    const metaText = syncLogic.formatLibraryMeta({
+      progressPercentage,
+      timestamp: lastTimestamp,
+    }, uiLanguage);
+    elements.cloudEmptyMeta.textContent = `${t("cloudOnlyDescription")} (${metaText})`;
+  }
+  if (elements.cloudAttachButton) {
+    elements.cloudAttachButton.textContent = t("libraryAttachFile");
+    elements.cloudAttachButton.onclick = () => {
+      pendingCloudBookId = cloudBookId;
+      openFileDialog();
+    };
+  }
+}
+
+function hideCloudEmptyState() {
+  if (elements.cloudEmptyState) {
+    elements.cloudEmptyState.classList.add(UI_CLASSES.HIDDEN);
+  }
+}
+
 
 // ========================================
 // ファイル処理
@@ -1707,10 +1736,10 @@ function renderLibrary() {
 
     const meta = document.createElement("div");
     meta.className = "library-meta";
-    meta.textContent = formatLibraryMeta({
+    meta.textContent = syncLogic.formatLibraryMeta({
       progressPercentage: entry.progressPercentage,
       timestamp: entry.lastTimestamp,
-    });
+    }, uiLanguage);
     row2.appendChild(meta);
 
     // ファイルタイプバッジ
