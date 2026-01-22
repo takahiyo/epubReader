@@ -128,37 +128,6 @@ syncLogic.init({
   },
 });
 
-renderers.init({
-  storage,
-  reader,
-  syncLogic,
-  ui,
-  state: {
-    get currentBookId() { return currentBookId; },
-    get currentBookInfo() { return currentBookInfo; },
-    get currentCloudBookId() { return currentCloudBookId; },
-    get pendingCloudBookId() { return pendingCloudBookId; },
-    get uiLanguage() { return uiLanguage; },
-    get progressDisplayMode() { return progressDisplayMode; },
-    get floatVisible() { return floatVisible; },
-    get pageDirection() { return pageDirection; },
-    get bookmarkMenuMode() { return bookmarkMenuMode; },
-    get pendingDeletes() { return pendingDeletes; },
-    get writingMode() { return writingMode; },
-    get theme() { return theme; },
-  },
-  actions: {
-    checkAuthStatus,
-    syncAutoSyncPolicy,
-    openFromLibrary,
-    openCloudOnlyBook,
-    openFileDialog,
-    closeModal,
-    scheduleAutoSyncPush,
-    getEpubPaginationTotal,
-    setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
-  }
-});
 
 
 
@@ -336,6 +305,39 @@ const ui = new UIController({
 });
 
 uiInitialized = true;
+
+renderers.init({
+  storage,
+  reader,
+  syncLogic,
+  ui,
+  state: {
+    get currentBookId() { return currentBookId; },
+    get currentBookInfo() { return currentBookInfo; },
+    get currentCloudBookId() { return currentCloudBookId; },
+    get pendingCloudBookId() { return pendingCloudBookId; },
+    get uiLanguage() { return uiLanguage; },
+    get progressDisplayMode() { return progressDisplayMode; },
+    get floatVisible() { return floatVisible; },
+    get pageDirection() { return pageDirection; },
+    get bookmarkMenuMode() { return bookmarkMenuMode; },
+    get pendingDeletes() { return pendingDeletes; },
+    get writingMode() { return writingMode; },
+    get theme() { return theme; },
+  },
+  actions: {
+    checkAuthStatus,
+    syncAutoSyncPolicy,
+    openFromLibrary,
+    openCloudOnlyBook,
+    openFileDialog,
+    closeModal,
+    scheduleAutoSyncPush,
+    getEpubPaginationTotal,
+    setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
+  }
+});
+
 applyUiLanguage(uiLanguage);
 
 function setupViewerIframeClickBridge() {
