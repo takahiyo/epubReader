@@ -19,6 +19,8 @@ import {
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
+import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
+import { t as t_core, resolveErrorCode } from "./js/ui/i18n-utils.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
@@ -91,79 +93,6 @@ let pendingDeletes = new Map();
 
 // UI_STRINGS は i18n.js からインポート済み
 
-// 1. Lottieアニメーションデータ（外部JSONから読み込み）
-let LOADER_ANIMATION_DATA = null;
-
-// Lottieアニメーションデータを非同期で読み込む
-async function loadLottieAnimationData() {
-  if (LOADER_ANIMATION_DATA) return LOADER_ANIMATION_DATA;
-
-  try {
-    const response = await fetch(ASSET_PATHS.LOADER_ANIMATION);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    LOADER_ANIMATION_DATA = await response.json();
-    return LOADER_ANIMATION_DATA;
-  } catch (e) {
-    console.warn('Failed to load Lottie animation data:', e);
-    return null;
-  }
-}
-
-// 2. ローディング制御用変数と関数
-let lottieInstance = null;
-
-async function initLoadingAnimation() {
-  const container = document.getElementById(DOM_IDS.LOTTIE_LOADER);
-  if (!container) return;
-
-  // lottieが読み込まれているか確認
-  if (typeof lottie === 'undefined') {
-    console.warn('Lottie library not loaded.');
-    return;
-  }
-
-  // 外部JSONからLottieデータを読み込む
-  const animationData = await loadLottieAnimationData();
-  if (!animationData) {
-    console.warn('Lottie animation data (LOADER_ANIMATION_DATA) is missing.');
-    return;
-  }
-
-  // ★追加: 背景レイヤー('bkgr')を削除して透過させる
-  if (animationData.layers) {
-    animationData.layers = animationData.layers.filter(layer => layer.nm !== 'bkgr');
-  }
-
-  try {
-    lottieInstance = lottie.loadAnimation({
-      container: container,
-      renderer: 'svg',
-      loop: true,
-      autoplay: false, // 表示されるまで再生しない
-      animationData: animationData
-    });
-  } catch (e) {
-    console.error('Failed to initialize Lottie animation:', e);
-  }
-}
-
-function showLoading() {
-  const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
-  if (overlay) {
-    overlay.classList.add(UI_CLASSES.VISIBLE);
-    lottieInstance?.play();
-  }
-}
-
-function hideLoading() {
-  const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
-  if (overlay) {
-    overlay.classList.remove(UI_CLASSES.VISIBLE);
-    lottieInstance?.stop(); // 非表示時は停止してリソース節約
-  }
-}
 
 // 初期化実行（非同期Lottie読み込み対応）
 document.addEventListener('DOMContentLoaded', async () => {
@@ -173,18 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // i18n.js からインポートした関数をラップ（uiLanguage変数を参照するため）
 function t(key) {
-  return translate(key, uiLanguage);
-}
-
-function resolveErrorCode(error) {
-  if (!error?.message) return null;
-  const entries = Object.entries(ERROR_MESSAGE_MATCHERS);
-  for (const [code, matchers] of entries) {
-    if (matchers.some((matcher) => error.message.includes(matcher))) {
-      return code;
-    }
-  }
-  return null;
+  return t_core(key, uiLanguage);
 }
 
 
