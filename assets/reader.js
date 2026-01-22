@@ -2375,6 +2375,7 @@ export class ReaderController {
 
     window.addEventListener('touchmove', (e) => {
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
+        console.log('Touch move detected', e.touches.length);
         e.preventDefault(); // ドラッグ中は画面スクロール停止
         moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
@@ -2390,8 +2391,9 @@ export class ReaderController {
       if (!active || !active.contains(event.target)) return;
 
       const { step } = this.getZoomConfig();
-      if (!event.ctrlKey && !this.isZoomMode()) return;
+      if (!this.isZoomMode()) return;
 
+      console.log('Wheel event detected');
       event.preventDefault();
       event.stopPropagation();
 
@@ -2417,6 +2419,7 @@ export class ReaderController {
       if (!active || !active.contains(event.target)) return;
 
       if (this.isPinching && event.touches.length === 2) {
+        console.log('Touch move detected', event.touches.length);
         event.preventDefault();
         const distance = this.getPinchDistance(event.touches);
         if (this.pinchStartDistance > 0) {
@@ -2500,10 +2503,21 @@ export class ReaderController {
     this.clampPan();
     if (this.zoomScale <= this.getZoomConfig().min) {
       target.style.transform = '';
+      this.syncZoomSlider();
       return;
     }
 
     target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    this.syncZoomSlider();
+  }
+
+  syncZoomSlider() {
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+    if (!slider) return;
+    const currentValue = parseFloat(slider.value);
+    if (!Number.isFinite(currentValue) || currentValue !== this.zoomScale) {
+      slider.value = this.zoomScale;
+    }
   }
 
   clampPan() {

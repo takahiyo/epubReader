@@ -2111,21 +2111,26 @@ function updateEpubScrollMode() {
 function renderToc(tocItems = []) {
   if (!elements.tocModalList) return;
 
+  const normalizedToc = tocItems?.toc ?? tocItems?.items ?? tocItems;
+  const tocArray = Array.isArray(normalizedToc)
+    ? normalizedToc
+    : Object.values(normalizedToc || {});
+
   if (elements.tocList) {
     elements.tocList.innerHTML = "";
   }
   elements.tocModalList.innerHTML = "";
   const isEpub = currentBookInfo?.type === BOOK_TYPES.EPUB;
 
-  if (!isEpub || !tocItems.length) {
+  if (!isEpub || tocArray.length === 0) {
     elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
-    console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocItems.length });
+    console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocArray.length });
     return;
   }
 
-  console.log('[renderToc] Showing TOC section with', tocItems.length, 'items');
-  elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
-  renderTocEntries(tocItems, elements.tocModalList, 0);
+  console.log('[renderToc] Showing TOC section with', tocArray.length, 'items');
+  elements.tocSection?.classList.remove(UI_CLASSES.HIDDEN);
+  renderTocEntries(tocArray, elements.tocModalList, 0);
 }
 
 function renderTocEntries(items, container, depth) {

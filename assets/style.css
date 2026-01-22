@@ -528,6 +528,9 @@ body.google-auth-active .modal-backdrop {
   justify-content: center;
   background: var(--reader-bg);
   padding: var(--reader-safe-block) var(--reader-safe-inline);
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .image-viewer img {
@@ -537,6 +540,9 @@ body.google-auth-active .modal-backdrop {
   cursor: zoom-in;
   transform-origin: 0 0;
   will-change: transform;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 /* 見開き表示用のコンテナ：常に画面中央に配置 */
@@ -553,6 +559,9 @@ body.google-auth-active .modal-backdrop {
   /* background-color: #000;  余白は黒などが読みやすい -> reader-bgを使うので不要かも */
   transform-origin: 0 0;
   will-change: transform;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 /* 個々の画像の設定 */
