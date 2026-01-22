@@ -949,23 +949,7 @@ function handleBookReady(payload) {
   }
 }
 
-function renderers.updateEpubScrollMode() {
-  if (currentBookInfo?.type !== BOOK_TYPES.EPUB || !elements.fullscreenReader) return;
-  if (reader?.usingPaginator) {
-    elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
-    return;
-  }
-  const resolvedWritingMode = reader?.writingMode ?? currentBookInfo?.writingMode ?? writingMode;
-  if (resolvedWritingMode === WRITING_MODES.VERTICAL) {
-    console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
-    elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
-    return;
-  }
-  if (resolvedWritingMode === WRITING_MODES.HORIZONTAL) {
-    console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
-    elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL);
-  }
-}
+// 移行済み: updateEpubScrollMode
 
 // ========================================
 // 目次管理
