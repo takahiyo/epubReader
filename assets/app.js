@@ -1164,6 +1164,7 @@ function closeExclusiveMenus() {
   closeModal(elements.searchModal);
   closeModal(elements.settingsModal);
   closeModal(elements.openFileModal);
+  closeModal(elements.tocModal);
 }
 
 function openExclusiveMenu(modal) {
@@ -1897,7 +1898,7 @@ function setupEvents() {
 
   elements.openToc?.addEventListener('click', () => {
     if (!currentBookInfo || currentBookInfo.type !== BOOK_TYPES.EPUB) return;
-    openModal(elements.tocModal);
+    openExclusiveMenu(elements.tocModal);
   });
 
   // ファイル選択
