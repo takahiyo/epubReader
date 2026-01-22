@@ -20,7 +20,7 @@ import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
-import * as i18nUtils from "./js/ui/i18n-utils.js";
+import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
 import * as syncLogic from "./js/core/sync-logic.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 function t(key) {
-  return i18nUtils.t_core(key, uiLanguage);
+  return translate(key, uiLanguage);
 }
 
 // 同期ロジックの初期化
