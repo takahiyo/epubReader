@@ -4,7 +4,8 @@
  * 多言語化とエラー処理関連のユーティリティモジュールです。
  */
 
-import { translate, ERROR_MESSAGE_MATCHERS } from "../../i18n.js";
+import { ERROR_MESSAGE_MATCHERS } from "../../constants.js";
+import { t as translate } from "../../i18n.js";
 
 /**
  * i18n.js からインポートした関数をラップ
