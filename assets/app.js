@@ -20,8 +20,9 @@ import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
-import { t as t_core, resolveErrorCode } from "./js/ui/i18n-utils.js";
+import * as i18nUtils from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
+import * as syncLogic from "./js/core/sync-logic.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
@@ -101,10 +102,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 
-// i18n.js からインポートした関数をラップ（uiLanguage変数を参照するため）
 function t(key) {
-  return t_core(key, uiLanguage);
+  return i18nUtils.t_core(key, uiLanguage);
 }
+
+// 同期ロジックの初期化
+syncLogic.init({
+  openModal,
+  closeModal,
+  renderLibrary,
+  renderHistory,
+  renderBookmarks,
+  updateSyncStatusDisplay,
+  updateFloatingUIButtons,
+  updateProgressBarDisplay,
+  updateAuthStatusDisplay,
+  syncAutoSyncPolicy,
+  openFileDialog,
+  applyReadingState,
+});
 
 
 
@@ -163,7 +179,7 @@ function saveCurrentProgress() {
     storage.setProgress(currentBookId, progressData);
 
     // 自動同期トリガー（関数が存在する場合のみ）
-    if (typeof triggerAutoSync === 'function' && typeof isCloudSyncEnabled === 'function' && isCloudSyncEnabled() && autoSyncEnabled) {
+    if (typeof triggerAutoSync === 'function' && typeof syncLogic.isCloudSyncEnabled === 'function' && syncLogic.isCloudSyncEnabled() && autoSyncEnabled) {
       triggerAutoSync();
     }
   }
@@ -641,445 +657,7 @@ function updateFloatProgressBar(percentage) {
 
 
 
-function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
-  if (!authStatus.authenticated) {
-    return false;
-  }
-  const settings = storage.getSettings();
-  return cloudSync.resolveSource(null, settings) === "firebase";
-}
-
-function formatLibraryMeta({ progressPercentage, timestamp }) {
-  const clampedProgress = Math.max(0, Math.min(100, Math.round(progressPercentage ?? 0)));
-  const relativeTime = formatRelativeTime(timestamp, uiLanguage);
-  if (!relativeTime) {
-    return `${clampedProgress}%`;
-  }
-  return `${clampedProgress}% / ${relativeTime}`;
-}
-
-function buildLibraryEntries() {
-  const cloudIndex = storage.data.cloudIndex ?? {};
-  const cloudStates = storage.data.cloudStates ?? {};
-  const localLibrary = storage.data.library ?? {};
-  const entries = [];
-  const linkedLocalIds = new Set(Object.keys(storage.data.bookLinkMap ?? {}));
-  const localByCloudId = Object.entries(storage.data.bookLinkMap ?? {}).reduce((acc, [localId, cloudId]) => {
-    acc[cloudId] = localId;
-    return acc;
-  }, {});
-
-  Object.entries(cloudIndex).forEach(([cloudBookId, meta]) => {
-    if (!cloudBookId || !meta) return;
-    const normalizedMeta = { ...meta, cloudBookId: meta.cloudBookId ?? cloudBookId };
-    const localBookId = localByCloudId[cloudBookId] ?? null;
-    const localInfo = localBookId ? localLibrary[localBookId] : null;
-    const cloudState = cloudStates[cloudBookId];
-    const localProgress = localBookId ? storage.getProgress(localBookId) : null;
-    const progressPercentage = cloudState?.progress ?? localProgress?.percentage ?? 0;
-    const lastTimestamp =
-      cloudState?.updatedAt ?? normalizedMeta.lastReadAt ?? normalizedMeta.updatedAt ?? localInfo?.lastOpened ?? 0;
-    entries.push({
-      type: "cloud",
-      cloudBookId,
-      localBookId,
-      title: normalizedMeta.title || localInfo?.title || t("untitledBook"),
-      author: normalizedMeta.author || "",
-      progressPercentage,
-      lastTimestamp,
-      hasLocalFile: Boolean(localInfo),
-      fileType: localInfo?.type || normalizedMeta.fileType || null, // "epub" | "zip" | "rar" | null
-    });
-  });
-
-  Object.values(localLibrary).forEach((book) => {
-    if (!book?.id) return;
-    if (linkedLocalIds.has(book.id)) return;
-    const progress = storage.getProgress(book.id);
-    entries.push({
-      type: "local",
-      cloudBookId: null,
-      localBookId: book.id,
-      title: book.title,
-      author: book.author || "",
-      progressPercentage: progress?.percentage ?? 0,
-      lastTimestamp: book.lastOpened ?? progress?.updatedAt ?? 0,
-      hasLocalFile: true,
-      fileType: book.type || null, // "epub" | "zip" | "rar" | null
-    });
-  });
-
-  entries.sort((a, b) => (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0));
-  return entries;
-}
-
-function showCloudEmptyState({ cloudBookId, title, progressPercentage, lastTimestamp }) {
-  if (elements.cloudEmptyState) {
-    elements.cloudEmptyState.classList.remove(UI_CLASSES.HIDDEN);
-  }
-  if (elements.cloudEmptyTitle) {
-    elements.cloudEmptyTitle.textContent = `${t("cloudOnlyTitle")}：${title ?? ""}`;
-  }
-  if (elements.cloudEmptyMeta) {
-    const metaText = formatLibraryMeta({
-      progressPercentage,
-      timestamp: lastTimestamp,
-    });
-    elements.cloudEmptyMeta.textContent = `${t("cloudOnlyDescription")} (${metaText})`;
-  }
-  if (elements.cloudAttachButton) {
-    elements.cloudAttachButton.textContent = t("libraryAttachFile");
-    elements.cloudAttachButton.onclick = () => {
-      pendingCloudBookId = cloudBookId;
-      openFileDialog();
-    };
-  }
-}
-
-function hideCloudEmptyState() {
-  if (elements.cloudEmptyState) {
-    elements.cloudEmptyState.classList.add(UI_CLASSES.HIDDEN);
-  }
-}
-
-async function syncAllBooksFromCloud() {
-  if (!isCloudSyncEnabled()) return;
-
-  // 1. Pull from Cloud (既存の処理)
-  try {
-    const remote = await cloudSync.pullIndex();
-    const index = remote?.index ?? {};
-    const updatedAt = remote?.updatedAt ?? Date.now();
-    storage.mergeCloudIndex(index, updatedAt);
-
-    // ★追加: クラウドインデックスを元に、ローカル書籍との自動リンクを試行
-    const library = storage.data.library;
-    Object.keys(library).forEach(localBookId => {
-      // まだリンクされていないローカル書籍
-      if (!storage.getCloudBookId(localBookId)) {
-        const book = library[localBookId];
-        if (book && book.contentHash) {
-          // ハッシュ(fingerprint)が一致するクラウド書籍を探す
-          const match = Object.values(index).find(cloudItem =>
-            cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
-          );
-          if (match && match.cloudBookId) {
-            console.log(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId}`);
-            storage.setBookLink(localBookId, match.cloudBookId);
-          }
-        }
-      }
-    });
-
-    const recentList = Object.values(index)
-      .sort((a, b) => (b.lastReadAt ?? b.updatedAt ?? 0) - (a.lastReadAt ?? a.updatedAt ?? 0))
-      .slice(0, 5);
-    for (const item of recentList) {
-      if (!item?.cloudBookId) continue;
-      try {
-        const stateResponse = await cloudSync.pullState(item.cloudBookId);
-        if (stateResponse?.state) {
-          storage.setCloudState(item.cloudBookId, stateResponse.state);
-        }
-      } catch (error) {
-        console.warn("クラウド状態の取得に失敗しました:", error);
-      }
-    }
-  } catch (error) {
-    console.warn("クラウドの同期に失敗しました:", error);
-    // Pullに失敗してもPushは試行する
-  }
-
-  // 2. Push Local to Cloud (不足分のアップロード)
-  try {
-    const library = storage.data.library;
-    const cloudIndex = storage.data.cloudIndex ?? {};
-
-    for (const localBook of Object.values(library)) {
-      if (!localBook || !localBook.id) continue;
-
-      let cloudBookId = storage.getCloudBookId(localBook.id);
-
-      // ケースA: 既にリンクされているが、クラウドインデックスに存在しない（消されたか、別アカウントか、同期ミス）
-      if (cloudBookId && !cloudIndex[cloudBookId]) {
-        console.log(`Re-uploading metadata for linked book: ${localBook.title}`);
-        await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash);
-        continue;
-      }
-
-      // ケースB: リンクされていない
-      if (!cloudBookId) {
-        // クラウドインデックスからハッシュで探す
-        const matchEntry = Object.values(cloudIndex).find(
-          entry => entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
-        );
-
-        if (matchEntry && matchEntry.cloudBookId) {
-          // マッチした場合はリンクする
-          console.log(`Linking local book "${localBook.title}" to existing cloud book`);
-          storage.setBookLink(localBook.id, matchEntry.cloudBookId);
-        } else {
-          // マッチしない場合は新規作成してアップロード
-          console.log(`Uploading new book to cloud: ${localBook.title}`);
-          cloudBookId = generateCloudBookId();
-          storage.setBookLink(localBook.id, cloudBookId);
-          await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash);
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("ローカル書籍のアップロードに失敗しました:", error);
-  }
-
-  // 3. 完了処理
-  storage.setSettings({ lastSyncAt: Date.now() });
-  updateSyncStatusDisplay();
-  if (uiInitialized) {
-    renderLibrary();
-    renderHistory();
-    renderBookmarks(bookmarkMenuMode);
-  }
-}
-
-async function handleAuthLogin() {
-  updateAuthStatusDisplay();
-  syncAutoSyncPolicy();
-  await syncAllBooksFromCloud();
-}
-
-function buildSyncRemoteLabel(timestamp) {
-  const timeText = formatRelativeTime(timestamp, uiLanguage);
-  return t("syncPromptRemote").replace("{time}", timeText || "--");
-}
-
-function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }) {
-  return new Promise((resolve) => {
-    if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
-      resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
-      return;
-    }
-
-    const strings = getUiStrings(uiLanguage);
-    const preferRemote = remoteUpdatedAt >= localUpdatedAt;
-
-    if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
-    if (elements.syncModalMessage) {
-      elements.syncModalMessage.textContent = preferRemote
-        ? strings.syncPromptMessage
-        : strings.syncPromptLocalMessage;
-    }
-    if (elements.syncUseRemote) {
-      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteUpdatedAt);
-    }
-    if (elements.syncUseLocal) {
-      elements.syncUseLocal.textContent = preferRemote
-        ? strings.syncPromptLocal
-        : strings.syncPromptUpload;
-    }
-
-    const cleanup = () => {
-      if (elements.syncUseRemote) elements.syncUseRemote.onclick = null;
-      if (elements.syncUseLocal) elements.syncUseLocal.onclick = null;
-    };
-
-    if (elements.syncUseRemote) {
-      elements.syncUseRemote.onclick = () => {
-        cleanup();
-        closeModal(elements.syncModal);
-        resolve("remote");
-      };
-    }
-
-    if (elements.syncUseLocal) {
-      elements.syncUseLocal.onclick = async () => {
-        cleanup();
-        closeModal(elements.syncModal);
-        resolve("local");
-      };
-    }
-
-    openModal(elements.syncModal);
-  });
-}
-
-function promptSyncCandidate(candidates) {
-  return new Promise((resolve) => {
-    if (!elements.candidateModal || !elements.candidateList || !elements.candidateUseLocal) {
-      resolve(null);
-      return;
-    }
-
-    elements.candidateList.innerHTML = "";
-    candidates.forEach((candidate) => {
-      const item = document.createElement("div");
-      item.className = "candidate-item";
-      const title = candidate.meta?.title || t("untitledBook");
-      const author = candidate.meta?.author || "";
-      const lastRead = candidate.meta?.lastReadAt
-        ? formatRelativeTime(candidate.meta.lastReadAt, uiLanguage)
-        : "";
-
-      const titleNode = document.createElement("div");
-      titleNode.className = "candidate-title";
-      titleNode.textContent = title;
-      const authorNode = document.createElement("div");
-      authorNode.className = "candidate-author";
-      authorNode.textContent = author;
-      const metaNode = document.createElement("div");
-      metaNode.className = "candidate-meta";
-      const candidateId = `${candidate.cloudBookId.slice(0, 8)}${UI_SYMBOLS.ELLIPSIS}`;
-      const baseMeta = tReplace("candidateIdLabel", { id: candidateId }, uiLanguage);
-      const lastReadMeta = lastRead
-        ? ` ${UI_SYMBOLS.META_SEPARATOR} ${t("syncStatusLabel").replace("{time}", lastRead)}`
-        : "";
-      metaNode.textContent = `${baseMeta}${lastReadMeta}`;
-      item.append(titleNode, authorNode, metaNode);
-
-      item.onclick = () => {
-        cleanup();
-        closeModal(elements.candidateModal);
-        resolve(candidate.cloudBookId);
-      };
-      elements.candidateList.appendChild(item);
-    });
-
-    const cleanup = () => {
-      if (elements.candidateUseLocal) elements.candidateUseLocal.onclick = null;
-      if (elements.closeCandidateModal) elements.closeCandidateModal.onclick = null;
-    };
-
-    if (elements.candidateUseLocal) {
-      elements.candidateUseLocal.onclick = () => {
-        cleanup();
-        closeModal(elements.candidateModal);
-        resolve(null);
-      };
-    }
-
-    if (elements.closeCandidateModal) {
-      elements.closeCandidateModal.onclick = () => {
-        cleanup();
-        closeModal(elements.candidateModal);
-        resolve(null);
-      };
-    }
-
-    openModal(elements.candidateModal);
-  });
-}
-
-function buildCloudStatePayload(localBookId, cloudBookId) {
-  const progress = storage.getProgress(localBookId) ?? {};
-  const bookmarks = storage.getBookmarks(localBookId) ?? [];
-  // historyは端末ごとなので送信しない
-  const bookInfo = storage.data.library[localBookId];
-
-  const updatedAt = Math.max(
-    progress?.updatedAt ?? 0,
-    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0)
-  );
-
-  const state = {
-    progress: progress?.percentage ?? 0,
-    lastCfi: progress?.location ?? null,
-    // bookType と location を含める
-    bookType: bookInfo?.type ?? null, // "epub" | "zip" | "rar"
-    location: progress?.location ?? null, // epub: CFI object, image: imageIndex
-    bookmarks: bookmarks.map((bookmark) => ({
-      ...bookmark,
-      bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
-      deviceId: bookmark.deviceId ?? null,
-      deviceColor: bookmark.deviceColor ?? null,
-      updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
-    })),
-    // historyフィールドを削除
-    updatedAt,
-  };
-  return { cloudBookId, state, updatedAt };
-}
-
-function isEmptyCloudState(state) {
-  if (!state) return true;
-  const hasBookmarks = Array.isArray(state.bookmarks) && state.bookmarks.length > 0;
-  const hasHistory = Array.isArray(state.history) && state.history.length > 0;
-  const hasProgress = typeof state.progress === "number" && state.progress > 0;
-  const hasLocation = Boolean(state.lastCfi);
-  const hasUpdatedAt = (state.updatedAt ?? 0) > 0;
-  return !(hasBookmarks || hasHistory || hasProgress || hasLocation || hasUpdatedAt);
-}
-
-function applyCloudStateToLocal(localBookId, cloudBookId, state) {
-  if (!state || !localBookId) return;
-
-  if (state.bookmarks && Array.isArray(state.bookmarks)) {
-    storage.mergeBookmarks(localBookId, state.bookmarks);
-  }
-
-  // historyの適用処理を削除
-
-  if (state.lastCfi || typeof state.progress === "number") {
-    const existing = storage.getProgress(localBookId) ?? {};
-    storage.setProgress(localBookId, {
-      ...existing,
-      location: state.lastCfi ?? existing.location,
-      percentage: typeof state.progress === "number" ? state.progress : existing.percentage,
-      updatedAt: state.updatedAt ?? Date.now(),
-    });
-  }
-
-  if (cloudBookId) {
-    storage.setCloudState(cloudBookId, state);
-  }
-}
-
-async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloudBookId(localBookId)) {
-  const localProgress = storage.getProgress(localBookId);
-  if (!isCloudSyncEnabled() || !cloudBookId) {
-    return localProgress;
-  }
-
-  try {
-    const response = await cloudSync.pullState(cloudBookId);
-    const remoteState = response?.state ?? response;
-    if (isEmptyCloudState(remoteState)) {
-      return localProgress;
-    }
-
-    const localUpdatedAt = localProgress?.updatedAt ?? 0;
-    const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
-    const localLocation = localProgress?.location ?? null;
-    const remoteLocation = remoteState?.lastCfi ?? null;
-
-    if (
-      localUpdatedAt !== remoteUpdatedAt &&
-      localLocation !== null &&
-      remoteLocation !== null &&
-      localLocation !== remoteLocation
-    ) {
-      const choice = await promptSyncResolution({ localUpdatedAt, remoteUpdatedAt });
-      if (choice === "remote") {
-        applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-        storage.setSettings({ lastSyncAt: Date.now() });
-        updateSyncStatusDisplay();
-      } else {
-        storage.setCloudState(cloudBookId, remoteState);
-        if (localUpdatedAt > remoteUpdatedAt) {
-          await pushCurrentBookSync();
-        }
-      }
-      return storage.getProgress(localBookId);
-    }
-
-    applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-    storage.setSettings({ lastSyncAt: Date.now() });
-    updateSyncStatusDisplay();
-    return storage.getProgress(localBookId);
-  } catch (error) {
-    console.warn("同期情報の取得に失敗しました:", error);
-  }
-
-  return localProgress;
-}
+// syncLogic.js に移行済み
 
 
 // ========================================
@@ -1133,14 +711,14 @@ async function handleFile(file) {
     if (cloudBookId) {
       storage.setBookLink(id, cloudBookId);
     }
-    if (isCloudSyncEnabled()) {
+    if (syncLogic.isCloudSyncEnabled()) {
       if (!cloudBookId) {
         try {
           const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
           if (matchResult?.cloudBookId) {
             cloudBookId = matchResult.cloudBookId;
           } else if (matchResult?.candidates?.length > 0) {
-            cloudBookId = await promptSyncCandidate(matchResult.candidates);
+            cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
           }
         } catch (error) {
           console.warn("クラウドの照合に失敗しました:", error);
@@ -1154,7 +732,7 @@ async function handleFile(file) {
         await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
           storage,
           cloudSync,
-          isCloudSyncEnabled,
+          isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
           uiLanguage
         });
       }
@@ -1162,7 +740,7 @@ async function handleFile(file) {
     pendingCloudBookId = null;
     currentCloudBookId = cloudBookId;
 
-    const syncedProgress = await resolveSyncedProgress(id, cloudBookId);
+    const syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     await applyReadingState(syncedProgress);
     const startLocation = syncedProgress?.location;
     const startProgress = syncedProgress?.percentage;
@@ -1329,7 +907,7 @@ async function openFromLibrary(bookId, options = {}) {
     currentBookId = bookId;
     currentBookInfo = info;
     currentCloudBookId = storage.getCloudBookId(bookId);
-    if (isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
+    if (syncLogic.isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
       try {
         const matchResult = await cloudSync.matchBook(info.contentHash, fileHandler.buildMatchMeta(info));
         if (matchResult?.cloudBookId) {
@@ -1344,14 +922,14 @@ async function openFromLibrary(bookId, options = {}) {
       await fileHandler.upsertCloudIndexEntry(currentCloudBookId, info, info.contentHash, {
         storage,
         cloudSync,
-        isCloudSyncEnabled,
+        isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
         uiLanguage,
         overrides: { lastReadAt: Date.now() }
       });
     }
 
     const bookmarks = storage.getBookmarks(bookId);
-    const progress = await resolveSyncedProgress(bookId, currentCloudBookId);
+    const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
     await applyReadingState(progress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
@@ -2030,7 +1608,7 @@ function renderLibrary() {
   if (!elements.libraryGrid) return;
 
   elements.libraryGrid.innerHTML = "";
-  const entries = buildLibraryEntries();
+  const entries = syncLogic.buildLibraryEntries(uiLanguage);
 
   if (!entries.length) {
     const empty = document.createElement("p");
@@ -2812,18 +2390,7 @@ function applyProgressDisplayMode(mode) {
 
 
 async function pushCurrentBookSync() {
-  if (!currentBookId || !currentCloudBookId) return;
-  if (!isCloudSyncEnabled()) return;
-  const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-  const result = await cloudSync.pushState(
-    currentCloudBookId,
-    payload.state,
-    payload.updatedAt
-  );
-  if (result) {
-    storage.setSettings({ lastSyncAt: Date.now() });
-    updateSyncStatusDisplay();
-  }
+  await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
 }
 
 function toggleAutoSync(enabled) {
@@ -2852,8 +2419,8 @@ function toggleAutoSync(enabled) {
   }
 }
 
-function shouldEnableAutoSync(authStatus = checkAuthStatus()) {
-  return isCloudSyncEnabled(authStatus);
+function shouldEnableAutoSync() {
+  return syncLogic.isCloudSyncEnabled();
 }
 
 function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
@@ -3356,7 +2923,7 @@ function setupEvents() {
       }
 
       // Pull index
-      await syncAllBooksFromCloud();
+      await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
 
       // If a book is open, sync its state
       if (currentBookId && currentCloudBookId) {
@@ -3652,7 +3219,7 @@ function startAfterDomReady() {
 }
 
 window.addEventListener("auth:login", () => {
-  handleAuthLogin().catch((error) => {
+  syncLogic.handleAuthLogin().catch((error) => {
     console.error("同期データの取得に失敗しました:", error);
   });
 });
