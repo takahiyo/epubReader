@@ -468,6 +468,7 @@ export function renderLibrary() {
             } else if (entry.cloudBookId) {
                 if (_actions.openCloudOnlyBook) _actions.openCloudOnlyBook(entry.cloudBookId);
             }
+            if (_ui) _ui.closeAllMenus();
         };
 
         const cover = document.createElement("div");

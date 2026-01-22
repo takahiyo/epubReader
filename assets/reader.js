@@ -1318,11 +1318,6 @@ export class ReaderController {
             }
 
             const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
-
-            if (isImage) {
-              console.log(`✓ Including: ${path}`);
-            }
-
             return isImage;
           })
           .map(({ path, entry }) => ({ path, entry }));
