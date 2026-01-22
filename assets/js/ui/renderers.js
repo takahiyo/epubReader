@@ -16,7 +16,8 @@ import {
     DOM_SELECTORS,
     IMAGE_VIEW_MODES,
     READING_DIRECTIONS,
-    PROGRESS_CONFIG
+    PROGRESS_CONFIG,
+    WRITING_MODES
 } from "../../constants.js";
 import { t as translate, tReplace } from "../../i18n.js";
 
