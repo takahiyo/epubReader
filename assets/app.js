@@ -440,6 +440,7 @@ const reader = new ReaderController({
     }
     // 進捗バーの向きを更新
     updateProgressBarDirection();
+    handleBookReady(data);
   },
   onImageZoom: (isZoomed) => {
     if (isZoomed) {
