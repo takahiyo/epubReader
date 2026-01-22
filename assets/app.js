@@ -21,6 +21,7 @@ import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { t as t_core, resolveErrorCode } from "./js/ui/i18n-utils.js";
+import * as fileHandler from "./js/core/file-handler.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
@@ -1080,54 +1081,6 @@ async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloud
   return localProgress;
 }
 
-function generateCloudBookId() {
-  if (crypto?.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `cloud-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function buildCloudMeta({ cloudBookId, info, fingerprint, overrides = {} }) {
-  const existing = storage.data.cloudIndex?.[cloudBookId] ?? {};
-  const fingerprints = new Set([
-    ...(existing.fingerprints ?? []),
-    ...(overrides.fingerprints ?? []),
-  ]);
-  if (fingerprint) fingerprints.add(fingerprint);
-  return {
-    cloudBookId,
-    title: overrides.title ?? info?.title ?? existing.title ?? t("untitledBook"),
-    author: overrides.author ?? info?.author ?? existing.author ?? "",
-    identifiers: overrides.identifiers ?? existing.identifiers ?? [],
-    fingerprints: Array.from(fingerprints),
-    fileType: overrides.fileType ?? info?.type ?? existing.fileType ?? null, // "epub" | "zip" | "rar"
-    lastReadAt: overrides.lastReadAt ?? Date.now(),
-    updatedAt: Date.now(),
-    createdAt: existing.createdAt ?? overrides.createdAt ?? Date.now(),
-  };
-}
-
-async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, overrides = {}) {
-  if (!cloudBookId) return null;
-  const meta = buildCloudMeta({ cloudBookId, info, fingerprint, overrides });
-  storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
-  if (isCloudSyncEnabled()) {
-    try {
-      await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
-    } catch (error) {
-      console.warn("クラウドインデックスの更新に失敗しました:", error);
-    }
-  }
-  return meta;
-}
-
-function buildMatchMeta(info) {
-  return {
-    title: info?.title ?? "",
-    author: info?.author ?? "",
-    identifiers: info?.identifiers ?? [],
-  };
-}
 
 // ========================================
 // ファイル処理
@@ -1143,7 +1096,7 @@ async function handleFile(file) {
     console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
 
     // ファイルタイプを自動判別 (マジックナンバー優先)
-    const type = detectFileType(buffer) || detectFileType(file);
+    const type = fileHandler.detectFileType(buffer) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
       alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
@@ -1151,11 +1104,11 @@ async function handleFile(file) {
     }
     console.log(`Detected file type: ${type}`);
 
-    const contentHash = await hashBuffer(buffer);
+    const contentHash = await fileHandler.hashBuffer(buffer);
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
-    const existingRecord = findBookByContentHash(storage.data.library, contentHash);
+    const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
-    const mime = guessMime(type, file);
+    const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || 'local';
 
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
@@ -1164,7 +1117,7 @@ async function handleFile(file) {
     // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
       id,
-      title: fileTitle(file.name),
+      title: fileHandler.fileTitle(file.name),
       type: type, // "epub" | "zip" | "rar"
       fileName: file.name,
       size: file.size,
@@ -1183,7 +1136,7 @@ async function handleFile(file) {
     if (isCloudSyncEnabled()) {
       if (!cloudBookId) {
         try {
-          const matchResult = await cloudSync.matchBook(contentHash, buildMatchMeta(info));
+          const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
           if (matchResult?.cloudBookId) {
             cloudBookId = matchResult.cloudBookId;
           } else if (matchResult?.candidates?.length > 0) {
@@ -1194,11 +1147,16 @@ async function handleFile(file) {
         }
       }
       if (!cloudBookId) {
-        cloudBookId = generateCloudBookId();
+        cloudBookId = fileHandler.generateCloudBookId();
       }
       if (cloudBookId) {
         storage.setBookLink(id, cloudBookId);
-        await upsertCloudIndexEntry(cloudBookId, info, contentHash);
+        await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
+          storage,
+          cloudSync,
+          isCloudSyncEnabled,
+          uiLanguage
+        });
       }
     }
     pendingCloudBookId = null;
@@ -1373,7 +1331,7 @@ async function openFromLibrary(bookId, options = {}) {
     currentCloudBookId = storage.getCloudBookId(bookId);
     if (isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
       try {
-        const matchResult = await cloudSync.matchBook(info.contentHash, buildMatchMeta(info));
+        const matchResult = await cloudSync.matchBook(info.contentHash, fileHandler.buildMatchMeta(info));
         if (matchResult?.cloudBookId) {
           currentCloudBookId = matchResult.cloudBookId;
           storage.setBookLink(bookId, currentCloudBookId);
@@ -1383,7 +1341,13 @@ async function openFromLibrary(bookId, options = {}) {
       }
     }
     if (currentCloudBookId) {
-      await upsertCloudIndexEntry(currentCloudBookId, info, info.contentHash, { lastReadAt: Date.now() });
+      await fileHandler.upsertCloudIndexEntry(currentCloudBookId, info, info.contentHash, {
+        storage,
+        cloudSync,
+        isCloudSyncEnabled,
+        uiLanguage,
+        overrides: { lastReadAt: Date.now() }
+      });
     }
 
     const bookmarks = storage.getBookmarks(bookId);
@@ -1395,7 +1359,7 @@ async function openFromLibrary(bookId, options = {}) {
     const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
 
     // 【修正】読み込み時にタイプを再判定（DB内の情報の誤りを補正）
-    const detectedType = detectFileType(record.buffer);
+    const detectedType = fileHandler.detectFileType(record.buffer);
     if (detectedType && detectedType !== info.type) {
       console.log(`タイプミスマッチを検出: ${info.type} -> ${detectedType}`);
       info.type = detectedType;
@@ -1449,84 +1413,8 @@ async function openFromLibrary(bookId, options = {}) {
   }
 }
 
-function detectFileType(fileOrBuffer) {
-  // ArrayBufferの場合はマジックナンバーチェック
-  if (fileOrBuffer instanceof ArrayBuffer) {
-    const view = new Uint8Array(fileOrBuffer);
-    // EPUB (PK\x03\x04 + mimetype) - 簡易的に PK チェックのみでも ZIP と混同しやすいが
-    // ZIP (PK\x03\x04)
-    if (view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
-      // 内部に "mimetypeapplication/epub+zip" があるかチェック（オフセット 30付近）
-      const str = String.fromCharCode(...view.slice(30, 60));
-      if (str.includes("mimetypeapplication/epub+zip")) {
-        return BOOK_TYPES.EPUB;
-      }
-      return BOOK_TYPES.ZIP;
-    }
-    // RAR (Rar!\x1a\x07\x00) v4
-    if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
-      return BOOK_TYPES.RAR;
-    }
-    // RAR (Rar!\x1a\x07\x01) v5
-    if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07 && view[6] === 0x01) {
-      return BOOK_TYPES.RAR;
-    }
-  }
 
-  // File オブジェクトの場合は名前から判別（フォールバック）
-  const name = fileOrBuffer.name || "";
-  const ext = name.split(".").pop().toLowerCase();
-  if (ext === FILE_EXTENSIONS.EPUB) return BOOK_TYPES.EPUB;
-  if (ext === FILE_EXTENSIONS.RAR || ext === FILE_EXTENSIONS.CBR) return BOOK_TYPES.RAR;
-  if (ext === FILE_EXTENSIONS.ZIP || ext === FILE_EXTENSIONS.CBZ) return BOOK_TYPES.ZIP;
 
-  // 不明な場合はnullを返す（呼び出し側でデフォルト処理）
-  return null;
-}
-
-function fileTitle(name) {
-  return name.replace(/\.[^.]+$/, "");
-}
-
-function guessMime(type, file) {
-  if (type === BOOK_TYPES.EPUB) return MIME_TYPES.EPUB;
-  if (type === BOOK_TYPES.IMAGE) {
-    // This branch is for internal image files inside archives, likely unused for the main file
-    // But keeping logic consistent if it were used
-    return FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
-  }
-
-  // For the main file passed to saveFile/handleFile
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext === FILE_EXTENSIONS.CBR) return MIME_TYPES.CBR;
-  if (ext === FILE_EXTENSIONS.CBZ) return MIME_TYPES.CBZ;
-  if (ext === FILE_EXTENSIONS.RAR) return MIME_TYPES.RAR;
-
-  return file.type || FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
-}
-
-async function hashBuffer(buffer) {
-  const hash = await crypto.subtle.digest("SHA-256", buffer);
-  const hex = Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return hex;
-}
-
-function findBookByContentHash(library, contentHash) {
-  const shortHash = contentHash.slice(0, 12);
-  for (const book of Object.values(library)) {
-    if (book?.contentHash === contentHash) {
-      return book;
-    }
-  }
-  for (const book of Object.values(library)) {
-    if (book?.id?.endsWith(`-${shortHash}`)) {
-      return book;
-    }
-  }
-  return null;
-}
 
 // ========================================
 // 進捗管理
