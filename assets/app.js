@@ -18,6 +18,7 @@ import {
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
+import { elements } from "./js/ui/elements.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
@@ -186,181 +187,10 @@ function resolveErrorCode(error) {
   return null;
 }
 
-const getById = (id) => document.getElementById(id);
-const getBySelector = (selector) => document.querySelector(selector);
+
 
 // ========================================
-// DOM要素
-// ========================================
 
-const elements = {
-  // リーダー
-  fullscreenReader: getById(DOM_IDS.FULLSCREEN_READER),
-  viewer: getById(DOM_IDS.VIEWER),
-  imageViewer: getById(DOM_IDS.IMAGE_VIEWER),
-  pageImage: getById(DOM_IDS.PAGE_IMAGE),
-  emptyStateIcon: getById(DOM_IDS.EMPTY_STATE_ICON),
-  menuTitleImage: getById(DOM_IDS.MENU_TITLE_IMAGE),
-  floatTitleImage: getById(DOM_IDS.FLOAT_TITLE_IMAGE),
-  emptyState: getById(DOM_IDS.EMPTY_STATE),
-  cloudEmptyState: getById(DOM_IDS.CLOUD_EMPTY_STATE),
-  cloudEmptyTitle: getById(DOM_IDS.CLOUD_EMPTY_TITLE),
-  cloudEmptyMeta: getById(DOM_IDS.CLOUD_EMPTY_META),
-  cloudAttachButton: getById(DOM_IDS.CLOUD_ATTACH_BUTTON),
-  floatOverlay: getById(DOM_IDS.FLOAT_OVERLAY),
-  floatBackdrop: getBySelector(DOM_SELECTORS.FLOAT_OVERLAY_BACKDROP),
-  floatOpen: getById(DOM_IDS.FLOAT_OPEN),
-  floatLibrary: getById(DOM_IDS.FLOAT_LIBRARY),
-  floatSearch: getById(DOM_IDS.FLOAT_SEARCH),
-  floatBookmarks: getById(DOM_IDS.FLOAT_BOOKMARKS),
-  floatHistory: getById(DOM_IDS.FLOAT_HISTORY),
-  floatSettings: getById(DOM_IDS.FLOAT_SETTINGS),
-  floatProgress: getById(DOM_IDS.FLOAT_PROGRESS),
-  floatProgressPercent: getById(DOM_IDS.FLOAT_PROGRESS_PERCENT),
-  floatProgressTrack: getById(DOM_IDS.FLOAT_PROGRESS_TRACK),
-  floatProgressMarks: getById(DOM_IDS.FLOAT_PROGRESS_MARKS),
-  floatProgressFill: getById(DOM_IDS.FLOAT_PROGRESS_FILL),
-  floatProgressThumb: getById(DOM_IDS.FLOAT_PROGRESS_THUMB),
-  modalOverlay: getById(DOM_IDS.MODAL_OVERLAY),
-  fontPlus: getById(DOM_IDS.FONT_PLUS),
-  fontMinus: getById(DOM_IDS.FONT_MINUS),
-  toggleTheme: getById(DOM_IDS.TOGGLE_THEME),
-  toggleLanguage: getById(DOM_IDS.TOGGLE_LANGUAGE),
-  langIcon: getById(DOM_IDS.LANG_ICON),
-  loadingOverlay: getById(DOM_IDS.LOADING_OVERLAY),
-  floatLangMenu: getById(DOM_IDS.FLOAT_LANG_MENU),
-  openLangMenu: getById(DOM_IDS.OPEN_LANG_MENU),
-  floatLangJa: getById(DOM_IDS.FLOAT_LANG_JA),
-  floatLangEn: getById(DOM_IDS.FLOAT_LANG_EN),
-  floatLangJaImg: getBySelector(DOM_SELECTORS.FLOAT_LANG_JA_IMG),
-  floatLangEnImg: getBySelector(DOM_SELECTORS.FLOAT_LANG_EN_IMG),
-
-  // メニュー
-  leftMenu: getById(DOM_IDS.LEFT_MENU),
-  menuOpen: getById(DOM_IDS.MENU_OPEN),
-  menuLibrary: getById(DOM_IDS.MENU_LIBRARY),
-  menuSearch: getById(DOM_IDS.MENU_SEARCH),
-  menuBookmarks: getById(DOM_IDS.MENU_BOOKMARKS),
-  menuHistory: getById(DOM_IDS.MENU_HISTORY),
-  menuSettings: getById(DOM_IDS.MENU_SETTINGS),
-  tocSection: getById(DOM_IDS.TOC_SECTION),
-  tocSectionTitle: getById(DOM_IDS.TOC_SECTION_TITLE),
-  tocList: getById(DOM_IDS.TOC_LIST),
-  langJa: getById(DOM_IDS.LANG_JA),
-  langEn: getById(DOM_IDS.LANG_EN),
-  toggleWritingMode: getById(DOM_IDS.TOGGLE_WRITING_MODE),
-  openToc: getById(DOM_IDS.OPEN_TOC),
-  tocModal: getById(DOM_IDS.TOC_MODAL),
-  tocModalList: getById(DOM_IDS.TOC_MODAL_LIST),
-  closeTocModal: getById(DOM_IDS.CLOSE_TOC_MODAL),
-  syncModal: getById(DOM_IDS.SYNC_MODAL),
-  syncModalTitle: getById(DOM_IDS.SYNC_MODAL_TITLE),
-  syncModalMessage: getById(DOM_IDS.SYNC_MODAL_MESSAGE),
-  syncUseRemote: getById(DOM_IDS.SYNC_USE_REMOTE),
-  syncUseLocal: getById(DOM_IDS.SYNC_USE_LOCAL),
-
-  // 進捗バー
-  progressBarPanel: getById(DOM_IDS.PROGRESS_BAR_PANEL),
-  progressBarBackdrop: getById(DOM_IDS.PROGRESS_BAR_BACKDROP),
-  progressFill: getById(DOM_IDS.PROGRESS_FILL),
-  progressThumb: getById(DOM_IDS.PROGRESS_THUMB),
-  progressTrack: getBySelector(DOM_SELECTORS.PROGRESS_TRACK),
-  currentPageInput: getById(DOM_IDS.CURRENT_PAGE_INPUT),
-  totalPages: getById(DOM_IDS.TOTAL_PAGES),
-  progressPrev: getById(DOM_IDS.PROGRESS_PREV),
-  progressNext: getById(DOM_IDS.PROGRESS_NEXT),
-
-  // しおりメニュー
-  bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
-  bookmarkList: getById(DOM_IDS.BOOKMARK_LIST),
-  addBookmarkBtn: getById(DOM_IDS.ADD_BOOKMARK_BTN),
-  closeBookmarkMenu: getById(DOM_IDS.CLOSE_BOOKMARK_MENU),
-
-  // ファイル選択モーダル
-  openFileModal: getById(DOM_IDS.OPEN_FILE_MODAL),
-  closeFileModal: getById(DOM_IDS.CLOSE_FILE_MODAL),
-  fileInput: getById(DOM_IDS.FILE_INPUT),
-  libraryGrid: getById(DOM_IDS.LIBRARY_GRID),
-  libraryViewGrid: getById(DOM_IDS.LIBRARY_VIEW_GRID),
-  libraryViewList: getById(DOM_IDS.LIBRARY_VIEW_LIST),
-  librarySearchInput: getById("library-search-input"),
-
-  // 履歴
-  historyModal: getById(DOM_IDS.HISTORY_MODAL),
-  closeHistoryModal: getById(DOM_IDS.CLOSE_HISTORY_MODAL),
-  historyList: getById(DOM_IDS.HISTORY_LIST),
-
-  // 設定
-  settingsModal: getById(DOM_IDS.SETTINGS_MODAL),
-  closeSettingsModal: getById(DOM_IDS.CLOSE_SETTINGS_MODAL),
-  themeSelect: getById(DOM_IDS.THEME_SELECT),
-  writingModeSelect: getById(DOM_IDS.WRITING_MODE_SELECT),
-  pageDirectionSelect: getById(DOM_IDS.PAGE_DIRECTION_SELECT),
-  settingsDefaultDirection: getById(DOM_IDS.SETTINGS_DEFAULT_DIRECTION),
-  progressDisplayModeSelect: getById(DOM_IDS.PROGRESS_DISPLAY_MODE),
-  exportDataBtn: getById(DOM_IDS.EXPORT_DATA_BTN),
-  importDataInput: getById(DOM_IDS.IMPORT_DATA_INPUT),
-
-  // 画像モーダル
-  imageModal: getById(DOM_IDS.IMAGE_MODAL),
-  closeImageModal: getById(DOM_IDS.CLOSE_IMAGE_MODAL),
-  modalImage: getById(DOM_IDS.MODAL_IMAGE),
-
-  // 検索モーダル
-  searchModal: getById(DOM_IDS.SEARCH_MODAL),
-  closeSearchModal: getById(DOM_IDS.CLOSE_SEARCH_MODAL),
-  searchInput: getById(DOM_IDS.SEARCH_INPUT),
-  searchBtn: getById(DOM_IDS.SEARCH_BTN),
-  searchResults: getById(DOM_IDS.SEARCH_RESULTS),
-
-  // UIテキスト
-  bookmarkMenuTitle: getById(DOM_IDS.BOOKMARK_MENU_TITLE),
-  searchModalTitle: getById(DOM_IDS.SEARCH_MODAL_TITLE),
-  tocModalTitle: getById(DOM_IDS.TOC_MODAL_TITLE),
-  openFileModalTitle: getById(DOM_IDS.OPEN_FILE_MODAL_TITLE),
-  librarySectionTitle: getById(DOM_IDS.LIBRARY_SECTION_TITLE),
-  historyModalTitle: getById(DOM_IDS.HISTORY_MODAL_TITLE),
-  settingsModalTitle: getById(DOM_IDS.SETTINGS_MODAL_TITLE),
-  settingsDisplayTitle: getById(DOM_IDS.SETTINGS_DISPLAY_TITLE),
-  settingsDeviceTitle: getById(DOM_IDS.SETTINGS_DEVICE_TITLE),
-  settingsDefaultDirectionLabel: getById(DOM_IDS.SETTINGS_DEFAULT_DIRECTION_LABEL),
-  themeLabel: getById(DOM_IDS.THEME_LABEL),
-  writingModeLabel: getById(DOM_IDS.WRITING_MODE_LABEL),
-  pageDirectionLabel: getById(DOM_IDS.PAGE_DIRECTION_LABEL),
-  progressDisplayModeLabel: getById(DOM_IDS.PROGRESS_DISPLAY_MODE_LABEL),
-  deviceIdLabel: getById(DOM_IDS.DEVICE_ID_LABEL),
-  deviceIdInput: getById(DOM_IDS.DEVICE_ID_INPUT),
-  deviceColorLabel: getById(DOM_IDS.DEVICE_COLOR_LABEL),
-  deviceColorInput: getById(DOM_IDS.DEVICE_COLOR_INPUT),
-  deviceNameLabel: getById(DOM_IDS.DEVICE_NAME_LABEL),
-  deviceNameInput: getById(DOM_IDS.DEVICE_NAME_INPUT),
-  settingsAccountTitle: getById(DOM_IDS.SETTINGS_ACCOUNT_TITLE),
-  googleLoginButton: getById(DOM_IDS.GOOGLE_LOGIN_BUTTON),
-  manualSyncButton: getById(DOM_IDS.MANUAL_SYNC_BUTTON),
-  syncToggleButton: getById(DOM_IDS.SYNC_TOGGLE_BUTTON),
-  userInfo: getById(DOM_IDS.USER_INFO),
-  syncStatus: getById(DOM_IDS.SYNC_STATUS),
-  syncHint: getById(DOM_IDS.SYNC_HINT),
-
-  // データ
-  settingsDataTitle: getById(DOM_IDS.SETTINGS_DATA_TITLE),
-  importDataLabel: getById(DOM_IDS.IMPORT_DATA_LABEL),
-
-  // 同期候補
-  candidateModal: getById(DOM_IDS.CANDIDATE_MODAL),
-  candidateModalTitle: getById(DOM_IDS.CANDIDATE_MODAL_TITLE),
-  candidateModalMessage: getById(DOM_IDS.CANDIDATE_MODAL_MESSAGE),
-  candidateList: getById(DOM_IDS.CANDIDATE_LIST),
-  candidateUseLocal: getById(DOM_IDS.CANDIDATE_USE_LOCAL),
-  closeCandidateModal: getById(DOM_IDS.CLOSE_CANDIDATE_MODAL),
-
-  // 追加ボタン
-  toggleSpreadMode: getById(DOM_IDS.TOGGLE_SPREAD_MODE),
-  toggleReadingDirectionEpub: getById(DOM_IDS.TOGGLE_READING_DIRECTION_EPUB),
-  toggleReadingDirectionImage: getById(DOM_IDS.TOGGLE_READING_DIRECTION_IMAGE),
-  toggleZoom: getById(DOM_IDS.TOGGLE_ZOOM),
-  loadingText: getById(DOM_IDS.LOADING_TEXT),
-};
 
 
 // ========================================
@@ -482,7 +312,7 @@ const ui = new UIController({
   isBookOpen: () => reader.book !== null || reader.imagePages.length > 0,
   isPageNavigationEnabled: () => true, // 常に有効（必要なら調整）
   isProgressBarAvailable: () => reader.type === BOOK_TYPES.EPUB || reader.type === BOOK_TYPES.ZIP || reader.type === BOOK_TYPES.RAR,
-  isFloatVisible: () => getById(DOM_IDS.FLOAT_OVERLAY).classList.contains(UI_CLASSES.VISIBLE),
+  isFloatVisible: () => elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE),
 
   // 追加: 画像/見開き判定用
   isImageBook: () => reader.type !== BOOK_TYPES.EPUB,
