@@ -149,6 +149,28 @@ export function updateFloatingUIButtons() {
 }
 
 /**
+ * フローティングオーバーレイの表示切り替え
+ */
+export function toggleFloatOverlay() {
+    if (!elements.floatOverlay) return;
+    const isVisible = elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE);
+
+    if (isVisible) {
+        elements.floatOverlay.classList.remove(UI_CLASSES.VISIBLE);
+        elements.floatOverlay.setAttribute("aria-hidden", "true");
+    } else {
+        elements.floatOverlay.classList.add(UI_CLASSES.VISIBLE);
+        elements.floatOverlay.setAttribute("aria-hidden", "false");
+        updateFloatingUIButtons();
+
+        // プログレスバーの更新
+        const progress = _storage.getProgress(_state.currentBookId);
+        const percentage = progress?.percentage || 0;
+        updateFloatProgressBar(percentage);
+    }
+}
+
+/**
  * 各種ボタンラベルの更新
  */
 export function updateSpreadModeButtonLabel() {

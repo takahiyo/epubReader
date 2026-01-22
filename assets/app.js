@@ -270,7 +270,7 @@ const ui = new UIController({
   },
 
   onFloatToggle: () => {
-    toggleFloatOverlay();
+    renderers.toggleFloatOverlay();
   },
   onResize: () => {
     // リサイズ時のリペジネーション (EPUBのみ)
@@ -1366,7 +1366,7 @@ function applyUiLanguage(nextLanguage) {
     elements.firebaseMeasurementIdLabel.textContent = strings.firebaseMeasurementIdLabel;
   }
   if (elements.syncStatus) {
-    updateSyncStatusDisplay();
+    renderers.updateSyncStatusDisplay();
   }
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
   if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
