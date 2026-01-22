@@ -1388,6 +1388,8 @@ async function handleFile(file) {
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
+    const buffer = await file.arrayBuffer();
+    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
 
     // ファイルタイプを自動判別 (マジックナンバー優先)
     const type = detectFileType(buffer) || detectFileType(file);
@@ -1397,9 +1399,6 @@ async function handleFile(file) {
       return;
     }
     console.log(`Detected file type: ${type}`);
-
-    const buffer = await file.arrayBuffer();
-    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
 
     const contentHash = await hashBuffer(buffer);
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
