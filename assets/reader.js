@@ -2276,6 +2276,10 @@ export class ReaderController {
     };
   }
 
+  isZoomMode() {
+    return this.zoomScale > this.getZoomConfig().min;
+  }
+
   setupZoomSlider() {
     if (typeof document === 'undefined') return;
     const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
@@ -2360,14 +2364,14 @@ export class ReaderController {
 
     window.addEventListener('touchstart', (e) => {
       const active = this.getActiveViewer();
-      if (active && active.contains(e.target) && this.zoomScale > this.getZoomConfig().min) {
+      if (active && active.contains(e.target) && this.isZoomMode()) {
         if (e.touches.length === 1) {
           startDrag(e.touches[0].clientX, e.touches[0].clientY);
           // ズーム中はブラウザのスクロール等を防ぐ
           // e.preventDefault(); // これをするとクリックも効かなくなる可能性があるが、ズーム中はクリック無効でよいか？
         }
       }
-    }, { passive: true }); // start は passive でよいことが多い
+    }, { passive: false });
 
     window.addEventListener('touchmove', (e) => {
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
@@ -2386,7 +2390,7 @@ export class ReaderController {
       if (!active || !active.contains(event.target)) return;
 
       const { step } = this.getZoomConfig();
-      if (!event.ctrlKey && this.zoomScale <= this.getZoomConfig().min) return;
+      if (!event.ctrlKey && !this.isZoomMode()) return;
 
       event.preventDefault();
       event.stopPropagation();
