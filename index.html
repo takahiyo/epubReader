@@ -309,6 +309,10 @@
             <label for="deviceColor" id="deviceColorLabel"></label>
             <input id="deviceColor" type="text" readonly />
           </div>
+          <div class="setting-item">
+            <label for="deviceName" id="deviceNameLabel"></label>
+            <input id="deviceName" type="text" readonly />
+          </div>
         </div>
 
         <div class="settings-section">
@@ -320,8 +324,8 @@
             </div>
             <p id="userInfo" class="setting-hint"></p>
             <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
-            <p id="syncHint" class="setting-hint"
-              style="margin-top: 10px; color: var(--muted); font-size: 0.85rem;"></p>
+            <p id="syncHint" class="setting-hint" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem;">
+            </p>
           </div>
         </div>
 
@@ -408,10 +412,10 @@
   </div>
 
   <!-- ローディングオーバーレイ -->
-    <div id="loadingOverlay" class="loading-overlay">
-      <div id="lottie-loader" class="loading-animation"></div>
-      <p id="loadingText" class="loading-text"></p>
-    </div>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div id="lottie-loader" class="loading-animation"></div>
+    <p id="loadingText" class="loading-text"></p>
+  </div>
 
   <div id="modalOverlay"></div>
 

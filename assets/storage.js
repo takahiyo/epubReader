@@ -32,6 +32,64 @@ const generateDeviceId = () => {
   return `device-${timePart}-${randomPart}`;
 };
 
+/**
+ * UserAgent を解析して OS/ブラウザ名を返す
+ * @returns {string} "OS名 / ブラウザ名" 形式の文字列
+ */
+const getDeviceInfo = () => {
+  if (typeof navigator === "undefined" || !navigator.userAgent) {
+    return "Unknown";
+  }
+
+  const ua = navigator.userAgent;
+
+  // OS判定
+  let os = "Unknown OS";
+  if (/Windows NT 10/.test(ua)) {
+    os = "Windows 10/11";
+  } else if (/Windows NT 6\.3/.test(ua)) {
+    os = "Windows 8.1";
+  } else if (/Windows NT 6\.2/.test(ua)) {
+    os = "Windows 8";
+  } else if (/Windows NT 6\.1/.test(ua)) {
+    os = "Windows 7";
+  } else if (/Windows/.test(ua)) {
+    os = "Windows";
+  } else if (/Mac OS X/.test(ua)) {
+    os = "macOS";
+  } else if (/iPhone|iPad|iPod/.test(ua)) {
+    os = "iOS";
+  } else if (/Android/.test(ua)) {
+    os = "Android";
+  } else if (/Linux/.test(ua)) {
+    os = "Linux";
+  } else if (/CrOS/.test(ua)) {
+    os = "Chrome OS";
+  }
+
+  // ブラウザ判定（順序重要: より特定的なものを先に）
+  let browser = "Unknown Browser";
+  if (/Edg\//.test(ua)) {
+    browser = "Edge";
+  } else if (/OPR\/|Opera/.test(ua)) {
+    browser = "Opera";
+  } else if (/Vivaldi/.test(ua)) {
+    browser = "Vivaldi";
+  } else if (/Brave/.test(ua)) {
+    browser = "Brave";
+  } else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) {
+    browser = "Chrome";
+  } else if (/Firefox\//.test(ua)) {
+    browser = "Firefox";
+  } else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) {
+    browser = "Safari";
+  } else if (/MSIE|Trident/.test(ua)) {
+    browser = "Internet Explorer";
+  }
+
+  return `${os} / ${browser}`;
+};
+
 const selectDeviceColor = (deviceId) => {
   if (!deviceId) return DEVICE_COLOR_PALETTE[0];
   let hash = 0;
@@ -77,6 +135,9 @@ const defaultData = {
   ...DEFAULT_DATA_SHAPE,
   settings: { ...DEFAULT_SETTINGS },
 };
+
+// デバイス情報取得関数をエクスポート
+export { getDeviceInfo };
 
 export class StorageService {
   constructor(key = STORAGE_KEY) {

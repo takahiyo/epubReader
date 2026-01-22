@@ -4,7 +4,7 @@
  * EPUB/画像書庫リーダーのメインエントリーポイント
  */
 
-import { StorageService } from "./storage.js";
+import { StorageService, getDeviceInfo } from "./storage.js";
 import { ReaderController } from "./reader.js";
 import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
@@ -332,6 +332,8 @@ const elements = {
   deviceIdInput: getById(DOM_IDS.DEVICE_ID_INPUT),
   deviceColorLabel: getById(DOM_IDS.DEVICE_COLOR_LABEL),
   deviceColorInput: getById(DOM_IDS.DEVICE_COLOR_INPUT),
+  deviceNameLabel: getById(DOM_IDS.DEVICE_NAME_LABEL),
+  deviceNameInput: getById(DOM_IDS.DEVICE_NAME_INPUT),
   settingsAccountTitle: getById(DOM_IDS.SETTINGS_ACCOUNT_TITLE),
   googleLoginButton: getById(DOM_IDS.GOOGLE_LOGIN_BUTTON),
   manualSyncButton: getById(DOM_IDS.MANUAL_SYNC_BUTTON),
@@ -3015,6 +3017,21 @@ function applyUiLanguage(nextLanguage) {
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.deviceIdLabel) elements.deviceIdLabel.textContent = strings.deviceIdLabel;
   if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
+  if (elements.deviceNameLabel) elements.deviceNameLabel.textContent = strings.deviceNameLabel;
+
+  // デバイス情報の値をセット
+  const deviceSettings = storage.getSettings();
+  if (elements.deviceIdInput && deviceSettings.deviceId) {
+    elements.deviceIdInput.value = deviceSettings.deviceId;
+  }
+  if (elements.deviceColorInput && deviceSettings.deviceColor) {
+    elements.deviceColorInput.value = deviceSettings.deviceColor;
+  }
+  if (elements.deviceNameInput) {
+    // storage.js の getDeviceInfo を使用
+    elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
+  }
+
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.manualSyncButton) elements.manualSyncButton.textContent = strings.syncNowButton;
