@@ -1388,6 +1388,8 @@ async function handleFile(file) {
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
+    const buffer = await file.arrayBuffer();
+    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
 
     // ファイルタイプを自動判別 (マジックナンバー優先)
     const type = detectFileType(buffer) || detectFileType(file);
@@ -1397,9 +1399,6 @@ async function handleFile(file) {
       return;
     }
     console.log(`Detected file type: ${type}`);
-
-    const buffer = await file.arrayBuffer();
-    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
 
     const contentHash = await hashBuffer(buffer);
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
@@ -2112,21 +2111,26 @@ function updateEpubScrollMode() {
 function renderToc(tocItems = []) {
   if (!elements.tocModalList) return;
 
+  const normalizedToc = tocItems?.toc ?? tocItems?.items ?? tocItems;
+  const tocArray = Array.isArray(normalizedToc)
+    ? normalizedToc
+    : Object.values(normalizedToc || {});
+
   if (elements.tocList) {
     elements.tocList.innerHTML = "";
   }
   elements.tocModalList.innerHTML = "";
   const isEpub = currentBookInfo?.type === BOOK_TYPES.EPUB;
 
-  if (!isEpub || !tocItems.length) {
+  if (!isEpub || tocArray.length === 0) {
     elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
-    console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocItems.length });
+    console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocArray.length });
     return;
   }
 
-  console.log('[renderToc] Showing TOC section with', tocItems.length, 'items');
-  elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
-  renderTocEntries(tocItems, elements.tocModalList, 0);
+  console.log('[renderToc] Showing TOC section with', tocArray.length, 'items');
+  elements.tocSection?.classList.remove(UI_CLASSES.HIDDEN);
+  renderTocEntries(tocArray, elements.tocModalList, 0);
 }
 
 function renderTocEntries(items, container, depth) {

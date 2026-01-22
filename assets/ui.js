@@ -64,6 +64,7 @@ export class UIController {
     this.setupClickHandler();
     this.setupTouchHandlers();
     this.setupResizeHandler();
+    this.setupZoomExitHandlers();
   }
 
   /**
@@ -79,6 +80,32 @@ export class UIController {
         this.onResize?.();
       }, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
     });
+  }
+
+  /**
+   * ズーム中の「閉じる/戻る」操作をズーム解除に置き換える
+   */
+  setupZoomExitHandlers() {
+    const zoomExitSelectors = [
+      `#${DOM_IDS.MENU_LIBRARY}`,
+      `#${DOM_IDS.FLOAT_LIBRARY}`,
+    ];
+    const selector = zoomExitSelectors.join(",");
+    if (!selector) return;
+
+    document.addEventListener('click', (e) => {
+      if (!document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        return;
+      }
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target || !target.closest(selector)) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const zoomToggle = getById(DOM_IDS.TOGGLE_ZOOM);
+      zoomToggle?.click();
+    }, true);
   }
 
   /**
