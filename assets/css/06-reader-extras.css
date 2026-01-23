@@ -1,0 +1,295 @@
+/* =====================================
+[REF]
+- HTML: #imageViewer.image-viewer（画像ビューア）
+- JS: assets/reader.js（画像表示で使用）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.image-viewer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--reader-bg);
+  padding: var(--reader-safe-block) var(--reader-safe-inline);
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #pageImage（画像ビューア内 img）
+- JS: assets/reader.js（画像差し替え）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.image-viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+  transform-origin: 0 0;
+  will-change: transform;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* =====================================
+[REF]
+- HTML: .image-viewer .spread-container（見開きコンテナ）
+- JS: assets/reader.js（見開き時に生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* 見開き表示用のコンテナ：常に画面中央に配置 */
+.image-viewer .spread-container {
+  display: flex;
+  justify-content: center;
+  /* 左右中央揃え */
+  align-items: center;
+  /* 上下中央揃え */
+  width: 100%;
+  height: 100%;
+  /* 画面一杯 */
+  overflow: hidden;
+  /* background-color: #000;  余白は黒などが読みやすい -> reader-bgを使うので不要かも */
+  transform-origin: 0 0;
+  will-change: transform;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* =====================================
+[REF]
+- HTML: .image-viewer .spread-page（見開きページ img）
+- JS: assets/reader.js（見開き時に生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* 個々の画像の設定 */
+.image-viewer .spread-page {
+  height: 100%;
+  /* 高さは常に画面一杯確保 */
+  width: auto;
+  /* 幅はなりゆき */
+  max-width: 50%;
+  /* 基本は画面の半分まで */
+  object-fit: contain;
+  /* アスペクト比を維持して収める */
+  flex: 0 1 auto;
+  /* 必要に応じて縮小 */
+  margin: 0 2px;
+  /* 画像間の隙間 */
+  cursor: zoom-in;
+}
+
+/* =====================================
+[REF]
+- HTML: .image-viewer .spread-page.wide / .image-viewer .spread-page.single-view
+- JS: assets/reader.js（画像サイズに応じて class 付与）
+- STATE: .wide / .single-view
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* 例外：横長（ワイド）画像、または1枚だけの表示 */
+.image-viewer .spread-page.wide,
+.image-viewer .spread-page.single-view {
+  max-width: 100%;
+  /* 幅制限を解除して全幅使用可能にする */
+  width: auto;
+  margin: 0 auto;
+}
+
+/* .image-viewer .spread-left { } */
+/* .image-viewer .spread-right { } */
+
+/* =====================================
+[REF]
+- HTML: #imageViewer.zoomed
+- JS: assets/reader.js（ズーム状態で class 付与）
+- STATE: .zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム状態 */
+.image-viewer.zoomed {
+  overflow: auto;
+  cursor: grab;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .image-viewer img / .spread-container
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+body.is-zoomed .image-viewer img,
+body.is-zoomed .image-viewer .spread-container {
+  cursor: grab;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-dragging .image-viewer img / .spread-container
+- JS: assets/reader.js（is-dragging 付与）
+- STATE: body.is-dragging
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+body.is-dragging .image-viewer img,
+body.is-dragging .image-viewer .spread-container {
+  cursor: grabbing;
+}
+
+/* =====================================
+[REF]
+- HTML: .image-viewer.rtl-mode .spread-container
+- JS: 画像表示時の読書方向（class は constants で定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* RTL モード時の見開き表示順序 */
+.image-viewer.rtl-mode .spread-container {
+  flex-direction: row-reverse;
+}
+
+/* =====================================
+[REF]
+- HTML: #emptyState.empty-state（空状態）
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #emptyState .empty-icon（旧アイコン想定）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.empty-icon {
+  font-size: 5rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.5;
+}
+
+/* =====================================
+[REF]
+- HTML: #emptyStateIcon.empty-book-icon
+- JS: assets/js/ui/elements.js（emptyStateIcon 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.empty-book-icon {
+  width: 140px;
+  opacity: 0.85;
+  margin-bottom: 1.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #emptyState h2
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.empty-state h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+
+/* =====================================
+[REF]
+- HTML: #emptyState p
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.empty-state p {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #cloudEmptyState.cloud-empty
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.cloud-empty {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* =====================================
+[REF]
+- HTML: #cloudEmptyTitle.cloud-empty-title
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.cloud-empty-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* =====================================
+[REF]
+- HTML: #cloudEmptyMeta.cloud-empty-meta
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.cloud-empty-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .hidden（汎用非表示クラス）
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .hidden
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.hidden {
+  display: none !important;
+}

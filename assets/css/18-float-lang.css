@@ -1,0 +1,86 @@
+/* ========================================
+   言語選択メニュー（フロートUI用・地球儀ボタン横）
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #floatLangMenu.float-lang-menu
+- JS: assets/app.js（表示切替）
+- STATE: なし
+- LAYER: z-index（--z-float-lang-menu）
+- SPLIT: GROUP
+===================================== */
+.float-lang-menu {
+  position: absolute;
+  left: var(--space-float-lang-menu-left);
+  bottom: var(--space-float-base);
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  z-index: var(--z-float-lang-menu);
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatLangMenu.float-lang-menu.hidden
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .hidden
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.float-lang-menu.hidden {
+  display: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatLangMenu .lang-option-btn
+- JS: assets/app.js（言語切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.lang-option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatLangMenu .lang-option-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.lang-option-btn:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatLangMenu .lang-option-btn img
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.lang-option-btn img {
+  width: 28px;
+  height: 28px;
+  border-radius: 2px;
+}

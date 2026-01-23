@@ -1,0 +1,149 @@
+/* ========================================
+   全画面リーダー
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: .fullscreen-reader（全画面リーダー）
+- JS: class付与（.epub-scroll 等）
+- STATE: .epub-scroll
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.fullscreen-reader {
+  position: fixed;
+  inset: 0;
+  background: var(--reader-bg);
+  color: var(--reader-text);
+}
+
+/* =====================================
+[REF]
+- HTML: #fullscreenReader（リーダーコンテナ）
+- JS: なし
+- STATE: なし
+- LAYER: z-index
+- SPLIT: GROUP
+===================================== */
+#fullscreenReader {
+  z-index: var(--z-reader);
+}
+
+/* =====================================
+[REF]
+- HTML: #fullscreenReader iframe（EPUB iframe）
+- JS: iframe生成/更新（JSで制御）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#fullscreenReader iframe {
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: .viewer（ビューア）
+- JS: class操作（.visible等）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.viewer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =====================================
+[REF]
+- HTML: .epub-page（EPUBページ）
+- JS: CSS変数（--reader-*）をJSで更新
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* EPUBコンテンツのレスポンシブレイアウト */
+.epub-page {
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+  text-align: var(--reader-text-align);
+  line-break: var(--reader-line-break);
+  word-break: var(--reader-word-break);
+}
+
+/* =====================================
+[REF]
+- HTML: .epub-page ruby/img（ルビ・画像）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* ルビ・画像の途中改ページ防止 */
+.epub-page ruby,
+.epub-page img {
+  break-inside: avoid;
+}
+
+/* =====================================
+[REF]
+- HTML: .fullscreen-reader.epub-scroll .viewer（スクロールモード）
+- JS: .epub-scroll を付与
+- STATE: .epub-scroll
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* EPUBスクロールモード（縦書き・横書きともに縦スクロール） */
+.fullscreen-reader.epub-scroll .viewer {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+
+/* =====================================
+[REF]
+- HTML: .click-overlay（クリック検知）
+- JS: .visible による表示制御
+- STATE: .viewer.visible
+- LAYER: z-index
+- SPLIT: GROUP
+===================================== */
+/* クリチE��検知用オーバ�Eレイ */
+.click-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-click-overlay);
+  pointer-events: all;
+  background: transparent;
+  display: none;
+}
+
+/* =====================================
+[REF]
+- HTML: .viewer.visible ~ .click-overlay（可視状態）
+- JS: .visible 切替
+- STATE: .visible
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.viewer.visible~.click-overlay {
+  display: block;
+}
+
+/* =====================================
+[REF]
+- HTML: .fullscreen-reader.epub-scroll .click-overlay（スクロール時無効）
+- JS: .epub-scroll
+- STATE: .epub-scroll
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.fullscreen-reader.epub-scroll .click-overlay {
+  display: none;
+  pointer-events: none;
+}

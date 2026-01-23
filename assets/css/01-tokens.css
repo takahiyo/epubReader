@@ -1,0 +1,92 @@
+/* =====================================
+[REF]
+- HTML: :root（グローバル変数）
+- JS: app.js から CSS 変数を更新（layout設定）
+- STATE: なし
+- LAYER: z-index管理あり
+- SPLIT: GROUP
+===================================== */
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --accent: #8b5cf6;
+  --accent-strong: #7c3aed;
+  --border: #1f2937;
+  --reader-bg: #0b1020;
+  --reader-text: #e5e7eb;
+  --reader-safe-inline: clamp(12px, 4vw, 36px);
+  --reader-safe-block: clamp(12px, 5vh, 48px);
+  /* レイアウト設定（JSから注入される前提） */
+  --reader-max-width: 800px;
+  --reader-text-align: justify;
+  --reader-line-break: strict;
+  --reader-word-break: normal;
+  --status-success-color: #4caf50;
+  --status-error-color: #f44336;
+  --status-neutral-color: #666666;
+  --bookmark-marker-border: rgba(255, 255, 255, 0.9);
+  --bookmark-marker-default: #fbbf24;
+  --debug-grid-line: rgba(255, 0, 0, 0.3);
+  --debug-grid-label-bg: rgba(0, 0, 0, 0.7);
+  --debug-grid-label-color: #ffffff;
+  --debug-grid-label-padding: 2px 4px;
+  --debug-grid-label-font-size: 10px;
+  --float-lang-toggle-left: 24px;
+  --float-lang-toggle-bottom: 24px;
+  --float-lang-toggle-font-size: 1.5rem;
+  --loading-animation-size: 120px;
+  --space-float-base: 24px;
+  --space-float-compact: 20px;
+  --space-float-tight: 12px;
+  --space-float-progress-bottom: 40px;
+  --space-float-lang-menu-left: 76px;
+  --space-zoom-slider-right: 10px;
+  --space-toggle-zoom-offset: 60px;
+  --space-zoom-slider-offset: 100px;
+  --z-reader: 10;
+  --z-click-overlay: 10;
+  --z-overlay: 900;
+  --z-menu: 100;
+  --z-modal: 10000;
+  --z-google-auth: 2147483647;
+  --z-float-backdrop: 1;
+  --z-float-title: 2;
+  --z-float-buttons: 1600;
+  --z-float-progress: 3;
+  --z-debug-grid: 9999;
+  --z-floating-menu-button: 12;
+  --z-reader-controls: 95;
+  --z-menu-backdrop: 99;
+  --z-progress-backdrop: 85;
+  --z-progress-panel: 90;
+  --z-bookmark-marker: 1;
+  --z-bookmark-menu: 110;
+  --z-modal-content: 120;
+  --z-modal-inner: 1;
+  --z-loading-overlay: 2000;
+  --z-float-lang-menu: 910;
+  --z-zoom-slider: 1000;
+  --z-zoom-ui: 10000;
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"]（テーマ切替）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: テーマ
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+[data-theme="light"] {
+  --bg: #f6f8fa;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #4b5563;
+  --accent: #6366f1;
+  --accent-strong: #4f46e5;
+  --border: #e5e7eb;
+  --reader-bg: #ffffff;
+  --reader-text: #111827;
+}

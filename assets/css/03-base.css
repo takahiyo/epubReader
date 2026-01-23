@@ -1,0 +1,16 @@
+/* =====================================
+[REF]
+- HTML: body（全体ベース）
+- JS: class付与で状態制御あり（例: body.google-auth-active, body.is-zoomed 等）
+- STATE: ボディ状態クラス
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+body {
+  font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}

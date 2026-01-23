@@ -1,0 +1,281 @@
+/* ========================================
+   モーダル共送E
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #modalOverlay
+- JS: assets/js/ui/elements.js（modalOverlay 取得）
+- STATE: なし
+- LAYER: z-index（--z-modal）
+- SPLIT: GROUP
+===================================== */
+#modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  /* > #floatOverlay(900). 追加ブラー層が増えてもモーダルを最前面に */
+  display: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #modalOverlay.visible
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+#modalOverlay.visible {
+  display: block;
+}
+
+/* =====================================
+[REF]
+- HTML: .modal（共通モーダル）
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: なし
+- LAYER: z-index（--z-modal-content）
+- SPLIT: GROUP
+===================================== */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal-content);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal.hidden
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .hidden
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.modal.hidden {
+  display: none;
+}
+
+/* =====================================
+[REF]
+- HTML: .modal-backdrop
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal .modal-content
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-modal-inner）
+- SPLIT: GROUP
+===================================== */
+.modal .modal-content {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  z-index: var(--z-modal-inner);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal-large
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.modal-large {
+  width: min(800px, 90vw);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal-medium
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.modal-medium {
+  width: min(600px, 90vw);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal-header
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal-header h3
+- JS: assets/js/ui/renderers.js（タイトル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.modal-header h3 {
+  font-size: 1.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .close-btn
+- JS: assets/app.js（閉じる処理）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: .close-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* =====================================
+[REF]
+- HTML: .modal-body
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-message
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.sync-message {
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-actions
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.sync-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn
+- JS: assets/app.js（同期操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.sync-action-btn {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.75);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.sync-action-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn.primary
+- JS: assets/app.js（主ボタン判定）
+- STATE: .primary
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.sync-action-btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn.primary:hover
+- JS: なし
+- STATE: .primary :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.sync-action-btn.primary:hover {
+  transform: translateY(-1px);
+}
+

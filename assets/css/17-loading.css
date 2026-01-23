@@ -1,0 +1,67 @@
+/* =====================================
+[REF]
+- HTML: #loadingOverlay.loading-overlay
+- JS: assets/js/ui/overlay-manager.js（表示切替）
+- STATE: なし
+- LAYER: z-index（--z-loading-overlay）
+- SPLIT: GROUP
+===================================== */
+/* ========================================
+   ローディングオーバーレイ
+======================================== */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: var(--z-loading-overlay);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #loadingOverlay.loading-overlay.visible
+- JS: assets/js/ui/overlay-manager.js（表示切替）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.loading-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #lottie-loader
+- JS: assets/js/ui/overlay-manager.js（Lottie描画先）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#lottie-loader {
+  margin-bottom: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #loadingText.loading-text
+- JS: assets/js/ui/overlay-manager.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.loading-text {
+  color: var(--text);
+  font-size: 1.25rem;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
