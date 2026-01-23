@@ -1,0 +1,347 @@
+/* ========================================
+   左サイドメニュー
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: .menu-backdrop（左サイドメニュー背景）
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: .menu-backdrop.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.menu-backdrop.visible {
+  display: block;
+  opacity: 1;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenuBackdrop
+- JS: assets/ui.js（leftMenuBackdrop の制御）
+- STATE: なし
+- LAYER: z-index（--z-menu-backdrop）
+- SPLIT: GROUP
+===================================== */
+/* 左メニュー用バックドロチE�E�E�左メニューの下！E*/
+#leftMenuBackdrop {
+  z-index: var(--z-menu-backdrop);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarBackdrop
+- JS: assets/ui.js（progressBarBackdrop の制御）
+- STATE: なし
+- LAYER: z-index（--z-progress-backdrop）
+- SPLIT: GROUP
+===================================== */
+/* 進捗バー用バックドロチE�E�E�進捗バーの下！E*/
+#progressBarBackdrop {
+  z-index: var(--z-progress-backdrop);
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu.left-menu（左サイドメニュー）
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: z-index（--z-menu）
+- SPLIT: GROUP
+===================================== */
+.left-menu {
+  position: fixed;
+  left: -320px;
+  top: 0;
+  bottom: 0;
+  width: 300px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: var(--z-menu);
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu.left-menu.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.left-menu.visible {
+  left: 0;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-header
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-header {
+  padding: 2rem 1.5rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-logo（旧ロゴ想定）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-header h2（旧タイトル想定）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-header h2 {
+  font-size: 1.25rem;
+  background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* =====================================
+[REF]
+- HTML: #menuTitleImage.menu-title-image
+- JS: assets/js/ui/elements.js（menuTitleImage 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-title-image {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-nav
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-nav {
+  flex: 1;
+  padding: 1rem 0;
+  overflow-y: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item（メニュー項目ボタン）
+- JS: assets/app.js（クリック処理）/ assets/js/ui/renderers.js（表示更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  text-align: left;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.menu-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item:disabled
+- JS: なし
+- STATE: :disabled
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item:disabled:hover
+- JS: なし
+- STATE: :disabled:hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.menu-item:disabled:hover {
+  background: transparent;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-icon
+- JS: assets/js/ui/renderers.js（アイコン更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-icon {
+  font-size: 1.25rem;
+  width: 1.5rem;
+  text-align: center;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-language
+- JS: assets/js/ui/elements.js（langJa/langEn）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-language {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1.5rem 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .lang-btn
+- JS: assets/app.js（言語切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.lang-btn {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 1.25rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .lang-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.lang-btn:hover {
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .lang-btn.active
+- JS: assets/app.js（言語切替で active 付与）
+- STATE: .active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.lang-btn.active {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-footer
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+/* =====================================
+[REF]
+- HTML: #userInfo.user-info
+- JS: assets/app.js（ユーザー情報表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.user-info {
+  font-size: 0.875rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+/* =====================================
+[REF]
+- HTML: .btn-icon（アイコン付きボタン）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.btn-icon {
+  margin-right: 0.5rem;
+}

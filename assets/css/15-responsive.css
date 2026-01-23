@@ -1,0 +1,54 @@
+/* ========================================
+   レスポンシチE
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: レスポンシブ調整（全体）
+- JS: なし
+- STATE: @media (max-width: 768px)
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+@media (max-width: 768px) {
+  .left-menu {
+    width: 280px;
+    left: -300px;
+  }
+
+  .progress-bar-panel {
+    padding: 0 1rem;
+  }
+
+  .library-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+}
+
+/* =====================================
+[REF]
+- HTML: レスポンシブ調整（全体）
+- JS: なし
+- STATE: @media (max-width: 480px)
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+@media (max-width: 480px) {
+  .empty-icon {
+    font-size: 3rem;
+  }
+
+  .empty-state h2 {
+    font-size: 1.25rem;
+  }
+
+  .left-menu {
+    width: min(320px, 85vw);
+    left: calc(-1 * min(320px, 85vw));
+  }
+
+  .left-menu.visible {
+    left: 0;
+  }
+}
+

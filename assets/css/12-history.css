@@ -1,0 +1,106 @@
+/* ========================================
+   履歴リスト
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #historyList.history-list
+- JS: assets/js/ui/renderers.js（履歴描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.history-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #historyList .history-item
+- JS: assets/js/ui/renderers.js（履歴描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #historyList .history-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.history-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+/* =====================================
+[REF]
+- HTML: #historyList .history-info
+- JS: assets/js/ui/renderers.js（履歴描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.history-info {
+  flex: 1;
+}
+
+/* =====================================
+[REF]
+- HTML: #historyList .history-delete
+- JS: assets/app.js（履歴削除）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.history-delete {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* =====================================
+[REF]
+- HTML: #historyList .history-title
+- JS: assets/js/ui/renderers.js（タイトル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.history-title {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #historyList .history-meta
+- JS: assets/js/ui/renderers.js（メタ更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.history-meta {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+

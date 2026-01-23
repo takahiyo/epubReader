@@ -1,0 +1,267 @@
+/* =====================================
+[REF]
+- HTML: #toggleZoom（ズームボタン配置調整）
+- JS: assets/js/ui/renderers.js（表示更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズームボタン配置 (テーマ切替ボタンの下) */
+#toggleZoom {
+  position: absolute;
+  right: var(--space-float-base);
+  top: calc(50% + var(--space-toggle-zoom-offset));
+  /* toggleThemeの約60px下 */
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay .float-backdrop
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時のUI制御 */
+body.is-zoomed #floatOverlay .float-backdrop {
+  backdrop-filter: none !important;
+  background: transparent !important;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay .float-buttons > *:not(#toggleZoom)
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時はズームボタン以外を非表示 */
+body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay .float-buttons .font-buttons / .zoom-slider-container
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: z-index（--z-zoom-slider）
+- SPLIT: LAST
+===================================== */
+/* 明示的な指定（念のため） */
+body.is-zoomed #floatOverlay .float-buttons .font-buttons,
+/* ズームスライダー */
+.zoom-slider-container {
+  position: absolute;
+  right: var(--space-zoom-slider-right);
+  /* 位置微調整 */
+  top: calc(50% + var(--space-zoom-slider-offset));
+  width: 160px;
+  height: 40px;
+  transform-origin: right center;
+  transform: rotate(-90deg) translateX(50%);
+  /* 縦向き */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: var(--z-zoom-slider);
+  background: rgba(17, 24, 39, 0.85);
+  border-radius: 20px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .zoom-slider-container
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+body.is-zoomed .zoom-slider-container {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #zoomSlider
+- JS: assets/reader.js（ズーム操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#zoomSlider {
+  width: 100%;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .float-title / #floatProgress / #progressBarPanel など
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時のUI制御 - 包括的に非表示 */
+body.is-zoomed .float-title,
+body.is-zoomed #floatProgress,
+body.is-zoomed #progressBarPanel,
+body.is-zoomed .font-buttons,
+body.is-zoomed .float-main-menu,
+body.is-zoomed .float-settings,
+body.is-zoomed .float-top-right,
+body.is-zoomed #toggleLanguage,
+body.is-zoomed #toggleTheme,
+body.is-zoomed #openLangMenu {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #viewer, body.is-zoomed .viewer
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時のカーソル */
+body.is-zoomed #viewer,
+body.is-zoomed .viewer {
+  cursor: grab;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #viewer:active, body.is-zoomed .viewer:active
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed :active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+body.is-zoomed #viewer:active,
+body.is-zoomed .viewer:active {
+  cursor: grabbing;
+}
+
+/* =====================================
+[REF]
+- HTML: #imageViewer.zoomed
+- JS: assets/reader.js（ズーム操作）
+- STATE: .zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時はスクロールを有効化（パン操作） */
+#imageViewer.zoomed {
+  overflow: auto;
+  /* タッチデバイスでの慣性スクロール */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-float-buttons）
+- SPLIT: GROUP
+===================================== */
+.float-buttons {
+  z-index: var(--z-float-buttons);
+  /* GridOverlayより上にする */
+}
+
+/* =====================================
+[REF]
+- HTML: #openToc（フローティング目次ボタン）
+- JS: assets/app.js（目次表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* 追加: フローティングメニューの目次ボタンの配置調整 */
+.float-main-menu #openToc {
+  margin-bottom: var(--space-float-base);
+  /* 下のボタン群と距離を離す */
+}
+
+/* ========================================
+   Phase 1: ズーム専用モード (Strict Mode)
+   既存のスタイルを上書きして完全に分離する
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+body.is-zoomed #floatOverlay {
+  display: block !important;
+  pointer-events: none !important;
+  /* パン操作を阻害しないが、非表示ボタンはクリックさせない */
+  background: transparent !important;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #toggleZoom / .zoom-slider-container / input
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: z-index（--z-zoom-ui）
+- SPLIT: LAST
+===================================== */
+/* ズーム操作UIのみ操作許可 */
+body.is-zoomed #toggleZoom,
+body.is-zoomed .zoom-slider-container,
+body.is-zoomed .zoom-slider-container input {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: var(--z-zoom-ui) !important;
+  /* 絶対的最前面 */
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .float-main-menu / .left-menu / .modal 等
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* その他すべてのフローティングUIを隠蔽・無効化 */
+body.is-zoomed .float-main-menu,
+body.is-zoomed .float-settings,
+body.is-zoomed .float-top-right,
+body.is-zoomed #floatProgress,
+body.is-zoomed .font-buttons,
+body.is-zoomed #toggleTheme,
+body.is-zoomed #toggleLanguage,
+body.is-zoomed #openLangMenu,
+body.is-zoomed .menu-backdrop,
+body.is-zoomed .left-menu,
+body.is-zoomed .progress-bar-panel,
+body.is-zoomed .bookmark-menu,
+body.is-zoomed .modal {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}

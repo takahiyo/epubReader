@@ -1,0 +1,212 @@
+/* ========================================
+   チE��スト検索
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #searchModal .search-input-container
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-input-container {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchInput.search-input
+- JS: assets/app.js（検索入力）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchInput.search-input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+/* =====================================
+[REF]
+- HTML: #searchBtn.search-btn
+- JS: assets/app.js（検索実行）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-btn {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  white-space: nowrap;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchBtn.search-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.search-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+}
+
+/* =====================================
+[REF]
+- HTML: #searchBtn.search-btn:active
+- JS: なし
+- STATE: :active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.search-btn:active {
+  transform: translateY(0);
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults.search-results
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-results {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-item
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-result-item {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.search-result-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-excerpt
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-result-excerpt {
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-excerpt mark
+- JS: assets/js/ui/renderers.js（ハイライト）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-result-excerpt mark {
+  background: rgba(139, 92, 246, 0.3);
+  color: var(--text);
+  padding: 0.125rem 0.25rem;
+  border-radius: 3px;
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-meta
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-result-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-no-results
+- JS: assets/js/ui/renderers.js（検索結果なし表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-no-results {
+  text-align: center;
+  padding: 2rem;
+  color: var(--muted);
+}
+
+/* =====================================
+[REF]
+- HTML: #searchResults .search-loading
+- JS: assets/js/ui/renderers.js（検索中表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.search-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--muted);
+}

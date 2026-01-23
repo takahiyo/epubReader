@@ -1,0 +1,90 @@
+/* =====================================
+[REF]
+- HTML: #candidateList.candidate-list
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* 候補リスチE*/
+.candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-item
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.candidate-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.candidate-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-title
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.candidate-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-author
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.candidate-author {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-meta
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.candidate-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
