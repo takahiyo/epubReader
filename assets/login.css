@@ -1,3 +1,11 @@
+/* =====================================
+[REF]
+- HTML: :root（グローバル変数）
+- JS: CSS変数操作なし（login.css内の定義のみ）
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 :root {
   --bg: #0f172a;
   --card: #111827;
@@ -8,12 +16,28 @@
   --border: #1f2937;
 }
 
+/* =====================================
+[REF]
+- HTML: 全要素リセット
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: body（ログイン画面の背景・レイアウト）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 body {
   font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
   background: radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.15), transparent 25%),
@@ -25,12 +49,28 @@ body {
   place-items: center;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-container（ログインコンテナ）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-container {
   width: 100%;
   max-width: 420px;
   padding: 2rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-card（カード本体）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -40,6 +80,14 @@ body {
   text-align: center;
 }
 
+/* =====================================
+[REF]
+- HTML: .logo（ロゴ表示）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .logo {
   width: 80px;
   height: 80px;
@@ -52,6 +100,14 @@ body {
   box-shadow: 0 16px 48px rgba(139, 92, 246, 0.4);
 }
 
+/* =====================================
+[REF]
+- HTML: h1（見出し）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
@@ -61,6 +117,14 @@ h1 {
   background-clip: text;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-title（画像タイトル）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-title {
   display: block;
   width: min(320px, 100%);
@@ -68,16 +132,40 @@ h1 {
   margin: 0 auto 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .subtitle（サブタイトル）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .subtitle {
   color: var(--muted);
   font-size: 0.95rem;
   margin-bottom: 2.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-actions（ボタン群の外枠）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-actions {
   margin: 2rem 0;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-methods（ログイン方式の選択）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-methods {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -85,6 +173,14 @@ h1 {
   margin-bottom: 1.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-option（ログイン方式ボタン）
+- JS: なし（inputのchecked状態はフォーム操作）
+- STATE: :has(input:checked)
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-option {
   display: flex;
   align-items: center;
@@ -100,28 +196,68 @@ h1 {
   transition: border 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-option input（選択用input）
+- JS: なし
+- STATE: inputのchecked
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-option input {
   accent-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: .login-option:has(input:checked)（選択状態）
+- JS: なし
+- STATE: input:checked
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-option:has(input:checked) {
   border-color: var(--accent);
   background: rgba(139, 92, 246, 0.2);
   color: #ddd6fe;
 }
 
+/* =====================================
+[REF]
+- HTML: .login-buttons（ボタン配置）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .login-buttons {
   display: grid;
   gap: 0.75rem;
   justify-items: center;
 }
 
+/* =====================================
+[REF]
+- HTML: .google-signin-button（Googleボタンのラッパー）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .google-signin-button {
   width: 100%;
   display: flex;
   justify-content: center;
 }
 
+/* =====================================
+[REF]
+- HTML: .google-login-btn（Googleログイン）
+- JS: disabled状態はJS操作の可能性あり
+- STATE: :disabled, :hover, :active
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .google-login-btn {
   width: 100%;
   display: flex;
@@ -140,6 +276,14 @@ h1 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* =====================================
+[REF]
+- HTML: .google-login-btn:disabled / .local-login-btn:disabled（無効化状態）
+- JS: disabled付与はJS操作の可能性あり
+- STATE: :disabled
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .google-login-btn:disabled,
 .local-login-btn:disabled {
   cursor: not-allowed;
@@ -148,6 +292,14 @@ h1 {
   transform: none;
 }
 
+/* =====================================
+[REF]
+- HTML: .local-login-btn（ローカルログイン）
+- JS: disabled状態はJS操作の可能性あり
+- STATE: :disabled, :hover, :active
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .local-login-btn {
   width: 100%;
   padding: 0.95rem 1.5rem;
@@ -161,31 +313,79 @@ h1 {
   transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .local-login-btn:hover（ホバー）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .local-login-btn:hover {
   transform: translateY(-2px);
   background: rgba(139, 92, 246, 0.15);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: .local-login-btn:active（アクティブ）
+- JS: なし
+- STATE: :active
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .local-login-btn:active {
   transform: translateY(0);
 }
 
+/* =====================================
+[REF]
+- HTML: .google-login-btn:hover（ホバー）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .google-login-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: .google-login-btn:active（アクティブ）
+- JS: なし
+- STATE: :active
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .google-login-btn:active {
   transform: translateY(0);
 }
 
+/* =====================================
+[REF]
+- HTML: .info（補足情報）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .info {
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid var(--border);
 }
 
+/* =====================================
+[REF]
+- HTML: .info p（説明文）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .info p {
   color: var(--muted);
   font-size: 0.85rem;
@@ -193,10 +393,26 @@ h1 {
   margin-bottom: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .info p:last-child（末尾）
+- JS: なし
+- STATE: :last-child
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 .info p:last-child {
   margin-bottom: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: レスポンシブ（max-width: 480px）
+- JS: なし
+- STATE: media
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 @media (max-width: 480px) {
   .login-container {
     padding: 1rem;
