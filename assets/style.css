@@ -349,6 +349,14 @@ body.google-auth-active .modal-backdrop {
   pointer-events: none !important;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-backdrop（フロート背景）
+- JS: assets/js/ui/elements.js（floatOverlay 取得）
+- STATE: なし
+- LAYER: z-index（--z-float-backdrop）
+- SPLIT: GROUP
+===================================== */
 .float-backdrop {
   position: absolute;
   inset: 0;
@@ -358,6 +366,14 @@ body.google-auth-active .modal-backdrop {
   z-index: var(--z-float-backdrop);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-title（フロートタイトル）
+- JS: assets/js/ui/elements.js（floatTitleImage の取得）
+- STATE: なし
+- LAYER: z-index（--z-float-title）
+- SPLIT: GROUP
+===================================== */
 .float-title {
   position: absolute;
   top: var(--space-float-base);
@@ -367,29 +383,77 @@ body.google-auth-active .modal-backdrop {
   z-index: var(--z-float-title);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatTitleImage（フロートタイトル画像）
+- JS: assets/js/ui/elements.js（floatTitleImage の取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-title img {
   width: min(240px, 60vw);
   height: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay .float-backdrop（ライトテーマのフロート背景）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] #floatOverlay .float-backdrop {
   background: rgba(255, 255, 255, 0.85);
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay button（ライトテーマのフロートボタン）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] #floatOverlay button {
   background: #f0f0f0;
   color: #111;
   border: 1px solid #ccc;
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay button:hover（ライトテーマのホバー）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"] :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] #floatOverlay button:hover {
   background: #e6e6e6;
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay .float-title img（ライトテーマのタイトル画像）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] #floatOverlay .float-title img {
   filter: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons（フロートボタン群）
+- JS: assets/js/ui/elements.js（各ボタン要素の取得）
+- STATE: なし
+- LAYER: z-index（--z-float-buttons）
+- SPLIT: GROUP
+===================================== */
 .float-buttons {
   position: absolute;
   inset: 0;
@@ -397,6 +461,14 @@ body.google-auth-active .modal-backdrop {
   z-index: var(--z-float-buttons);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-main-menu（フロート左メニュー）
+- JS: assets/js/ui/elements.js（openToc/floatOpen 等）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-main-menu {
   position: absolute;
   top: 50%;
@@ -408,12 +480,28 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatSettings（フロート設定ボタン）
+- JS: assets/js/ui/elements.js（floatSettings 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-settings {
   position: absolute;
   top: var(--space-float-compact);
   left: var(--space-float-compact);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons button（フロートボタン共通）
+- JS: assets/app.js（クリック処理）/ assets/js/ui/renderers.js（表示テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-buttons button {
   pointer-events: auto;
   min-width: 52px;
@@ -429,10 +517,26 @@ body.google-auth-active .modal-backdrop {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons button:hover（フロートボタンホバー）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .float-buttons button:hover {
   background: rgba(17, 24, 39, 0.95);
 }
 
+/* =====================================
+[REF]
+- HTML: #openLangMenu（フロート言語切替ボタン）
+- JS: assets/js/ui/elements.js（openLangMenu 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-lang-toggle {
   position: absolute;
   left: var(--float-lang-toggle-left);
@@ -441,18 +545,50 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #syncStatus 等（ステータス表示）
+- JS: assets/js/ui/renderers.js / assets/app.js（ステータス付与）
+- STATE: .status-success
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .status-success {
   color: var(--status-success-color);
 }
 
+/* =====================================
+[REF]
+- HTML: #syncStatus 等（ステータス表示）
+- JS: assets/js/ui/renderers.js / assets/app.js（ステータス付与）
+- STATE: .status-error
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .status-error {
   color: var(--status-error-color);
 }
 
+/* =====================================
+[REF]
+- HTML: #syncStatus 等（ステータス表示）
+- JS: assets/js/ui/renderers.js / assets/app.js（ステータス付与）
+- STATE: .status-neutral
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .status-neutral {
   color: var(--status-neutral-color);
 }
 
+/* =====================================
+[REF]
+- HTML: JSで動的生成（デバッググリッド）
+- JS: assets/ui.js（showDebugGrid）
+- STATE: なし
+- LAYER: z-index（--z-debug-grid）
+- SPLIT: GROUP
+===================================== */
 .debug-grid {
   position: fixed;
   inset: 0;
@@ -460,10 +596,26 @@ body.google-auth-active .modal-backdrop {
   z-index: var(--z-debug-grid);
 }
 
+/* =====================================
+[REF]
+- HTML: JSで動的生成（デバッググリッド線）
+- JS: assets/ui.js（showDebugGrid）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .debug-grid-line {
   background: var(--debug-grid-line);
 }
 
+/* =====================================
+[REF]
+- HTML: JSで動的生成（デバッググリッドラベル）
+- JS: assets/ui.js（showDebugGrid）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .debug-grid-label {
   background: var(--debug-grid-label-bg);
   color: var(--debug-grid-label-color);
@@ -471,11 +623,27 @@ body.google-auth-active .modal-backdrop {
   font-size: var(--debug-grid-label-font-size);
 }
 
+/* =====================================
+[REF]
+- HTML: #lottie-loader.loading-animation（ローディングアニメーション）
+- JS: assets/js/ui/overlay-manager.js（Lottie初期化）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .loading-animation {
   width: var(--loading-animation-size);
   height: var(--loading-animation-size);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-top-right（右上コントロール）
+- JS: assets/js/ui/elements.js（toggleWritingMode 等）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-top-right {
   position: absolute;
   top: var(--space-float-compact);
@@ -486,10 +654,26 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-top-right button
+- JS: assets/app.js（ボタンイベント）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .float-top-right button {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .font-buttons（文字サイズボタン）
+- JS: assets/js/ui/elements.js（fontPlus/fontMinus）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .font-buttons {
   position: absolute;
   right: var(--space-float-base);
@@ -500,6 +684,14 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #toggleTheme（テーマ切替ボタン）
+- JS: assets/js/ui/renderers.js（表示更新）/ assets/app.js（クリック）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #toggleTheme {
   position: absolute;
   right: var(--space-float-base);
@@ -509,6 +701,14 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #toggleZoom（ズーム切替ボタン）
+- JS: assets/js/ui/renderers.js（表示更新）/ assets/app.js（クリック）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #toggleZoom {
   position: absolute;
   right: var(--space-float-base);
@@ -518,6 +718,14 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #toggleLanguage（旧言語切替ボタン/未配置）
+- JS: assets/js/ui/elements.js（toggleLanguage 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #toggleLanguage {
   position: absolute;
   left: var(--space-float-base);
@@ -526,12 +734,28 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #toggleLanguage img
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #toggleLanguage img {
   width: 28px;
   height: auto;
   display: block;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgress（フロート進捗バー）
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: z-index（--z-float-progress）
+- SPLIT: GROUP
+===================================== */
 #floatProgress {
   position: absolute;
   bottom: var(--space-float-progress-bottom);
@@ -542,12 +766,28 @@ body.google-auth-active .modal-backdrop {
   z-index: var(--z-float-progress);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgressPercent
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #floatProgressPercent {
   text-align: center;
   margin-bottom: 8px;
   font-weight: 600;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgressTrack
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #floatProgressTrack {
   position: relative;
   height: 6px;
@@ -555,15 +795,39 @@ body.google-auth-active .modal-backdrop {
   border-radius: 3px;
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatProgressTrack
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] #floatProgressTrack {
   background: rgba(0, 0, 0, 0.15);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgressMarks
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #floatProgressMarks {
   position: absolute;
   inset: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgressFill
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #floatProgressFill {
   position: absolute;
   height: 100%;
@@ -571,6 +835,14 @@ body.google-auth-active .modal-backdrop {
   border-radius: 3px;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgressThumb
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #floatProgressThumb {
   position: absolute;
   top: -6px;
@@ -581,32 +853,88 @@ body.google-auth-active .modal-backdrop {
   border: 2px solid rgba(17, 24, 39, 0.8);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgress.rtl-progress #floatProgressTrack
+- JS: RTLクラス付与（assets/constants.js で class 定義）
+- STATE: .rtl-progress
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* RTL（右開き）時の進捗バー反転 */
 #floatProgress.rtl-progress #floatProgressTrack {
   transform: scaleX(-1);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgress.rtl-progress #floatProgressFill
+- JS: RTLクラス付与（assets/constants.js で class 定義）
+- STATE: .rtl-progress
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 #floatProgress.rtl-progress #floatProgressFill {
   transform: scaleX(-1);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatProgress.rtl-progress #floatProgressThumb
+- JS: RTLクラス付与（assets/constants.js で class 定義）
+- STATE: .rtl-progress
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 #floatProgress.rtl-progress #floatProgressThumb {
   right: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode .progress-track
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* メニュー内進捗バー（.rtl-mode）の反転 */
 .progress-bar-wrapper.rtl-mode .progress-track {
   transform: scaleX(-1);
 }
 
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode .progress-fill
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .progress-bar-wrapper.rtl-mode .progress-fill {
   transform: scaleX(-1);
 }
 
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode #progressThumb
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .progress-bar-wrapper.rtl-mode #progressThumb {
   right: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-floating-menu-button）
+- SPLIT: GROUP
+===================================== */
 /* スクロール時�Eメニューボタン */
 .floating-menu-button {
   position: absolute;
@@ -626,10 +954,26 @@ body.google-auth-active .modal-backdrop {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .floating-menu-button:hover {
   background: rgba(15, 23, 42, 0.8);
 }
 
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-reader-controls）
+- SPLIT: GROUP
+===================================== */
 .reader-controls {
   position: absolute;
   top: var(--space-float-tight);
@@ -640,6 +984,14 @@ body.google-auth-active .modal-backdrop {
   z-index: var(--z-reader-controls);
 }
 
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .control-btn {
   min-width: 56px;
   min-height: 44px;
@@ -654,15 +1006,39 @@ body.google-auth-active .modal-backdrop {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .control-btn:hover {
   background: rgba(17, 24, 39, 0.9);
 }
 
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: :disabled
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .control-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
+/* =====================================
+[REF]
+- HTML: .left-menu.visible / .progress-bar-panel.visible / .bookmark-menu.visible と隣接する .click-overlay
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* メニューが開ぁE��ぁE��時�Eオーバ�Eレイを非表示 */
 .left-menu.visible~.fullscreen-reader .click-overlay,
 .progress-bar-panel.visible~.fullscreen-reader .click-overlay,
@@ -670,6 +1046,14 @@ body.google-auth-active .modal-backdrop {
   pointer-events: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #imageViewer.image-viewer（画像ビューア）
+- JS: assets/reader.js（画像表示で使用）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .image-viewer {
   position: absolute;
   inset: 0;
@@ -685,6 +1069,14 @@ body.google-auth-active .modal-backdrop {
   user-select: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #pageImage（画像ビューア内 img）
+- JS: assets/reader.js（画像差し替え）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .image-viewer img {
   max-width: 100%;
   max-height: 100%;
@@ -697,6 +1089,14 @@ body.google-auth-active .modal-backdrop {
   user-select: none;
 }
 
+/* =====================================
+[REF]
+- HTML: .image-viewer .spread-container（見開きコンテナ）
+- JS: assets/reader.js（見開き時に生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* 見開き表示用のコンテナ：常に画面中央に配置 */
 .image-viewer .spread-container {
   display: flex;
@@ -716,6 +1116,14 @@ body.google-auth-active .modal-backdrop {
   user-select: none;
 }
 
+/* =====================================
+[REF]
+- HTML: .image-viewer .spread-page（見開きページ img）
+- JS: assets/reader.js（見開き時に生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* 個々の画像の設定 */
 .image-viewer .spread-page {
   height: 100%;
@@ -733,6 +1141,14 @@ body.google-auth-active .modal-backdrop {
   cursor: zoom-in;
 }
 
+/* =====================================
+[REF]
+- HTML: .image-viewer .spread-page.wide / .image-viewer .spread-page.single-view
+- JS: assets/reader.js（画像サイズに応じて class 付与）
+- STATE: .wide / .single-view
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* 例外：横長（ワイド）画像、または1枚だけの表示 */
 .image-viewer .spread-page.wide,
 .image-viewer .spread-page.single-view {
@@ -745,27 +1161,67 @@ body.google-auth-active .modal-backdrop {
 /* .image-viewer .spread-left { } */
 /* .image-viewer .spread-right { } */
 
+/* =====================================
+[REF]
+- HTML: #imageViewer.zoomed
+- JS: assets/reader.js（ズーム状態で class 付与）
+- STATE: .zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズーム状態 */
 .image-viewer.zoomed {
   overflow: auto;
   cursor: grab;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .image-viewer img / .spread-container
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 body.is-zoomed .image-viewer img,
 body.is-zoomed .image-viewer .spread-container {
   cursor: grab;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-dragging .image-viewer img / .spread-container
+- JS: assets/reader.js（is-dragging 付与）
+- STATE: body.is-dragging
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 body.is-dragging .image-viewer img,
 body.is-dragging .image-viewer .spread-container {
   cursor: grabbing;
 }
 
+/* =====================================
+[REF]
+- HTML: .image-viewer.rtl-mode .spread-container
+- JS: 画像表示時の読書方向（class は constants で定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* RTL モード時の見開き表示順序 */
 .image-viewer.rtl-mode .spread-container {
   flex-direction: row-reverse;
 }
 
+/* =====================================
+[REF]
+- HTML: #emptyState.empty-state（空状態）
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .empty-state {
   position: absolute;
   inset: 0;
@@ -777,29 +1233,69 @@ body.is-dragging .image-viewer .spread-container {
   padding: 3rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #emptyState .empty-icon（旧アイコン想定）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .empty-icon {
   font-size: 5rem;
   margin-bottom: 1.5rem;
   opacity: 0.5;
 }
 
+/* =====================================
+[REF]
+- HTML: #emptyStateIcon.empty-book-icon
+- JS: assets/js/ui/elements.js（emptyStateIcon 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .empty-book-icon {
   width: 140px;
   opacity: 0.85;
   margin-bottom: 1.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #emptyState h2
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .empty-state h2 {
   font-size: 1.5rem;
   margin-bottom: 0.75rem;
   color: var(--text);
 }
 
+/* =====================================
+[REF]
+- HTML: #emptyState p
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .empty-state p {
   color: var(--muted);
   font-size: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #cloudEmptyState.cloud-empty
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .cloud-empty {
   margin-top: 1.5rem;
   display: flex;
@@ -808,16 +1304,40 @@ body.is-dragging .image-viewer .spread-container {
   align-items: center;
 }
 
+/* =====================================
+[REF]
+- HTML: #cloudEmptyTitle.cloud-empty-title
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .cloud-empty-title {
   font-weight: 600;
   color: var(--text);
 }
 
+/* =====================================
+[REF]
+- HTML: #cloudEmptyMeta.cloud-empty-meta
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .cloud-empty-meta {
   color: var(--muted);
   font-size: 0.9rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .hidden（汎用非表示クラス）
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .hidden
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .hidden {
   display: none !important;
 }
@@ -826,6 +1346,14 @@ body.is-dragging .image-viewer .spread-container {
    左サイドメニュー
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: .menu-backdrop（左サイドメニュー背景）
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-backdrop {
   position: fixed;
   inset: 0;
@@ -836,21 +1364,53 @@ body.is-dragging .image-viewer .spread-container {
   transition: opacity 0.3s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .menu-backdrop.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .menu-backdrop.visible {
   display: block;
   opacity: 1;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenuBackdrop
+- JS: assets/ui.js（leftMenuBackdrop の制御）
+- STATE: なし
+- LAYER: z-index（--z-menu-backdrop）
+- SPLIT: GROUP
+===================================== */
 /* 左メニュー用バックドロチE�E�E�左メニューの下！E*/
 #leftMenuBackdrop {
   z-index: var(--z-menu-backdrop);
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarBackdrop
+- JS: assets/ui.js（progressBarBackdrop の制御）
+- STATE: なし
+- LAYER: z-index（--z-progress-backdrop）
+- SPLIT: GROUP
+===================================== */
 /* 進捗バー用バックドロチE�E�E�進捗バーの下！E*/
 #progressBarBackdrop {
   z-index: var(--z-progress-backdrop);
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu.left-menu（左サイドメニュー）
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: z-index（--z-menu）
+- SPLIT: GROUP
+===================================== */
 .left-menu {
   position: fixed;
   left: -320px;
@@ -866,10 +1426,26 @@ body.is-dragging .image-viewer .spread-container {
   z-index: var(--z-menu);
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu.left-menu.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .left-menu.visible {
   left: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-header
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-header {
   padding: 2rem 1.5rem 1.5rem;
   border-bottom: 1px solid var(--border);
@@ -879,6 +1455,14 @@ body.is-dragging .image-viewer .spread-container {
   justify-content: center;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-logo（旧ロゴ想定）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-logo {
   width: 48px;
   height: 48px;
@@ -890,6 +1474,14 @@ body.is-dragging .image-viewer .spread-container {
   box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-header h2（旧タイトル想定）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-header h2 {
   font-size: 1.25rem;
   background: linear-gradient(135deg, #a78bfa, #c4b5fd);
@@ -898,18 +1490,42 @@ body.is-dragging .image-viewer .spread-container {
   background-clip: text;
 }
 
+/* =====================================
+[REF]
+- HTML: #menuTitleImage.menu-title-image
+- JS: assets/js/ui/elements.js（menuTitleImage 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-title-image {
   width: 100%;
   max-width: 260px;
   height: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-nav
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-nav {
   flex: 1;
   padding: 1rem 0;
   overflow-y: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item（メニュー項目ボタン）
+- JS: assets/app.js（クリック処理）/ assets/js/ui/renderers.js（表示更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-item {
   width: 100%;
   display: flex;
@@ -926,31 +1542,79 @@ body.is-dragging .image-viewer .spread-container {
   text-align: left;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .menu-item:hover {
   background: rgba(139, 92, 246, 0.1);
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item:disabled
+- JS: なし
+- STATE: :disabled
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .menu-item:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-item:disabled:hover
+- JS: なし
+- STATE: :disabled:hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .menu-item:disabled:hover {
   background: transparent;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-icon
+- JS: assets/js/ui/renderers.js（アイコン更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-icon {
   font-size: 1.25rem;
   width: 1.5rem;
   text-align: center;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-language
+- JS: assets/js/ui/elements.js（langJa/langEn）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-language {
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem 1.5rem 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .lang-btn
+- JS: assets/app.js（言語切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .lang-btn {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
@@ -962,26 +1626,66 @@ body.is-dragging .image-viewer .spread-container {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .lang-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .lang-btn:hover {
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .lang-btn.active
+- JS: assets/app.js（言語切替で active 付与）
+- STATE: .active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .lang-btn.active {
   background: rgba(139, 92, 246, 0.2);
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #leftMenu .menu-footer
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .menu-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--border);
 }
 
+/* =====================================
+[REF]
+- HTML: #userInfo.user-info
+- JS: assets/app.js（ユーザー情報表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .user-info {
   font-size: 0.875rem;
   color: var(--muted);
   word-break: break-all;
 }
 
+/* =====================================
+[REF]
+- HTML: .btn-icon（アイコン付きボタン）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .btn-icon {
   margin-right: 0.5rem;
 }
@@ -990,6 +1694,14 @@ body.is-dragging .image-viewer .spread-container {
    進捗バーパネル
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel.progress-bar-panel
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: z-index（--z-progress-panel）
+- SPLIT: GROUP
+===================================== */
 .progress-bar-panel {
   position: fixed;
   bottom: -100px;
@@ -1008,15 +1720,39 @@ body.is-dragging .image-viewer .spread-container {
   z-index: var(--z-progress-panel);
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] .progress-bar-panel
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] .progress-bar-panel {
   background: rgba(255, 255, 255, 0.95);
   border-top-color: var(--border);
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel.progress-bar-panel.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .progress-bar-panel.visible {
   bottom: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-container
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-container {
   width: 100%;
   max-width: 1000px;
@@ -1025,6 +1761,14 @@ body.is-dragging .image-viewer .spread-container {
   gap: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-bar-wrapper
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-bar-wrapper {
   display: flex;
   align-items: center;
@@ -1032,6 +1776,14 @@ body.is-dragging .image-viewer .spread-container {
   width: 100%;
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-arrow
+- JS: assets/app.js（ページ移動）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-arrow {
   background: transparent;
   border: 1px solid var(--border);
@@ -1047,11 +1799,27 @@ body.is-dragging .image-viewer .spread-container {
   transition: all 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-arrow:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .progress-arrow:hover {
   background: rgba(139, 92, 246, 0.2);
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-track
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-track {
   flex: 1;
   position: relative;
@@ -1066,6 +1834,14 @@ body.is-dragging .image-viewer .spread-container {
     0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] .progress-track
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] .progress-track {
   background: #e2e8f0;
   /* slate-200 */
@@ -1073,18 +1849,41 @@ body.is-dragging .image-viewer .spread-container {
   /* slate-300 */
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] .current-page-input
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 [data-theme="light"] .current-page-input {
   background: #ffffff;
   border-color: #d1d5db;
   color: #0f172a;
 }
 
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* 追加: RTLモード時に進捗バー全体（ボタン・トラック含む）を左右反転 */
 .progress-bar-wrapper.rtl-mode {
   transform: scaleX(-1);
 }
 
-
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-fill
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-fill {
   position: absolute;
   left: 2px;
@@ -1097,8 +1896,14 @@ body.is-dragging .image-viewer .spread-container {
   box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
 }
 
-
-
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-thumb
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-thumb {
   position: absolute;
   top: 50%;
@@ -1116,21 +1921,53 @@ body.is-dragging .image-viewer .spread-container {
   transition: transform 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-thumb:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .progress-thumb:hover {
   transform: translate(-50%, -50%) scale(1.2);
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-thumb.dragging
+- JS: assets/ui.js（ドラッグ状態で class 付与）
+- STATE: .dragging
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .progress-thumb.dragging {
   cursor: grabbing;
   transform: translate(-50%, -50%) scale(1.3);
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-info
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .progress-info {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .page-numbers
+- JS: assets/ui.js（ページ番号更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .page-numbers {
   display: flex;
   align-items: center;
@@ -1139,6 +1976,14 @@ body.is-dragging .image-viewer .spread-container {
   color: var(--text);
 }
 
+/* =====================================
+[REF]
+- HTML: #currentPageInput.current-page-input
+- JS: assets/ui.js（ページ番号更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .current-page-input {
   width: 60px;
   padding: 0.25rem 0.5rem;
@@ -1150,15 +1995,39 @@ body.is-dragging .image-viewer .spread-container {
   font-size: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #currentPageInput.current-page-input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .current-page-input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .total-pages
+- JS: assets/ui.js（ページ番号更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .total-pages {
   color: var(--muted);
 }
 
+/* =====================================
+[REF]
+- HTML: .bookmark-marker（進捗バー上のしおりマーカー）
+- JS: assets/js/ui/renderers.js（しおり生成）
+- STATE: なし
+- LAYER: z-index（--z-bookmark-marker）
+- SPLIT: GROUP
+===================================== */
 /* しおり�Eーカー�E�進捗バー上！E*/
 .bookmark-marker {
   position: absolute;
@@ -1176,6 +2045,14 @@ body.is-dragging .image-viewer .spread-container {
   z-index: var(--z-bookmark-marker);
 }
 
+/* =====================================
+[REF]
+- HTML: .bookmark-marker:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .bookmark-marker:hover {
   transform: translate(-50%, -50%) scale(1.3);
 }
@@ -1184,6 +2061,14 @@ body.is-dragging .image-viewer .spread-container {
    しおりメニュー�E�モーダル�E�E
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu.bookmark-menu
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: z-index（--z-bookmark-menu）
+- SPLIT: GROUP
+===================================== */
 .bookmark-menu {
   position: fixed;
   inset: 0;
@@ -1195,10 +2080,26 @@ body.is-dragging .image-viewer .spread-container {
   z-index: var(--z-bookmark-menu);
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu.bookmark-menu.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .bookmark-menu.visible {
   display: flex;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .modal-content
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-menu .modal-content {
   background: var(--card);
   border: 1px solid var(--border);
@@ -1211,24 +2112,64 @@ body.is-dragging .image-viewer .spread-container {
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .modal-header
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-menu .modal-header {
   margin-bottom: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .modal-header h3
+- JS: assets/js/ui/renderers.js（タイトル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-menu .modal-header h3 {
   font-size: 1.25rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-section
+- JS: assets/js/ui/renderers.js（目次描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .toc-section {
   margin-bottom: 1rem;
   padding: 0 1.5rem 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-title
+- JS: assets/js/ui/renderers.js（目次タイトル）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .toc-title {
   font-size: 1rem;
   margin-bottom: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-list
+- JS: assets/js/ui/renderers.js（目次リスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .toc-list {
   list-style: none;
   display: flex;
@@ -1239,10 +2180,26 @@ body.is-dragging .image-viewer .spread-container {
   overflow-y: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-item
+- JS: assets/js/ui/renderers.js（目次リスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .toc-item {
   width: 100%;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-link
+- JS: assets/app.js（目次ジャンプ）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .toc-link {
   width: 100%;
   text-align: left;
@@ -1255,10 +2212,26 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-link:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .toc-link:hover {
   background: rgba(148, 163, 184, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-list
+- JS: assets/js/ui/renderers.js（しおりリスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-list {
   list-style: none;
   display: flex;
@@ -1269,6 +2242,14 @@ body.is-dragging .image-viewer .spread-container {
   overflow-y: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-item
+- JS: assets/js/ui/renderers.js（しおりリスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-item {
   display: flex;
   justify-content: space-between;
@@ -1282,14 +2263,38 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .bookmark-item:hover {
   background: rgba(139, 92, 246, 0.1);
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-info
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-info {
   flex: 1;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-label
+- JS: assets/js/ui/renderers.js（ラベル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-label {
   display: flex;
   align-items: center;
@@ -1298,11 +2303,27 @@ body.is-dragging .image-viewer .spread-container {
   margin-bottom: 0.25rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-meta
+- JS: assets/js/ui/renderers.js（メタ情報更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-meta {
   font-size: 0.875rem;
   color: var(--muted);
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-color-dot
+- JS: assets/js/ui/renderers.js（色表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-color-dot {
   width: 10px;
   height: 10px;
@@ -1312,6 +2333,14 @@ body.is-dragging .image-viewer .spread-container {
   flex-shrink: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-delete
+- JS: assets/app.js（削除操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .bookmark-delete {
   padding: 0.5rem;
   background: transparent;
@@ -1322,10 +2351,26 @@ body.is-dragging .image-viewer .spread-container {
   transition: color 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-delete:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .bookmark-delete:hover {
   color: #ef4444;
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .add-bookmark-btn
+- JS: assets/app.js（追加処理）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .add-bookmark-btn {
   width: 100%;
   padding: 0.75rem;
@@ -1339,6 +2384,14 @@ body.is-dragging .image-viewer .spread-container {
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
 }
 
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .add-bookmark-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .add-bookmark-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
@@ -1348,6 +2401,14 @@ body.is-dragging .image-viewer .spread-container {
    モーダル共送E
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #modalOverlay
+- JS: assets/js/ui/elements.js（modalOverlay 取得）
+- STATE: なし
+- LAYER: z-index（--z-modal）
+- SPLIT: GROUP
+===================================== */
 #modalOverlay {
   position: fixed;
   inset: 0;
@@ -1356,10 +2417,26 @@ body.is-dragging .image-viewer .spread-container {
   display: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #modalOverlay.visible
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 #modalOverlay.visible {
   display: block;
 }
 
+/* =====================================
+[REF]
+- HTML: .modal（共通モーダル）
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: なし
+- LAYER: z-index（--z-modal-content）
+- SPLIT: GROUP
+===================================== */
 .modal {
   position: fixed;
   inset: 0;
@@ -1369,10 +2446,26 @@ body.is-dragging .image-viewer .spread-container {
   z-index: var(--z-modal-content);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal.hidden
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .hidden
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .modal.hidden {
   display: none;
 }
 
+/* =====================================
+[REF]
+- HTML: .modal-backdrop
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -1380,6 +2473,14 @@ body.is-dragging .image-viewer .spread-container {
   backdrop-filter: blur(6px);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal .modal-content
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-modal-inner）
+- SPLIT: GROUP
+===================================== */
 .modal .modal-content {
   position: relative;
   background: var(--card);
@@ -1392,14 +2493,38 @@ body.is-dragging .image-viewer .spread-container {
   z-index: var(--z-modal-inner);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal-large
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .modal-large {
   width: min(800px, 90vw);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal-medium
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .modal-medium {
   width: min(600px, 90vw);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal-header
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1409,10 +2534,26 @@ body.is-dragging .image-viewer .spread-container {
   border-bottom: 1px solid var(--border);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal-header h3
+- JS: assets/js/ui/renderers.js（タイトル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .modal-header h3 {
   font-size: 1.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .close-btn
+- JS: assets/app.js（閉じる処理）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .close-btn {
   width: 32px;
   height: 32px;
@@ -1427,27 +2568,67 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .close-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: .modal-body
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .modal-body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-message
+- JS: assets/js/ui/renderers.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .sync-message {
   color: var(--text);
   line-height: 1.6;
 }
 
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-actions
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .sync-actions {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn
+- JS: assets/app.js（同期操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .sync-action-btn {
   width: 100%;
   padding: 0.85rem 1rem;
@@ -1460,15 +2641,39 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease, transform 0.1s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .sync-action-btn:hover {
   background: rgba(15, 23, 42, 0.9);
 }
 
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn.primary
+- JS: assets/app.js（主ボタン判定）
+- STATE: .primary
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .sync-action-btn.primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   border: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #syncModal .sync-action-btn.primary:hover
+- JS: なし
+- STATE: .primary :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .sync-action-btn.primary:hover {
   transform: translateY(-1px);
 }
@@ -1477,6 +2682,14 @@ body.is-dragging .image-viewer .spread-container {
    ファイル選択�Eライブラリ
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #fileInput.file-input-hidden
+- JS: assets/js/ui/elements.js（fileInput 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .file-input-hidden {
   position: fixed;
   top: -100px;
@@ -1487,6 +2700,14 @@ body.is-dragging .image-viewer .spread-container {
   /* display:none; visibility:hidden; pointer-events:none; removed */
 }
 
+/* =====================================
+[REF]
+- HTML: ライブラリ内の .file-input-label
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .file-input-label {
   display: block;
   padding: 2rem;
@@ -1497,25 +2718,65 @@ body.is-dragging .image-viewer .spread-container {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .file-input-label:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .file-input-label:hover {
   border-color: var(--accent);
   background: rgba(139, 92, 246, 0.05);
 }
 
+/* =====================================
+[REF]
+- HTML: .file-input-label span
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .file-input-label span {
   display: block;
   font-weight: 500;
   margin-bottom: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .file-input-label input
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .file-input-label input {
   display: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #librarySection .library-section h4
+- JS: assets/js/ui/renderers.js（見出し更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-section h4 {
   font-size: 1.125rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #librarySection .library-controls
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-controls {
   display: flex;
   align-items: center;
@@ -1524,12 +2785,28 @@ body.is-dragging .image-viewer .spread-container {
   margin-bottom: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #librarySection .library-view-toggle
+- JS: assets/app.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-view-toggle {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #libraryViewGrid / #libraryViewList .library-view-btn
+- JS: assets/app.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-view-btn {
   display: inline-flex;
   align-items: center;
@@ -1544,28 +2821,68 @@ body.is-dragging .image-viewer .spread-container {
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-view-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-view-btn:hover {
   transform: translateY(-1px);
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: .library-view-btn.active
+- JS: assets/app.js（表示切替で active 付与）
+- STATE: .active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-view-btn.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: #libraryGrid.library-grid
+- JS: assets/js/ui/renderers.js（ライブラリ描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #libraryGrid.library-grid[data-view="list"]
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-grid[data-view="list"] {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card（ライブラリカード）
+- JS: assets/js/ui/renderers.js（カード生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-card {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1575,6 +2892,14 @@ body.is-dragging .image-viewer .spread-container {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-card
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-grid[data-view="list"] .library-card {
   display: flex;
   align-items: center;
@@ -1582,11 +2907,27 @@ body.is-dragging .image-viewer .spread-container {
   padding: 0.75rem 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: .library-cover（表紙）
+- JS: assets/js/ui/renderers.js（表紙描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-cover {
   width: 100%;
   aspect-ratio: 3/4;
@@ -1598,6 +2939,14 @@ body.is-dragging .image-viewer .spread-container {
   margin-bottom: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-cover
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-grid[data-view="list"] .library-cover {
   width: 48px;
   aspect-ratio: 1 / 1;
@@ -1605,6 +2954,14 @@ body.is-dragging .image-viewer .spread-container {
   font-size: 1.25rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-title span（ホバー時のスクロール）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 @keyframes marquee {
   0% {
     transform: translateX(0);
@@ -1621,6 +2978,14 @@ body.is-dragging .image-viewer .spread-container {
   /* 簡易的なスクロール */
 }
 
+/* =====================================
+[REF]
+- HTML: .library-title
+- JS: assets/js/ui/renderers.js（タイトル描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-title {
   font-size: 0.875rem;
   font-weight: 500;
@@ -1629,11 +2994,27 @@ body.is-dragging .image-viewer .spread-container {
   mask-image: linear-gradient(90deg, black 85%, transparent 100%);
 }
 
+/* =====================================
+[REF]
+- HTML: .library-title span
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-title span {
   display: inline-block;
   transition: transform 0.3s;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card:hover .library-title span
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ホバー時にスクロール */
 .library-card:hover .library-title span {
   /* 文字数に応じた挙動が難しいため、transformで少し動かす程度にするか、
@@ -1643,6 +3024,14 @@ body.is-dragging .image-viewer .spread-container {
   /* 仮 */
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card:hover .library-title span
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* より単純なアプローチ：ホバーでtitle属性が出るので、CSSではtext-overflow: ellipsisのままにするか、
    あるいはマーキーアニメーションを適用する。
    ユーザー要望は「スクロールをループ」なのでmarqueeを採用 */
@@ -1652,6 +3041,14 @@ body.is-dragging .image-viewer .spread-container {
   min-width: 100%;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-title span（ホバー時のスクロール）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 @keyframes marquee {
   0% {
     transform: translateX(0);
@@ -1666,12 +3063,28 @@ body.is-dragging .image-viewer .spread-container {
   }
 }
 
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-title
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-grid[data-view="list"] .library-title {
   flex: 1;
   white-space: nowrap;
   margin-bottom: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-row-2
+- JS: assets/js/ui/renderers.js（メタ情報描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* 2行目（メタ情報＋バッジ） */
 .library-row-2 {
   display: flex;
@@ -1683,6 +3096,14 @@ body.is-dragging .image-viewer .spread-container {
   overflow: hidden;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-meta
+- JS: assets/js/ui/renderers.js（メタ情報描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-meta {
   flex: 1;
   overflow: hidden;
@@ -1690,17 +3111,41 @@ body.is-dragging .image-viewer .spread-container {
   white-space: nowrap;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-meta
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-grid[data-view="list"] .library-meta {
   margin-left: 0;
   /* list viewでの配置調整 */
   flex: 0 0 auto;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-actions（旧actions）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-actions {
   display: none;
   /* 古いactionsは非表示にするか、構造変更で削除 */
 }
 
+/* =====================================
+[REF]
+- HTML: .library-type-badge
+- JS: assets/js/ui/renderers.js（種別バッジ表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* バッジ類 */
 .library-type-badge {
   font-size: 0.6rem;
@@ -1711,6 +3156,14 @@ body.is-dragging .image-viewer .spread-container {
   border-radius: 4px;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-info
+- JS: assets/js/ui/renderers.js（カード情報描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-info {
   display: flex;
   flex-direction: column;
@@ -1720,6 +3173,14 @@ body.is-dragging .image-viewer .spread-container {
   width: 100%;
 }
 
+/* =====================================
+[REF]
+- HTML: #cloudAttachButton.library-attach（クラウド添付ボタン）
+- JS: assets/app.js（添付処理）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .library-attach {
   /* 既存スタイル維持 */
   font-size: 0.7rem;
@@ -1732,10 +3193,26 @@ body.is-dragging .image-viewer .spread-container {
   margin-left: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #cloudAttachButton.library-attach:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-attach:hover {
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #library-search-input.library-search-input
+- JS: assets/app.js（検索入力）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* ライブラリ検索入力欄 */
 .library-search-input {
   flex: 1;
@@ -1749,20 +3226,52 @@ body.is-dragging .image-viewer .spread-container {
   font-size: 0.9rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #library-search-input.library-search-input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-search-input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #library-search-input.library-search-input::placeholder
+- JS: なし
+- STATE: ::placeholder
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-search-input::placeholder {
   color: var(--muted);
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card（削除ボタン配置用）
+- JS: assets/js/ui/renderers.js（カード生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* ライブラリカード削除ボタン */
 .library-card {
   position: relative;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-delete-btn
+- JS: assets/app.js（削除処理）
+- STATE: なし
+- LAYER: z-index: 1
+- SPLIT: GROUP
+===================================== */
 .library-delete-btn {
   position: absolute;
   top: 4px;
@@ -1785,14 +3294,38 @@ body.is-dragging .image-viewer .spread-container {
   justify-content: center;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card:hover .library-delete-btn
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-card:hover .library-delete-btn {
   opacity: 1;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-delete-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-delete-btn:hover {
   background: rgba(220, 38, 38, 1);
 }
 
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-delete-btn
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* リスト表示時の削除ボタン位置調整 */
 .library-grid[data-view="list"] .library-delete-btn {
   position: static;
@@ -1800,6 +3333,14 @@ body.is-dragging .image-viewer .spread-container {
   margin-left: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card.marked-for-delete
+- JS: assets/app.js（削除マーク付与）
+- STATE: .marked-for-delete
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* 削除マーク付きカード */
 .library-card.marked-for-delete {
   opacity: 0.6;
@@ -1807,6 +3348,14 @@ body.is-dragging .image-viewer .spread-container {
   background: var(--bg-secondary);
 }
 
+/* =====================================
+[REF]
+- HTML: .library-card.marked-for-delete::after
+- JS: assets/app.js（削除マーク付与）
+- STATE: .marked-for-delete
+- LAYER: z-index: 10
+- SPLIT: LAST
+===================================== */
 .library-card.marked-for-delete::after {
   content: "";
   position: absolute;
@@ -1820,6 +3369,14 @@ body.is-dragging .image-viewer .spread-container {
   z-index: 10;
 }
 
+/* =====================================
+[REF]
+- HTML: .library-delete-btn.undo-mode
+- JS: assets/app.js（やり直しモード）
+- STATE: .undo-mode
+- LAYER: z-index: 20
+- SPLIT: LAST
+===================================== */
 /* やり直しボタン */
 .library-delete-btn.undo-mode {
   background: var(--accent);
@@ -1829,6 +3386,14 @@ body.is-dragging .image-viewer .spread-container {
   /* オーバーレイより上に表示 */
 }
 
+/* =====================================
+[REF]
+- HTML: .library-delete-btn.undo-mode:hover
+- JS: なし
+- STATE: .undo-mode :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .library-delete-btn.undo-mode:hover {
   background: var(--text);
 }
@@ -1837,6 +3402,14 @@ body.is-dragging .image-viewer .spread-container {
    履歴リスト
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #historyList.history-list
+- JS: assets/js/ui/renderers.js（履歴描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .history-list {
   list-style: none;
   display: flex;
@@ -1844,6 +3417,14 @@ body.is-dragging .image-viewer .spread-container {
   gap: 0.75rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #historyList .history-item
+- JS: assets/js/ui/renderers.js（履歴描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .history-item {
   display: flex;
   justify-content: space-between;
@@ -1856,14 +3437,38 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #historyList .history-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .history-item:hover {
   background: rgba(139, 92, 246, 0.1);
 }
 
+/* =====================================
+[REF]
+- HTML: #historyList .history-info
+- JS: assets/js/ui/renderers.js（履歴描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .history-info {
   flex: 1;
 }
 
+/* =====================================
+[REF]
+- HTML: #historyList .history-delete
+- JS: assets/app.js（履歴削除）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .history-delete {
   margin-left: auto;
   border: none;
@@ -1873,11 +3478,27 @@ body.is-dragging .image-viewer .spread-container {
   cursor: pointer;
 }
 
+/* =====================================
+[REF]
+- HTML: #historyList .history-title
+- JS: assets/js/ui/renderers.js（タイトル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .history-title {
   font-weight: 500;
   margin-bottom: 0.25rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #historyList .history-meta
+- JS: assets/js/ui/renderers.js（メタ更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .history-meta {
   font-size: 0.875rem;
   color: var(--muted);
@@ -1887,12 +3508,28 @@ body.is-dragging .image-viewer .spread-container {
    チE��スト検索
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #searchModal .search-input-container
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-input-container {
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchInput.search-input
+- JS: assets/app.js（検索入力）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-input {
   flex: 1;
   padding: 0.75rem 1rem;
@@ -1903,12 +3540,28 @@ body.is-dragging .image-viewer .spread-container {
   font-size: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchInput.search-input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .search-input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
+/* =====================================
+[REF]
+- HTML: #searchBtn.search-btn
+- JS: assets/app.js（検索実行）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-btn {
   padding: 0.75rem 1.5rem;
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
@@ -1922,15 +3575,39 @@ body.is-dragging .image-viewer .spread-container {
   white-space: nowrap;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchBtn.search-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .search-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
 }
 
+/* =====================================
+[REF]
+- HTML: #searchBtn.search-btn:active
+- JS: なし
+- STATE: :active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .search-btn:active {
   transform: translateY(0);
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults.search-results
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-results {
   max-height: 400px;
   overflow-y: auto;
@@ -1939,6 +3616,14 @@ body.is-dragging .image-viewer .spread-container {
   gap: 0.75rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-item
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-result-item {
   padding: 1rem;
   border: 1px solid var(--border);
@@ -1948,11 +3633,27 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .search-result-item:hover {
   background: rgba(139, 92, 246, 0.1);
   transform: translateY(-2px);
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-excerpt
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-result-excerpt {
   font-size: 0.875rem;
   color: var(--text);
@@ -1960,6 +3661,14 @@ body.is-dragging .image-viewer .spread-container {
   margin-bottom: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-excerpt mark
+- JS: assets/js/ui/renderers.js（ハイライト）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-result-excerpt mark {
   background: rgba(139, 92, 246, 0.3);
   color: var(--text);
@@ -1967,17 +3676,41 @@ body.is-dragging .image-viewer .spread-container {
   border-radius: 3px;
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-result-meta
+- JS: assets/js/ui/renderers.js（検索結果描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-result-meta {
   font-size: 0.75rem;
   color: var(--muted);
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-no-results
+- JS: assets/js/ui/renderers.js（検索結果なし表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-no-results {
   text-align: center;
   padding: 2rem;
   color: var(--muted);
 }
 
+/* =====================================
+[REF]
+- HTML: #searchResults .search-loading
+- JS: assets/js/ui/renderers.js（検索中表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .search-loading {
   text-align: center;
   padding: 2rem;
@@ -1988,6 +3721,14 @@ body.is-dragging .image-viewer .spread-container {
    設宁E
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .settings-section
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .settings-section {
   padding: 1.5rem;
   border: 1px solid var(--border);
@@ -1995,25 +3736,65 @@ body.is-dragging .image-viewer .spread-container {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .settings-section h4
+- JS: assets/js/ui/renderers.js（見出し更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .settings-section h4 {
   font-size: 1.125rem;
   margin-bottom: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-item
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .setting-item {
   margin-bottom: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-item:last-child
+- JS: なし
+- STATE: :last-child
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .setting-item:last-child {
   margin-bottom: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-item label
+- JS: assets/js/ui/renderers.js（ラベル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .setting-item label {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-item select / input
+- JS: assets/app.js（設定更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .setting-item select,
 .setting-item input[type="text"],
 .setting-item input[type="number"] {
@@ -2026,28 +3807,68 @@ body.is-dragging .image-viewer .spread-container {
   font-size: 0.875rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-item select:focus / input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .setting-item select:focus,
 .setting-item input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-hint
+- JS: assets/js/ui/renderers.js（補足更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .setting-hint {
   font-size: 0.875rem;
   color: var(--muted);
   margin-top: 0.5rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-warning
+- JS: assets/js/ui/renderers.js（警告表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .setting-warning {
   color: #f0ad4e;
 }
 
+/* =====================================
+[REF]
+- HTML: #settingsModal .setting-actions
+- JS: assets/app.js（データ操作ボタン）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .setting-actions {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
+/* =====================================
+[REF]
+- HTML: .secondary-btn（空状態/設定など）
+- JS: assets/app.js（ボタン操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .secondary-btn {
   padding: 0.625rem 1rem;
   background: rgba(255, 255, 255, 0.05);
@@ -2059,6 +3880,14 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: .secondary-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .secondary-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
@@ -2067,6 +3896,14 @@ body.is-dragging .image-viewer .spread-container {
    レスポンシチE
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: レスポンシブ調整（全体）
+- JS: なし
+- STATE: @media (max-width: 768px)
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 @media (max-width: 768px) {
   .left-menu {
     width: 280px;
@@ -2082,6 +3919,14 @@ body.is-dragging .image-viewer .spread-container {
   }
 }
 
+/* =====================================
+[REF]
+- HTML: レスポンシブ調整（全体）
+- JS: なし
+- STATE: @media (max-width: 480px)
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 @media (max-width: 480px) {
   .empty-icon {
     font-size: 3rem;
@@ -2101,6 +3946,14 @@ body.is-dragging .image-viewer .spread-container {
   }
 }
 
+/* =====================================
+[REF]
+- HTML: #candidateList.candidate-list
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* 候補リスチE*/
 .candidate-list {
   display: flex;
@@ -2111,6 +3964,14 @@ body.is-dragging .image-viewer .spread-container {
   overflow-y: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-item
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .candidate-item {
   display: flex;
   flex-direction: column;
@@ -2123,27 +3984,67 @@ body.is-dragging .image-viewer .spread-container {
   transition: all 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .candidate-item:hover {
   background: rgba(139, 92, 246, 0.1);
   border-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-title
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .candidate-title {
   font-weight: 600;
   color: var(--text);
 }
 
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-author
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .candidate-author {
   font-size: 0.875rem;
   color: var(--muted);
 }
 
+/* =====================================
+[REF]
+- HTML: #candidateList .candidate-meta
+- JS: assets/js/ui/renderers.js（候補描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .candidate-meta {
   font-size: 0.75rem;
   color: var(--muted);
   margin-top: 0.25rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #loadingOverlay.loading-overlay
+- JS: assets/js/ui/overlay-manager.js（表示切替）
+- STATE: なし
+- LAYER: z-index（--z-loading-overlay）
+- SPLIT: GROUP
+===================================== */
 /* ========================================
    ローディングオーバーレイ
 ======================================== */
@@ -2163,16 +4064,40 @@ body.is-dragging .image-viewer .spread-container {
   pointer-events: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #loadingOverlay.loading-overlay.visible
+- JS: assets/js/ui/overlay-manager.js（表示切替）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .loading-overlay.visible {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #lottie-loader
+- JS: assets/js/ui/overlay-manager.js（Lottie描画先）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #lottie-loader {
   margin-bottom: 1rem;
 }
 
+/* =====================================
+[REF]
+- HTML: #loadingText.loading-text
+- JS: assets/js/ui/overlay-manager.js（テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .loading-text {
   color: var(--text);
   font-size: 1.25rem;
@@ -2184,6 +4109,14 @@ body.is-dragging .image-viewer .spread-container {
    言語選択メニュー（フロートUI用・地球儀ボタン横）
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #floatLangMenu.float-lang-menu
+- JS: assets/app.js（表示切替）
+- STATE: なし
+- LAYER: z-index（--z-float-lang-menu）
+- SPLIT: GROUP
+===================================== */
 .float-lang-menu {
   position: absolute;
   left: var(--space-float-lang-menu-left);
@@ -2200,10 +4133,26 @@ body.is-dragging .image-viewer .spread-container {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatLangMenu.float-lang-menu.hidden
+- JS: assets/js/ui/renderers.js（表示切替）
+- STATE: .hidden
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .float-lang-menu.hidden {
   display: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatLangMenu .lang-option-btn
+- JS: assets/app.js（言語切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .lang-option-btn {
   display: flex;
   align-items: center;
@@ -2217,16 +4166,40 @@ body.is-dragging .image-viewer .spread-container {
   transition: background 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatLangMenu .lang-option-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 .lang-option-btn:hover {
   background: rgba(139, 92, 246, 0.2);
 }
 
+/* =====================================
+[REF]
+- HTML: #floatLangMenu .lang-option-btn img
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .lang-option-btn img {
   width: 28px;
   height: 28px;
   border-radius: 2px;
 }
 
+/* =====================================
+[REF]
+- HTML: #toggleZoom（ズームボタン配置調整）
+- JS: assets/js/ui/renderers.js（表示更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズームボタン配置 (テーマ切替ボタンの下) */
 #toggleZoom {
   position: absolute;
@@ -2239,18 +4212,42 @@ body.is-dragging .image-viewer .spread-container {
   transition: opacity 0.2s ease;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay .float-backdrop
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズーム時のUI制御 */
 body.is-zoomed #floatOverlay .float-backdrop {
   backdrop-filter: none !important;
   background: transparent !important;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay .float-buttons > *:not(#toggleZoom)
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズーム時はズームボタン以外を非表示 */
 body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
   opacity: 0;
   pointer-events: none;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay .float-buttons .font-buttons / .zoom-slider-container
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: z-index（--z-zoom-slider）
+- SPLIT: LAST
+===================================== */
 /* 明示的な指定（念のため） */
 body.is-zoomed #floatOverlay .float-buttons .font-buttons,
 /* ズームスライダー */
@@ -2278,17 +4275,41 @@ body.is-zoomed #floatOverlay .float-buttons .font-buttons,
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .zoom-slider-container
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 body.is-zoomed .zoom-slider-container {
   opacity: 1;
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: #zoomSlider
+- JS: assets/reader.js（ズーム操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #zoomSlider {
   width: 100%;
   cursor: pointer;
   accent-color: var(--accent);
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .float-title / #floatProgress / #progressBarPanel など
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズーム時のUI制御 - 包括的に非表示 */
 body.is-zoomed .float-title,
 body.is-zoomed #floatProgress,
@@ -2304,17 +4325,41 @@ body.is-zoomed #openLangMenu {
   pointer-events: none !important;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #viewer, body.is-zoomed .viewer
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズーム時のカーソル */
 body.is-zoomed #viewer,
 body.is-zoomed .viewer {
   cursor: grab;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #viewer:active, body.is-zoomed .viewer:active
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed :active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 body.is-zoomed #viewer:active,
 body.is-zoomed .viewer:active {
   cursor: grabbing;
 }
 
+/* =====================================
+[REF]
+- HTML: #imageViewer.zoomed
+- JS: assets/reader.js（ズーム操作）
+- STATE: .zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* ズーム時はスクロールを有効化（パン操作） */
 #imageViewer.zoomed {
   overflow: auto;
@@ -2322,11 +4367,27 @@ body.is-zoomed .viewer:active {
   -webkit-overflow-scrolling: touch;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-float-buttons）
+- SPLIT: GROUP
+===================================== */
 .float-buttons {
   z-index: var(--z-float-buttons);
   /* GridOverlayより上にする */
 }
 
+/* =====================================
+[REF]
+- HTML: #openToc（フローティング目次ボタン）
+- JS: assets/app.js（目次表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* 追加: フローティングメニューの目次ボタンの配置調整 */
 .float-main-menu #openToc {
   margin-bottom: var(--space-float-base);
@@ -2338,6 +4399,14 @@ body.is-zoomed .viewer:active {
    既存のスタイルを上書きして完全に分離する
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #floatOverlay
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 body.is-zoomed #floatOverlay {
   display: block !important;
   pointer-events: none !important;
@@ -2345,6 +4414,14 @@ body.is-zoomed #floatOverlay {
   background: transparent !important;
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed #toggleZoom / .zoom-slider-container / input
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: z-index（--z-zoom-ui）
+- SPLIT: LAST
+===================================== */
 /* ズーム操作UIのみ操作許可 */
 body.is-zoomed #toggleZoom,
 body.is-zoomed .zoom-slider-container,
@@ -2356,6 +4433,14 @@ body.is-zoomed .zoom-slider-container input {
   /* 絶対的最前面 */
 }
 
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .float-main-menu / .left-menu / .modal 等
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
 /* その他すべてのフローティングUIを隠蔽・無効化 */
 body.is-zoomed .float-main-menu,
 body.is-zoomed .float-settings,
