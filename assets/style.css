@@ -1,3 +1,11 @@
+/* =====================================
+[REF]
+- HTML: :root（グローバル変数）
+- JS: app.js から CSS 変数を更新（layout設定）
+- STATE: なし
+- LAYER: z-index管理あり
+- SPLIT: GROUP
+===================================== */
 :root {
   --bg: #0f172a;
   --card: #111827;
@@ -63,6 +71,14 @@
   --z-zoom-ui: 10000;
 }
 
+/* =====================================
+[REF]
+- HTML: [data-theme="light"]（テーマ切替）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: テーマ
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 [data-theme="light"] {
   --bg: #f6f8fa;
   --card: #ffffff;
@@ -75,12 +91,28 @@
   --reader-text: #111827;
 }
 
+/* =====================================
+[REF]
+- HTML: 全要素リセット
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: SAFE
+===================================== */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+/* =====================================
+[REF]
+- HTML: body（全体ベース）
+- JS: class付与で状態制御あり（例: body.google-auth-active, body.is-zoomed 等）
+- STATE: ボディ状態クラス
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 body {
   font-family: "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--bg);
@@ -94,6 +126,14 @@ body {
    全画面リーダー
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: .fullscreen-reader（全画面リーダー）
+- JS: class付与（.epub-scroll 等）
+- STATE: .epub-scroll
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .fullscreen-reader {
   position: fixed;
   inset: 0;
@@ -101,14 +141,38 @@ body {
   color: var(--reader-text);
 }
 
+/* =====================================
+[REF]
+- HTML: #fullscreenReader（リーダーコンテナ）
+- JS: なし
+- STATE: なし
+- LAYER: z-index
+- SPLIT: GROUP
+===================================== */
 #fullscreenReader {
   z-index: var(--z-reader);
 }
 
+/* =====================================
+[REF]
+- HTML: #fullscreenReader iframe（EPUB iframe）
+- JS: iframe生成/更新（JSで制御）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #fullscreenReader iframe {
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: .viewer（ビューア）
+- JS: class操作（.visible等）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .viewer {
   position: absolute;
   inset: 0;
@@ -119,6 +183,14 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* =====================================
+[REF]
+- HTML: .epub-page（EPUBページ）
+- JS: CSS変数（--reader-*）をJSで更新
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* EPUBコンテンツのレスポンシブレイアウト */
 .epub-page {
   max-width: var(--reader-max-width);
@@ -128,12 +200,28 @@ body {
   word-break: var(--reader-word-break);
 }
 
+/* =====================================
+[REF]
+- HTML: .epub-page ruby/img（ルビ・画像）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* ルビ・画像の途中改ページ防止 */
 .epub-page ruby,
 .epub-page img {
   break-inside: avoid;
 }
 
+/* =====================================
+[REF]
+- HTML: .fullscreen-reader.epub-scroll .viewer（スクロールモード）
+- JS: .epub-scroll を付与
+- STATE: .epub-scroll
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 /* EPUBスクロールモード（縦書き・横書きともに縦スクロール） */
 .fullscreen-reader.epub-scroll .viewer {
   overflow-y: auto;
@@ -141,6 +229,14 @@ body {
 }
 
 
+/* =====================================
+[REF]
+- HTML: .click-overlay（クリック検知）
+- JS: .visible による表示制御
+- STATE: .viewer.visible
+- LAYER: z-index
+- SPLIT: GROUP
+===================================== */
 /* クリチE��検知用オーバ�Eレイ */
 .click-overlay {
   position: absolute;
@@ -151,10 +247,26 @@ body {
   display: none;
 }
 
+/* =====================================
+[REF]
+- HTML: .viewer.visible ~ .click-overlay（可視状態）
+- JS: .visible 切替
+- STATE: .visible
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .viewer.visible~.click-overlay {
   display: block;
 }
 
+/* =====================================
+[REF]
+- HTML: .fullscreen-reader.epub-scroll .click-overlay（スクロール時無効）
+- JS: .epub-scroll
+- STATE: .epub-scroll
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 .fullscreen-reader.epub-scroll .click-overlay {
   display: none;
   pointer-events: none;
@@ -164,6 +276,14 @@ body {
    フローチEI
 ======================================== */
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay（フロートUI）
+- JS: .visible 切替
+- STATE: .visible
+- LAYER: z-index
+- SPLIT: GROUP
+===================================== */
 #floatOverlay {
   position: fixed;
   inset: 0;
@@ -172,23 +292,55 @@ body {
   pointer-events: none;
 }
 
+/* =====================================
+[REF]
+- HTML: #floatOverlay.visible（表示状態）
+- JS: .visible 切替
+- STATE: .visible
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 #floatOverlay.visible {
   display: block;
   pointer-events: auto;
 }
 
+/* =====================================
+[REF]
+- HTML: Google認証関連 iframe/div
+- JS: Googleログインで動的挿入
+- STATE: body.google-auth-active
+- LAYER: 最前面 z-index
+- SPLIT: GROUP
+===================================== */
 iframe[src*="accounts.google.com"],
 div[id^="g_id_"] {
   z-index: var(--z-google-auth) !important;
   position: fixed !important;
 }
 
+/* =====================================
+[REF]
+- HTML: body.google-auth-active *（Google認証時の抑制）
+- JS: body.google-auth-active を付与
+- STATE: body.google-auth-active
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 body.google-auth-active * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   filter: none !important;
 }
 
+/* =====================================
+[REF]
+- HTML: body.google-auth-active 配下の非表示対象
+- JS: body.google-auth-active
+- STATE: body.google-auth-active
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
 body.google-auth-active #floatOverlay,
 body.google-auth-active .float-backdrop,
 body.google-auth-active .float-buttons,
