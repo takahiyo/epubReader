@@ -245,29 +245,36 @@ async function measureFits(pageElement, htmlFragment, settings) {
 }
 
 // [修正] resolveResources関数を強化
+function resolvePath(href, base) {
+  try {
+    const baseUrl = new URL(base, "http://dummy/");
+    const resolvedUrl = new URL(href, baseUrl);
+    return resolvedUrl.pathname.substring(1);
+  } catch (e) {
+    return href;
+  }
+}
+
 async function resolveResources(body, resourceLoader, spineItem) {
   if (!resourceLoader) return;
-  // img だけでなく svg image も対象にする
   const images = Array.from(body.querySelectorAll("img, image"));
 
   for (const img of images) {
     const tagName = img.tagName.toLowerCase();
     const isSvgImage = tagName === "image";
-    // SVGの場合は href または xlink:href、imgの場合は src
     const attrName = isSvgImage
       ? (img.hasAttribute("href") ? "href" : "xlink:href")
       : "src";
 
     const src = img.getAttribute(attrName);
-    // srcがない、または既に解決済み(blob: data:)ならスキップ
     if (!src || src.startsWith("blob:") || src.startsWith("data:")) {
-      // srcが解決不要でも、srcsetがある場合は下の処理へ進む必要があるため continue しない
       if (isSvgImage || !img.hasAttribute("srcset")) continue;
     }
 
     try {
       if (src && !src.startsWith("blob:") && !src.startsWith("data:")) {
-        const resolved = await resourceLoader(src, spineItem);
+        const resolvedPath = spineItem ? resolvePath(src, spineItem.href) : src;
+        const resolved = await resourceLoader(resolvedPath, spineItem);
         if (resolved) {
           img.setAttribute(attrName, resolved);
         }
@@ -281,8 +288,8 @@ async function resolveResources(body, resourceLoader, spineItem) {
             const trimmed = part.trim();
             if (!trimmed) return "";
             const [url, descriptor] = trimmed.split(/\s+/, 2);
-            // URL部分を解決
-            const resolvedUrl = await resourceLoader(url, spineItem);
+            const resolvedPath = spineItem ? resolvePath(url, spineItem.href) : url;
+            const resolvedUrl = await resourceLoader(resolvedPath, spineItem);
             return descriptor ? `${resolvedUrl} ${descriptor}` : resolvedUrl;
           })
         );
