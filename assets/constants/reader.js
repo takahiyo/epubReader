@@ -1,0 +1,71 @@
+// ============================================
+// 読書状態の定義
+// ============================================
+export const BOOK_TYPES = Object.freeze({
+  EPUB: "epub",
+  ZIP: "zip",
+  RAR: "rar",
+  IMAGE: "image",
+});
+
+export const WRITING_MODES = Object.freeze({
+  HORIZONTAL: "horizontal",
+  VERTICAL: "vertical",
+});
+
+export const READING_DIRECTIONS = Object.freeze({
+  LTR: "ltr",
+  RTL: "rtl",
+});
+
+export const IMAGE_VIEW_MODES = Object.freeze({
+  SINGLE: "single",
+  SPREAD: "spread",
+});
+
+export const THEME_MODES = Object.freeze({
+  DARK: "dark",
+  LIGHT: "light",
+});
+
+export const CSS_WRITING_MODES = Object.freeze({
+  VERTICAL: "vertical-rl",
+  HORIZONTAL: "horizontal-tb",
+});
+
+export const FILE_EXTENSIONS = Object.freeze({
+  EPUB: "epub",
+  ZIP: "zip",
+  RAR: "rar",
+  CBR: "cbr",
+  CBZ: "cbz",
+});
+
+// ============================================
+// リーダー設定
+// ============================================
+export const READER_CONFIG = Object.freeze({
+  viewportWidth: 800,
+  viewportHeight: 600,
+  fontSize: "16px",
+  writingMode: "horizontal-tb",
+  lineHeight: 1.6,
+  margin: "0",
+  padding: "16px",
+  // レイアウト設定（レスポンシブ・禁則処理）
+  layout: Object.freeze({
+    maxWidth: "800px", // コンテンツ最大幅
+    textAlign: "justify", // 両端揃え
+    lineBreak: "strict", // 厳格な禁則処理
+    wordBreak: "normal", // 標準のワードブレーク
+  }),
+  FONT_SIZE_MIN: 12,
+  FONT_SIZE_MAX: 28,
+  MAX_BINARY_SEARCH_ITERATIONS: 24,
+  MAX_PAGES_PER_SPINE: 5000,
+  FIT_TOLERANCE_PX: 3,
+  MAX_FIT_ATTEMPTS: 3,
+  TEXT_SEGMENT_STEP: 24,
+  DEFAULT_LINE_HEIGHT: 1.8,
+  LOCATIONS_CHARS_PER_PAGE: 1600,
+});

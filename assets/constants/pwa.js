@@ -1,0 +1,62 @@
+// ============================================
+// PWA / Service Worker 設定
+// ============================================
+export const PWA_CONFIG = Object.freeze({
+  CACHE_NAME: "bookreader-v4",
+  THEME_COLOR: "#2c3e50",
+  BACKGROUND_COLOR: "#ffffff",
+});
+
+// ============================================
+// Service Worker キャッシュ対象アセット
+// ============================================
+export const SW_CACHE_ASSETS = Object.freeze([
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./assets/sw-cache-config.json",
+  "./assets/css/01-tokens.css",
+  "./assets/css/02-reset.css",
+  "./assets/css/03-base.css",
+  "./assets/css/04-reader.css",
+  "./assets/css/05-float-ui.css",
+  "./assets/css/06-reader-extras.css",
+  "./assets/css/07-menu.css",
+  "./assets/css/08-progress.css",
+  "./assets/css/09-bookmark.css",
+  "./assets/css/10-modal.css",
+  "./assets/css/11-library.css",
+  "./assets/css/12-history.css",
+  "./assets/css/13-search.css",
+  "./assets/css/14-settings.css",
+  "./assets/css/15-responsive.css",
+  "./assets/css/16-candidate.css",
+  "./assets/css/17-loading.css",
+  "./assets/css/18-float-lang.css",
+  "./assets/css/19-zoom.css",
+  "./assets/login.css",
+  "./assets/app.js",
+  "./assets/constants.js",
+  "./assets/i18n.js",
+  "./assets/config.js",
+  "./assets/ui.js",
+  "./assets/reader.js",
+  "./assets/storage.js",
+  "./assets/auth.js",
+  "./assets/cloudSync.js",
+  "./assets/fileStore.js",
+  "./assets/firebaseConfig.js",
+  "./assets/onedriveAuth.js",
+  "./assets/bookreader.png",
+  "./assets/BookReader_Titlle.png",
+  "./assets/menu-title.svg",
+  "./assets/Flag_Japan.svg",
+  "./assets/Flag_America.svg",
+  "./assets/icon_BookReader_192.png",
+  "./assets/icon_BookReader_512.png",
+  "./assets/icon_BookReader_2048.png",
+  "./assets/vendor/jszip.min.js",
+  "./assets/vendor/unrar.js",
+  "./assets/vendor/unrar.wasm",
+  "./assets/animations/loader_book.json",
+]);
