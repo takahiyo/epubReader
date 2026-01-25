@@ -1,0 +1,366 @@
+/* ========================================
+   進捗バーパネル
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel.progress-bar-panel
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: z-index（--z-progress-panel）
+- SPLIT: GROUP
+===================================== */
+.progress-bar-panel {
+  position: fixed;
+  bottom: -100px;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2rem;
+  transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: var(--z-progress-panel);
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] .progress-bar-panel
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] .progress-bar-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-top-color: var(--border);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel.progress-bar-panel.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.progress-bar-panel.visible {
+  bottom: 0;
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-container
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-container {
+  width: 100%;
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-bar-wrapper
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-arrow
+- JS: assets/app.js（ページ移動）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-arrow {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-arrow:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.progress-arrow:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-track
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-track {
+  flex: 1;
+  position: relative;
+  height: 12px;
+  /* 濁E��グレーで白背景でも確実に視認可能 */
+  background: #374151;
+  border: 2px solid #1f2937;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] .progress-track
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] .progress-track {
+  background: #e2e8f0;
+  /* slate-200 */
+  border-color: #cbd5e1;
+  /* slate-300 */
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] .current-page-input
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] .current-page-input {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #0f172a;
+}
+
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* 追加: RTLモード時に進捗バー全体（ボタン・トラック含む）を左右反転 */
+.progress-bar-wrapper.rtl-mode {
+  transform: scaleX(-1);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-fill
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-fill {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  bottom: 2px;
+  /* 鮮めE��なグラチE�Eションで視認性向丁E*/
+  background: linear-gradient(90deg, #8b5cf6, #a855f7);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-thumb
+- JS: assets/ui.js（進捗更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  /* 白背景でも黒背景でも見えるツマミ */
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border: 3px solid #1f2937;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.8);
+  transition: transform 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-thumb:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.progress-thumb:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-thumb.dragging
+- JS: assets/ui.js（ドラッグ状態で class 付与）
+- STATE: .dragging
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.progress-thumb.dragging {
+  cursor: grabbing;
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .progress-info
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.progress-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .page-numbers
+- JS: assets/ui.js（ページ番号更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+/* =====================================
+[REF]
+- HTML: #currentPageInput.current-page-input
+- JS: assets/ui.js（ページ番号更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.current-page-input {
+  width: 60px;
+  padding: 0.25rem 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  text-align: center;
+  font-size: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #currentPageInput.current-page-input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.current-page-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #progressBarPanel .total-pages
+- JS: assets/ui.js（ページ番号更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.total-pages {
+  color: var(--muted);
+}
+
+/* =====================================
+[REF]
+- HTML: .bookmark-marker（進捗バー上のしおりマーカー）
+- JS: assets/js/ui/renderers.js（しおり生成）
+- STATE: なし
+- LAYER: z-index（--z-bookmark-marker）
+- SPLIT: GROUP
+===================================== */
+/* しおり�Eーカー�E�進捗バー上！E*/
+.bookmark-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  background: var(--bookmark-marker-default);
+  border: 2px solid var(--bookmark-marker-border);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  appearance: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-bookmark-marker);
+}
+
+/* =====================================
+[REF]
+- HTML: .bookmark-marker:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.bookmark-marker:hover {
+  transform: translate(-50%, -50%) scale(1.3);
+}

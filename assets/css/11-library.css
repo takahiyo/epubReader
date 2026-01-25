@@ -1,0 +1,720 @@
+/* ========================================
+   ファイル選択�Eライブラリ
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #fileInput.file-input-hidden
+- JS: assets/js/ui/elements.js（fileInput 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.file-input-hidden {
+  position: fixed;
+  top: -100px;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  /* display:none; visibility:hidden; pointer-events:none; removed */
+}
+
+/* =====================================
+[REF]
+- HTML: ライブラリ内の .file-input-label
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.file-input-label {
+  display: block;
+  padding: 2rem;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: .file-input-label:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.file-input-label:hover {
+  border-color: var(--accent);
+  background: rgba(139, 92, 246, 0.05);
+}
+
+/* =====================================
+[REF]
+- HTML: .file-input-label span
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.file-input-label span {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .file-input-label input
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.file-input-label input {
+  display: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #librarySection .library-section h4
+- JS: assets/js/ui/renderers.js（見出し更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-section h4 {
+  font-size: 1.125rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #librarySection .library-controls
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #librarySection .library-view-toggle
+- JS: assets/app.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #libraryViewGrid / #libraryViewList .library-view-btn
+- JS: assets/app.js（表示切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-view-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-view-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: .library-view-btn.active
+- JS: assets/app.js（表示切替で active 付与）
+- STATE: .active
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-view-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+/* =====================================
+[REF]
+- HTML: #libraryGrid.library-grid
+- JS: assets/js/ui/renderers.js（ライブラリ描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #libraryGrid.library-grid[data-view="list"]
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-grid[data-view="list"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card（ライブラリカード）
+- JS: assets/js/ui/renderers.js（カード生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-card
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-grid[data-view="list"] .library-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* =====================================
+[REF]
+- HTML: .library-cover（表紙）
+- JS: assets/js/ui/renderers.js（表紙描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-cover {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05));
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-cover
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-grid[data-view="list"] .library-cover {
+  width: 48px;
+  aspect-ratio: 1 / 1;
+  margin-bottom: 0;
+  font-size: 1.25rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-title span（ホバー時のスクロール）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(calc(-100% + 200px));
+  }
+
+  /* 簡易的なスクロール */
+}
+
+/* =====================================
+[REF]
+- HTML: .library-title
+- JS: assets/js/ui/renderers.js（タイトル描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, black 85%, transparent 100%);
+}
+
+/* =====================================
+[REF]
+- HTML: .library-title span
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-title span {
+  display: inline-block;
+  transition: transform 0.3s;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card:hover .library-title span
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ホバー時にスクロール */
+.library-card:hover .library-title span {
+  /* 文字数に応じた挙動が難しいため、transformで少し動かす程度にするか、
+     またはJSで幅を計算しないと綺麗なループは難しい。
+     ここでは簡易的に左へスクロールさせる */
+  transform: translateX(max(0px, calc(-100% + 100%)));
+  /* 仮 */
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card:hover .library-title span
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* より単純なアプローチ：ホバーでtitle属性が出るので、CSSではtext-overflow: ellipsisのままにするか、
+   あるいはマーキーアニメーションを適用する。
+   ユーザー要望は「スクロールをループ」なのでmarqueeを採用 */
+
+.library-card:hover .library-title span {
+  animation: marquee 8s linear infinite;
+  min-width: 100%;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-title span（ホバー時のスクロール）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  30% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-title
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-grid[data-view="list"] .library-title {
+  flex: 1;
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-row-2
+- JS: assets/js/ui/renderers.js（メタ情報描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* 2行目（メタ情報＋バッジ） */
+.library-row-2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  width: 100%;
+  overflow: hidden;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-meta
+- JS: assets/js/ui/renderers.js（メタ情報描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-meta {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-meta
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-grid[data-view="list"] .library-meta {
+  margin-left: 0;
+  /* list viewでの配置調整 */
+  flex: 0 0 auto;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-actions（旧actions）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-actions {
+  display: none;
+  /* 古いactionsは非表示にするか、構造変更で削除 */
+}
+
+/* =====================================
+[REF]
+- HTML: .library-type-badge
+- JS: assets/js/ui/renderers.js（種別バッジ表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* バッジ類 */
+.library-type-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(139, 92, 246, 0.1);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-info
+- JS: assets/js/ui/renderers.js（カード情報描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* =====================================
+[REF]
+- HTML: #cloudAttachButton.library-attach（クラウド添付ボタン）
+- JS: assets/app.js（添付処理）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.library-attach {
+  /* 既存スタイル維持 */
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #cloudAttachButton.library-attach:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-attach:hover {
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #library-search-input.library-search-input
+- JS: assets/app.js（検索入力）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* ライブラリ検索入力欄 */
+.library-search-input {
+  flex: 1;
+  min-width: 120px;
+  max-width: 300px;
+  padding: 0.5rem 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #library-search-input.library-search-input:focus
+- JS: なし
+- STATE: :focus
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* =====================================
+[REF]
+- HTML: #library-search-input.library-search-input::placeholder
+- JS: なし
+- STATE: ::placeholder
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-search-input::placeholder {
+  color: var(--muted);
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card（削除ボタン配置用）
+- JS: assets/js/ui/renderers.js（カード生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+/* ライブラリカード削除ボタン */
+.library-card {
+  position: relative;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-delete-btn
+- JS: assets/app.js（削除処理）
+- STATE: なし
+- LAYER: z-index: 1
+- SPLIT: GROUP
+===================================== */
+.library-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card:hover .library-delete-btn
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-card:hover .library-delete-btn {
+  opacity: 1;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-delete-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-delete-btn:hover {
+  background: rgba(220, 38, 38, 1);
+}
+
+/* =====================================
+[REF]
+- HTML: .library-grid[data-view="list"] .library-delete-btn
+- JS: assets/app.js（表示切替で data-view 更新）
+- STATE: [data-view="list"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* リスト表示時の削除ボタン位置調整 */
+.library-grid[data-view="list"] .library-delete-btn {
+  position: static;
+  opacity: 1;
+  margin-left: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card.marked-for-delete
+- JS: assets/app.js（削除マーク付与）
+- STATE: .marked-for-delete
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* 削除マーク付きカード */
+.library-card.marked-for-delete {
+  opacity: 0.6;
+  filter: grayscale(100%);
+  background: var(--bg-secondary);
+}
+
+/* =====================================
+[REF]
+- HTML: .library-card.marked-for-delete::after
+- JS: assets/app.js（削除マーク付与）
+- STATE: .marked-for-delete
+- LAYER: z-index: 10
+- SPLIT: LAST
+===================================== */
+.library-card.marked-for-delete::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  /* ボタンクリックを妨げない */
+  z-index: 10;
+}
+
+/* =====================================
+[REF]
+- HTML: .library-delete-btn.undo-mode
+- JS: assets/app.js（やり直しモード）
+- STATE: .undo-mode
+- LAYER: z-index: 20
+- SPLIT: LAST
+===================================== */
+/* やり直しボタン */
+.library-delete-btn.undo-mode {
+  background: var(--accent);
+  opacity: 1 !important;
+  /* 強制的に表示 */
+  z-index: 20;
+  /* オーバーレイより上に表示 */
+}
+
+/* =====================================
+[REF]
+- HTML: .library-delete-btn.undo-mode:hover
+- JS: なし
+- STATE: .undo-mode :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.library-delete-btn.undo-mode:hover {
+  background: var(--text);
+}
+

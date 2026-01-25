@@ -1,0 +1,773 @@
+/* ========================================
+   フローチEI
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay（フロートUI）
+- JS: .visible 切替
+- STATE: .visible
+- LAYER: z-index
+- SPLIT: GROUP
+===================================== */
+#floatOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: none;
+  pointer-events: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay.visible（表示状態）
+- JS: .visible 切替
+- STATE: .visible
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#floatOverlay.visible {
+  display: block;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: Google認証関連 iframe/div
+- JS: Googleログインで動的挿入
+- STATE: body.google-auth-active
+- LAYER: 最前面 z-index
+- SPLIT: GROUP
+===================================== */
+iframe[src*="accounts.google.com"],
+div[id^="g_id_"] {
+  z-index: var(--z-google-auth) !important;
+  position: fixed !important;
+}
+
+/* =====================================
+[REF]
+- HTML: body.google-auth-active *（Google認証時の抑制）
+- JS: body.google-auth-active を付与
+- STATE: body.google-auth-active
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+body.google-auth-active * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+
+/* =====================================
+[REF]
+- HTML: body.google-auth-active 配下の非表示対象
+- JS: body.google-auth-active
+- STATE: body.google-auth-active
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+body.google-auth-active #floatOverlay,
+body.google-auth-active .float-backdrop,
+body.google-auth-active .float-buttons,
+body.google-auth-active .modal-backdrop {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-backdrop（フロート背景）
+- JS: assets/js/ui/elements.js（floatOverlay 取得）
+- STATE: なし
+- LAYER: z-index（--z-float-backdrop）
+- SPLIT: GROUP
+===================================== */
+.float-backdrop {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  z-index: var(--z-float-backdrop);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-title（フロートタイトル）
+- JS: assets/js/ui/elements.js（floatTitleImage の取得）
+- STATE: なし
+- LAYER: z-index（--z-float-title）
+- SPLIT: GROUP
+===================================== */
+.float-title {
+  position: absolute;
+  top: var(--space-float-base);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  z-index: var(--z-float-title);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatTitleImage（フロートタイトル画像）
+- JS: assets/js/ui/elements.js（floatTitleImage の取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-title img {
+  width: min(240px, 60vw);
+  height: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay .float-backdrop（ライトテーマのフロート背景）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] #floatOverlay .float-backdrop {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay button（ライトテーマのフロートボタン）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] #floatOverlay button {
+  background: #f0f0f0;
+  color: #111;
+  border: 1px solid #ccc;
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay button:hover（ライトテーマのホバー）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"] :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] #floatOverlay button:hover {
+  background: #e6e6e6;
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatOverlay .float-title img（ライトテーマのタイトル画像）
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] #floatOverlay .float-title img {
+  filter: none;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons（フロートボタン群）
+- JS: assets/js/ui/elements.js（各ボタン要素の取得）
+- STATE: なし
+- LAYER: z-index（--z-float-buttons）
+- SPLIT: GROUP
+===================================== */
+.float-buttons {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-float-buttons);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-main-menu（フロート左メニュー）
+- JS: assets/js/ui/elements.js（openToc/floatOpen 等）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-main-menu {
+  position: absolute;
+  top: 50%;
+  left: var(--space-float-compact);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatSettings（フロート設定ボタン）
+- JS: assets/js/ui/elements.js（floatSettings 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-settings {
+  position: absolute;
+  top: var(--space-float-compact);
+  left: var(--space-float-compact);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons button（フロートボタン共通）
+- JS: assets/app.js（クリック処理）/ assets/js/ui/renderers.js（表示テキスト更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-buttons button {
+  pointer-events: auto;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.85);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-buttons button:hover（フロートボタンホバー）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.float-buttons button:hover {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+/* =====================================
+[REF]
+- HTML: #openLangMenu（フロート言語切替ボタン）
+- JS: assets/js/ui/elements.js（openLangMenu 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-lang-toggle {
+  position: absolute;
+  left: var(--float-lang-toggle-left);
+  bottom: var(--float-lang-toggle-bottom);
+  font-size: var(--float-lang-toggle-font-size);
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #syncStatus 等（ステータス表示）
+- JS: assets/js/ui/renderers.js / assets/app.js（ステータス付与）
+- STATE: .status-success
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.status-success {
+  color: var(--status-success-color);
+}
+
+/* =====================================
+[REF]
+- HTML: #syncStatus 等（ステータス表示）
+- JS: assets/js/ui/renderers.js / assets/app.js（ステータス付与）
+- STATE: .status-error
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.status-error {
+  color: var(--status-error-color);
+}
+
+/* =====================================
+[REF]
+- HTML: #syncStatus 等（ステータス表示）
+- JS: assets/js/ui/renderers.js / assets/app.js（ステータス付与）
+- STATE: .status-neutral
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.status-neutral {
+  color: var(--status-neutral-color);
+}
+
+/* =====================================
+[REF]
+- HTML: JSで動的生成（デバッググリッド）
+- JS: assets/ui.js（showDebugGrid）
+- STATE: なし
+- LAYER: z-index（--z-debug-grid）
+- SPLIT: GROUP
+===================================== */
+.debug-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-debug-grid);
+}
+
+/* =====================================
+[REF]
+- HTML: JSで動的生成（デバッググリッド線）
+- JS: assets/ui.js（showDebugGrid）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.debug-grid-line {
+  background: var(--debug-grid-line);
+}
+
+/* =====================================
+[REF]
+- HTML: JSで動的生成（デバッググリッドラベル）
+- JS: assets/ui.js（showDebugGrid）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.debug-grid-label {
+  background: var(--debug-grid-label-bg);
+  color: var(--debug-grid-label-color);
+  padding: var(--debug-grid-label-padding);
+  font-size: var(--debug-grid-label-font-size);
+}
+
+/* =====================================
+[REF]
+- HTML: #lottie-loader.loading-animation（ローディングアニメーション）
+- JS: assets/js/ui/overlay-manager.js（Lottie初期化）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.loading-animation {
+  width: var(--loading-animation-size);
+  height: var(--loading-animation-size);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-top-right（右上コントロール）
+- JS: assets/js/ui/elements.js（toggleWritingMode 等）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-top-right {
+  position: absolute;
+  top: var(--space-float-compact);
+  right: var(--space-float-compact);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .float-top-right button
+- JS: assets/app.js（ボタンイベント）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-top-right button {
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatOverlay .font-buttons（文字サイズボタン）
+- JS: assets/js/ui/elements.js（fontPlus/fontMinus）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.font-buttons {
+  position: absolute;
+  right: var(--space-float-base);
+  bottom: var(--space-float-base);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #toggleTheme（テーマ切替ボタン）
+- JS: assets/js/ui/renderers.js（表示更新）/ assets/app.js（クリック）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#toggleTheme {
+  position: absolute;
+  right: var(--space-float-base);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #toggleZoom（ズーム切替ボタン）
+- JS: assets/js/ui/renderers.js（表示更新）/ assets/app.js（クリック）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#toggleZoom {
+  position: absolute;
+  right: var(--space-float-base);
+  top: calc(50% + var(--space-toggle-zoom-offset));
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #toggleLanguage（旧言語切替ボタン/未配置）
+- JS: assets/js/ui/elements.js（toggleLanguage 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#toggleLanguage {
+  position: absolute;
+  left: var(--space-float-base);
+  bottom: var(--space-float-base);
+  padding: 8px 10px;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #toggleLanguage img
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#toggleLanguage img {
+  width: 28px;
+  height: auto;
+  display: block;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgress（フロート進捗バー）
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: z-index（--z-float-progress）
+- SPLIT: GROUP
+===================================== */
+#floatProgress {
+  position: absolute;
+  bottom: var(--space-float-progress-bottom);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 60%);
+  pointer-events: auto;
+  z-index: var(--z-float-progress);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgressPercent
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#floatProgressPercent {
+  text-align: center;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgressTrack
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#floatProgressTrack {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+/* =====================================
+[REF]
+- HTML: [data-theme="light"] #floatProgressTrack
+- JS: data-theme の切替（JSで操作される前提）
+- STATE: [data-theme="light"]
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+[data-theme="light"] #floatProgressTrack {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgressMarks
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#floatProgressMarks {
+  position: absolute;
+  inset: 0;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgressFill
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#floatProgressFill {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  border-radius: 3px;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgressThumb
+- JS: assets/ui.js（updateProgress）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#floatProgressThumb {
+  position: absolute;
+  top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(17, 24, 39, 0.8);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgress.rtl-progress #floatProgressTrack
+- JS: RTLクラス付与（assets/constants.js で class 定義）
+- STATE: .rtl-progress
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* RTL（右開き）時の進捗バー反転 */
+#floatProgress.rtl-progress #floatProgressTrack {
+  transform: scaleX(-1);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgress.rtl-progress #floatProgressFill
+- JS: RTLクラス付与（assets/constants.js で class 定義）
+- STATE: .rtl-progress
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+#floatProgress.rtl-progress #floatProgressFill {
+  transform: scaleX(-1);
+}
+
+/* =====================================
+[REF]
+- HTML: #floatProgress.rtl-progress #floatProgressThumb
+- JS: RTLクラス付与（assets/constants.js で class 定義）
+- STATE: .rtl-progress
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+#floatProgress.rtl-progress #floatProgressThumb {
+  right: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode .progress-track
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* メニュー内進捗バー（.rtl-mode）の反転 */
+.progress-bar-wrapper.rtl-mode .progress-track {
+  transform: scaleX(-1);
+}
+
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode .progress-fill
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.progress-bar-wrapper.rtl-mode .progress-fill {
+  transform: scaleX(-1);
+}
+
+/* =====================================
+[REF]
+- HTML: .progress-bar-wrapper.rtl-mode #progressThumb
+- JS: 読書方向の切替（assets/constants.js で class 定義）
+- STATE: .rtl-mode
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.progress-bar-wrapper.rtl-mode #progressThumb {
+  right: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-floating-menu-button）
+- SPLIT: GROUP
+===================================== */
+/* スクロール時�Eメニューボタン */
+.floating-menu-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: var(--z-floating-menu-button);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(15, 23, 42, 0.65);
+  color: #fff;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.floating-menu-button:hover {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: なし
+- LAYER: z-index（--z-reader-controls）
+- SPLIT: GROUP
+===================================== */
+.reader-controls {
+  position: absolute;
+  top: var(--space-float-tight);
+  right: var(--space-float-tight);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: var(--z-reader-controls);
+}
+
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.control-btn {
+  min-width: 56px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.75);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.control-btn:hover {
+  background: rgba(17, 24, 39, 0.9);
+}
+
+/* =====================================
+[REF]
+- HTML: （現行HTMLに未配置）
+- JS: なし
+- STATE: :disabled
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.control-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* =====================================
+[REF]
+- HTML: .left-menu.visible / .progress-bar-panel.visible / .bookmark-menu.visible と隣接する .click-overlay
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* メニューが開ぁE��ぁE��時�Eオーバ�Eレイを非表示 */
+.left-menu.visible~.fullscreen-reader .click-overlay,
+.progress-bar-panel.visible~.fullscreen-reader .click-overlay,
+.bookmark-menu.visible~.fullscreen-reader .click-overlay {
+  pointer-events: none;
+}

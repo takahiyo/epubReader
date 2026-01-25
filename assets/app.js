@@ -18,6 +18,12 @@ import {
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
+import { elements } from "./js/ui/elements.js";
+import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
+import { resolveErrorCode } from "./js/ui/i18n-utils.js";
+import * as fileHandler from "./js/core/file-handler.js";
+import * as syncLogic from "./js/core/sync-logic.js";
+import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import {
   APP_INFO,
@@ -90,79 +96,6 @@ let pendingDeletes = new Map();
 
 // UI_STRINGS は i18n.js からインポート済み
 
-// 1. Lottieアニメーションデータ（外部JSONから読み込み）
-let LOADER_ANIMATION_DATA = null;
-
-// Lottieアニメーションデータを非同期で読み込む
-async function loadLottieAnimationData() {
-  if (LOADER_ANIMATION_DATA) return LOADER_ANIMATION_DATA;
-
-  try {
-    const response = await fetch(ASSET_PATHS.LOADER_ANIMATION);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    LOADER_ANIMATION_DATA = await response.json();
-    return LOADER_ANIMATION_DATA;
-  } catch (e) {
-    console.warn('Failed to load Lottie animation data:', e);
-    return null;
-  }
-}
-
-// 2. ローディング制御用変数と関数
-let lottieInstance = null;
-
-async function initLoadingAnimation() {
-  const container = document.getElementById(DOM_IDS.LOTTIE_LOADER);
-  if (!container) return;
-
-  // lottieが読み込まれているか確認
-  if (typeof lottie === 'undefined') {
-    console.warn('Lottie library not loaded.');
-    return;
-  }
-
-  // 外部JSONからLottieデータを読み込む
-  const animationData = await loadLottieAnimationData();
-  if (!animationData) {
-    console.warn('Lottie animation data (LOADER_ANIMATION_DATA) is missing.');
-    return;
-  }
-
-  // ★追加: 背景レイヤー('bkgr')を削除して透過させる
-  if (animationData.layers) {
-    animationData.layers = animationData.layers.filter(layer => layer.nm !== 'bkgr');
-  }
-
-  try {
-    lottieInstance = lottie.loadAnimation({
-      container: container,
-      renderer: 'svg',
-      loop: true,
-      autoplay: false, // 表示されるまで再生しない
-      animationData: animationData
-    });
-  } catch (e) {
-    console.error('Failed to initialize Lottie animation:', e);
-  }
-}
-
-function showLoading() {
-  const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
-  if (overlay) {
-    overlay.classList.add(UI_CLASSES.VISIBLE);
-    lottieInstance?.play();
-  }
-}
-
-function hideLoading() {
-  const overlay = document.getElementById(DOM_IDS.LOADING_OVERLAY);
-  if (overlay) {
-    overlay.classList.remove(UI_CLASSES.VISIBLE);
-    lottieInstance?.stop(); // 非表示時は停止してリソース節約
-  }
-}
 
 // 初期化実行（非同期Lottie読み込み対応）
 document.addEventListener('DOMContentLoaded', async () => {
@@ -170,197 +103,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 
-// i18n.js からインポートした関数をラップ（uiLanguage変数を参照するため）
 function t(key) {
   return translate(key, uiLanguage);
 }
 
-function resolveErrorCode(error) {
-  if (!error?.message) return null;
-  const entries = Object.entries(ERROR_MESSAGE_MATCHERS);
-  for (const [code, matchers] of entries) {
-    if (matchers.some((matcher) => error.message.includes(matcher))) {
-      return code;
-    }
-  }
-  return null;
-}
+// 同期ロジックの初期化
+syncLogic.init({
+  storage,
+  cloudSync,
+  checkAuthStatus,
+  callbacks: {
+    openModal,
+    closeModal,
+    renderLibrary: () => renderers.renderLibrary(),
+    renderHistory: () => renderers.renderHistory(),
+    renderBookmarks: (mode) => renderers.renderBookmarks(mode),
+    updateSyncStatusDisplay: (auth) => renderers.updateSyncStatusDisplay(auth),
+    updateFloatingUIButtons: () => renderers.updateFloatingUIButtons(),
+    updateProgressBarDisplay: () => renderers.updateProgressBarDisplay(),
+    updateAuthStatusDisplay: () => renderers.updateAuthStatusDisplay(),
+    syncAutoSyncPolicy,
+    openFileDialog,
+    applyReadingState,
+  },
+});
 
-const getById = (id) => document.getElementById(id);
-const getBySelector = (selector) => document.querySelector(selector);
+
+
 
 // ========================================
-// DOM要素
-// ========================================
 
-const elements = {
-  // リーダー
-  fullscreenReader: getById(DOM_IDS.FULLSCREEN_READER),
-  viewer: getById(DOM_IDS.VIEWER),
-  imageViewer: getById(DOM_IDS.IMAGE_VIEWER),
-  pageImage: getById(DOM_IDS.PAGE_IMAGE),
-  emptyStateIcon: getById(DOM_IDS.EMPTY_STATE_ICON),
-  menuTitleImage: getById(DOM_IDS.MENU_TITLE_IMAGE),
-  floatTitleImage: getById(DOM_IDS.FLOAT_TITLE_IMAGE),
-  emptyState: getById(DOM_IDS.EMPTY_STATE),
-  cloudEmptyState: getById(DOM_IDS.CLOUD_EMPTY_STATE),
-  cloudEmptyTitle: getById(DOM_IDS.CLOUD_EMPTY_TITLE),
-  cloudEmptyMeta: getById(DOM_IDS.CLOUD_EMPTY_META),
-  cloudAttachButton: getById(DOM_IDS.CLOUD_ATTACH_BUTTON),
-  floatOverlay: getById(DOM_IDS.FLOAT_OVERLAY),
-  floatBackdrop: getBySelector(DOM_SELECTORS.FLOAT_OVERLAY_BACKDROP),
-  floatOpen: getById(DOM_IDS.FLOAT_OPEN),
-  floatLibrary: getById(DOM_IDS.FLOAT_LIBRARY),
-  floatSearch: getById(DOM_IDS.FLOAT_SEARCH),
-  floatBookmarks: getById(DOM_IDS.FLOAT_BOOKMARKS),
-  floatHistory: getById(DOM_IDS.FLOAT_HISTORY),
-  floatSettings: getById(DOM_IDS.FLOAT_SETTINGS),
-  floatProgress: getById(DOM_IDS.FLOAT_PROGRESS),
-  floatProgressPercent: getById(DOM_IDS.FLOAT_PROGRESS_PERCENT),
-  floatProgressTrack: getById(DOM_IDS.FLOAT_PROGRESS_TRACK),
-  floatProgressMarks: getById(DOM_IDS.FLOAT_PROGRESS_MARKS),
-  floatProgressFill: getById(DOM_IDS.FLOAT_PROGRESS_FILL),
-  floatProgressThumb: getById(DOM_IDS.FLOAT_PROGRESS_THUMB),
-  modalOverlay: getById(DOM_IDS.MODAL_OVERLAY),
-  fontPlus: getById(DOM_IDS.FONT_PLUS),
-  fontMinus: getById(DOM_IDS.FONT_MINUS),
-  toggleTheme: getById(DOM_IDS.TOGGLE_THEME),
-  toggleLanguage: getById(DOM_IDS.TOGGLE_LANGUAGE),
-  langIcon: getById(DOM_IDS.LANG_ICON),
-  loadingOverlay: getById(DOM_IDS.LOADING_OVERLAY),
-  floatLangMenu: getById(DOM_IDS.FLOAT_LANG_MENU),
-  openLangMenu: getById(DOM_IDS.OPEN_LANG_MENU),
-  floatLangJa: getById(DOM_IDS.FLOAT_LANG_JA),
-  floatLangEn: getById(DOM_IDS.FLOAT_LANG_EN),
-  floatLangJaImg: getBySelector(DOM_SELECTORS.FLOAT_LANG_JA_IMG),
-  floatLangEnImg: getBySelector(DOM_SELECTORS.FLOAT_LANG_EN_IMG),
-
-  // メニュー
-  leftMenu: getById(DOM_IDS.LEFT_MENU),
-  menuOpen: getById(DOM_IDS.MENU_OPEN),
-  menuLibrary: getById(DOM_IDS.MENU_LIBRARY),
-  menuSearch: getById(DOM_IDS.MENU_SEARCH),
-  menuBookmarks: getById(DOM_IDS.MENU_BOOKMARKS),
-  menuHistory: getById(DOM_IDS.MENU_HISTORY),
-  menuSettings: getById(DOM_IDS.MENU_SETTINGS),
-  tocSection: getById(DOM_IDS.TOC_SECTION),
-  tocSectionTitle: getById(DOM_IDS.TOC_SECTION_TITLE),
-  tocList: getById(DOM_IDS.TOC_LIST),
-  langJa: getById(DOM_IDS.LANG_JA),
-  langEn: getById(DOM_IDS.LANG_EN),
-  toggleWritingMode: getById(DOM_IDS.TOGGLE_WRITING_MODE),
-  openToc: getById(DOM_IDS.OPEN_TOC),
-  tocModal: getById(DOM_IDS.TOC_MODAL),
-  tocModalList: getById(DOM_IDS.TOC_MODAL_LIST),
-  closeTocModal: getById(DOM_IDS.CLOSE_TOC_MODAL),
-  syncModal: getById(DOM_IDS.SYNC_MODAL),
-  syncModalTitle: getById(DOM_IDS.SYNC_MODAL_TITLE),
-  syncModalMessage: getById(DOM_IDS.SYNC_MODAL_MESSAGE),
-  syncUseRemote: getById(DOM_IDS.SYNC_USE_REMOTE),
-  syncUseLocal: getById(DOM_IDS.SYNC_USE_LOCAL),
-
-  // 進捗バー
-  progressBarPanel: getById(DOM_IDS.PROGRESS_BAR_PANEL),
-  progressBarBackdrop: getById(DOM_IDS.PROGRESS_BAR_BACKDROP),
-  progressFill: getById(DOM_IDS.PROGRESS_FILL),
-  progressThumb: getById(DOM_IDS.PROGRESS_THUMB),
-  progressTrack: getBySelector(DOM_SELECTORS.PROGRESS_TRACK),
-  currentPageInput: getById(DOM_IDS.CURRENT_PAGE_INPUT),
-  totalPages: getById(DOM_IDS.TOTAL_PAGES),
-  progressPrev: getById(DOM_IDS.PROGRESS_PREV),
-  progressNext: getById(DOM_IDS.PROGRESS_NEXT),
-
-  // しおりメニュー
-  bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
-  bookmarkList: getById(DOM_IDS.BOOKMARK_LIST),
-  addBookmarkBtn: getById(DOM_IDS.ADD_BOOKMARK_BTN),
-  closeBookmarkMenu: getById(DOM_IDS.CLOSE_BOOKMARK_MENU),
-
-  // ファイル選択モーダル
-  openFileModal: getById(DOM_IDS.OPEN_FILE_MODAL),
-  closeFileModal: getById(DOM_IDS.CLOSE_FILE_MODAL),
-  fileInput: getById(DOM_IDS.FILE_INPUT),
-  libraryGrid: getById(DOM_IDS.LIBRARY_GRID),
-  libraryViewGrid: getById(DOM_IDS.LIBRARY_VIEW_GRID),
-  libraryViewList: getById(DOM_IDS.LIBRARY_VIEW_LIST),
-  librarySearchInput: getById("library-search-input"),
-
-  // 履歴
-  historyModal: getById(DOM_IDS.HISTORY_MODAL),
-  closeHistoryModal: getById(DOM_IDS.CLOSE_HISTORY_MODAL),
-  historyList: getById(DOM_IDS.HISTORY_LIST),
-
-  // 設定
-  settingsModal: getById(DOM_IDS.SETTINGS_MODAL),
-  closeSettingsModal: getById(DOM_IDS.CLOSE_SETTINGS_MODAL),
-  themeSelect: getById(DOM_IDS.THEME_SELECT),
-  writingModeSelect: getById(DOM_IDS.WRITING_MODE_SELECT),
-  pageDirectionSelect: getById(DOM_IDS.PAGE_DIRECTION_SELECT),
-  settingsDefaultDirection: getById(DOM_IDS.SETTINGS_DEFAULT_DIRECTION),
-  progressDisplayModeSelect: getById(DOM_IDS.PROGRESS_DISPLAY_MODE),
-  exportDataBtn: getById(DOM_IDS.EXPORT_DATA_BTN),
-  importDataInput: getById(DOM_IDS.IMPORT_DATA_INPUT),
-
-  // 画像モーダル
-  imageModal: getById(DOM_IDS.IMAGE_MODAL),
-  closeImageModal: getById(DOM_IDS.CLOSE_IMAGE_MODAL),
-  modalImage: getById(DOM_IDS.MODAL_IMAGE),
-
-  // 検索モーダル
-  searchModal: getById(DOM_IDS.SEARCH_MODAL),
-  closeSearchModal: getById(DOM_IDS.CLOSE_SEARCH_MODAL),
-  searchInput: getById(DOM_IDS.SEARCH_INPUT),
-  searchBtn: getById(DOM_IDS.SEARCH_BTN),
-  searchResults: getById(DOM_IDS.SEARCH_RESULTS),
-
-  // UIテキスト
-  bookmarkMenuTitle: getById(DOM_IDS.BOOKMARK_MENU_TITLE),
-  searchModalTitle: getById(DOM_IDS.SEARCH_MODAL_TITLE),
-  tocModalTitle: getById(DOM_IDS.TOC_MODAL_TITLE),
-  openFileModalTitle: getById(DOM_IDS.OPEN_FILE_MODAL_TITLE),
-  librarySectionTitle: getById(DOM_IDS.LIBRARY_SECTION_TITLE),
-  historyModalTitle: getById(DOM_IDS.HISTORY_MODAL_TITLE),
-  settingsModalTitle: getById(DOM_IDS.SETTINGS_MODAL_TITLE),
-  settingsDisplayTitle: getById(DOM_IDS.SETTINGS_DISPLAY_TITLE),
-  settingsDeviceTitle: getById(DOM_IDS.SETTINGS_DEVICE_TITLE),
-  settingsDefaultDirectionLabel: getById(DOM_IDS.SETTINGS_DEFAULT_DIRECTION_LABEL),
-  themeLabel: getById(DOM_IDS.THEME_LABEL),
-  writingModeLabel: getById(DOM_IDS.WRITING_MODE_LABEL),
-  pageDirectionLabel: getById(DOM_IDS.PAGE_DIRECTION_LABEL),
-  progressDisplayModeLabel: getById(DOM_IDS.PROGRESS_DISPLAY_MODE_LABEL),
-  deviceIdLabel: getById(DOM_IDS.DEVICE_ID_LABEL),
-  deviceIdInput: getById(DOM_IDS.DEVICE_ID_INPUT),
-  deviceColorLabel: getById(DOM_IDS.DEVICE_COLOR_LABEL),
-  deviceColorInput: getById(DOM_IDS.DEVICE_COLOR_INPUT),
-  deviceNameLabel: getById(DOM_IDS.DEVICE_NAME_LABEL),
-  deviceNameInput: getById(DOM_IDS.DEVICE_NAME_INPUT),
-  settingsAccountTitle: getById(DOM_IDS.SETTINGS_ACCOUNT_TITLE),
-  googleLoginButton: getById(DOM_IDS.GOOGLE_LOGIN_BUTTON),
-  manualSyncButton: getById(DOM_IDS.MANUAL_SYNC_BUTTON),
-  syncToggleButton: getById(DOM_IDS.SYNC_TOGGLE_BUTTON),
-  userInfo: getById(DOM_IDS.USER_INFO),
-  syncStatus: getById(DOM_IDS.SYNC_STATUS),
-  syncHint: getById(DOM_IDS.SYNC_HINT),
-
-  // データ
-  settingsDataTitle: getById(DOM_IDS.SETTINGS_DATA_TITLE),
-  importDataLabel: getById(DOM_IDS.IMPORT_DATA_LABEL),
-
-  // 同期候補
-  candidateModal: getById(DOM_IDS.CANDIDATE_MODAL),
-  candidateModalTitle: getById(DOM_IDS.CANDIDATE_MODAL_TITLE),
-  candidateModalMessage: getById(DOM_IDS.CANDIDATE_MODAL_MESSAGE),
-  candidateList: getById(DOM_IDS.CANDIDATE_LIST),
-  candidateUseLocal: getById(DOM_IDS.CANDIDATE_USE_LOCAL),
-  closeCandidateModal: getById(DOM_IDS.CLOSE_CANDIDATE_MODAL),
-
-  // 追加ボタン
-  toggleSpreadMode: getById(DOM_IDS.TOGGLE_SPREAD_MODE),
-  toggleReadingDirectionEpub: getById(DOM_IDS.TOGGLE_READING_DIRECTION_EPUB),
-  toggleReadingDirectionImage: getById(DOM_IDS.TOGGLE_READING_DIRECTION_IMAGE),
-  toggleZoom: getById(DOM_IDS.TOGGLE_ZOOM),
-  loadingText: getById(DOM_IDS.LOADING_TEXT),
-};
 
 
 // ========================================
@@ -414,7 +186,7 @@ function saveCurrentProgress() {
     storage.setProgress(currentBookId, progressData);
 
     // 自動同期トリガー（関数が存在する場合のみ）
-    if (typeof triggerAutoSync === 'function' && typeof isCloudSyncEnabled === 'function' && isCloudSyncEnabled() && autoSyncEnabled) {
+    if (typeof triggerAutoSync === 'function' && typeof syncLogic.isCloudSyncEnabled === 'function' && syncLogic.isCloudSyncEnabled() && autoSyncEnabled) {
       triggerAutoSync();
     }
   }
@@ -441,7 +213,7 @@ const reader = new ReaderController({
         : APP_INFO.NAME;
     }
     // 進捗バーの向きを更新
-    updateProgressBarDirection();
+    renderers.updateProgressBarDirection();
     handleBookReady(data);
   },
   onImageZoom: (isZoomed) => {
@@ -482,7 +254,7 @@ const ui = new UIController({
   isBookOpen: () => reader.book !== null || reader.imagePages.length > 0,
   isPageNavigationEnabled: () => true, // 常に有効（必要なら調整）
   isProgressBarAvailable: () => reader.type === BOOK_TYPES.EPUB || reader.type === BOOK_TYPES.ZIP || reader.type === BOOK_TYPES.RAR,
-  isFloatVisible: () => getById(DOM_IDS.FLOAT_OVERLAY).classList.contains(UI_CLASSES.VISIBLE),
+  isFloatVisible: () => elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE),
 
   // 追加: 画像/見開き判定用
   isImageBook: () => reader.type !== BOOK_TYPES.EPUB,
@@ -498,7 +270,7 @@ const ui = new UIController({
   },
 
   onFloatToggle: () => {
-    toggleFloatOverlay();
+    renderers.toggleFloatOverlay();
   },
   onResize: () => {
     // リサイズ時のリペジネーション (EPUBのみ)
@@ -518,7 +290,7 @@ const ui = new UIController({
   onBookmarkMenu: (action) => {
     if (action === 'show') {
 
-      renderBookmarks(bookmarkMenuMode);
+      renderers.renderBookmarks(bookmarkMenuMode);
       bookmarkMenuMode = UI_DEFAULTS.bookmarkMenuMode;
     }
   },
@@ -533,6 +305,43 @@ const ui = new UIController({
 });
 
 uiInitialized = true;
+
+renderers.init({
+  storage,
+  reader,
+  syncLogic,
+  ui,
+  state: {
+    get currentBookId() { return currentBookId; },
+    get currentBookInfo() { return currentBookInfo; },
+    get currentCloudBookId() { return currentCloudBookId; },
+    get pendingCloudBookId() { return pendingCloudBookId; },
+    get uiLanguage() { return uiLanguage; },
+    get progressDisplayMode() { return progressDisplayMode; },
+    get floatVisible() { return floatVisible; },
+    get pageDirection() { return pageDirection; },
+    get bookmarkMenuMode() { return bookmarkMenuMode; },
+    get pendingDeletes() { return pendingDeletes; },
+    get writingMode() { return writingMode; },
+    get theme() { return theme; },
+  },
+  actions: {
+    checkAuthStatus,
+    syncAutoSyncPolicy,
+    openFromLibrary,
+    openCloudOnlyBook,
+    openFileDialog,
+    closeModal,
+    closeAllMenus: () => {
+      if (ui) ui.closeAllMenus();
+      closeExclusiveMenus();
+    },
+    scheduleAutoSyncPush,
+    getEpubPaginationTotal,
+    setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
+  }
+});
+
 applyUiLanguage(uiLanguage);
 
 function setupViewerIframeClickBridge() {
@@ -623,109 +432,7 @@ const floatProgressHandler = new ProgressBarHandler({
   },
 });
 
-function updateSearchButtonState() {
-  if (!elements.menuSearch) return;
-
-  const isEpubOpen = currentBookId && currentBookInfo?.type === BOOK_TYPES.EPUB;
-  elements.menuSearch.disabled = !isEpubOpen;
-  if (elements.openToc) {
-    elements.openToc.disabled = !isEpubOpen;
-  }
-  if (elements.floatSearch) {
-    elements.floatSearch.disabled = !isEpubOpen;
-  }
-}
-
-function setElementVisibility(element, isVisible) {
-  if (!element) return;
-  element.classList.toggle(UI_CLASSES.HIDDEN, !isVisible);
-}
-
-function setStatusClass(element, statusClass) {
-  if (!element) return;
-  element.classList.remove(
-    UI_CLASSES.STATUS_SUCCESS,
-    UI_CLASSES.STATUS_ERROR,
-    UI_CLASSES.STATUS_NEUTRAL
-  );
-  if (statusClass) {
-    element.classList.add(statusClass);
-  }
-}
-
-function setMaterialIconLabel(button, iconName, labelText) {
-  if (!button) return;
-  const icon = document.createElement("span");
-  icon.className = UI_CLASSES.MATERIAL_ICON;
-  icon.textContent = iconName;
-  const label = document.createTextNode(` ${labelText}`);
-  button.replaceChildren(icon, label);
-}
-
-// フローティングUIの切替ボタン表示を更新
-function updateFloatingUIButtons() {
-  // 画像書庫かどうかを判定 (type が "zip" または "rar")
-  const isImageBook = currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR);
-  const isEpub = currentBookInfo && currentBookInfo.type === BOOK_TYPES.EPUB;
-  const isBookOpen = currentBookId !== null;
-
-  // 目次ボタン (#openToc)
-  // 書籍（EPUB）が開かれていない状態では無効化
-  if (elements.openToc) {
-    elements.openToc.disabled = !isEpub;
-  }
-
-  // 縦/横書き切替ボタン: 常に表示するが、EPUB以外では無効化
-  if (elements.toggleWritingMode) {
-    setElementVisibility(elements.toggleWritingMode, true);
-    elements.toggleWritingMode.disabled = !isEpub;
-  }
-
-  // 見開き/単ページ切替ボタン: 画像書庫のみ表示
-  if (elements.toggleSpreadMode) {
-    setElementVisibility(elements.toggleSpreadMode, isImageBook);
-    updateSpreadModeButtonLabel();
-  }
-
-  // 左開き/右開き切替ボタン
-  if (elements.toggleReadingDirectionEpub) {
-    if (isEpub) {
-      setElementVisibility(elements.toggleReadingDirectionEpub, true);
-      // 【修正】横書きでも開き方向（操作方向）の変更を許可するため、無効化ロジックを削除
-      elements.toggleReadingDirectionEpub.disabled = false;
-      elements.toggleReadingDirectionEpub.style.opacity = "";
-      updateReadingDirectionEpubButtonLabel();
-    } else {
-      setElementVisibility(elements.toggleReadingDirectionEpub, false);
-    }
-  }
-
-  if (elements.toggleReadingDirectionImage) {
-    if (isImageBook) {
-      setElementVisibility(elements.toggleReadingDirectionImage, true);
-      updateReadingDirectionButtonLabel();
-    } else {
-      setElementVisibility(elements.toggleReadingDirectionImage, false);
-    }
-  }
-
-  // ズームボタン: ブックが開いている時のみ表示
-  if (elements.toggleZoom) {
-    setElementVisibility(elements.toggleZoom, isBookOpen);
-    updateZoomButtonLabel();
-  }
-
-  // プログレスバーの矢印: 画像書庫のみ表示
-  if (elements.progressPrev) {
-    elements.progressPrev.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
-  }
-  if (elements.progressNext) {
-    elements.progressNext.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
-  }
-
-  // 進捗バーの方向を更新
-  updateProgressBarDirection();
-}
+// UI表示ロジックは renderers.js に移行済み
 
 function handleToggleZoom() {
   // ズーム切替
@@ -738,153 +445,12 @@ function handleToggleZoom() {
     document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
   }
 
-  updateZoomButtonLabel();
+  renderers.updateZoomButtonLabel();
 }
 
-// 見開きボタンのラベルを更新
-function updateSpreadModeButtonLabel() {
-  if (!elements.toggleSpreadMode) return;
-  const isSpread = reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD;
+// 移行済み: updateSpreadModeButtonLabel, updateReadingDirectionButtonLabel, updateReadingDirectionEpubButtonLabel, updateZoomButtonLabel, updateProgressBarDirection
 
-  if (isSpread) {
-    setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_DOUBLE, t('spreadModeDouble'));
-    elements.toggleSpreadMode.classList.add(UI_CLASSES.ACTIVE);
-  } else {
-    setMaterialIconLabel(elements.toggleSpreadMode, UI_ICONS.SPREAD_SINGLE, t('spreadModeSingle'));
-    elements.toggleSpreadMode.classList.remove(UI_CLASSES.ACTIVE);
-  }
-}
-
-// 左開き/右開きボタンのラベルを更新 (画像用)
-function updateReadingDirectionButtonLabel() {
-  if (!elements.toggleReadingDirectionImage) return;
-  const isRtl = reader.imageReadingDirection === READING_DIRECTIONS.RTL;
-  elements.toggleReadingDirectionImage.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
-  elements.toggleReadingDirectionImage.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
-}
-
-// 左開き/右開きボタンのラベルを更新 (EPUB用)
-function updateReadingDirectionEpubButtonLabel() {
-  if (!elements.toggleReadingDirectionEpub) return;
-  const isRtl = pageDirection === READING_DIRECTIONS.RTL;
-  elements.toggleReadingDirectionEpub.textContent = isRtl ? t('pageDirectionRtlButton') : t('pageDirectionLtrButton');
-  elements.toggleReadingDirectionEpub.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
-}
-
-// ズームボタンのラベルを更新
-function updateZoomButtonLabel() {
-  if (!elements.toggleZoom) return;
-  const isZoomed = reader.imageZoomed;
-  elements.toggleZoom.textContent = isZoomed ? UI_ICONS.ZOOM_OUT : UI_ICONS.ZOOM_IN;
-  elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
-}
-
-// 進捗バーの方向を更新（RTL時は反転）
-function updateProgressBarDirection() {
-  const isImageBook = currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR);
-  let isRtl = false;
-
-  if (isImageBook) {
-    isRtl = reader.imageReadingDirection === READING_DIRECTIONS.RTL;
-  } else if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
-    isRtl = pageDirection === READING_DIRECTIONS.RTL;
-  }
-
-  const floatProgressBar = document.getElementById(DOM_IDS.FLOAT_PROGRESS);
-  if (floatProgressBar) {
-    if (isRtl) {
-      floatProgressBar.classList.add(UI_CLASSES.RTL_PROGRESS);
-    } else {
-      floatProgressBar.classList.remove(UI_CLASSES.RTL_PROGRESS);
-    }
-  }
-
-  const progressBarWrapper = document.querySelector(DOM_SELECTORS.PROGRESS_BAR_WRAPPER);
-  if (progressBarWrapper) {
-    if (isRtl) {
-      progressBarWrapper.classList.add(UI_CLASSES.RTL_MODE);
-    } else {
-      progressBarWrapper.classList.remove(UI_CLASSES.RTL_MODE);
-    }
-  }
-
-  // [追加] 画像ビューア自体のRTLクラス切替 (スプレッド表示の順序制御用)
-  if (elements.imageViewer) {
-    if (isRtl) {
-      elements.imageViewer.classList.add(UI_CLASSES.RTL_MODE);
-    } else {
-      elements.imageViewer.classList.remove(UI_CLASSES.RTL_MODE);
-    }
-  }
-}
-
-function updateAuthStatusDisplay() {
-  if (!elements.userInfo) return;
-  const authStatus = checkAuthStatus();
-  if (authStatus.authenticated) {
-    const userLabel = authStatus.userEmail || authStatus.userName;
-    elements.userInfo.textContent = userLabel
-      ? t("googleLoginStatusSignedIn").replace("{user}", userLabel)
-      : t("googleLoginStatusSignedInShort");
-  } else {
-    elements.userInfo.textContent = t("googleLoginStatusSignedOut");
-  }
-  if (elements.googleLoginButton) {
-    elements.googleLoginButton.textContent = authStatus.authenticated
-      ? t("googleLogoutLabel")
-      : t("googleLoginLabel");
-  }
-  updateSyncStatusDisplay(authStatus);
-  syncAutoSyncPolicy(authStatus);
-}
-
-function updateSyncStatusDisplay(authStatus = checkAuthStatus()) {
-  if (elements.syncStatus) {
-    if (!authStatus.authenticated) {
-      elements.syncStatus.textContent = t("syncNeedsLogin");
-      return;
-    }
-    const lastSyncAt = storage.getSettings().lastSyncAt;
-    if (!lastSyncAt) {
-      elements.syncStatus.textContent = t("syncStatusNever");
-      return;
-    }
-    const timeText = formatRelativeTime(lastSyncAt, uiLanguage);
-    elements.syncStatus.textContent = t("syncStatusLabel").replace("{time}", timeText || "--");
-  }
-}
-
-function toggleFloatOverlay(forceVisible) {
-  // ズーム中はフローティングメニュー制御を完全に無視
-  if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
-    return;
-  }
-
-  if (!elements.floatOverlay) return;
-  const nextVisible = typeof forceVisible === "boolean" ? forceVisible : !floatVisible;
-  floatVisible = nextVisible;
-  elements.floatOverlay.classList.toggle(UI_CLASSES.VISIBLE, floatVisible);
-
-  if (floatVisible) {
-    updateFloatingUIButtons();
-  }
-
-  updateProgressBarDisplay();
-}
-
-function updateFloatProgressBar(percentage) {
-  if (!elements.floatProgress || !floatVisible) return;
-  const clamped = Math.min(100, Math.max(0, percentage));
-  if (elements.floatProgressFill) {
-    elements.floatProgressFill.style.width = `${clamped}%`;
-  }
-  if (elements.floatProgressThumb) {
-    elements.floatProgressThumb.style.left = `${clamped}%`;
-  }
-  if (elements.floatProgressPercent) {
-    elements.floatProgressPercent.textContent = `${Math.floor(clamped)}%`;
-  }
-}
+// 移行済み: updateAuthStatusDisplay, updateSyncStatusDisplay, updateFloatProgressBar
 
 // ========================================
 // ローディングオーバーレイ
@@ -892,494 +458,10 @@ function updateFloatProgressBar(percentage) {
 
 
 
-function isCloudSyncEnabled(authStatus = checkAuthStatus()) {
-  if (!authStatus.authenticated) {
-    return false;
-  }
-  const settings = storage.getSettings();
-  return cloudSync.resolveSource(null, settings) === "firebase";
-}
+// syncLogic.js に移行済み
 
-function formatLibraryMeta({ progressPercentage, timestamp }) {
-  const clampedProgress = Math.max(0, Math.min(100, Math.round(progressPercentage ?? 0)));
-  const relativeTime = formatRelativeTime(timestamp, uiLanguage);
-  if (!relativeTime) {
-    return `${clampedProgress}%`;
-  }
-  return `${clampedProgress}% / ${relativeTime}`;
-}
+// 移行済み: showCloudEmptyState, hideCloudEmptyState
 
-function buildLibraryEntries() {
-  const cloudIndex = storage.data.cloudIndex ?? {};
-  const cloudStates = storage.data.cloudStates ?? {};
-  const localLibrary = storage.data.library ?? {};
-  const entries = [];
-  const linkedLocalIds = new Set(Object.keys(storage.data.bookLinkMap ?? {}));
-  const localByCloudId = Object.entries(storage.data.bookLinkMap ?? {}).reduce((acc, [localId, cloudId]) => {
-    acc[cloudId] = localId;
-    return acc;
-  }, {});
-
-  Object.entries(cloudIndex).forEach(([cloudBookId, meta]) => {
-    if (!cloudBookId || !meta) return;
-    const normalizedMeta = { ...meta, cloudBookId: meta.cloudBookId ?? cloudBookId };
-    const localBookId = localByCloudId[cloudBookId] ?? null;
-    const localInfo = localBookId ? localLibrary[localBookId] : null;
-    const cloudState = cloudStates[cloudBookId];
-    const localProgress = localBookId ? storage.getProgress(localBookId) : null;
-    const progressPercentage = cloudState?.progress ?? localProgress?.percentage ?? 0;
-    const lastTimestamp =
-      cloudState?.updatedAt ?? normalizedMeta.lastReadAt ?? normalizedMeta.updatedAt ?? localInfo?.lastOpened ?? 0;
-    entries.push({
-      type: "cloud",
-      cloudBookId,
-      localBookId,
-      title: normalizedMeta.title || localInfo?.title || t("untitledBook"),
-      author: normalizedMeta.author || "",
-      progressPercentage,
-      lastTimestamp,
-      hasLocalFile: Boolean(localInfo),
-      fileType: localInfo?.type || normalizedMeta.fileType || null, // "epub" | "zip" | "rar" | null
-    });
-  });
-
-  Object.values(localLibrary).forEach((book) => {
-    if (!book?.id) return;
-    if (linkedLocalIds.has(book.id)) return;
-    const progress = storage.getProgress(book.id);
-    entries.push({
-      type: "local",
-      cloudBookId: null,
-      localBookId: book.id,
-      title: book.title,
-      author: book.author || "",
-      progressPercentage: progress?.percentage ?? 0,
-      lastTimestamp: book.lastOpened ?? progress?.updatedAt ?? 0,
-      hasLocalFile: true,
-      fileType: book.type || null, // "epub" | "zip" | "rar" | null
-    });
-  });
-
-  entries.sort((a, b) => (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0));
-  return entries;
-}
-
-function showCloudEmptyState({ cloudBookId, title, progressPercentage, lastTimestamp }) {
-  if (elements.cloudEmptyState) {
-    elements.cloudEmptyState.classList.remove(UI_CLASSES.HIDDEN);
-  }
-  if (elements.cloudEmptyTitle) {
-    elements.cloudEmptyTitle.textContent = `${t("cloudOnlyTitle")}：${title ?? ""}`;
-  }
-  if (elements.cloudEmptyMeta) {
-    const metaText = formatLibraryMeta({
-      progressPercentage,
-      timestamp: lastTimestamp,
-    });
-    elements.cloudEmptyMeta.textContent = `${t("cloudOnlyDescription")} (${metaText})`;
-  }
-  if (elements.cloudAttachButton) {
-    elements.cloudAttachButton.textContent = t("libraryAttachFile");
-    elements.cloudAttachButton.onclick = () => {
-      pendingCloudBookId = cloudBookId;
-      openFileDialog();
-    };
-  }
-}
-
-function hideCloudEmptyState() {
-  if (elements.cloudEmptyState) {
-    elements.cloudEmptyState.classList.add(UI_CLASSES.HIDDEN);
-  }
-}
-
-async function syncAllBooksFromCloud() {
-  if (!isCloudSyncEnabled()) return;
-
-  // 1. Pull from Cloud (既存の処理)
-  try {
-    const remote = await cloudSync.pullIndex();
-    const index = remote?.index ?? {};
-    const updatedAt = remote?.updatedAt ?? Date.now();
-    storage.mergeCloudIndex(index, updatedAt);
-
-    // ★追加: クラウドインデックスを元に、ローカル書籍との自動リンクを試行
-    const library = storage.data.library;
-    Object.keys(library).forEach(localBookId => {
-      // まだリンクされていないローカル書籍
-      if (!storage.getCloudBookId(localBookId)) {
-        const book = library[localBookId];
-        if (book && book.contentHash) {
-          // ハッシュ(fingerprint)が一致するクラウド書籍を探す
-          const match = Object.values(index).find(cloudItem =>
-            cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
-          );
-          if (match && match.cloudBookId) {
-            console.log(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId}`);
-            storage.setBookLink(localBookId, match.cloudBookId);
-          }
-        }
-      }
-    });
-
-    const recentList = Object.values(index)
-      .sort((a, b) => (b.lastReadAt ?? b.updatedAt ?? 0) - (a.lastReadAt ?? a.updatedAt ?? 0))
-      .slice(0, 5);
-    for (const item of recentList) {
-      if (!item?.cloudBookId) continue;
-      try {
-        const stateResponse = await cloudSync.pullState(item.cloudBookId);
-        if (stateResponse?.state) {
-          storage.setCloudState(item.cloudBookId, stateResponse.state);
-        }
-      } catch (error) {
-        console.warn("クラウド状態の取得に失敗しました:", error);
-      }
-    }
-  } catch (error) {
-    console.warn("クラウドの同期に失敗しました:", error);
-    // Pullに失敗してもPushは試行する
-  }
-
-  // 2. Push Local to Cloud (不足分のアップロード)
-  try {
-    const library = storage.data.library;
-    const cloudIndex = storage.data.cloudIndex ?? {};
-
-    for (const localBook of Object.values(library)) {
-      if (!localBook || !localBook.id) continue;
-
-      let cloudBookId = storage.getCloudBookId(localBook.id);
-
-      // ケースA: 既にリンクされているが、クラウドインデックスに存在しない（消されたか、別アカウントか、同期ミス）
-      if (cloudBookId && !cloudIndex[cloudBookId]) {
-        console.log(`Re-uploading metadata for linked book: ${localBook.title}`);
-        await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash);
-        continue;
-      }
-
-      // ケースB: リンクされていない
-      if (!cloudBookId) {
-        // クラウドインデックスからハッシュで探す
-        const matchEntry = Object.values(cloudIndex).find(
-          entry => entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
-        );
-
-        if (matchEntry && matchEntry.cloudBookId) {
-          // マッチした場合はリンクする
-          console.log(`Linking local book "${localBook.title}" to existing cloud book`);
-          storage.setBookLink(localBook.id, matchEntry.cloudBookId);
-        } else {
-          // マッチしない場合は新規作成してアップロード
-          console.log(`Uploading new book to cloud: ${localBook.title}`);
-          cloudBookId = generateCloudBookId();
-          storage.setBookLink(localBook.id, cloudBookId);
-          await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash);
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("ローカル書籍のアップロードに失敗しました:", error);
-  }
-
-  // 3. 完了処理
-  storage.setSettings({ lastSyncAt: Date.now() });
-  updateSyncStatusDisplay();
-  if (uiInitialized) {
-    renderLibrary();
-    renderHistory();
-    renderBookmarks(bookmarkMenuMode);
-  }
-}
-
-async function handleAuthLogin() {
-  updateAuthStatusDisplay();
-  syncAutoSyncPolicy();
-  await syncAllBooksFromCloud();
-}
-
-function buildSyncRemoteLabel(timestamp) {
-  const timeText = formatRelativeTime(timestamp, uiLanguage);
-  return t("syncPromptRemote").replace("{time}", timeText || "--");
-}
-
-function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }) {
-  return new Promise((resolve) => {
-    if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
-      resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
-      return;
-    }
-
-    const strings = getUiStrings(uiLanguage);
-    const preferRemote = remoteUpdatedAt >= localUpdatedAt;
-
-    if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
-    if (elements.syncModalMessage) {
-      elements.syncModalMessage.textContent = preferRemote
-        ? strings.syncPromptMessage
-        : strings.syncPromptLocalMessage;
-    }
-    if (elements.syncUseRemote) {
-      elements.syncUseRemote.textContent = buildSyncRemoteLabel(remoteUpdatedAt);
-    }
-    if (elements.syncUseLocal) {
-      elements.syncUseLocal.textContent = preferRemote
-        ? strings.syncPromptLocal
-        : strings.syncPromptUpload;
-    }
-
-    const cleanup = () => {
-      if (elements.syncUseRemote) elements.syncUseRemote.onclick = null;
-      if (elements.syncUseLocal) elements.syncUseLocal.onclick = null;
-    };
-
-    if (elements.syncUseRemote) {
-      elements.syncUseRemote.onclick = () => {
-        cleanup();
-        closeModal(elements.syncModal);
-        resolve("remote");
-      };
-    }
-
-    if (elements.syncUseLocal) {
-      elements.syncUseLocal.onclick = async () => {
-        cleanup();
-        closeModal(elements.syncModal);
-        resolve("local");
-      };
-    }
-
-    openModal(elements.syncModal);
-  });
-}
-
-function promptSyncCandidate(candidates) {
-  return new Promise((resolve) => {
-    if (!elements.candidateModal || !elements.candidateList || !elements.candidateUseLocal) {
-      resolve(null);
-      return;
-    }
-
-    elements.candidateList.innerHTML = "";
-    candidates.forEach((candidate) => {
-      const item = document.createElement("div");
-      item.className = "candidate-item";
-      const title = candidate.meta?.title || t("untitledBook");
-      const author = candidate.meta?.author || "";
-      const lastRead = candidate.meta?.lastReadAt
-        ? formatRelativeTime(candidate.meta.lastReadAt, uiLanguage)
-        : "";
-
-      const titleNode = document.createElement("div");
-      titleNode.className = "candidate-title";
-      titleNode.textContent = title;
-      const authorNode = document.createElement("div");
-      authorNode.className = "candidate-author";
-      authorNode.textContent = author;
-      const metaNode = document.createElement("div");
-      metaNode.className = "candidate-meta";
-      const candidateId = `${candidate.cloudBookId.slice(0, 8)}${UI_SYMBOLS.ELLIPSIS}`;
-      const baseMeta = tReplace("candidateIdLabel", { id: candidateId }, uiLanguage);
-      const lastReadMeta = lastRead
-        ? ` ${UI_SYMBOLS.META_SEPARATOR} ${t("syncStatusLabel").replace("{time}", lastRead)}`
-        : "";
-      metaNode.textContent = `${baseMeta}${lastReadMeta}`;
-      item.append(titleNode, authorNode, metaNode);
-
-      item.onclick = () => {
-        cleanup();
-        closeModal(elements.candidateModal);
-        resolve(candidate.cloudBookId);
-      };
-      elements.candidateList.appendChild(item);
-    });
-
-    const cleanup = () => {
-      if (elements.candidateUseLocal) elements.candidateUseLocal.onclick = null;
-      if (elements.closeCandidateModal) elements.closeCandidateModal.onclick = null;
-    };
-
-    if (elements.candidateUseLocal) {
-      elements.candidateUseLocal.onclick = () => {
-        cleanup();
-        closeModal(elements.candidateModal);
-        resolve(null);
-      };
-    }
-
-    if (elements.closeCandidateModal) {
-      elements.closeCandidateModal.onclick = () => {
-        cleanup();
-        closeModal(elements.candidateModal);
-        resolve(null);
-      };
-    }
-
-    openModal(elements.candidateModal);
-  });
-}
-
-function buildCloudStatePayload(localBookId, cloudBookId) {
-  const progress = storage.getProgress(localBookId) ?? {};
-  const bookmarks = storage.getBookmarks(localBookId) ?? [];
-  // historyは端末ごとなので送信しない
-  const bookInfo = storage.data.library[localBookId];
-
-  const updatedAt = Math.max(
-    progress?.updatedAt ?? 0,
-    ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0)
-  );
-
-  const state = {
-    progress: progress?.percentage ?? 0,
-    lastCfi: progress?.location ?? null,
-    // bookType と location を含める
-    bookType: bookInfo?.type ?? null, // "epub" | "zip" | "rar"
-    location: progress?.location ?? null, // epub: CFI object, image: imageIndex
-    bookmarks: bookmarks.map((bookmark) => ({
-      ...bookmark,
-      bookType: bookmark.bookType ?? bookmark.type ?? null, // 互換性のため
-      deviceId: bookmark.deviceId ?? null,
-      deviceColor: bookmark.deviceColor ?? null,
-      updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
-    })),
-    // historyフィールドを削除
-    updatedAt,
-  };
-  return { cloudBookId, state, updatedAt };
-}
-
-function isEmptyCloudState(state) {
-  if (!state) return true;
-  const hasBookmarks = Array.isArray(state.bookmarks) && state.bookmarks.length > 0;
-  const hasHistory = Array.isArray(state.history) && state.history.length > 0;
-  const hasProgress = typeof state.progress === "number" && state.progress > 0;
-  const hasLocation = Boolean(state.lastCfi);
-  const hasUpdatedAt = (state.updatedAt ?? 0) > 0;
-  return !(hasBookmarks || hasHistory || hasProgress || hasLocation || hasUpdatedAt);
-}
-
-function applyCloudStateToLocal(localBookId, cloudBookId, state) {
-  if (!state || !localBookId) return;
-
-  if (state.bookmarks && Array.isArray(state.bookmarks)) {
-    storage.mergeBookmarks(localBookId, state.bookmarks);
-  }
-
-  // historyの適用処理を削除
-
-  if (state.lastCfi || typeof state.progress === "number") {
-    const existing = storage.getProgress(localBookId) ?? {};
-    storage.setProgress(localBookId, {
-      ...existing,
-      location: state.lastCfi ?? existing.location,
-      percentage: typeof state.progress === "number" ? state.progress : existing.percentage,
-      updatedAt: state.updatedAt ?? Date.now(),
-    });
-  }
-
-  if (cloudBookId) {
-    storage.setCloudState(cloudBookId, state);
-  }
-}
-
-async function resolveSyncedProgress(localBookId, cloudBookId = storage.getCloudBookId(localBookId)) {
-  const localProgress = storage.getProgress(localBookId);
-  if (!isCloudSyncEnabled() || !cloudBookId) {
-    return localProgress;
-  }
-
-  try {
-    const response = await cloudSync.pullState(cloudBookId);
-    const remoteState = response?.state ?? response;
-    if (isEmptyCloudState(remoteState)) {
-      return localProgress;
-    }
-
-    const localUpdatedAt = localProgress?.updatedAt ?? 0;
-    const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
-    const localLocation = localProgress?.location ?? null;
-    const remoteLocation = remoteState?.lastCfi ?? null;
-
-    if (
-      localUpdatedAt !== remoteUpdatedAt &&
-      localLocation !== null &&
-      remoteLocation !== null &&
-      localLocation !== remoteLocation
-    ) {
-      const choice = await promptSyncResolution({ localUpdatedAt, remoteUpdatedAt });
-      if (choice === "remote") {
-        applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-        storage.setSettings({ lastSyncAt: Date.now() });
-        updateSyncStatusDisplay();
-      } else {
-        storage.setCloudState(cloudBookId, remoteState);
-        if (localUpdatedAt > remoteUpdatedAt) {
-          await pushCurrentBookSync();
-        }
-      }
-      return storage.getProgress(localBookId);
-    }
-
-    applyCloudStateToLocal(localBookId, cloudBookId, remoteState);
-    storage.setSettings({ lastSyncAt: Date.now() });
-    updateSyncStatusDisplay();
-    return storage.getProgress(localBookId);
-  } catch (error) {
-    console.warn("同期情報の取得に失敗しました:", error);
-  }
-
-  return localProgress;
-}
-
-function generateCloudBookId() {
-  if (crypto?.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `cloud-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function buildCloudMeta({ cloudBookId, info, fingerprint, overrides = {} }) {
-  const existing = storage.data.cloudIndex?.[cloudBookId] ?? {};
-  const fingerprints = new Set([
-    ...(existing.fingerprints ?? []),
-    ...(overrides.fingerprints ?? []),
-  ]);
-  if (fingerprint) fingerprints.add(fingerprint);
-  return {
-    cloudBookId,
-    title: overrides.title ?? info?.title ?? existing.title ?? t("untitledBook"),
-    author: overrides.author ?? info?.author ?? existing.author ?? "",
-    identifiers: overrides.identifiers ?? existing.identifiers ?? [],
-    fingerprints: Array.from(fingerprints),
-    fileType: overrides.fileType ?? info?.type ?? existing.fileType ?? null, // "epub" | "zip" | "rar"
-    lastReadAt: overrides.lastReadAt ?? Date.now(),
-    updatedAt: Date.now(),
-    createdAt: existing.createdAt ?? overrides.createdAt ?? Date.now(),
-  };
-}
-
-async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, overrides = {}) {
-  if (!cloudBookId) return null;
-  const meta = buildCloudMeta({ cloudBookId, info, fingerprint, overrides });
-  storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
-  if (isCloudSyncEnabled()) {
-    try {
-      await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
-    } catch (error) {
-      console.warn("クラウドインデックスの更新に失敗しました:", error);
-    }
-  }
-  return meta;
-}
-
-function buildMatchMeta(info) {
-  return {
-    title: info?.title ?? "",
-    author: info?.author ?? "",
-    identifiers: info?.identifiers ?? [],
-  };
-}
 
 // ========================================
 // ファイル処理
@@ -1395,7 +477,7 @@ async function handleFile(file) {
     console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
 
     // ファイルタイプを自動判別 (マジックナンバー優先)
-    const type = detectFileType(buffer) || detectFileType(file);
+    const type = fileHandler.detectFileType(buffer) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
       alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
@@ -1403,11 +485,11 @@ async function handleFile(file) {
     }
     console.log(`Detected file type: ${type}`);
 
-    const contentHash = await hashBuffer(buffer);
+    const contentHash = await fileHandler.hashBuffer(buffer);
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
-    const existingRecord = findBookByContentHash(storage.data.library, contentHash);
+    const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
-    const mime = guessMime(type, file);
+    const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || 'local';
 
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
@@ -1416,7 +498,7 @@ async function handleFile(file) {
     // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
       id,
-      title: fileTitle(file.name),
+      title: fileHandler.fileTitle(file.name),
       type: type, // "epub" | "zip" | "rar"
       fileName: file.name,
       size: file.size,
@@ -1432,36 +514,41 @@ async function handleFile(file) {
     if (cloudBookId) {
       storage.setBookLink(id, cloudBookId);
     }
-    if (isCloudSyncEnabled()) {
+    if (syncLogic.isCloudSyncEnabled()) {
       if (!cloudBookId) {
         try {
-          const matchResult = await cloudSync.matchBook(contentHash, buildMatchMeta(info));
+          const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
           if (matchResult?.cloudBookId) {
             cloudBookId = matchResult.cloudBookId;
           } else if (matchResult?.candidates?.length > 0) {
-            cloudBookId = await promptSyncCandidate(matchResult.candidates);
+            cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
           }
         } catch (error) {
           console.warn("クラウドの照合に失敗しました:", error);
         }
       }
       if (!cloudBookId) {
-        cloudBookId = generateCloudBookId();
+        cloudBookId = fileHandler.generateCloudBookId();
       }
       if (cloudBookId) {
         storage.setBookLink(id, cloudBookId);
-        await upsertCloudIndexEntry(cloudBookId, info, contentHash);
+        await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
+          storage,
+          cloudSync,
+          isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+          uiLanguage
+        });
       }
     }
     pendingCloudBookId = null;
     currentCloudBookId = cloudBookId;
 
-    const syncedProgress = await resolveSyncedProgress(id, cloudBookId);
+    const syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     await applyReadingState(syncedProgress);
     const startLocation = syncedProgress?.location;
     const startProgress = syncedProgress?.percentage;
 
-    hideCloudEmptyState();
+    renderers.hideCloudEmptyState();
     // isImageBook: zip または rar の場合
     const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
     if (!isImageBook) {
@@ -1514,17 +601,17 @@ async function handleFile(file) {
       // 保存された進行状況に方向が含まれていないため、常にデフォルト（またはユーザー設定）を適用
       // ※将来的には個別の方向保存に対応する可能性があるが、現状はデフォルト設定を使用
       reader.setImageReadingDirection(defaultDirection);
-      updateReadingDirectionButtonLabel();
-      updateProgressBarDirection();
+      renderers.updateReadingDirectionButtonLabel();
+      renderers.updateProgressBarDirection();
     }
 
     console.log("Book opened successfully");
     hideLoading();
-    renderLibrary();
-    renderBookmarkMarkers();
-    updateProgressBarDisplay();
-    updateSearchButtonState();
-    updateFloatingUIButtons();
+    renderers.renderLibrary();
+    renderers.renderBookmarkMarkers();
+    renderers.updateProgressBarDisplay();
+    renderers.updateSearchButtonState();
+    renderers.updateFloatingUIButtons();
     closeModal(elements.openFileModal);
     if (floatVisible) {
       toggleFloatOverlay(false);
@@ -1581,14 +668,14 @@ function openCloudOnlyBook(cloudBookId) {
   if (elements.emptyState) elements.emptyState.classList.remove(UI_CLASSES.HIDDEN);
   if (elements.progressBarPanel) elements.progressBarPanel.classList.add(UI_CLASSES.HIDDEN);
   if (elements.progressBarBackdrop) elements.progressBarBackdrop.classList.add(UI_CLASSES.HIDDEN);
-  showCloudEmptyState({
+  renderers.showCloudEmptyState({
     cloudBookId,
     title: meta?.title ?? t("cloudOnlyTitle"),
     progressPercentage: state?.progress ?? 0,
     lastTimestamp: state?.updatedAt ?? meta?.lastReadAt ?? meta?.updatedAt ?? 0,
   });
-  updateProgressBarDisplay();
-  updateSearchButtonState();
+  renderers.updateProgressBarDisplay();
+  renderers.updateSearchButtonState();
   closeModal(elements.openFileModal);
   if (floatVisible) {
     toggleFloatOverlay(false);
@@ -1623,9 +710,9 @@ async function openFromLibrary(bookId, options = {}) {
     currentBookId = bookId;
     currentBookInfo = info;
     currentCloudBookId = storage.getCloudBookId(bookId);
-    if (isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
+    if (syncLogic.isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
       try {
-        const matchResult = await cloudSync.matchBook(info.contentHash, buildMatchMeta(info));
+        const matchResult = await cloudSync.matchBook(info.contentHash, fileHandler.buildMatchMeta(info));
         if (matchResult?.cloudBookId) {
           currentCloudBookId = matchResult.cloudBookId;
           storage.setBookLink(bookId, currentCloudBookId);
@@ -1635,11 +722,17 @@ async function openFromLibrary(bookId, options = {}) {
       }
     }
     if (currentCloudBookId) {
-      await upsertCloudIndexEntry(currentCloudBookId, info, info.contentHash, { lastReadAt: Date.now() });
+      await fileHandler.upsertCloudIndexEntry(currentCloudBookId, info, info.contentHash, {
+        storage,
+        cloudSync,
+        isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+        uiLanguage,
+        overrides: { lastReadAt: Date.now() }
+      });
     }
 
     const bookmarks = storage.getBookmarks(bookId);
-    const progress = await resolveSyncedProgress(bookId, currentCloudBookId);
+    const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
     await applyReadingState(progress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
@@ -1647,14 +740,14 @@ async function openFromLibrary(bookId, options = {}) {
     const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
 
     // 【修正】読み込み時にタイプを再判定（DB内の情報の誤りを補正）
-    const detectedType = detectFileType(record.buffer);
+    const detectedType = fileHandler.detectFileType(record.buffer);
     if (detectedType && detectedType !== info.type) {
       console.log(`タイプミスマッチを検出: ${info.type} -> ${detectedType}`);
       info.type = detectedType;
       storage.upsertBook(info);
     }
 
-    hideCloudEmptyState();
+    renderers.hideCloudEmptyState();
     // isImageBook: zip または rar の場合
     const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
     if (!isImageBook) {
@@ -1685,10 +778,10 @@ async function openFromLibrary(bookId, options = {}) {
 
     storage.addHistory(bookId);
     scheduleAutoSyncPush();
-    renderBookmarkMarkers();
-    updateProgressBarDisplay();
-    updateSearchButtonState();
-    updateFloatingUIButtons();
+    renderers.renderBookmarkMarkers();
+    renderers.updateProgressBarDisplay();
+    renderers.updateSearchButtonState();
+    renderers.updateFloatingUIButtons();
     closeModal(elements.openFileModal);
     if (floatVisible) {
       toggleFloatOverlay(false);
@@ -1701,84 +794,8 @@ async function openFromLibrary(bookId, options = {}) {
   }
 }
 
-function detectFileType(fileOrBuffer) {
-  // ArrayBufferの場合はマジックナンバーチェック
-  if (fileOrBuffer instanceof ArrayBuffer) {
-    const view = new Uint8Array(fileOrBuffer);
-    // EPUB (PK\x03\x04 + mimetype) - 簡易的に PK チェックのみでも ZIP と混同しやすいが
-    // ZIP (PK\x03\x04)
-    if (view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
-      // 内部に "mimetypeapplication/epub+zip" があるかチェック（オフセット 30付近）
-      const str = String.fromCharCode(...view.slice(30, 60));
-      if (str.includes("mimetypeapplication/epub+zip")) {
-        return BOOK_TYPES.EPUB;
-      }
-      return BOOK_TYPES.ZIP;
-    }
-    // RAR (Rar!\x1a\x07\x00) v4
-    if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
-      return BOOK_TYPES.RAR;
-    }
-    // RAR (Rar!\x1a\x07\x01) v5
-    if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07 && view[6] === 0x01) {
-      return BOOK_TYPES.RAR;
-    }
-  }
 
-  // File オブジェクトの場合は名前から判別（フォールバック）
-  const name = fileOrBuffer.name || "";
-  const ext = name.split(".").pop().toLowerCase();
-  if (ext === FILE_EXTENSIONS.EPUB) return BOOK_TYPES.EPUB;
-  if (ext === FILE_EXTENSIONS.RAR || ext === FILE_EXTENSIONS.CBR) return BOOK_TYPES.RAR;
-  if (ext === FILE_EXTENSIONS.ZIP || ext === FILE_EXTENSIONS.CBZ) return BOOK_TYPES.ZIP;
 
-  // 不明な場合はnullを返す（呼び出し側でデフォルト処理）
-  return null;
-}
-
-function fileTitle(name) {
-  return name.replace(/\.[^.]+$/, "");
-}
-
-function guessMime(type, file) {
-  if (type === BOOK_TYPES.EPUB) return MIME_TYPES.EPUB;
-  if (type === BOOK_TYPES.IMAGE) {
-    // This branch is for internal image files inside archives, likely unused for the main file
-    // But keeping logic consistent if it were used
-    return FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
-  }
-
-  // For the main file passed to saveFile/handleFile
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext === FILE_EXTENSIONS.CBR) return MIME_TYPES.CBR;
-  if (ext === FILE_EXTENSIONS.CBZ) return MIME_TYPES.CBZ;
-  if (ext === FILE_EXTENSIONS.RAR) return MIME_TYPES.RAR;
-
-  return file.type || FILESTORE_CONFIG.DEFAULT_MIME_TYPE;
-}
-
-async function hashBuffer(buffer) {
-  const hash = await crypto.subtle.digest("SHA-256", buffer);
-  const hex = Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return hex;
-}
-
-function findBookByContentHash(library, contentHash) {
-  const shortHash = contentHash.slice(0, 12);
-  for (const book of Object.values(library)) {
-    if (book?.contentHash === contentHash) {
-      return book;
-    }
-  }
-  for (const book of Object.values(library)) {
-    if (book?.id?.endsWith(`-${shortHash}`)) {
-      return book;
-    }
-  }
-  return null;
-}
 
 // ========================================
 // 進捗管理
@@ -1822,7 +839,7 @@ function handleProgress(progress) {
     uiLanguage,
   });
   scheduleAutoSyncPush();
-  updateProgressBarDisplay();
+  renderers.updateProgressBarDisplay();
 }
 
 function getEpubPaginationTotal() {
@@ -1833,158 +850,7 @@ function getEpubPaginationTotal() {
   return null;
 }
 
-function updateProgressBarDisplay() {
-  if (!currentBookId) return;
-
-  if (elements.progressBarPanel) {
-    elements.progressBarPanel.classList.add(UI_CLASSES.HIDDEN);
-  }
-  if (elements.progressBarBackdrop) {
-    elements.progressBarBackdrop.classList.add(UI_CLASSES.HIDDEN);
-  }
-
-  const progress = storage.getProgress(currentBookId);
-  const percentage = progress?.percentage || 0;
-  updateFloatProgressBar(percentage);
-
-  // 進捗バーの更新
-  if (elements.progressFill) {
-    elements.progressFill.style.width = `${percentage}%`;
-  }
-
-  if (elements.progressThumb) {
-    elements.progressThumb.style.left = `${percentage}%`;
-  }
-
-  // ページ数の更新（入力中でない場合のみ）
-  if (elements.currentPageInput && document.activeElement !== elements.currentPageInput) {
-    if (progressDisplayMode === "page") {
-      // ページ数モード
-      if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
-        // EPUBの場合はページ数を表示
-        const totalPages = getEpubPaginationTotal();
-        if (totalPages) {
-          const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
-          elements.currentPageInput.value = currentPage;
-
-          if (elements.totalPages) {
-            elements.totalPages.textContent = totalPages.toString();
-          }
-        } else {
-          // ページ数が未生成の場合はパーセンテージ表示
-          elements.currentPageInput.value = Math.round(percentage);
-          if (elements.totalPages) {
-            elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
-          }
-        }
-      } else if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
-        // 画像書籍の場合はページ数
-        const totalPages = reader.imagePages?.length || 1;
-        const currentPage = Math.max(1, Math.round((percentage / 100) * totalPages));
-        elements.currentPageInput.value = currentPage;
-
-        if (elements.totalPages) {
-          elements.totalPages.textContent = totalPages.toString();
-        }
-      } else {
-        // locations未生成のEPUBはパーセンテージ表示
-        elements.currentPageInput.value = Math.round(percentage);
-        if (elements.totalPages) {
-          elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
-        }
-      }
-    } else {
-      // パーセンテージモード
-      elements.currentPageInput.value = Math.round(percentage);
-
-      if (elements.totalPages) {
-        elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
-      }
-    }
-  }
-
-  renderBookmarkMarkers();
-}
-
-function renderBookmarkMarkers() {
-  if (!elements.progressTrack) return;
-  elements.progressTrack.querySelectorAll(DOM_SELECTORS.BOOKMARK_MARKER).forEach((node) => node.remove());
-  if (!currentBookId) return;
-
-  const bookmarks = storage.getBookmarks(currentBookId);
-  if (!bookmarks.length) return;
-
-  bookmarks.forEach((bookmark) => {
-    const marker = document.createElement("button");
-    marker.type = "button";
-    marker.className = UI_CLASSES.BOOKMARK_MARKER;
-    const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
-    marker.style.left = `${percentage}%`;
-    if (bookmark.deviceColor) {
-      marker.style.background = bookmark.deviceColor;
-    }
-
-    // ツールチップの表示内容を進捗表示モードに合わせる
-    let tooltipText = bookmark.label ?? t("bookmarkDefault");
-    if (progressDisplayMode === "page") {
-      // ページ数モードの場合
-      if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
-        const totalPages = getEpubPaginationTotal();
-        if (totalPages) {
-          const pageIndex = Math.max(1, Math.round((percentage / 100) * totalPages));
-          tooltipText += ` (${pageIndex}/${totalPages})`;
-        } else {
-          tooltipText += ` (${percentage}%)`;
-        }
-      } else if (currentBookInfo && (currentBookInfo.type === BOOK_TYPES.ZIP || currentBookInfo.type === BOOK_TYPES.RAR)) {
-        const totalPages = reader.imagePages?.length || 1;
-        const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
-        tooltipText += ` (${pageNumber}/${totalPages})`;
-      } else {
-        tooltipText += ` (${percentage}%)`;
-      }
-    } else {
-      // パーセンテージモード
-      tooltipText += ` (${percentage}%)`;
-    }
-
-    marker.title = tooltipText;
-    marker.addEventListener("click", (event) => {
-      event.stopPropagation();
-      reader.goTo(bookmark);
-      ui.closeAllMenus();
-    });
-    elements.progressTrack.appendChild(marker);
-  });
-
-  renderFloatBookmarkMarkers();
-}
-
-function renderFloatBookmarkMarkers() {
-  if (!elements.floatProgressMarks) return;
-  elements.floatProgressMarks.querySelectorAll(DOM_SELECTORS.BOOKMARK_MARKER).forEach((node) => node.remove());
-  if (!currentBookId) return;
-
-  const bookmarks = storage.getBookmarks(currentBookId);
-  if (!bookmarks.length) return;
-
-  bookmarks.forEach((bookmark) => {
-    const marker = document.createElement("button");
-    marker.type = "button";
-    marker.className = UI_CLASSES.BOOKMARK_MARKER;
-    const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
-    marker.style.left = `${percentage}%`;
-    if (bookmark.deviceColor) {
-      marker.style.background = bookmark.deviceColor;
-    }
-    marker.title = bookmark.label ?? t("bookmarkDefault");
-    marker.addEventListener("click", (event) => {
-      event.stopPropagation();
-      reader.goTo(bookmark);
-    });
-    elements.floatProgressMarks.appendChild(marker);
-  });
-}
+// 移行済み: updateProgressBarDisplay, renderBookmarkMarkers, renderFloatBookmarkMarkers
 
 async function seekToPercentage(percentage) {
   if (!currentBookId || !currentBookInfo) return;
@@ -2035,7 +901,7 @@ function handleBookReady(payload) {
         elements.pageDirectionSelect.value = pageDirection;
       }
     }
-    updateProgressBarDirection(); // 進捗バーの方向更新
+    renderers.updateProgressBarDirection(); // 進捗バーの方向更新
   }
 
   const title = metadata.title || currentBookInfo.title;
@@ -2050,13 +916,13 @@ function handleBookReady(payload) {
       console.warn("クラウドメタデータの更新に失敗しました:", error);
     });
   }
-  renderLibrary();
-  renderToc(currentToc);
+  renderers.renderLibrary();
+  renderers.renderToc(currentToc);
 
   // EPUBスクロールモードのクラスを設定（横書きのみ縦スクロール）
   const scheduleEpubScrollModeUpdate = (attempt = 0) => {
     if (reader?.writingMode != null) {
-      updateEpubScrollMode();
+      renderers.updateEpubScrollMode();
       return;
     }
     if (attempt >= 5) {
@@ -2076,7 +942,7 @@ function handleBookReady(payload) {
       if (locations?.total > 0) {
         console.log('[handleBookReady] Locations available, updating progress bar');
         clearInterval(checkLocations);
-        updateProgressBarDisplay();
+        renderers.updateProgressBarDisplay();
       }
     }, TIMING_CONFIG.LOCATIONS_CHECK_INTERVAL_MS);
 
@@ -2089,281 +955,19 @@ function handleBookReady(payload) {
   }
 }
 
-function updateEpubScrollMode() {
-  if (currentBookInfo?.type !== BOOK_TYPES.EPUB || !elements.fullscreenReader) return;
-  if (reader?.usingPaginator) {
-    elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
-    return;
-  }
-  const resolvedWritingMode = reader?.writingMode ?? currentBookInfo?.writingMode ?? writingMode;
-  if (resolvedWritingMode === WRITING_MODES.VERTICAL) {
-    console.log('[updateEpubScrollMode] Disabling epub-scroll for vertical reading');
-    elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
-    return;
-  }
-  if (resolvedWritingMode === WRITING_MODES.HORIZONTAL) {
-    console.log('[updateEpubScrollMode] Enabling epub-scroll for horizontal reading');
-    elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL);
-  }
-}
+// 移行済み: updateEpubScrollMode
 
 // ========================================
 // 目次管理
 // ========================================
 
-function renderToc(tocItems = []) {
-  if (!elements.tocModalList) return;
-
-  const normalizedToc = tocItems?.toc ?? tocItems?.items ?? tocItems;
-  const tocArray = Array.isArray(normalizedToc)
-    ? normalizedToc
-    : Object.values(normalizedToc || {});
-
-  if (elements.tocList) {
-    elements.tocList.innerHTML = "";
-  }
-  elements.tocModalList.innerHTML = "";
-  const isEpub = currentBookInfo?.type === BOOK_TYPES.EPUB;
-
-  if (!isEpub || tocArray.length === 0) {
-    elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
-    console.log('[renderToc] Hiding TOC section:', { isEpub, tocCount: tocArray.length });
-    return;
-  }
-
-  console.log('[renderToc] Showing TOC section with', tocArray.length, 'items');
-  elements.tocSection?.classList.remove(UI_CLASSES.HIDDEN);
-  renderTocEntries(tocArray, elements.tocModalList, 0);
-}
-
-function renderTocEntries(items, container, depth) {
-  if (!Array.isArray(items)) return;
-
-  items.forEach((item) => {
-    const label = (item.label ?? item.title ?? t("tocUntitled")).toString().trim() || t("tocUntitled");
-    const li = document.createElement("li");
-    li.className = "toc-item";
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "toc-link";
-    button.textContent = label;
-    button.style.paddingLeft = `${Math.min(depth, 6) * 12}px`;
-
-    button.addEventListener("click", async () => {
-      try {
-        if (reader?.usingPaginator && item.href) {
-          reader.navigateToHref(item.href);
-        }
-        ui.closeAllMenus();
-        closeModal(elements.tocModal);
-      } catch (error) {
-        console.warn("目次移動に失敗しました:", error);
-      }
-    });
-
-    li.appendChild(button);
-    container.appendChild(li);
-
-    if (item.subitems?.length) {
-      renderTocEntries(item.subitems, container, depth + 1);
-    }
-  });
-}
+// 移行済み: renderToc, renderTocEntries
 
 // ========================================
 // しおり管理
 // ========================================
 
-function renderBookmarks(mode = "current") {
-  if (!elements.bookmarkList) return;
-
-  elements.bookmarkList.innerHTML = "";
-
-  if (mode === "all") {
-    const historyOrder = storage.data.history.map((item) => item.bookId);
-    const libraryOrder = Object.keys(storage.data.library);
-    const orderedBookIds = [...historyOrder, ...libraryOrder].filter((id, index, self) => self.indexOf(id) === index);
-    const entries = [];
-
-    orderedBookIds.forEach((bookId) => {
-      const book = storage.data.library[bookId];
-      if (!book) return;
-      const bookmarks = storage.getBookmarks(bookId);
-      bookmarks.forEach((bookmark) => {
-        entries.push({ bookId, book, bookmark });
-      });
-    });
-
-    if (!entries.length) {
-      const empty = document.createElement("li");
-      empty.textContent = t("bookmarkEmpty");
-      empty.style.textAlign = "center";
-      empty.style.color = `var(${CSS_VARS.MUTED})`;
-      elements.bookmarkList.appendChild(empty);
-      renderBookmarkMarkers();
-      return;
-    }
-
-    entries.forEach(({ bookId, book, bookmark }) => {
-      const item = document.createElement("li");
-      item.className = "bookmark-item";
-      if (bookmark.deviceColor) {
-        item.style.borderLeftColor = bookmark.deviceColor;
-      }
-
-      const info = document.createElement("div");
-      info.className = "bookmark-info";
-      info.onclick = async () => {
-        if (bookId === currentBookId) {
-          reader.goTo(bookmark);
-        } else {
-          await openFromLibrary(bookId, { bookmark });
-        }
-        ui.closeAllMenus();
-      };
-
-      const label = document.createElement("div");
-      label.className = "bookmark-label";
-      const colorDot = document.createElement("span");
-      colorDot.className = "bookmark-color-dot";
-      if (bookmark.deviceColor) {
-        colorDot.style.background = bookmark.deviceColor;
-      }
-      const labelText = document.createElement("span");
-      labelText.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
-      label.append(colorDot, labelText);
-
-      const meta = document.createElement("div");
-      meta.className = "bookmark-meta";
-
-      // メタ情報を進捗表示モードに合わせて表示
-      let metaText = new Date(bookmark.createdAt).toLocaleString();
-      if (progressDisplayMode === "page") {
-        // ここでは簡易的にパーセンテージのみ表示（本を開いていないため正確なページ数は不明）
-        metaText += ` / ${bookmark.percentage}%`;
-      } else {
-        metaText += ` / ${bookmark.percentage}%`;
-      }
-      meta.textContent = metaText;
-
-      info.append(label, meta);
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.className = "bookmark-delete";
-      deleteBtn.textContent = UI_ICONS.DELETE;
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (confirm(t("bookmarkDeleteConfirm"))) {
-          storage.removeBookmark(bookId, bookmark.createdAt);
-          renderBookmarks(mode);
-          renderBookmarkMarkers();
-          scheduleAutoSyncPush();
-        }
-      };
-
-      item.append(info, deleteBtn);
-      elements.bookmarkList.appendChild(item);
-    });
-
-    renderBookmarkMarkers();
-    return;
-  }
-
-  if (!currentBookId) {
-    const empty = document.createElement("li");
-    empty.textContent = t("openBookPrompt");
-    empty.style.textAlign = "center";
-    empty.style.color = `var(${CSS_VARS.MUTED})`;
-    elements.bookmarkList.appendChild(empty);
-    renderBookmarkMarkers();
-    return;
-  }
-
-  const bookmarks = storage.getBookmarks(currentBookId);
-
-  if (!bookmarks.length) {
-    const empty = document.createElement("li");
-    empty.textContent = t("bookmarkEmpty");
-    empty.style.textAlign = "center";
-    empty.style.color = `var(${CSS_VARS.MUTED})`;
-    elements.bookmarkList.appendChild(empty);
-    renderBookmarkMarkers();
-    return;
-  }
-
-  bookmarks.forEach((bookmark) => {
-    const item = document.createElement("li");
-    item.className = "bookmark-item";
-    if (bookmark.deviceColor) {
-      item.style.borderLeftColor = bookmark.deviceColor;
-    }
-
-    const info = document.createElement("div");
-    info.className = "bookmark-info";
-    info.onclick = () => {
-      reader.goTo(bookmark);
-      ui.closeAllMenus();
-    };
-
-    const label = document.createElement("div");
-    label.className = "bookmark-label";
-    const colorDot = document.createElement("span");
-    colorDot.className = "bookmark-color-dot";
-    if (bookmark.deviceColor) {
-      colorDot.style.background = bookmark.deviceColor;
-    }
-    const labelText = document.createElement("span");
-    labelText.textContent = bookmark.label || t("bookmarkDefault");
-    label.append(colorDot, labelText);
-
-    const meta = document.createElement("div");
-    meta.className = "bookmark-meta";
-
-    // メタ情報を進捗表示モードに合わせて表示
-    let metaText = new Date(bookmark.createdAt).toLocaleString();
-    if (progressDisplayMode === "page") {
-      if (currentBookInfo?.type === BOOK_TYPES.EPUB) {
-        const totalPages = getEpubPaginationTotal();
-        if (totalPages) {
-          const pageIndex = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
-          metaText += ` / ${pageIndex}/${totalPages}`;
-        } else {
-          metaText += ` / ${bookmark.percentage}%`;
-        }
-      } else if (currentBookInfo?.type === BOOK_TYPES.IMAGE) {
-        const totalPages = reader.imagePages?.length || 1;
-        const pageNumber = Math.max(1, Math.round((bookmark.percentage / 100) * totalPages));
-        metaText += ` / ${pageNumber}/${totalPages}`;
-      } else {
-        metaText += ` / ${bookmark.percentage}%`;
-      }
-    } else {
-      metaText += ` / ${bookmark.percentage}%`;
-    }
-    meta.textContent = metaText;
-
-    info.append(label, meta);
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "bookmark-delete";
-    deleteBtn.textContent = UI_ICONS.DELETE;
-    deleteBtn.onclick = (e) => {
-      e.stopPropagation();
-      if (confirm(t("bookmarkDeleteConfirm"))) {
-        storage.removeBookmark(currentBookId, bookmark.createdAt);
-        renderBookmarks(mode);
-        renderBookmarkMarkers();
-        scheduleAutoSyncPush();
-      }
-    };
-
-    item.append(info, deleteBtn);
-    elements.bookmarkList.appendChild(item);
-  });
-
-  renderBookmarkMarkers();
-}
+// 移行済み: renderBookmarks
 
 function addBookmark() {
   if (!currentBookId) {
@@ -2378,8 +982,8 @@ function addBookmark() {
   });
   if (bookmark) {
     storage.addBookmark(currentBookId, bookmark);
-    renderBookmarks(bookmarkMenuMode);
-    renderBookmarkMarkers();
+    renderers.renderBookmarks(bookmarkMenuMode);
+    renderers.renderBookmarkMarkers();
 
     // 自動同期
     scheduleAutoSyncPush();
@@ -2390,226 +994,9 @@ function addBookmark() {
 // ライブラリ・履歴
 // ========================================
 
-function renderLibrary() {
-  if (!elements.libraryGrid) return;
+// 移行済み: renderLibrary, filterLibraryCards
 
-  elements.libraryGrid.innerHTML = "";
-  const entries = buildLibraryEntries();
-
-  if (!entries.length) {
-    const empty = document.createElement("p");
-    empty.textContent = t("libraryEmpty");
-    empty.style.textAlign = "center";
-    empty.style.color = `var(${CSS_VARS.MUTED})`;
-    empty.style.gridColumn = "1 / -1";
-    elements.libraryGrid.appendChild(empty);
-    return;
-  }
-
-  entries.forEach((entry) => {
-    const card = document.createElement("div");
-    card.className = "library-card";
-    // 検索フィルタ用のdata属性を設定
-    card.dataset.title = (entry.title || "").toLowerCase();
-    card.dataset.author = (entry.author || "").toLowerCase();
-
-    // 削除/やり直しボタン
-    const deleteId = entry.localBookId || entry.cloudBookId;
-    if (deleteId) {
-      const deleteType = entry.localBookId ? 'local' : 'cloud';
-      const actionBtn = document.createElement("button");
-      actionBtn.type = "button";
-      actionBtn.className = "library-delete-btn";
-
-      const isMarked = pendingDeletes.has(deleteId);
-
-      if (isMarked) {
-        actionBtn.textContent = "↩";
-        actionBtn.title = t("undo_button");
-        actionBtn.classList.add("undo-mode");
-        card.classList.add("marked-for-delete");
-      } else {
-        actionBtn.textContent = UI_ICONS.DELETE;
-        actionBtn.title = t("delete_button");
-      }
-
-      actionBtn.onclick = (event) => {
-        event.stopPropagation();
-
-        if (pendingDeletes.has(deleteId)) {
-          // やり直し
-          pendingDeletes.delete(deleteId);
-          card.classList.remove("marked-for-delete");
-          actionBtn.textContent = UI_ICONS.DELETE;
-          actionBtn.title = t("delete_button");
-          actionBtn.classList.remove("undo-mode");
-        } else {
-          // 削除マーク
-          pendingDeletes.set(deleteId, { id: deleteId, type: deleteType });
-          card.classList.add("marked-for-delete");
-          actionBtn.textContent = "↩";
-          actionBtn.title = t("undo_button");
-          actionBtn.classList.add("undo-mode");
-        }
-      };
-      card.appendChild(actionBtn);
-    }
-
-    // カードクリックイベント（削除マーク時は無効）
-    card.onclick = () => {
-      if (deleteId && pendingDeletes.has(deleteId)) {
-        return;
-      }
-      if (entry.hasLocalFile && entry.localBookId) {
-        openFromLibrary(entry.localBookId);
-      } else if (entry.cloudBookId) {
-        openCloudOnlyBook(entry.cloudBookId);
-      }
-    };
-
-    const cover = document.createElement("div");
-    cover.className = "library-cover";
-    cover.textContent = entry.title?.slice(0, 2) || UI_ICONS.BOOK;
-
-    // --- 情報エリア（新レイアウト） ---
-    const info = document.createElement("div");
-    info.className = "library-info";
-
-    // 1行目：タイトル（スクロール用span包含）
-    const title = document.createElement("div");
-    title.className = "library-title";
-    const titleSpan = document.createElement("span");
-    titleSpan.textContent = entry.title;
-    title.appendChild(titleSpan);
-
-    // 2行目：メタ情報 + バッジ
-    const row2 = document.createElement("div");
-    row2.className = "library-row-2";
-
-    const meta = document.createElement("div");
-    meta.className = "library-meta";
-    meta.textContent = formatLibraryMeta({
-      progressPercentage: entry.progressPercentage,
-      timestamp: entry.lastTimestamp,
-    });
-    row2.appendChild(meta);
-
-    // ファイルタイプバッジ
-    if (entry.fileType) {
-      const typeBadge = document.createElement("span");
-      typeBadge.className = "library-type-badge";
-      typeBadge.textContent = `[${entry.fileType.toUpperCase()}]`;
-      row2.appendChild(typeBadge);
-    }
-
-    // 未ダウンロードバッジ
-    if (!entry.hasLocalFile) {
-      const cloudBadge = document.createElement("span");
-      cloudBadge.className = "library-type-badge";
-      cloudBadge.style.color = "var(--muted)";
-      cloudBadge.textContent = "☁";
-      cloudBadge.title = t("libraryCloudMissingBadge");
-      row2.appendChild(cloudBadge);
-    }
-
-    // アタッチボタン（クラウドのみの場合）
-    if (!entry.hasLocalFile && entry.cloudBookId) {
-      const attachButton = document.createElement("button");
-      attachButton.type = "button";
-      attachButton.className = "library-attach";
-      attachButton.textContent = "📎";
-      attachButton.title = t("libraryAttachFile");
-      attachButton.onclick = (event) => {
-        event.stopPropagation();
-        pendingCloudBookId = entry.cloudBookId;
-        openFileDialog();
-      };
-      row2.appendChild(attachButton);
-    }
-
-    info.append(title, row2);
-    card.append(cover, info);
-
-    elements.libraryGrid.appendChild(card);
-  });
-}
-
-/**
- * ライブラリカードを検索クエリでフィルタリング
- * @param {string} query - 検索クエリ
- */
-function filterLibraryCards(query) {
-  const cards = elements.libraryGrid?.querySelectorAll(".library-card");
-  if (!cards) return;
-
-  const lowerQuery = (query || "").toLowerCase().trim();
-
-  cards.forEach((card) => {
-    const title = card.dataset.title || "";
-    const author = card.dataset.author || "";
-    const matches = !lowerQuery || title.includes(lowerQuery) || author.includes(lowerQuery);
-    card.style.display = matches ? "" : "none";
-  });
-}
-
-function renderHistory() {
-  if (!elements.historyList) return;
-
-  elements.historyList.innerHTML = "";
-  const history = storage.data.history;
-
-  if (!history.length) {
-    const empty = document.createElement("li");
-    empty.textContent = t("historyEmpty");
-    empty.style.textAlign = "center";
-    empty.style.color = `var(${CSS_VARS.MUTED})`;
-    elements.historyList.appendChild(empty);
-    return;
-  }
-
-  history.forEach((item) => {
-    const book = storage.data.library[item.bookId];
-    if (!book) return;
-
-    const historyItem = document.createElement("li");
-    historyItem.className = "history-item";
-    historyItem.onclick = () => {
-      openFromLibrary(book.id);
-      closeModal(elements.historyModal);
-    };
-
-    const info = document.createElement("div");
-    info.className = "history-info";
-
-    const title = document.createElement("div");
-    title.className = "history-title";
-    title.textContent = book.title;
-
-    const meta = document.createElement("div");
-    meta.className = "history-meta";
-
-    // 進捗情報を追加
-    const progress = storage.getProgress(book.id);
-    const progressText = progress ? `${progress.percentage}%` : "0%";
-    meta.textContent = `${new Date(item.openedAt).toLocaleString()} / ${t("progressLabel")}: ${progressText}`;
-
-    info.append(title, meta);
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "history-delete";
-    deleteBtn.textContent = UI_ICONS.DELETE;
-    deleteBtn.onclick = (e) => {
-      e.stopPropagation();
-      if (confirm(t("historyDeleteConfirm"))) {
-        storage.removeHistory(item.bookId);
-        renderHistory();
-      }
-    };
-
-    historyItem.append(info, deleteBtn);
-    elements.historyList.appendChild(historyItem);
-  });
-}
+// 移行済み: renderHistory
 
 // ========================================
 // テキスト検索（EPUB用）
@@ -2720,73 +1107,7 @@ async function performSearch(query) {
   }
 }
 
-function renderSearchResults(results, query) {
-  if (!elements.searchResults) return;
-
-  elements.searchResults.innerHTML = '';
-
-  if (!results.length) {
-    const noResults = document.createElement('div');
-    noResults.className = 'search-no-results';
-    noResults.textContent = t("searchNoResults");
-    elements.searchResults.appendChild(noResults);
-    return;
-  }
-
-  results.forEach((result, index) => {
-    const item = document.createElement('div');
-    item.className = 'search-result-item';
-
-    const excerpt = document.createElement('div');
-    excerpt.className = 'search-result-excerpt';
-
-    // クエリをハイライト
-    const escapedQuery = result.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedQuery})`, 'gi');
-    const highlightedText = result.excerpt.replace(regex, '<mark>$1</mark>');
-    excerpt.innerHTML = `...${highlightedText}...`;
-
-    const meta = document.createElement('div');
-    meta.className = 'search-result-meta';
-
-    // パーセンテージまたはページ情報を表示
-    let locationText = '';
-    if (progressDisplayMode === "page") {
-      const totalPages = getEpubPaginationTotal();
-      if (totalPages) {
-        const pageIndex = Math.max(1, Math.round((result.percentage / 100) * totalPages));
-        locationText = `${pageIndex}/${totalPages}`;
-      } else if (reader.book?.locations) {
-        const totalLocations = reader.book.locations.total;
-        const locationIndex = Math.round((result.percentage / 100) * totalLocations);
-        locationText = `${locationIndex}/${totalLocations}`;
-      } else {
-        locationText = `${result.percentage}%`;
-      }
-    } else {
-      locationText = `${result.percentage}%`;
-    }
-
-    meta.textContent = `${locationText} / ${result.sectionLabel || `${t("searchResultFallback")} ${index + 1}`}`;
-
-    item.append(excerpt, meta);
-
-    item.onclick = async () => {
-      if (
-        typeof result.spineIndex === "number" &&
-        typeof result.segmentIndex === "number" &&
-        typeof reader?.goToSegment === "function"
-      ) {
-        reader.goToSegment(result.spineIndex, result.segmentIndex);
-      } else {
-        seekToPercentage(result.percentage);
-      }
-      closeModal(elements.searchModal);
-    };
-
-    elements.searchResults.appendChild(item);
-  });
-}
+// 移行済み: renderSearchResults
 
 // ========================================
 // モーダル制御
@@ -2803,7 +1124,7 @@ function isModalVisible(modal) {
 function openModal(modal) {
   if (!modal) return;
   // floatOverlay(blur) がモーダルより前面に残るのを防ぐ
-  toggleFloatOverlay(false);
+  renderers.toggleFloatOverlay(false);
   if (elements.modalOverlay && modal.parentElement !== elements.modalOverlay) {
     elements.modalOverlay.appendChild(modal);
   }
@@ -2842,6 +1163,8 @@ function closeExclusiveMenus() {
   closeModal(elements.historyModal);
   closeModal(elements.searchModal);
   closeModal(elements.settingsModal);
+  closeModal(elements.openFileModal);
+  closeModal(elements.tocModal);
 }
 
 function openExclusiveMenu(modal) {
@@ -2866,14 +1189,10 @@ function applyTheme(newTheme) {
   reader.applyTheme(theme);
   storage.setSettings({ theme });
   persistReadingState({ theme });
-  updateThemeToggleIcon();
+  renderers.updateThemeToggleIcon();
 }
 
-function updateThemeToggleIcon() {
-  if (!elements.toggleTheme) return;
-  elements.toggleTheme.textContent = theme === "dark" ? UI_ICONS.THEME_DARK : UI_ICONS.THEME_LIGHT;
-  elements.toggleTheme.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
-}
+// 移行済み: updateThemeToggleIcon
 
 function applyFontSize(nextSize) {
   if (!Number.isFinite(nextSize)) return;
@@ -2913,7 +1232,7 @@ function applyUiLanguage(nextLanguage) {
   if (!currentBookId && currentCloudBookId) {
     const meta = storage.data.cloudIndex?.[currentCloudBookId];
     const state = storage.getCloudState(currentCloudBookId);
-    showCloudEmptyState({
+    renderers.showCloudEmptyState({
       cloudBookId: currentCloudBookId,
       title: meta?.title ?? strings.cloudOnlyTitle,
       progressPercentage: state?.progress ?? 0,
@@ -3053,7 +1372,7 @@ function applyUiLanguage(nextLanguage) {
     elements.firebaseMeasurementIdLabel.textContent = strings.firebaseMeasurementIdLabel;
   }
   if (elements.syncStatus) {
-    updateSyncStatusDisplay();
+    renderers.updateSyncStatusDisplay();
   }
   if (elements.settingsDataTitle) elements.settingsDataTitle.textContent = strings.settingsDataTitle;
   if (elements.exportDataBtn) elements.exportDataBtn.textContent = strings.exportData;
@@ -3093,29 +1412,22 @@ function applyUiLanguage(nextLanguage) {
   if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
   if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
 
-  updateWritingModeToggleLabel();
-  updateReadingDirectionEpubButtonLabel();
-  updateReadingDirectionButtonLabel();
-  updateSpreadModeButtonLabel();
+  renderers.updateWritingModeToggleLabel();
+  renderers.updateReadingDirectionEpubButtonLabel();
+  renderers.updateReadingDirectionButtonLabel();
+  renderers.updateSpreadModeButtonLabel();
   if (uiInitialized) {
-    renderLibrary();
-    renderHistory();
-    renderBookmarks(bookmarkMenuMode);
-    renderToc(currentToc);
-    updateProgressBarDisplay();
-    updateSearchButtonState();
-    updateAuthStatusDisplay();
+    renderers.renderLibrary();
+    renderers.renderHistory();
+    renderers.renderBookmarks(bookmarkMenuMode);
+    renderers.renderToc(currentToc);
+    renderers.updateProgressBarDisplay();
+    renderers.updateSearchButtonState();
+    renderers.updateAuthStatusDisplay();
   }
 }
 
-function updateWritingModeToggleLabel() {
-  if (!elements.toggleWritingMode) return;
-  const isVertical = writingMode === WRITING_MODES.VERTICAL;
-  elements.toggleWritingMode.textContent = isVertical
-    ? t("writingModeToggleVertical")
-    : t("writingModeToggleHorizontal");
-  elements.toggleWritingMode.setAttribute("aria-pressed", isVertical ? "true" : "false");
-}
+// 移行済み: updateWritingModeToggleLabel
 
 async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   if (nextWritingMode) {
@@ -3129,9 +1441,9 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
 
-  updateWritingModeToggleLabel();
-  updateReadingDirectionEpubButtonLabel();
-  updateFloatingUIButtons();
+  renderers.updateWritingModeToggleLabel();
+  renderers.updateReadingDirectionEpubButtonLabel();
+  renderers.updateFloatingUIButtons();
 
   // [修正] ローディング表示を追加し、レンダリングを待機
   const isEpubOpen = currentBookInfo?.type === BOOK_TYPES.EPUB;
@@ -3143,8 +1455,8 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
 
   try {
     await reader.applyReadingDirection(writingMode, pageDirection);
-    updateProgressBarDirection();
-    updateEpubScrollMode();
+    renderers.updateProgressBarDirection();
+    renderers.updateEpubScrollMode();
     storage.setSettings({ writingMode, pageDirection });
     persistReadingState({ writingMode, pageDirection });
   } catch (error) {
@@ -3169,25 +1481,14 @@ function applyLibraryViewMode(mode) {
 function applyProgressDisplayMode(mode) {
   progressDisplayMode = mode;
   storage.setSettings({ progressDisplayMode: mode });
-  updateProgressBarDisplay();
-  renderBookmarkMarkers();
+  renderers.updateProgressBarDisplay();
+  renderers.renderBookmarkMarkers();
 }
 
 
 
 async function pushCurrentBookSync() {
-  if (!currentBookId || !currentCloudBookId) return;
-  if (!isCloudSyncEnabled()) return;
-  const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-  const result = await cloudSync.pushState(
-    currentCloudBookId,
-    payload.state,
-    payload.updatedAt
-  );
-  if (result) {
-    storage.setSettings({ lastSyncAt: Date.now() });
-    updateSyncStatusDisplay();
-  }
+  await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
 }
 
 function toggleAutoSync(enabled) {
@@ -3216,8 +1517,8 @@ function toggleAutoSync(enabled) {
   }
 }
 
-function shouldEnableAutoSync(authStatus = checkAuthStatus()) {
-  return isCloudSyncEnabled(authStatus);
+function shouldEnableAutoSync() {
+  return syncLogic.isCloudSyncEnabled();
 }
 
 function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
@@ -3267,8 +1568,8 @@ async function importData(file) {
   try {
     const text = await file.text();
     storage.importData(text);
-    renderLibrary();
-    renderHistory();
+    renderers.renderLibrary();
+    renderers.renderHistory();
     alert("データを読み込みました");
   } catch (error) {
     alert("データの読み込みに失敗しました: " + error.message);
@@ -3412,7 +1713,7 @@ function showLibrary() {
   pendingDeletes.clear();
 
   openModal(elements.openFileModal);
-  renderLibrary();
+  renderers.renderLibrary();
 
   // モーダルの閉じるボタンにイベントを追加
   const closeHandler = async () => {
@@ -3450,20 +1751,20 @@ function showSearch() {
 
 function showBookmarks() {
   bookmarkMenuMode = "all";
-  renderBookmarks(bookmarkMenuMode);
+  renderers.renderBookmarks(bookmarkMenuMode);
   openExclusiveMenu(elements.bookmarkMenu);
 }
 
 function showHistory() {
   openExclusiveMenu(elements.historyModal);
-  renderHistory();
+  renderers.renderHistory();
 }
 
 function showSettings() {
   openExclusiveMenu(elements.settingsModal);
   const currentSettings = storage.getSettings();
 
-  updateAuthStatusDisplay();
+  renderers.updateAuthStatusDisplay();
 }
 
 // ========================================
@@ -3536,14 +1837,14 @@ function setupEvents() {
   // 見開き/単ページ切替ボタン
   elements.toggleSpreadMode?.addEventListener('click', () => {
     reader.toggleImageViewMode();
-    updateSpreadModeButtonLabel();
+    renderers.updateSpreadModeButtonLabel();
   });
 
   // 左開き/右開き切替ボタン (画像用)
   elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     reader.toggleImageReadingDirection();
-    updateReadingDirectionButtonLabel();
-    updateProgressBarDirection();
+    renderers.updateReadingDirectionButtonLabel();
+    renderers.updateProgressBarDirection();
   });
 
   // 左開き/右開き切替ボタン (EPUB用)
@@ -3592,12 +1893,12 @@ function setupEvents() {
 
   elements.floatBackdrop?.addEventListener('click', (e) => {
     e.stopPropagation();
-    toggleFloatOverlay(false);
+    renderers.toggleFloatOverlay(false);
   });
 
   elements.openToc?.addEventListener('click', () => {
     if (!currentBookInfo || currentBookInfo.type !== BOOK_TYPES.EPUB) return;
-    openModal(elements.tocModal);
+    openExclusiveMenu(elements.tocModal);
   });
 
   // ファイル選択
@@ -3720,7 +2021,7 @@ function setupEvents() {
       }
 
       // Pull index
-      await syncAllBooksFromCloud();
+      await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
 
       // If a book is open, sync its state
       if (currentBookId && currentCloudBookId) {
@@ -3976,10 +2277,10 @@ function init() {
   syncAutoSyncPolicy();
 
   // ライブラリレンダリング
-  renderLibrary();
+  renderers.renderLibrary();
 
   // 検索ボタンの状態を更新
-  updateSearchButtonState();
+  renderers.updateSearchButtonState();
 
   console.log("Epub Reader initialized");
 }
@@ -4016,7 +2317,7 @@ function startAfterDomReady() {
 }
 
 window.addEventListener("auth:login", () => {
-  handleAuthLogin().catch((error) => {
+  syncLogic.handleAuthLogin().catch((error) => {
     console.error("同期データの取得に失敗しました:", error);
   });
 });

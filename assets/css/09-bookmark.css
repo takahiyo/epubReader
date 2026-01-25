@@ -1,0 +1,339 @@
+/* ========================================
+   しおりメニュー�E�モーダル�E�E
+======================================== */
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu.bookmark-menu
+- JS: assets/ui.js（visible クラス付与）
+- STATE: なし
+- LAYER: z-index（--z-bookmark-menu）
+- SPLIT: GROUP
+===================================== */
+.bookmark-menu {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-bookmark-menu);
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu.bookmark-menu.visible
+- JS: assets/ui.js（visible クラス付与/解除）
+- STATE: .visible
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.bookmark-menu.visible {
+  display: flex;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .modal-content
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-menu .modal-content {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .modal-header
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-menu .modal-header {
+  margin-bottom: 1rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .modal-header h3
+- JS: assets/js/ui/renderers.js（タイトル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-menu .modal-header h3 {
+  font-size: 1.25rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-section
+- JS: assets/js/ui/renderers.js（目次描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.toc-section {
+  margin-bottom: 1rem;
+  padding: 0 1.5rem 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-title
+- JS: assets/js/ui/renderers.js（目次タイトル）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.toc-title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-list
+- JS: assets/js/ui/renderers.js（目次リスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.toc-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-item
+- JS: assets/js/ui/renderers.js（目次リスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.toc-item {
+  width: 100%;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-link
+- JS: assets/app.js（目次ジャンプ）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.toc-link {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .toc-link:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.toc-link:hover {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-list
+- JS: assets/js/ui/renderers.js（しおりリスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-item
+- JS: assets/js/ui/renderers.js（しおりリスト描画）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(139, 92, 246, 0.05);
+  border: 1px solid var(--border);
+  border-left: 4px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-item:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.bookmark-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-info
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-info {
+  flex: 1;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-label
+- JS: assets/js/ui/renderers.js（ラベル更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-meta
+- JS: assets/js/ui/renderers.js（メタ情報更新）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-meta {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-color-dot
+- JS: assets/js/ui/renderers.js（色表示）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-delete
+- JS: assets/app.js（削除操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.bookmark-delete {
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.25rem;
+  transition: color 0.2s ease;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .bookmark-delete:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.bookmark-delete:hover {
+  color: #ef4444;
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .add-bookmark-btn
+- JS: assets/app.js（追加処理）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.add-bookmark-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+/* =====================================
+[REF]
+- HTML: #bookmarkMenu .add-bookmark-btn:hover
+- JS: なし
+- STATE: :hover
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.add-bookmark-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+}
