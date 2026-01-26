@@ -73,6 +73,11 @@ export const UI_STRINGS_EN = Object.freeze({
   settingsLayoutDirectionRtl: "Right to Left (Vertical)",
   settingsLayoutDirectionLtr: "Left to Right (Horizontal)",
 
+  // Default Settings
+  settingsDefaultWritingModeLabel: "Default Writing Mode",
+  settingsDefaultPageDirectionLabel: "Default Page Direction",
+  settingsDefaultImageViewModeLabel: "Default View Mode",
+
   // Account
   settingsAccountTitle: "Account",
   settingsDeviceTitle: "Device",

@@ -2,6 +2,7 @@ import {
   READING_DIRECTIONS,
   THEME_MODES,
   WRITING_MODES,
+  IMAGE_VIEW_MODES,
 } from "./reader.js";
 
 // ============================================
@@ -28,6 +29,7 @@ export const UI_DEFAULTS = Object.freeze({
   progressDisplayMode: "page",
   defaultDirection: READING_DIRECTIONS.RTL,
   libraryViewMode: "grid",
+  imageViewMode: IMAGE_VIEW_MODES.SINGLE,
   writingMode: WRITING_MODES.HORIZONTAL,
   pageDirection: READING_DIRECTIONS.LTR,
   bookmarkMenuMode: "current",
@@ -193,7 +195,9 @@ export const DOM_IDS = Object.freeze({
   THEME_SELECT: "themeSelect",
   WRITING_MODE_SELECT: "writingMode",
   PAGE_DIRECTION_SELECT: "pageDirection",
-  SETTINGS_DEFAULT_DIRECTION: "settingsDefaultDirection",
+  SETTINGS_DEFAULT_WRITING_MODE: "settingsDefaultWritingMode",
+  SETTINGS_DEFAULT_PAGE_DIRECTION: "settingsDefaultPageDirection",
+  SETTINGS_DEFAULT_IMAGE_VIEW_MODE: "settingsDefaultImageViewMode",
   PROGRESS_DISPLAY_MODE: "progressDisplayMode",
   EXPORT_DATA_BTN: "exportDataBtn",
   IMPORT_DATA_INPUT: "importDataInput",
@@ -214,7 +218,9 @@ export const DOM_IDS = Object.freeze({
   SETTINGS_MODAL_TITLE: "settingsModalTitle",
   SETTINGS_DISPLAY_TITLE: "settingsDisplayTitle",
   SETTINGS_DEVICE_TITLE: "settingsDeviceTitle",
-  SETTINGS_DEFAULT_DIRECTION_LABEL: "settingsDefaultDirectionLabel",
+  SETTINGS_DEFAULT_WRITING_MODE_LABEL: "settingsDefaultWritingModeLabel",
+  SETTINGS_DEFAULT_PAGE_DIRECTION_LABEL: "settingsDefaultPageDirectionLabel",
+  SETTINGS_DEFAULT_IMAGE_VIEW_MODE_LABEL: "settingsDefaultImageViewModeLabel",
   THEME_LABEL: "themeLabel",
   WRITING_MODE_LABEL: "writingModeLabel",
   PAGE_DIRECTION_LABEL: "pageDirectionLabel",

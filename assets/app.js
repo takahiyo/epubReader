@@ -79,7 +79,9 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = UI_DEFAULTS.writingMode;
 if (!pageDirection) pageDirection = UI_DEFAULTS.pageDirection;
-let defaultDirection = settings.defaultDirection ?? UI_DEFAULTS.defaultDirection;
+let defaultWritingMode = settings.defaultWritingMode ?? UI_DEFAULTS.writingMode;
+let defaultPageDirection = settings.defaultPageDirection ?? UI_DEFAULTS.defaultDirection;
+let defaultImageViewMode = settings.defaultImageViewMode ?? UI_DEFAULTS.imageViewMode;
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
@@ -600,7 +602,7 @@ async function handleFile(file) {
       // [追加] デフォルトの開き方向を適用
       // 保存された進行状況に方向が含まれていないため、常にデフォルト（またはユーザー設定）を適用
       // ※将来的には個別の方向保存に対応する可能性があるが、現状はデフォルト設定を使用
-      reader.setImageReadingDirection(defaultDirection);
+      reader.setImageReadingDirection(defaultPageDirection);
       renderers.updateReadingDirectionButtonLabel();
       renderers.updateProgressBarDirection();
     }
@@ -809,13 +811,26 @@ function persistReadingState(update) {
 
 async function applyReadingState(progress) {
   if (!progress) return;
-  if (progress.writingMode && progress.writingMode !== writingMode) {
+
+  // 1. 書字方向・開き方向の復元
+  if (progress.writingMode) {
     writingMode = progress.writingMode;
-    if (elements.writingModeSelect) {
-      elements.writingModeSelect.value = writingMode;
-    }
-    await applyReadingSettings(writingMode, pageDirection);
+    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   }
+  if (progress.pageDirection) {
+    pageDirection = progress.pageDirection;
+    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  }
+  // 両方を適用
+  await applyReadingSettings(writingMode, pageDirection);
+
+  // 2. 表示モード（単ページ/見開き）の復元
+  if (progress.imageViewMode && reader) {
+    reader.imageViewMode = progress.imageViewMode;
+    renderers.updateSpreadModeButtonLabel();
+  }
+
+  // 3. テーマ・フォント等の復元
   if (progress.theme && progress.theme !== theme) {
     applyTheme(progress.theme);
   }
@@ -837,6 +852,8 @@ function handleProgress(progress) {
     fontSize,
     theme,
     uiLanguage,
+    pageDirection,
+    imageViewMode: reader?.imageViewMode,
   });
   scheduleAutoSyncPush();
   renderers.updateProgressBarDisplay();
@@ -892,15 +909,42 @@ function handleBookReady(payload) {
   currentToc = toc;
 
   // 方向判定とUI更新
+  // 方向判定とUI更新
   if (currentBookInfo.type === BOOK_TYPES.EPUB) {
-    // メタデータから方向を取得（設定値があればそちらを優先）
-    const metadataDirection = metadata.direction;
-    if (metadataDirection && !userOverrodeDirection) {
-      pageDirection = metadataDirection;
-      if (elements.pageDirectionSelect) {
-        elements.pageDirectionSelect.value = pageDirection;
-      }
+    const settings = storage.getSettings();
+    const progress = storage.getProgress(currentBookId);
+
+    // 優先順位: 1. 個別保存設定 > 2. メタデータ > 3. ユーザーデフォルト
+    let targetPageDirection = progress?.pageDirection;
+    let targetWritingMode = progress?.writingMode;
+
+    // 1. 個別設定がない場合、メタデータをチェック
+    if (!targetPageDirection && metadata.direction) {
+      targetPageDirection = metadata.direction;
     }
+
+    // 2. まだ決まっていない場合、デフォルト設定を使用
+    if (!targetPageDirection) {
+      targetPageDirection = settings.defaultPageDirection;
+    }
+    if (!targetWritingMode) {
+      targetWritingMode = settings.defaultWritingMode;
+    }
+
+    // 適用（ユーザーによる一時的な変更フラグがある場合は無視...しないほうが良いかも？
+    // ユーザーが「今」変更したならそれが最優先だが、userOverrodeDirection はどういうスコープ？
+    // handleBookReady は本を開いた直後に来るはず。
+
+    if (!userOverrodeDirection) {
+      pageDirection = targetPageDirection;
+      writingMode = targetWritingMode || writingMode;
+
+      if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+      if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+
+      applyReadingSettings(writingMode, pageDirection);
+    }
+
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
   }
 
@@ -1327,8 +1371,14 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
-  if (elements.settingsDefaultDirectionLabel) {
-    elements.settingsDefaultDirectionLabel.textContent = strings.settingsDefaultDirectionLabel;
+  if (elements.settingsDefaultWritingModeLabel) {
+    elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
+  }
+  if (elements.settingsDefaultPageDirectionLabel) {
+    elements.settingsDefaultPageDirectionLabel.textContent = strings.settingsDefaultPageDirectionLabel;
+  }
+  if (elements.settingsDefaultImageViewModeLabel) {
+    elements.settingsDefaultImageViewModeLabel.textContent = strings.settingsDefaultImageViewModeLabel;
   }
   if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
@@ -1404,10 +1454,23 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.progressDisplayPage;
     if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
   }
-  if (elements.settingsDefaultDirection) {
-    const options = elements.settingsDefaultDirection.options;
-    if (options[0]) options[0].textContent = strings.settingsLayoutDirectionRtl;
-    if (options[1]) options[1].textContent = strings.settingsLayoutDirectionLtr;
+  if (elements.settingsDefaultWritingMode) {
+    const options = elements.settingsDefaultWritingMode.options;
+    if (options[0]) options[0].textContent = strings.writingModeHorizontal; // "横書き"
+    if (options[1]) options[1].textContent = strings.writingModeVertical;   // "縦書き"
+    elements.settingsDefaultWritingMode.value = defaultWritingMode;
+  }
+  if (elements.settingsDefaultPageDirection) {
+    const options = elements.settingsDefaultPageDirection.options;
+    if (options[0]) options[0].textContent = strings.pageDirectionRtl; // "右開き"
+    if (options[1]) options[1].textContent = strings.pageDirectionLtr; // "左開き"
+    elements.settingsDefaultPageDirection.value = defaultPageDirection;
+  }
+  if (elements.settingsDefaultImageViewMode) {
+    const options = elements.settingsDefaultImageViewMode.options;
+    if (options[0]) options[0].textContent = strings.spreadModeSingle; // "単ページ"
+    if (options[1]) options[1].textContent = strings.spreadModeDouble; // "見開き"
+    elements.settingsDefaultImageViewMode.value = defaultImageViewMode;
   }
   if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
   if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
@@ -1977,9 +2040,19 @@ function setupEvents() {
     await applyReadingSettings(null, e.target.value);
   });
 
-  elements.settingsDefaultDirection?.addEventListener('change', (e) => {
-    defaultDirection = e.target.value;
-    storage.setSettings({ defaultDirection });
+  elements.settingsDefaultWritingMode?.addEventListener('change', (e) => {
+    defaultWritingMode = e.target.value;
+    storage.setSettings({ defaultWritingMode });
+  });
+
+  elements.settingsDefaultPageDirection?.addEventListener('change', (e) => {
+    defaultPageDirection = e.target.value;
+    storage.setSettings({ defaultPageDirection });
+  });
+
+  elements.settingsDefaultImageViewMode?.addEventListener('change', (e) => {
+    defaultImageViewMode = e.target.value;
+    storage.setSettings({ defaultImageViewMode });
   });
 
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {

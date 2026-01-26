@@ -391,6 +391,10 @@ export function buildCloudStatePayload(localBookId, cloudBookId) {
             deviceColor: bookmark.deviceColor ?? null,
             updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
         })),
+        // 読書環境の同期
+        writingMode: progress?.writingMode ?? null,
+        pageDirection: progress?.pageDirection ?? null,
+        imageViewMode: progress?.imageViewMode ?? null,
         updatedAt,
     };
     return { cloudBookId, state, updatedAt };
@@ -425,6 +429,10 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
             ...existing,
             location: state.lastCfi ?? existing.location,
             percentage: typeof state.progress === "number" ? state.progress : existing.percentage,
+            // 読書環境の復元
+            writingMode: state.writingMode ?? existing.writingMode,
+            pageDirection: state.pageDirection ?? existing.pageDirection,
+            imageViewMode: state.imageViewMode ?? existing.imageViewMode,
             updatedAt: state.updatedAt ?? Date.now(),
         });
     }

@@ -73,6 +73,11 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsLayoutDirectionRtl: "右開き (縦書き)",
   settingsLayoutDirectionLtr: "左開き (横書き)",
 
+  // デフォルト設定
+  settingsDefaultWritingModeLabel: "デフォルトの書字方向",
+  settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
+  settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
+
   // アカウント
   settingsAccountTitle: "アカウント",
   settingsDeviceTitle: "デバイス",
