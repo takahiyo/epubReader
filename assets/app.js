@@ -765,6 +765,8 @@ async function openFromLibrary(bookId, options = {}) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
 
+      showLoading();
+      await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
       await reader.openEpub(file, { location: start, percentage: startProgress });
     } else {
       // 空の状態を非表示、画像ビューアを表示
