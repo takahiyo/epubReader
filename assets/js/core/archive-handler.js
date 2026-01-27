@@ -246,11 +246,25 @@ export class ArchiveHandler {
   }
 
   /**
+   * @returns {Promise<Array<{ path: string, entry: any }>>}
+   */
+  async listImageEntries() {
+    return [];
+  }
+
+  /**
    * @param {string} path
    * @returns {Promise<Blob>}
    */
   async getFileBlob(path) {
     throw new Error(`getFileBlob not implemented for ${path}`);
+  }
+
+  /**
+   * @returns {string}
+   */
+  getArchiveLabel() {
+    return "ARCHIVE";
   }
 }
 
@@ -276,7 +290,7 @@ export class ZipHandler extends ArchiveHandler {
     const entries = [];
     this.zip.forEach((path, entry) => {
       if (!entry.dir) {
-        entries.push(path);
+        entries.push({ path, entry });
       }
     });
     this.entries = entries;
@@ -287,7 +301,15 @@ export class ZipHandler extends ArchiveHandler {
    * @returns {Promise<string[]>}
    */
   async listImagePaths() {
-    return this.entries.filter((path) => isImagePath(path));
+    const entries = await this.listImageEntries();
+    return entries.map(({ path }) => path);
+  }
+
+  /**
+   * @returns {Promise<Array<{ path: string, entry: any }>>}
+   */
+  async listImageEntries() {
+    return this.entries.filter(({ path }) => isImagePath(path));
   }
 
   /**
@@ -303,6 +325,13 @@ export class ZipHandler extends ArchiveHandler {
       throw new Error(`ZIP内にファイルが見つかりません: ${path}`);
     }
     return entry.async("blob");
+  }
+
+  /**
+   * @returns {string}
+   */
+  getArchiveLabel() {
+    return "ZIP/CBZ";
   }
 }
 
@@ -336,6 +365,14 @@ export class RarHandler extends ArchiveHandler {
    * @returns {Promise<string[]>}
    */
   async listImagePaths() {
+    const entries = await this.listImageEntries();
+    return entries.map(({ path }) => path);
+  }
+
+  /**
+   * @returns {Promise<Array<{ path: string, entry: any }>>}
+   */
+  async listImageEntries() {
     return this.headers
       .map((header) => {
         const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
@@ -343,7 +380,7 @@ export class RarHandler extends ArchiveHandler {
         if (!name || isDir || !isImagePath(name)) {
           return null;
         }
-        return name;
+        return { path: name, entry: header };
       })
       .filter(Boolean);
   }
@@ -371,6 +408,13 @@ export class RarHandler extends ArchiveHandler {
 
     const mimeType = resolveImageMimeType(path);
     return new Blob([data], { type: mimeType });
+  }
+
+  /**
+   * @returns {string}
+   */
+  getArchiveLabel() {
+    return "RAR/CBR";
   }
 }
 

@@ -18,7 +18,6 @@ import {
   READING_DIRECTIONS,
   IMAGE_VIEW_MODES,
   CSS_WRITING_MODES,
-  MIME_TYPES,
   UI_DEFAULTS,
   MEMORY_STRATEGY,
 } from "./constants.js";
@@ -182,7 +181,7 @@ export class ReaderController {
     this.onImageZoom = onImageZoom;
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "zip" | "rar"
+    this.type = null; // "epub" | "image"
     this.archiveHandler = null;
     this.imagePages = [];
     this.imageIndex = 0;
@@ -250,8 +249,9 @@ export class ReaderController {
     }
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "zip" | "rar"
+    this.type = null; // "epub" | "image"
     this.archiveHandler = null;
+    this.revokeImagePages();
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
@@ -301,6 +301,15 @@ export class ReaderController {
       if (slider) slider.value = this.getZoomConfig().min;
     }
     this.updateTransform();
+  }
+
+  revokeImagePages() {
+    if (!this.imagePages?.length) return;
+    this.imagePages.forEach((page) => {
+      if (typeof page === "string" && page.startsWith("blob:")) {
+        URL.revokeObjectURL(page);
+      }
+    });
   }
 
   /**
@@ -1324,23 +1333,23 @@ export class ReaderController {
     void bookType;
     const handler = await createArchiveHandler(file);
     this.archiveHandler = handler;
-    // type: "zip" | "rar" として設定
-    this.type = handler.type;
+    // 画像書庫として扱う
+    this.type = BOOK_TYPES.IMAGE;
     let images = [];
 
     try {
-      const archiveLabel = this.type === BOOK_TYPES.RAR ? "RAR" : "ZIP/CBZ";
+      const archiveLabel = handler.getArchiveLabel();
       console.log(`Processing ${archiveLabel} file: ${file.name}`);
 
-      const imagePaths = await handler.listImagePaths();
-      console.log(`Filtered ${imagePaths.length} image entries from ${archiveLabel}`);
+      const imageEntries = await handler.listImageEntries();
+      console.log(`Filtered ${imageEntries.length} image entries from ${archiveLabel}`);
 
-      if (imagePaths.length === 0) {
+      if (imageEntries.length === 0) {
         console.error("No image files found in archive.");
         throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
       }
 
-      images = imagePaths.map((path) => ({ path }));
+      images = imageEntries.map(({ path, entry }) => ({ path, entry }));
 
       if (!images.length) {
         throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
@@ -1367,7 +1376,7 @@ export class ReaderController {
         memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount,
         images.length
       );
-      console.log(`Preloading ${preloadCount} images to base64...`);
+      console.log(`Preloading ${preloadCount} images to object URLs...`);
 
       for (let index = 0; index < preloadCount; index += 1) {
         await this.convertImageAtIndex(index, { reportError: true });
@@ -1380,7 +1389,7 @@ export class ReaderController {
       if (loadedCount === 0) {
         await this.convertImageAtIndex(this.imageIndex, { reportError: true });
         if (!this.imagePages[this.imageIndex]) {
-          console.error('All preloaded images failed to convert to base64');
+          console.error('All preloaded images failed to convert to object URLs');
           throw new Error("画像の読み込みに失敗しました。最初のページの変換に失敗しました。");
         }
       }
@@ -1394,22 +1403,6 @@ export class ReaderController {
       console.error("Error opening image book:", error);
       throw new Error(`画像書籍の読み込みに失敗しました: ${error.message}`);
     }
-  }
-
-  resolveImageMimeType(path) {
-    const ext = path.split(".").pop()?.toLowerCase();
-    if (ext === "png") return MIME_TYPES.PNG;
-    if (ext === "gif") return MIME_TYPES.GIF;
-    if (ext === "webp") return MIME_TYPES.WEBP;
-    if (ext === "avif") return MIME_TYPES.AVIF;
-    if (ext === "bmp") return MIME_TYPES.BMP;
-    if (ext === "jpg" || ext === "jpeg") return MIME_TYPES.JPEG;
-    return MIME_TYPES.JPEG;
-  }
-
-  async blobToBase64(blob) {
-    const buffer = await blob.arrayBuffer();
-    return this.uint8ToBase64(new Uint8Array(buffer));
   }
 
   async convertImageAtIndex(index, { reportError } = {}) {
@@ -1431,11 +1424,9 @@ export class ReaderController {
         throw new Error("画像データが空です。");
       }
 
-      const base64 = await this.blobToBase64(blob);
-      const mime = this.resolveImageMimeType(image.path);
-      const dataUrl = `data:${mime};base64,${base64}`;
-      this.imagePages[index] = dataUrl;
-      return dataUrl;
+      const objectUrl = URL.createObjectURL(blob);
+      this.imagePages[index] = objectUrl;
+      return objectUrl;
     } catch (error) {
       const pageNumber = index + 1;
       const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）`;
@@ -1501,11 +1492,11 @@ export class ReaderController {
 
     // ★追加: データがまだロードされていない（nullの）場合は、ここで変換処理を実行する
     if (!this.imagePages[index] && !this.imagePageErrors[index]) {
-      // convertImageAtIndex は ZIP/RAR から画像を解凍し、this.imagePages[index] にセットします
+      // convertImageAtIndex はアーカイブから画像を取得し、this.imagePages[index] にセットします
       await this.convertImageAtIndex(index);
     }
 
-    // imagePages[index] が Promise (ZIP解凍待ち) の可能性があるため await する
+    // imagePages[index] が Promise (アーカイブ読込待ち) の可能性があるため await する
     try {
       const src = await this.imagePages[index];
       return src;
@@ -1762,7 +1753,7 @@ export class ReaderController {
   }
 
   isImageBook() {
-    return this.type === BOOK_TYPES.ZIP || this.type === BOOK_TYPES.RAR;
+    return this.type === BOOK_TYPES.IMAGE;
   }
 
   // 現在のページが横長かどうかを確認（Navigation用）
@@ -1786,10 +1777,10 @@ export class ReaderController {
       return;
     }
 
-    const dataUrl = await this.convertImageAtIndex(index, { reportError: true });
-    if (!dataUrl) return;
+    const objectUrl = await this.convertImageAtIndex(index, { reportError: true });
+    if (!objectUrl) return;
     if (currentToken === this.imageLoadToken) {
-      this.imageElement.src = dataUrl;
+      this.imageElement.src = objectUrl;
       this.imageElement.alt = "ページ画像";
       this.imageElement.title = "";
     }
@@ -1972,7 +1963,7 @@ export class ReaderController {
       cfi,
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
       createdAt: Date.now(),
-      bookType: this.type, // "zip" | "rar"
+      bookType: this.type, // "image"
     };
     if (deviceId !== undefined) bookmark.deviceId = deviceId;
     if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
@@ -2019,7 +2010,7 @@ export class ReaderController {
         const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
         this.pageController.goTo(index);
       }
-    } else if (bookType === BOOK_TYPES.ZIP || bookType === BOOK_TYPES.RAR || bookType === BOOK_TYPES.IMAGE) {
+    } else if (bookType !== BOOK_TYPES.EPUB) {
       // 画像書庫: location は imageIndex
       const targetIndex = typeof bookmark.location === "number"
         ? bookmark.location
@@ -2196,15 +2187,6 @@ export class ReaderController {
     };
   }
 
-  uint8ToBase64(uint8) {
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < uint8.length; i += chunkSize) {
-      binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
-    }
-    return btoa(binary);
-  }
-
   injectImageZoom() {
     /* Image zoom on click is disabled per user request
     if (this.type === BOOK_TYPES.EPUB) {
@@ -2261,8 +2243,8 @@ export class ReaderController {
   // ========================================
 
   getActiveViewer() {
-    // 画像モード（zip/rar）なら imageViewer
-    if (this.type === BOOK_TYPES.ZIP || this.type === BOOK_TYPES.RAR) {
+    // 画像モードなら imageViewer
+    if (this.isImageBook()) {
       return this.imageViewer;
     }
     // EPUBなら viewer
