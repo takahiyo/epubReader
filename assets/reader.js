@@ -21,9 +21,16 @@ import {
   MIME_TYPES,
   FILE_EXTENSIONS,
   UI_DEFAULTS,
+  MEMORY_STRATEGY,
 } from "./constants.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
+const getMemoryStrategy = () => {
+  if (typeof window !== "undefined" && window.EPUB_READER_CONFIG?.MEMORY_STRATEGY) {
+    return window.EPUB_READER_CONFIG.MEMORY_STRATEGY;
+  }
+  return MEMORY_STRATEGY;
+};
 
 class PageController {
   constructor(onChange) {
@@ -1350,7 +1357,11 @@ export class ReaderController {
       this.imagePages = new Array(images.length).fill(null);
       this.imagePageErrors = new Array(images.length).fill(null);
 
-      const preloadCount = Math.min(3, images.length);
+      const memoryStrategy = getMemoryStrategy();
+      const preloadCount = Math.min(
+        memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount,
+        images.length
+      );
       console.log(`Preloading ${preloadCount} images to base64...`);
 
       for (let index = 0; index < preloadCount; index += 1) {
@@ -1568,8 +1579,10 @@ export class ReaderController {
 
     this.loadImagePage(index);
     // プリロード
-    if (index + 1 < this.imagePages.length) {
-      this.loadImagePage(index + 1);
+    const memoryStrategy = getMemoryStrategy();
+    const preloadAheadCount = memoryStrategy.imagePreloadAheadCount;
+    if (index + preloadAheadCount < this.imagePages.length) {
+      this.loadImagePage(index + preloadAheadCount);
     }
 
     if (!isWideSpread) {
@@ -1691,7 +1704,8 @@ export class ReaderController {
     }
 
     // プリロード
-    const preloadStep = this.currentSpreadStep || 1;
+    const memoryStrategy = getMemoryStrategy();
+    const preloadStep = this.currentSpreadStep || memoryStrategy.imagePreloadAheadCount;
     if (targetIndex + preloadStep < this.imagePages.length) {
       // 次の画像データだけ取得しておく（キャッシュ乗る）
       this.getPageDimensions(targetIndex + preloadStep);

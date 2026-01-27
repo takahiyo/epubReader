@@ -69,3 +69,11 @@ export const READER_CONFIG = Object.freeze({
   DEFAULT_LINE_HEIGHT: 1.8,
   LOCATIONS_CHARS_PER_PAGE: 1600,
 });
+
+// ============================================
+// メモリ/キャッシュ戦略
+// ============================================
+export const MEMORY_STRATEGY = Object.freeze({
+  imagePreloadCount: 3,
+  imagePreloadAheadCount: 1,
+});
