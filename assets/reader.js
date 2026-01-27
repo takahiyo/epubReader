@@ -188,6 +188,7 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
     this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
@@ -1331,6 +1332,7 @@ export class ReaderController {
     this.resetReaderState();
     this.toc = [];
     void bookType;
+    this.imageArchiveSize = file?.size ?? 0;
     const handler = await createArchiveHandler(file);
     this.archiveHandler = handler;
     // 画像書庫として扱う
@@ -1426,6 +1428,7 @@ export class ReaderController {
 
       const objectUrl = URL.createObjectURL(blob);
       this.imagePages[index] = objectUrl;
+      this.manageImageCache(index);
       return objectUrl;
     } catch (error) {
       const pageNumber = index + 1;
@@ -1437,6 +1440,36 @@ export class ReaderController {
       }
       return null;
     }
+  }
+
+  getImageCacheSize() {
+    const memoryStrategy = getMemoryStrategy();
+    const cacheSize = memoryStrategy?.CACHE_SIZE ?? MEMORY_STRATEGY.CACHE_SIZE;
+    const largeCacheSize = memoryStrategy?.LARGE_CACHE_SIZE ?? MEMORY_STRATEGY.LARGE_CACHE_SIZE;
+    const largeFileThreshold = memoryStrategy?.LARGE_FILE_THRESHOLD ?? MEMORY_STRATEGY.LARGE_FILE_THRESHOLD;
+    if (this.imageArchiveSize >= largeFileThreshold) {
+      return largeCacheSize;
+    }
+    return cacheSize;
+  }
+
+  manageImageCache(currentIndex) {
+    if (!this.isImageBook() || !this.imagePages.length) return;
+    const cacheSize = this.getImageCacheSize();
+    if (!Number.isFinite(cacheSize) || cacheSize < 0) return;
+
+    const minIndex = Math.max(0, currentIndex - cacheSize);
+    const maxIndex = Math.min(this.imagePages.length - 1, currentIndex + cacheSize);
+
+    this.imagePages.forEach((page, index) => {
+      if (index >= minIndex && index <= maxIndex) return;
+      if (typeof page === "string") {
+        URL.revokeObjectURL(page);
+      }
+      if (page !== null) {
+        this.imagePages[index] = null;
+      }
+    });
   }
 
   showImageConvertError(message) {
@@ -1904,6 +1937,7 @@ export class ReaderController {
       targetIndex = Math.max(0, this.imageIndex - (step || 1));
     }
     await this.goTo(targetIndex);
+    this.manageImageCache(this.imageIndex);
   }
 
   async next(step) {
@@ -1934,6 +1968,7 @@ export class ReaderController {
       targetIndex = Math.min(this.imagePages.length - 1, this.imageIndex + (step || 1));
     }
     await this.goTo(targetIndex);
+    this.manageImageCache(this.imageIndex);
   }
 
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
@@ -1982,6 +2017,7 @@ export class ReaderController {
         // 画像書庫の場合、範囲チェックをして移動
         this.imageIndex = Math.max(0, Math.min(bookmark, this.imagePages.length - 1));
         this.renderImagePage();
+        this.manageImageCache(this.imageIndex);
       }
       return;
     }
@@ -2017,6 +2053,7 @@ export class ReaderController {
         : Math.round((bookmark.percentage / 100) * this.imagePages.length) - 1;
       this.imageIndex = Math.max(0, Math.min(targetIndex, this.imagePages.length - 1));
       this.renderImagePage();
+      this.manageImageCache(this.imageIndex);
     }
   }
 
