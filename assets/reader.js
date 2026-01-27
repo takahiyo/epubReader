@@ -1072,15 +1072,21 @@ export class ReaderController {
         }
 
         try {
-          // Try multiple candidate keys to find the resource
+          // リソース検索用の候補パスを生成
+          // EPUBによってパス形式が異なるため、複数のパターンを試行
+          const filename = url.split('/').pop();
           const candidates = [
             resolvedUrl,
-            resolvedUrl.replace(/^\//, ""), // without leading slash
-            `/${resolvedUrl}`, // with leading slash
-            decodeURIComponent(resolvedUrl), // decoded
-            encodeURI(resolvedUrl), // encoded
-            url // original
-          ];
+            resolvedUrl.replace(/^\//, ""),
+            url,
+            `OEBPS/${url}`,
+            `OEBPS/${resolvedUrl}`,
+            filename,
+            `Images/${filename}`,
+            `OEBPS/Images/${filename}`,
+            decodeURIComponent(url),
+            decodeURIComponent(resolvedUrl),
+          ].filter((v, i, a) => v && a.indexOf(v) === i);
 
           let resourceItem = null;
           let foundKey = null;
@@ -1089,7 +1095,7 @@ export class ReaderController {
             try {
               let item = this.book?.resources?.get?.(candidate);
 
-              // If it's a promise, await it to verify it resolves
+              // Promiseの場合は解決を待つ
               if (item && typeof item.then === 'function') {
                 item = await item;
               }
@@ -1100,11 +1106,10 @@ export class ReaderController {
                 break;
               }
             } catch (e) {
-              // try next candidate
+              // 次の候補を試行
             }
           }
 
-          // if (resourceItem?.then) { ... } block is removed as we await inside loop
 
           if (!resourceItem) {
             console.warn("[EPUB Resource] Not found:", {
