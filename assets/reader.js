@@ -124,6 +124,12 @@ const normalizeResourceFilenameKey = (filename) => {
   const encoded = normalizeResourceEncoding(filename);
   return encoded.replace(/\.[^./?#]+$/, (ext) => ext.toLowerCase());
 };
+const normalizeZipEntryKey = (value, { lowerCase = false } = {}) => {
+  if (!value) return value;
+  const decoded = safeDecodeURIComponent(value);
+  const normalized = decoded.replace(/\\/g, "/");
+  return lowerCase ? normalized.toLowerCase() : normalized;
+};
 
 class PageController {
   constructor(onChange) {
@@ -196,6 +202,7 @@ export class ReaderController {
     this.currentPageIndex = 0;
     this.usingPaginator = false;
     this.resourceUrlCache = new Map();
+    this.zipFileKeyMap = null;
     this.resourceLoader = null;
     this.pageContainer = null;
     this.fontSize = null;
@@ -264,6 +271,7 @@ export class ReaderController {
     this.usingPaginator = false;
     this.resourceUrlCache.forEach((url) => URL.revokeObjectURL(url));
     this.resourceUrlCache.clear();
+    this.zipFileKeyMap = null;
     this.resourceLoader = null;
     this.pageContainer = null;
     this.spineItems = [];
@@ -373,6 +381,29 @@ export class ReaderController {
     }
     console.log("JSZip loaded successfully (local)");
     return localJszip;
+  }
+
+  getZipFileKeyMap() {
+    if (this.zipFileKeyMap) {
+      return this.zipFileKeyMap;
+    }
+    const zipFiles = this.book?.archive?.zip?.files;
+    if (!zipFiles) {
+      return null;
+    }
+    const map = new Map();
+    for (const key of Object.keys(zipFiles)) {
+      const normalized = normalizeZipEntryKey(key);
+      if (normalized && !map.has(normalized)) {
+        map.set(normalized, key);
+      }
+      const lower = normalizeZipEntryKey(key, { lowerCase: true });
+      if (lower && !map.has(lower)) {
+        map.set(lower, key);
+      }
+    }
+    this.zipFileKeyMap = map;
+    return map;
   }
 
   async loadJSZipFromCdn(isPlaceholder) {
@@ -1190,6 +1221,34 @@ export class ReaderController {
               }
             } catch (e) {
               // あいまい検索失敗
+            }
+          }
+
+          if (!resourceItem) {
+            const zip = this.book?.archive?.zip;
+            const zipFileKeyMap = this.getZipFileKeyMap();
+            if (zip && zipFileKeyMap) {
+              const zipKeySeeds = [
+                resolvedUrl,
+                url,
+                safeDecodeURIComponent(url),
+                safeDecodeURIComponent(resolvedUrl),
+              ];
+              const zipKeys = zipKeySeeds
+                .map((value) => normalizeZipEntryKey(value))
+                .filter((value, index, array) => value && array.indexOf(value) === index);
+
+              for (const key of zipKeys) {
+                const lookupKey = normalizeZipEntryKey(key, { lowerCase: true });
+                const realKey = zipFileKeyMap.get(key) ?? zipFileKeyMap.get(lookupKey);
+                if (!realKey) continue;
+                const fileEntry = zip.file(realKey);
+                if (!fileEntry) continue;
+                const blob = await fileEntry.async("blob");
+                const objectUrl = URL.createObjectURL(blob);
+                this.resourceUrlCache.set(resolvedUrl, objectUrl);
+                return objectUrl;
+              }
             }
           }
 
