@@ -19,10 +19,10 @@ import {
   IMAGE_VIEW_MODES,
   CSS_WRITING_MODES,
   MIME_TYPES,
-  FILE_EXTENSIONS,
   UI_DEFAULTS,
   MEMORY_STRATEGY,
 } from "./constants.js";
+import { createArchiveHandler } from "./js/core/archive-handler.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 const getMemoryStrategy = () => {
@@ -84,6 +84,7 @@ export class ReaderController {
     this.rendition = null;
     this.book = null;
     this.type = null; // "epub" | "zip" | "rar"
+    this.archiveHandler = null;
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
@@ -150,6 +151,7 @@ export class ReaderController {
     this.rendition = null;
     this.book = null;
     this.type = null; // "epub" | "zip" | "rar"
+    this.archiveHandler = null;
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
@@ -1180,162 +1182,26 @@ export class ReaderController {
   async openImageBook(file, startPage = 0, bookType = null) {
     this.resetReaderState();
     this.toc = [];
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar =
-      bookType === BOOK_TYPES.RAR ||
-      ext === FILE_EXTENSIONS.RAR ||
-      ext === FILE_EXTENSIONS.CBR ||
-      file.type === MIME_TYPES.RAR ||
-      file.type === MIME_TYPES.CBR ||
-      file.type === MIME_TYPES.RAR_LEGACY;
+    void bookType;
+    const handler = await createArchiveHandler(file);
+    this.archiveHandler = handler;
     // type: "zip" | "rar" として設定
-    this.type = isRar ? BOOK_TYPES.RAR : BOOK_TYPES.ZIP;
-    const buffer = await file.arrayBuffer();
+    this.type = handler.type;
     let images = [];
 
     try {
-      console.log(`Processing ${isRar ? 'RAR' : 'ZIP/CBZ'} file: ${file.name}`);
-      console.log(`File size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+      const archiveLabel = this.type === BOOK_TYPES.RAR ? "RAR" : "ZIP/CBZ";
+      console.log(`Processing ${archiveLabel} file: ${file.name}`);
 
-      if (isRar) {
-        console.log("Opening RAR file...");
-        const { createExtractorFromData } = await this.ensureUnrar();
-        const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
+      const imagePaths = await handler.listImagePaths();
+      console.log(`Filtered ${imagePaths.length} image entries from ${archiveLabel}`);
 
-        // 1. getFileListの結果から fileHeaders を取得して配列に変換
-        // 修正: v2では戻り値が { arcHeader, fileHeaders } となっているため .fileHeaders にアクセスする
-        const list = extractor.getFileList();
-        const headers = [...list.fileHeaders];
-
-        console.log(`Found ${headers.length} entries in RAR`);
-
-        // デバッグ: 最初の数エントリを表示
-        if (headers.length > 0) {
-          console.log('Sample RAR entries:', headers.slice(0, 3).map(h => ({
-            name: h?.name ?? h?.fileName ?? h?.filename ?? h?.path,
-            isDir: h?.flags?.directory ?? h?.isDirectory ?? h?.directory
-          })));
-        }
-
-        const imageHeaders = headers.filter((header) => {
-          const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
-          if (!name) return false;
-
-          const normalized = name.replace(/\\/g, "/");
-          const fileName = normalized.split("/").pop() ?? "";
-          const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
-
-          if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
-            return false;
-          }
-
-          const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
-          return !isDir && isImage;
-        });
-
-        console.log(`Filtered ${imageHeaders.length} image entries`);
-
-        if (imageHeaders.length === 0) {
-          console.error('No image files found in RAR. Available files:', headers.map(h => h?.name ?? h?.fileName));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
-        }
-
-        const imageNames = imageHeaders
-          .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
-          .filter(Boolean);
-
-        console.log('Extracting images:', imageNames);
-
-        // 2. extractメソッドを使用し、結果から files を取得して配列に変換
-        // 修正: v2では戻り値が { arcHeader, files } となっているため .files にアクセスする
-        const extracted = extractor.extract({ files: imageNames });
-        const extractedFiles = [...extracted.files];
-
-        images = extractedFiles
-          .map((item) => {
-            const header = item?.fileHeader ?? item?.header ?? item;
-            const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
-
-            // 3. データ取得ロジックをv2に対応 (item.extraction が Uint8Array の場合がある)
-            let data = item?.extraction;
-            if (data && data.data) {
-              // 古い構造へのフォールバック
-              data = data.data;
-            } else if (item?.data) {
-              data = item.data;
-            }
-
-            if (!data) {
-              console.warn(`Failed to extract data for: ${name}`);
-              return null;
-            }
-
-            return { path: name, data };
-          })
-          .filter((entry) => entry !== null && entry.path && entry.data);
-
-        console.log(`Successfully extracted ${images.length} images from RAR`);
-      } else {
-        console.log("Opening ZIP/CBZ file...");
-        const JSZipLib = await this.ensureJSZip();
-        // ArrayBuffer を Uint8Array に変換して安全に JSZip に渡す
-        const zipData = new Uint8Array(buffer);
-
-        // 【追加】マジックナンバーの最終確認
-        // ZIP として指定されているが、実際には RAR のシグネチャを持つ場合のフォールバック
-        if (zipData[0] === 0x52 && zipData[1] === 0x61 && zipData[2] === 0x72) {
-          console.warn("ZIP/CBZとして指定されましたがRARの署名を検出しました。RARとして開き直します。");
-          return this.openImageBook(file, startPage, BOOK_TYPES.RAR);
-        }
-
-        const zip = await JSZipLib.loadAsync(zipData).catch(err => {
-          // エラー内容を確認し、RAR の可能性がある場合は再試行を検討
-          if (err.message.includes("end of central directory") || err.message.includes("signature")) {
-            // ここでも念のため再チェック
-            if (zipData[0] === 0x52 && zipData[1] === 0x61 && zipData[2] === 0x72) {
-              return this.openImageBook(file, startPage, BOOK_TYPES.RAR);
-            }
-          }
-          throw err;
-        });
-
-        const entries = [];
-        zip.forEach((path, entry) => {
-          // ディレクトリを除外
-          if (!entry.dir) {
-            entries.push({ path, entry });
-          }
-        });
-
-        console.log(`Found ${entries.length} files in ZIP`);
-
-        // デバッグ: 最初の数エントリを表示
-        if (entries.length > 0) {
-          console.log('Sample ZIP entries:', entries.slice(0, 5).map(e => e.path));
-        }
-
-        images = entries
-          .filter(({ path }) => {
-            const normalized = path.replace(/\\/g, "/");
-            const fileName = normalized.split("/").pop() ?? normalized;
-
-            // 隠しファイルを除外
-            if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
-              return false;
-            }
-
-            const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
-            return isImage;
-          })
-          .map(({ path, entry }) => ({ path, entry }));
-
-        console.log(`Filtered ${images.length} image entries from ZIP`);
-
-        if (images.length === 0) {
-          console.error('No image files found in ZIP. Available files:', entries.map(e => e.path));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
-        }
+      if (imagePaths.length === 0) {
+        console.error("No image files found in archive.");
+        throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
       }
+
+      images = imagePaths.map((path) => ({ path }));
 
       if (!images.length) {
         throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
@@ -1391,6 +1257,22 @@ export class ReaderController {
     }
   }
 
+  resolveImageMimeType(path) {
+    const ext = path.split(".").pop()?.toLowerCase();
+    if (ext === "png") return MIME_TYPES.PNG;
+    if (ext === "gif") return MIME_TYPES.GIF;
+    if (ext === "webp") return MIME_TYPES.WEBP;
+    if (ext === "avif") return MIME_TYPES.AVIF;
+    if (ext === "bmp") return MIME_TYPES.BMP;
+    if (ext === "jpg" || ext === "jpeg") return MIME_TYPES.JPEG;
+    return MIME_TYPES.JPEG;
+  }
+
+  async blobToBase64(blob) {
+    const buffer = await blob.arrayBuffer();
+    return this.uint8ToBase64(new Uint8Array(buffer));
+  }
+
   async convertImageAtIndex(index, { reportError } = {}) {
     if (!this.imageEntries.length) return null;
     if (this.imagePages[index]) return this.imagePages[index];
@@ -1400,30 +1282,18 @@ export class ReaderController {
     if (!image) return null;
 
     try {
-      let base64 = null;
-      if (image.entry) {
-        base64 = await image.entry.async("base64");
-        if (!base64) {
-          throw new Error("base64データが空です。");
-        }
-      } else if (image.data) {
-        if (!image.data || image.data.length === 0) {
-          throw new Error("画像データが空です。");
-        }
-        base64 = this.uint8ToBase64(image.data);
-      } else {
-        throw new Error("変換元データが見つかりませんでした。");
+      const handler = this.archiveHandler;
+      if (!handler) {
+        throw new Error("アーカイブハンドラが初期化されていません。");
       }
 
-      const ext = image.path.split(".").pop()?.toLowerCase() ?? "jpeg";
-      const mime =
-        ext === "png" ? "image/png" :
-          ext === "gif" ? "image/gif" :
-            ext === "webp" ? "image/webp" :
-              ext === "avif" ? "image/avif" :
-                ext === "bmp" ? "image/bmp" :
-                  ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-                    "image/jpeg";
+      const blob = await handler.getFileBlob(image.path);
+      if (!blob || blob.size === 0) {
+        throw new Error("画像データが空です。");
+      }
+
+      const base64 = await this.blobToBase64(blob);
+      const mime = this.resolveImageMimeType(image.path);
       const dataUrl = `data:${mime};base64,${base64}`;
       this.imagePages[index] = dataUrl;
       return dataUrl;
