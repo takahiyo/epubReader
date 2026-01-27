@@ -1019,41 +1019,30 @@ export class ReaderController {
           return url;
         }
 
-        // Try book.resolve first (ePub.js built-in)
-        if (this.book?.resolve) {
-          try {
-            const resolved = this.book.resolve(url, spineItem?.href);
-            if (resolved) return resolved;
-          } catch (error) {
-            // ignore and fallback
-          }
-        }
-
-        // Manual resolution with ".." normalization
+        // 手動パス解決（".." の正規化を含む）
         if (spineItem?.href) {
-          // Get base directory from spine item href
+          // spineアイテムのhrefからベースディレクトリを取得
           const baseParts = spineItem.href.split("/").slice(0, -1);
           const base = baseParts.join("/");
 
-          // Combine base and url
+          // ベースとURLを結合
           const combined = base ? `${base}/${url}` : url;
 
-          // Normalize backslashes to forward slashes
+          // バックスラッシュをスラッシュに正規化
           const normalized = combined.replace(/\\/g, "/");
 
-          // Remove query and hash
+          // クエリとハッシュを除去
           const withoutQuery = normalized.split(/[?#]/)[0];
 
-          // Use URL constructor to normalize ".." and "."
+          // URL APIを使用して ".." と "." を正規化
           try {
-            // Prepend a dummy base to use URL API
             const dummyBase = "http://dummy";
             const fullUrl = new URL(withoutQuery, dummyBase);
-            // Extract pathname and remove leading slash
+            // パス名を抽出し、先頭のスラッシュを除去
             const result = fullUrl.pathname.replace(/^\//, "");
             return result;
           } catch (error) {
-            // Fallback: manual ".." removal
+            // フォールバック: 手動で ".." を処理
             const parts = withoutQuery.split("/").filter(p => p && p !== ".");
             const result = [];
             for (const part of parts) {
@@ -1099,7 +1088,7 @@ export class ReaderController {
           for (const candidate of candidates) {
             try {
               let item = this.book?.resources?.get?.(candidate);
-              
+
               // If it's a promise, await it to verify it resolves
               if (item && typeof item.then === 'function') {
                 item = await item;
