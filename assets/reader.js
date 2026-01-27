@@ -1110,6 +1110,31 @@ export class ReaderController {
             }
           }
 
+          // マニフェストからのあいまい検索（フォールバック）
+          if (!resourceItem && this.book?.package?.manifest) {
+            try {
+              const manifest = this.book.package.manifest;
+              const targetFilename = decodeURIComponent(filename);
+
+              const foundItem = Object.values(manifest).find(item => {
+                if (!item.href) return false;
+                const itemHref = decodeURIComponent(item.href);
+                return itemHref === targetFilename || itemHref.endsWith('/' + targetFilename);
+              });
+
+              if (foundItem) {
+                let item = this.book.resources.get(foundItem.href);
+                if (item && typeof item.then === 'function') {
+                  item = await item;
+                }
+                if (item) {
+                  resourceItem = item;
+                }
+              }
+            } catch (e) {
+              // あいまい検索失敗
+            }
+          }
 
           if (!resourceItem) {
             console.warn("[EPUB Resource] Not found:", {
