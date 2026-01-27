@@ -52,6 +52,25 @@ const normalizeRelativePath = (path) => {
     return result.join("/");
   }
 };
+const safeDecodeURIComponent = (value) => {
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+};
+const safeEncodeURI = (value) => {
+  try {
+    return encodeURI(value);
+  } catch (error) {
+    return value;
+  }
+};
+const normalizeResourceEncoding = (value) => {
+  if (!value) return value;
+  const decoded = safeDecodeURIComponent(value);
+  return safeEncodeURI(decoded);
+};
 const normalizeResourcePath = (url, spineItem) => {
   if (!url || /^(https?:|data:|blob:)/i.test(url)) {
     return url;
@@ -84,6 +103,26 @@ const normalizeResourcePath = (url, spineItem) => {
   const shouldResolve = !pathPart.startsWith(`${base}/`) && pathPart !== base;
   const combined = shouldResolve ? `${base}/${pathPart}` : pathPart;
   return normalizeRelativePath(combined);
+};
+const normalizeResourceKey = (url, spineItem, book) => {
+  if (!url || /^(https?:|data:|blob:)/i.test(url)) {
+    return url;
+  }
+
+  const normalized = normalizeResourcePath(url, spineItem);
+  const resolved = book?.path?.resolve ? book.path.resolve(normalized) : normalized;
+  const encoded = normalizeResourceEncoding(resolved);
+  return normalizeRelativePath(encoded);
+};
+const normalizeResourceComparisonKey = (url, spineItem, book) => {
+  const normalized = normalizeResourceKey(url, spineItem, book);
+  if (!normalized) return normalized;
+  return normalized.replace(/\.[^./?#]+$/, (ext) => ext.toLowerCase());
+};
+const normalizeResourceFilenameKey = (filename) => {
+  if (!filename) return filename;
+  const encoded = normalizeResourceEncoding(filename);
+  return encoded.replace(/\.[^./?#]+$/, (ext) => ext.toLowerCase());
 };
 
 class PageController {
@@ -1074,7 +1113,8 @@ export class ReaderController {
           return url;
         }
 
-        const resolvedUrl = normalizeResourcePath(url, spineItem);
+        const resolvedUrl = normalizeResourceKey(url, spineItem, this.book);
+        const resolvedComparisonKey = normalizeResourceComparisonKey(resolvedUrl, spineItem, null);
 
         if (this.resourceUrlCache.has(resolvedUrl)) {
           return this.resourceUrlCache.get(resolvedUrl);
@@ -1083,22 +1123,26 @@ export class ReaderController {
         try {
           // リソース検索用の候補パスを生成
           // EPUBによってパス形式が異なるため、複数のパターンを試行
-          const filename = url.split('/').pop();
-          const candidates = [
+          const filename = url.split("/").pop();
+          const candidateSeeds = [
             resolvedUrl,
-            resolvedUrl.replace(/^\//, ""),
+            resolvedUrl?.replace(/^\//, ""),
             url,
             `OEBPS/${url}`,
             `OEBPS/${resolvedUrl}`,
             filename,
             `Images/${filename}`,
             `OEBPS/Images/${filename}`,
-            decodeURIComponent(url),
-            decodeURIComponent(resolvedUrl),
-          ].filter((v, i, a) => v && a.indexOf(v) === i);
+            safeDecodeURIComponent(url),
+            safeDecodeURIComponent(resolvedUrl),
+            safeEncodeURI(safeDecodeURIComponent(url)),
+            safeEncodeURI(safeDecodeURIComponent(resolvedUrl)),
+          ];
+          const candidates = candidateSeeds
+            .map((candidate) => normalizeResourceKey(candidate, spineItem, this.book))
+            .filter((value, index, array) => value && array.indexOf(value) === index);
 
           let resourceItem = null;
-          let foundKey = null;
 
           for (const candidate of candidates) {
             try {
@@ -1111,7 +1155,6 @@ export class ReaderController {
 
               if (item) {
                 resourceItem = item;
-                foundKey = candidate;
                 break;
               }
             } catch (e) {
@@ -1123,16 +1166,21 @@ export class ReaderController {
           if (!resourceItem && this.book?.package?.manifest) {
             try {
               const manifest = this.book.package.manifest;
-              const targetFilename = decodeURIComponent(filename);
+              const targetFilename = normalizeResourceFilenameKey(filename);
 
               const foundItem = Object.values(manifest).find(item => {
                 if (!item.href) return false;
-                const itemHref = decodeURIComponent(item.href);
-                return itemHref === targetFilename || itemHref.endsWith('/' + targetFilename);
+                const resolvedHref = this.book?.path?.resolve ? this.book.path.resolve(item.href) : item.href;
+                const manifestKey = normalizeResourceComparisonKey(resolvedHref, spineItem, null);
+                if (!manifestKey) return false;
+                return manifestKey === resolvedComparisonKey
+                  || (targetFilename && manifestKey.endsWith("/" + targetFilename));
               });
 
               if (foundItem) {
-                let item = this.book.resources.get(foundItem.href);
+                const resolvedHref = this.book?.path?.resolve ? this.book.path.resolve(foundItem.href) : foundItem.href;
+                const normalizedHref = normalizeResourceKey(resolvedHref, spineItem, null);
+                let item = this.book.resources.get(normalizedHref);
                 if (item && typeof item.then === 'function') {
                   item = await item;
                 }
