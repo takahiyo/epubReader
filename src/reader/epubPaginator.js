@@ -244,17 +244,6 @@ async function measureFits(pageElement, htmlFragment, settings) {
   return overflowHeight <= FIT_TOLERANCE_PX && overflowWidth <= FIT_TOLERANCE_PX;
 }
 
-// [修正] resolveResources関数を強化
-function resolvePath(href, base) {
-  try {
-    const baseUrl = new URL(base, "http://dummy/");
-    const resolvedUrl = new URL(href, baseUrl);
-    return resolvedUrl.pathname.substring(1);
-  } catch (e) {
-    return href;
-  }
-}
-
 async function resolveResources(body, resourceLoader, spineItem) {
   if (!resourceLoader) return;
   const images = Array.from(body.querySelectorAll("img, image"));
@@ -273,8 +262,7 @@ async function resolveResources(body, resourceLoader, spineItem) {
 
     try {
       if (src && !src.startsWith("blob:") && !src.startsWith("data:")) {
-        const resolvedPath = spineItem ? resolvePath(src, spineItem.href) : src;
-        const resolved = await resourceLoader(resolvedPath, spineItem);
+        const resolved = await resourceLoader(src, spineItem);
         if (resolved) {
           img.setAttribute(attrName, resolved);
         }
@@ -288,8 +276,7 @@ async function resolveResources(body, resourceLoader, spineItem) {
             const trimmed = part.trim();
             if (!trimmed) return "";
             const [url, descriptor] = trimmed.split(/\s+/, 2);
-            const resolvedPath = spineItem ? resolvePath(url, spineItem.href) : url;
-            const resolvedUrl = await resourceLoader(resolvedPath, spineItem);
+            const resolvedUrl = await resourceLoader(url, spineItem);
             return descriptor ? `${resolvedUrl} ${descriptor}` : resolvedUrl;
           })
         );

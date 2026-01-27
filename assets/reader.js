@@ -31,6 +31,60 @@ const getMemoryStrategy = () => {
   }
   return MEMORY_STRATEGY;
 };
+const normalizeRelativePath = (path) => {
+  if (!path) return path;
+  const normalized = path.replace(/\\/g, "/");
+  const withoutQuery = normalized.split(/[?#]/)[0];
+  try {
+    const dummyBase = "http://dummy";
+    const fullUrl = new URL(withoutQuery, dummyBase);
+    return fullUrl.pathname.replace(/^\//, "");
+  } catch (error) {
+    const parts = withoutQuery.split("/").filter(p => p && p !== ".");
+    const result = [];
+    for (const part of parts) {
+      if (part === ".." && result.length > 0) {
+        result.pop();
+      } else if (part !== "..") {
+        result.push(part);
+      }
+    }
+    return result.join("/");
+  }
+};
+const normalizeResourcePath = (url, spineItem) => {
+  if (!url || /^(https?:|data:|blob:)/i.test(url)) {
+    return url;
+  }
+
+  const normalized = url.replace(/\\/g, "/");
+  const [pathPart] = normalized.split(/[?#]/);
+
+  if (!spineItem?.href) {
+    return normalizeRelativePath(pathPart);
+  }
+
+  const baseParts = spineItem.href.replace(/\\/g, "/").split("/").slice(0, -1);
+  const base = baseParts.join("/");
+
+  if (!base) {
+    return normalizeRelativePath(pathPart);
+  }
+
+  if (pathPart.startsWith("/")) {
+    return normalizeRelativePath(pathPart.replace(/^\/+/, ""));
+  }
+
+  const isExplicitRelative = pathPart.startsWith("./") || pathPart.startsWith("../");
+  const hasDirectory = pathPart.includes("/");
+  if (!isExplicitRelative && hasDirectory && !pathPart.startsWith(`${base}/`)) {
+    return normalizeRelativePath(pathPart);
+  }
+
+  const shouldResolve = !pathPart.startsWith(`${base}/`) && pathPart !== base;
+  const combined = shouldResolve ? `${base}/${pathPart}` : pathPart;
+  return normalizeRelativePath(combined);
+};
 
 class PageController {
   constructor(onChange) {
@@ -1014,58 +1068,13 @@ export class ReaderController {
       if (this.paginator?.destroy) {
         this.paginator.destroy();
       }
-      const resolveResourceUrl = (url, spineItem) => {
-        if (!url || /^(https?:|data:|blob:)/i.test(url)) {
-          return url;
-        }
-
-        // 手動パス解決（".." の正規化を含む）
-        if (spineItem?.href) {
-          // spineアイテムのhrefからベースディレクトリを取得
-          const baseParts = spineItem.href.split("/").slice(0, -1);
-          const base = baseParts.join("/");
-
-          // ベースとURLを結合
-          const combined = base ? `${base}/${url}` : url;
-
-          // バックスラッシュをスラッシュに正規化
-          const normalized = combined.replace(/\\/g, "/");
-
-          // クエリとハッシュを除去
-          const withoutQuery = normalized.split(/[?#]/)[0];
-
-          // URL APIを使用して ".." と "." を正規化
-          try {
-            const dummyBase = "http://dummy";
-            const fullUrl = new URL(withoutQuery, dummyBase);
-            // パス名を抽出し、先頭のスラッシュを除去
-            const result = fullUrl.pathname.replace(/^\//, "");
-            return result;
-          } catch (error) {
-            // フォールバック: 手動で ".." を処理
-            const parts = withoutQuery.split("/").filter(p => p && p !== ".");
-            const result = [];
-            for (const part of parts) {
-              if (part === ".." && result.length > 0) {
-                result.pop();
-              } else if (part !== "..") {
-                result.push(part);
-              }
-            }
-            return result.join("/");
-          }
-        }
-
-        return url;
-      };
-
       const resourceLoader = async (url, spineItem) => {
         if (!url) return url;
         if (/^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
 
-        const resolvedUrl = resolveResourceUrl(url, spineItem);
+        const resolvedUrl = normalizeResourcePath(url, spineItem);
 
         if (this.resourceUrlCache.has(resolvedUrl)) {
           return this.resourceUrlCache.get(resolvedUrl);
