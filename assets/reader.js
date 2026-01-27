@@ -1098,7 +1098,13 @@ export class ReaderController {
 
           for (const candidate of candidates) {
             try {
-              const item = this.book?.resources?.get?.(candidate);
+              let item = this.book?.resources?.get?.(candidate);
+              
+              // If it's a promise, await it to verify it resolves
+              if (item && typeof item.then === 'function') {
+                item = await item;
+              }
+
               if (item) {
                 resourceItem = item;
                 foundKey = candidate;
@@ -1109,9 +1115,7 @@ export class ReaderController {
             }
           }
 
-          if (resourceItem?.then) {
-            resourceItem = await resourceItem;
-          }
+          // if (resourceItem?.then) { ... } block is removed as we await inside loop
 
           if (!resourceItem) {
             console.warn("[EPUB Resource] Not found:", {
