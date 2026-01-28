@@ -58,6 +58,18 @@ function t(key, uiLanguage) {
     return t_core(key, uiLanguage);
 }
 
+function isEmptySyncResult(result) {
+    if (result == null) return true;
+    if (Array.isArray(result)) return result.length === 0;
+    if (typeof result === "object") return Object.keys(result).length === 0;
+    return false;
+}
+
+function hasIndexData(index) {
+    if (!index || typeof index !== "object") return false;
+    return Object.keys(index).length > 0;
+}
+
 /**
  * クラウド同期が有効かどうかを確認
  */
@@ -148,11 +160,16 @@ export function buildLibraryEntries(uiLanguage) {
 export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
     if (!isCloudSyncEnabled() || !_storage || !_cloudSync) return;
 
+    let didApplyIndex = false;
     try {
         const remote = await _cloudSync.pullIndex();
         const index = remote?.index ?? {};
         const updatedAt = remote?.updatedAt ?? Date.now();
+        const hasRemoteIndex = hasIndexData(index);
         _storage.mergeCloudIndex(index, updatedAt);
+        if (hasRemoteIndex && !isEmptySyncResult(remote)) {
+            didApplyIndex = true;
+        }
 
         const library = _storage.data.library;
         Object.keys(library).forEach((localBookId) => {
@@ -230,8 +247,13 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
         console.warn("ローカル書籍のアップロードに失敗しました:", error);
     }
 
-    _storage.setSettings({ lastSyncAt: Date.now() });
-    uiCallbacks.updateSyncStatusDisplay();
+    if (didApplyIndex) {
+        _storage.setSettings({
+            lastSyncAt: Date.now(),
+            lastIndexSyncAt: Date.now(),
+        });
+        uiCallbacks.updateSyncStatusDisplay();
+    }
     if (uiInitialized) {
         uiCallbacks.renderLibrary();
         uiCallbacks.renderHistory();
@@ -509,7 +531,7 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
     if (!isCloudSyncEnabled() || !_cloudSync) return;
     const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
     const result = await _cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
-    if (result) {
+    if (result && !isEmptySyncResult(result)) {
         _storage.setSettings({ lastSyncAt: Date.now() });
         uiCallbacks.updateSyncStatusDisplay();
     }

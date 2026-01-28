@@ -119,6 +119,15 @@ export class CloudSync {
       throw new Error(json.error);
     }
 
+    const data = json?.data;
+    const isEmptyData =
+      data == null ||
+      (Array.isArray(data) && data.length === 0) ||
+      (typeof data === "object" && !Array.isArray(data) && Object.keys(data).length === 0);
+    if (isEmptyData) {
+      console.warn(`[CloudSync] Empty response data from worker: ${path}`);
+    }
+
     return json?.data ?? json;
   }
 

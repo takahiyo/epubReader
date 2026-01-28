@@ -346,7 +346,7 @@ export function updateSyncStatusDisplay(authStatus) {
             elements.syncStatus.textContent = t("syncNeedsLogin");
             return;
         }
-        const lastSyncAt = _storage.getSettings().lastSyncAt;
+        const lastSyncAt = _storage.getSettings().lastIndexSyncAt;
         if (!lastSyncAt) {
             elements.syncStatus.textContent = t("syncStatusNever");
             return;
