@@ -41,6 +41,18 @@ export const FILE_EXTENSIONS = Object.freeze({
   CBZ: "cbz",
 });
 
+export const ARCHIVE_WARNING_TYPES = Object.freeze({
+  RAR_NO_STREAM: "rar_no_stream",
+  RAR_SOLID_FULL_EXTRACT: "rar_solid_full_extract",
+});
+
+export const ARCHIVE_WARNING_I18N_KEYS = Object.freeze({
+  [ARCHIVE_WARNING_TYPES.RAR_NO_STREAM]: "rarWarningNoStream",
+  [ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT]: "rarWarningSolidFullExtract",
+});
+
+export const ARCHIVE_WARNING_EVENT = "archive-warning";
+
 // ============================================
 // リーダー設定
 // ============================================

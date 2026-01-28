@@ -141,6 +141,9 @@ export const UI_STRINGS_EN = Object.freeze({
     "We found a matching book in the cloud.\\nContinue from the synced position?",
   candidateUseLocal: "Treat as new without syncing",
   closeButtonLabel: "Close",
+  archiveWarningTitle: "RAR notices",
+  rarWarningNoStream: "RAR cannot be streamed, so the entire file is loaded into memory.",
+  rarWarningSolidFullExtract: "Solid RAR archives require full extraction from the beginning, even for mid-pages.",
 
   // Cloud
   libraryCloudMissingBadge: "Not on this device",
