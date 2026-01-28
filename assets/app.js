@@ -50,6 +50,7 @@ import {
   CSS_VARS,
   ASSET_PATHS,
   READER_CONFIG,
+  SYNC_SOURCES,
 } from "./constants.js";
 
 // ========================================
@@ -2130,6 +2131,10 @@ function setupEvents() {
     }
 
     try {
+      const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
+      if (resolvedSource !== SYNC_SOURCES.WORKERS) {
+        storage.setSettings({ source: SYNC_SOURCES.WORKERS });
+      }
       manualSyncButton.disabled = true;
       manualSyncButton.textContent = t('syncInProgress');
       if (syncStatus) {
