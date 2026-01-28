@@ -14,6 +14,7 @@ import {
     CSS_VARS,
     DOM_IDS,
     DOM_SELECTORS,
+    ARCHIVE_WARNING_I18N_KEYS,
     IMAGE_VIEW_MODES,
     READING_DIRECTIONS,
     PROGRESS_CONFIG,
@@ -74,6 +75,42 @@ export function setMaterialIconLabel(button, iconName, labelText) {
     icon.textContent = iconName;
     const label = document.createTextNode(` ${labelText}`);
     button.replaceChildren(icon, label);
+}
+
+export function showArchiveWarnings(warningTypes = []) {
+    if (!elements.archiveWarningBanner) return;
+    const warningKeys = warningTypes
+        .map((type) => ARCHIVE_WARNING_I18N_KEYS[type])
+        .filter(Boolean);
+
+    if (!warningKeys.length) {
+        hideArchiveWarnings();
+        return;
+    }
+
+    if (elements.archiveWarningTitle) {
+        elements.archiveWarningTitle.textContent = t("archiveWarningTitle");
+    }
+    if (elements.archiveWarningClose) {
+        elements.archiveWarningClose.textContent = t("closeButtonLabel");
+        elements.archiveWarningClose.setAttribute("aria-label", t("closeButtonLabel"));
+    }
+    if (elements.archiveWarningList) {
+        const items = warningKeys.map((key) => {
+            const li = document.createElement("li");
+            li.textContent = t(key);
+            return li;
+        });
+        elements.archiveWarningList.replaceChildren(...items);
+    }
+    elements.archiveWarningBanner.classList.remove(UI_CLASSES.HIDDEN);
+}
+
+export function hideArchiveWarnings() {
+    if (!elements.archiveWarningBanner) return;
+    elements.archiveWarningBanner.classList.add(UI_CLASSES.HIDDEN);
+    elements.archiveWarningTitle?.replaceChildren();
+    elements.archiveWarningList?.replaceChildren();
 }
 
 /**

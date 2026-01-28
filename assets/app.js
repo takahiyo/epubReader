@@ -43,6 +43,7 @@ import {
   IMAGE_VIEW_MODES,
   FILESTORE_CONFIG,
   FILE_EXTENSIONS,
+  ARCHIVE_WARNING_EVENT,
   DOM_IDS,
   DOM_SELECTORS,
   CSS_VARS,
@@ -92,6 +93,7 @@ let uiInitialized = false;
 let floatVisible = false;
 let googleLoginReady = false;
 let userOverrodeDirection = false;
+let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
@@ -129,6 +131,26 @@ syncLogic.init({
     applyReadingState,
   },
 });
+
+function setArchiveWarnings(warningTypes = []) {
+  const uniqueTypes = [...new Set(warningTypes)];
+  archiveWarningTypes = uniqueTypes;
+  renderers.showArchiveWarnings(uniqueTypes);
+}
+
+function clearArchiveWarnings() {
+  archiveWarningTypes = [];
+  renderers.hideArchiveWarnings();
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener(ARCHIVE_WARNING_EVENT, (event) => {
+    const warningTypes = event?.detail?.warningTypes ?? [];
+    if (Array.isArray(warningTypes) && warningTypes.length > 0) {
+      setArchiveWarnings(warningTypes);
+    }
+  });
+}
 
 
 
@@ -470,6 +492,7 @@ function handleToggleZoom() {
 // ========================================
 
 async function handleFile(file) {
+  clearArchiveWarnings();
   showLoading();
   userOverrodeDirection = false;
   try {
@@ -685,6 +708,7 @@ function openCloudOnlyBook(cloudBookId) {
 }
 
 async function openFromLibrary(bookId, options = {}) {
+  clearArchiveWarnings();
   showLoading();
   // ★追加: UI描画更新のために少し待機
   await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
@@ -1359,6 +1383,9 @@ function applyUiLanguage(nextLanguage) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
+  if (archiveWarningTypes.length > 0) {
+    renderers.showArchiveWarnings(archiveWarningTypes);
+  }
   if (elements.librarySectionTitle) elements.librarySectionTitle.textContent = strings.librarySectionTitle;
   if (elements.libraryViewGrid) {
     elements.libraryViewGrid.setAttribute("aria-label", strings.libraryViewGridLabel);
@@ -2156,6 +2183,7 @@ function setupEvents() {
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
   elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
+  elements.archiveWarningClose?.addEventListener('click', () => clearArchiveWarnings());
 
   // 検索機能
   const executeSearch = async () => {

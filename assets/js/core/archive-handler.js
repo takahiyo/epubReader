@@ -5,6 +5,8 @@
  */
 
 import {
+  ARCHIVE_WARNING_EVENT,
+  ARCHIVE_WARNING_TYPES,
   BOOK_TYPES,
   CDN_URLS,
   DATA_ATTRS,
@@ -168,6 +170,17 @@ async function ensureJSZip() {
   }
 
   throw new Error("JSZipの読み込みに失敗しました。公式JSZipを配置するかCDNにアクセスできる環境で再試行してください。");
+}
+
+function emitArchiveWarnings(warningTypes = []) {
+  if (typeof document === "undefined" || !warningTypes.length) {
+    return;
+  }
+  document.dispatchEvent(
+    new CustomEvent(ARCHIVE_WARNING_EVENT, {
+      detail: { warningTypes },
+    })
+  );
 }
 
 /**
@@ -358,6 +371,10 @@ export class RarHandler extends ArchiveHandler {
     const headers = [...(list?.fileHeaders ?? [])];
     this.extractor = extractor;
     this.headers = headers;
+    emitArchiveWarnings([
+      ARCHIVE_WARNING_TYPES.RAR_NO_STREAM,
+      ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT,
+    ]);
     return this;
   }
 
