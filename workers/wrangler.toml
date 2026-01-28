@@ -31,3 +31,12 @@ id = "0789b395bb4f418d8edf32ca965aadeb"
 [env.dev.vars]
 FIREBASE_PROJECT_ID = "bookreader-1d3a3"
 ENVIRONMENT = "development"
+# ... (既存の内容はそのまま)
+
+# ==========================================
+# D1 Database バインディング
+# ==========================================
+[[d1_databases]]
+binding = "DB"
+database_name = "bookreader-dev-db"
+database_id = "c92044dd-63fe-4873-aa0a-9987ea17a532"
