@@ -714,9 +714,10 @@ export class ProgressBarHandler {
     document.addEventListener('mouseup', this.handleDragEnd.bind(this));
 
     // タッチ対応
-    this.thumb.addEventListener('touchstart', this.handleDragStart.bind(this));
+    this.thumb.style.touchAction = 'none';
+    this.thumb.addEventListener('touchstart', this.handleDragStart.bind(this), { passive: false });
     document.addEventListener('touchmove', this.handleDragMove.bind(this), { passive: false });
-    document.addEventListener('touchend', this.handleDragEnd.bind(this));
+    document.addEventListener('touchend', this.handleDragEnd.bind(this), { passive: false });
 
     // 進捗トラックをクリックでジャンプ
     this.container.addEventListener('click', (e) => {
