@@ -34,9 +34,9 @@ ENVIRONMENT = "development"
 # ... (既存の内容はそのまま)
 
 # ==========================================
-# D1 Database バインディング
+# D1 Database バインディング (開発用)
 # ==========================================
-[[d1_databases]]
+[[env.dev.d1_databases]]
 binding = "DB"
 database_name = "bookreader-dev-db"
 database_id = "c92044dd-63fe-4873-aa0a-9987ea17a532"
