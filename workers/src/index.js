@@ -1,6 +1,5 @@
-// ==========================================
-// メイン処理
-// ==========================================
+// workers/src/index.js
+
 export default {
   async fetch(request, env, ctx) {
     // CORS対応
@@ -24,35 +23,27 @@ export default {
       const body = await request.json();
       const { idToken, ...data } = body;
 
+      // 簡易認証チェック (UIDの抽出)
       if (!idToken) return errorResponse("Missing ID Token", 401);
-
       const uid = getUidFromToken(idToken);
       if (!uid) return errorResponse("Invalid Token Format", 400);
 
-      // 環境変数からプロジェクトIDを取得
-      const projectId = env.FIREBASE_PROJECT_ID;
-      if (!projectId) return errorResponse("Server Config Error: Missing Project ID", 500);
-
-      // KVバインディングの確認
-      if (!env.KV) return errorResponse("Server Config Error: KV Not Bound", 500);
+      // D1バインディングの確認
+      if (!env.DB) return errorResponse("Server Config Error: DB Not Bound", 500);
 
       let result;
       switch (pathParam) {
         case "/sync/state/pull":
-          // Read-through: KV -> (miss) -> Firestore -> KV
-          result = await pullStateWithCache(env, ctx, projectId, uid, data.cloudBookId, idToken);
+          result = await pullStateD1(env.DB, uid, data.cloudBookId);
           break;
         case "/sync/state/push":
-          // Write-through: Firestore -> KV Update
-          result = await pushStateWithCache(env, ctx, projectId, uid, data.cloudBookId, data.state, idToken);
+          result = await pushStateD1(env.DB, uid, data.cloudBookId, data.state, data.updatedAt);
           break;
         case "/sync/index/pull":
-          // Read-through (差分同期対応)
-          result = await pullIndexWithCache(env, ctx, projectId, uid, idToken, data.since ?? null);
+          result = await pullIndexD1(env.DB, uid, data.since ?? null);
           break;
         case "/sync/index/push":
-          // Write-through
-          result = await pushIndexWithCache(env, ctx, projectId, uid, data.indexDelta, data.updatedAt, idToken);
+          result = await pushIndexD1(env.DB, uid, data.indexDelta, data.updatedAt);
           break;
         default:
           return errorResponse("Unknown Path", 404);
@@ -67,174 +58,86 @@ export default {
 };
 
 // ==========================================
-// KV キャッシュ制御定数・ヘルパー
-// ==========================================
-const CACHE_TTL = 300; // 300秒（5分）キャッシュ
-
-// キー生成ヘルパー
-function getKvKey(uid, type, id = "") {
-  return `user:${uid}:${type}${id ? ":" + id : ""}`;
-}
-
-// ==========================================
-// キャッシュ制御付きロジック (KV + Firestore)
+// D1 操作ロジック
 // ==========================================
 
-async function pullStateWithCache(env, ctx, projectId, uid, bookId, token) {
-  const key = getKvKey(uid, "book", bookId);
+// 書籍状態の取得
+async function pullStateD1(db, uid, bookId) {
+  const result = await db.prepare(`
+    SELECT data FROM book_states WHERE user_id = ? AND book_id = ?
+  `).bind(uid, bookId).first();
 
-  // 1. KVから取得 (高速応答)
-  const cached = await env.KV.get(key, { type: "json" });
-  if (cached) {
-    return cached;
+  if (!result) return {};
+  return JSON.parse(result.data);
+}
+
+// 書籍状態の保存 (Upsert)
+async function pushStateD1(db, uid, bookId, state, updatedAt) {
+  const json = JSON.stringify(state);
+  await db.prepare(`
+    INSERT INTO book_states (user_id, book_id, data, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, book_id) DO UPDATE SET
+      data = excluded.data,
+      updated_at = excluded.updated_at
+  `).bind(uid, bookId, json, updatedAt).run();
+
+  return { status: "success", source: "d1" };
+}
+
+// インデックスの取得 (差分同期対応)
+async function pullIndexD1(db, uid, since = null) {
+  const result = await db.prepare(`
+    SELECT data, updated_at FROM user_indexes WHERE user_id = ?
+  `).bind(uid).first();
+
+  if (!result) return { index: {} };
+
+  const dbUpdatedAt = result.updated_at;
+  
+  // クライアントが持っているデータが最新なら中身を返さない
+  if (since && dbUpdatedAt <= since) {
+    return { unchanged: true, updatedAt: dbUpdatedAt };
   }
 
-  // 2. キャッシュミス時はFirestoreから取得
-  const data = await pullState(projectId, uid, bookId, token);
-
-  // 3. KVに保存 (バックグラウンドで実行)
-  if (data && Object.keys(data).length > 0) {
-    ctx.waitUntil(env.KV.put(key, JSON.stringify(data), { expirationTtl: CACHE_TTL }));
-  }
-
-  return data;
+  const indexData = JSON.parse(result.data);
+  return { ...indexData, updatedAt: dbUpdatedAt }; // dataの中にindexフィールドが含まれる想定
 }
 
-async function pushStateWithCache(env, ctx, projectId, uid, bookId, state, token) {
-  // 1. Firestoreに書き込み (正)
-  const result = await pushState(projectId, uid, bookId, state, token);
+// インデックスの保存 (マージして保存)
+async function pushIndexD1(db, uid, indexDelta, updatedAt) {
+  // 1. 現在のデータを取得
+  const current = await pullIndexD1(db, uid);
+  const currentIndex = current.index || {};
 
-  // 2. KVを即座に更新 (Write-through)
-  const key = getKvKey(uid, "book", bookId);
-  await env.KV.put(key, JSON.stringify(state), { expirationTtl: CACHE_TTL });
+  // 2. マージ (deltaを上書き)
+  const newIndex = { ...currentIndex, ...indexDelta };
+  
+  // 3. 保存するオブジェクト全体を構築
+  const payload = { index: newIndex, updatedAt };
+  const json = JSON.stringify(payload);
 
-  return result;
-}
+  // 4. D1に保存
+  await db.prepare(`
+    INSERT INTO user_indexes (user_id, data, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      data = excluded.data,
+      updated_at = excluded.updated_at
+  `).bind(uid, json, updatedAt).run();
 
-async function pullIndexWithCache(env, ctx, projectId, uid, token, since = null) {
-  const key = getKvKey(uid, "index");
-
-  // 1. KVから取得
-  const cached = await env.KV.get(key, { type: "json" });
-  if (cached) {
-    const cachedUpdatedAt = cached.updatedAt ?? 0;
-    // since指定時: 更新がなければunchangedを返す（Firestoreアクセス回避）
-    if (since && cachedUpdatedAt <= since) {
-      return { unchanged: true, updatedAt: cachedUpdatedAt };
-    }
-    return cached;
-  }
-
-  // 2. キャッシュミス時はFirestoreから取得
-  const data = await pullIndex(projectId, uid, token);
-
-  // 3. KVに保存
-  if (data) {
-    ctx.waitUntil(env.KV.put(key, JSON.stringify(data), { expirationTtl: CACHE_TTL }));
-  }
-
-  // since指定時: Firestoreから取得したデータも更新がなければunchangedを返す
-  const dataUpdatedAt = data?.updatedAt ?? 0;
-  if (since && dataUpdatedAt <= since) {
-    return { unchanged: true, updatedAt: dataUpdatedAt };
-  }
-
-  return data;
-}
-
-async function pushIndexWithCache(env, ctx, projectId, uid, indexDelta, updatedAt, token) {
-  // 1. 最新のインデックスを取得 (KV or Firestore)
-  const current = await pullIndexWithCache(env, ctx, projectId, uid, token);
-
-  // 2. マージ
-  const newIndex = { ...(current.index || {}), ...indexDelta };
-  const finalPayload = { index: newIndex, updatedAt };
-
-  // 3. Firestoreに完全なデータを保存
-  await pushIndexFull(projectId, uid, finalPayload, token);
-
-  // 4. KVを更新 (完成形をセット)
-  const key = getKvKey(uid, "index");
-  await env.KV.put(key, JSON.stringify(finalPayload), { expirationTtl: CACHE_TTL });
-
-  return { status: "success", source: "workers-kv" };
-}
-
-// ==========================================
-// Firestore 操作ロジック
-// ==========================================
-function getBaseUrl(projectId) {
-  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-}
-
-async function pullState(projectId, uid, bookId, token) {
-  const url = `${getBaseUrl(projectId)}/users/${uid}/books/${bookId}`;
-  const res = await fetchFirestore(url, "GET", null, token);
-  if (res.error) {
-    if (res.error.code === 404) return {};
-    throw new Error(res.error.message);
-  }
-  return convertFromFirestore(res.fields || {});
-}
-
-async function pushState(projectId, uid, bookId, state, token) {
-  const url = `${getBaseUrl(projectId)}/users/${uid}/books/${bookId}`;
-  const fields = convertToFirestore(state);
-  const keys = Object.keys(state);
-  const updateMask = keys.map(k => `updateMask.fieldPaths=${k}`).join("&");
-
-  const res = await fetchFirestore(`${url}?${updateMask}`, "PATCH", { fields }, token);
-  if (res.error) throw new Error(res.error.message);
-  return { status: "success", source: "workers" };
-}
-
-async function pullIndex(projectId, uid, token) {
-  const url = `${getBaseUrl(projectId)}/users/${uid}/appData/index`;
-  const res = await fetchFirestore(url, "GET", null, token);
-  if (res.error) {
-    if (res.error.code === 404) return { index: {} };
-    return { index: {} };
-  }
-  return convertFromFirestore(res.fields || {});
-}
-
-// 内部ヘルパー: 完全なIndexデータをFirestoreに保存
-async function pushIndexFull(projectId, uid, fullIndexData, token) {
-  const url = `${getBaseUrl(projectId)}/users/${uid}/appData/index`;
-  const fields = convertToFirestore(fullIndexData);
-
-  // 全フィールドを更新対象にする
-  const updateMask = "updateMask.fieldPaths=index&updateMask.fieldPaths=updatedAt";
-
-  const res = await fetchFirestore(`${url}?${updateMask}`, "PATCH", { fields }, token);
-  if (res.error) throw new Error(res.error.message);
-  return { status: "success" };
+  return { status: "success", source: "d1" };
 }
 
 // ==========================================
 // ユーティリティ
 // ==========================================
-async function fetchFirestore(url, method, body, token) {
-  const opts = {
-    method,
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  const json = await res.json();
-  if (!res.ok) {
-    return { error: json.error || { code: res.status, message: res.statusText } };
-  }
-  return json;
-}
 
 function getUidFromToken(token) {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
+    // 開発用: 署名検証なしでペイロードからUIDを取り出す
     const payload = JSON.parse(atob(parts[1]));
     return payload.user_id || payload.sub;
   } catch (e) {
@@ -244,47 +147,19 @@ function getUidFromToken(token) {
 
 function jsonResponse(data) {
   return new Response(JSON.stringify(data), {
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+    headers: { 
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*" 
+    }
   });
 }
 
 function errorResponse(msg, status = 500) {
   return new Response(JSON.stringify({ error: msg }), {
     status,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+    headers: { 
+      "Content-Type": "application/json", 
+      "Access-Control-Allow-Origin": "*" 
+    }
   });
-}
-
-function convertToFirestore(obj) {
-  if (obj === null || obj === undefined) return { nullValue: null };
-  if (typeof obj === 'string') return { stringValue: obj };
-  if (typeof obj === 'boolean') return { booleanValue: obj };
-  if (typeof obj === 'number') {
-    if (Number.isInteger(obj)) return { integerValue: obj };
-    return { doubleValue: obj };
-  }
-  if (Array.isArray(obj)) return { arrayValue: { values: obj.map(convertToFirestore) } };
-  if (typeof obj === 'object') {
-    const fields = {};
-    Object.keys(obj).forEach(k => fields[k] = convertToFirestore(obj[k]));
-    return { mapValue: { fields } };
-  }
-  return { nullValue: null };
-}
-
-function convertFromFirestore(fields) {
-  const obj = {};
-  Object.keys(fields).forEach(key => obj[key] = parseValue(fields[key]));
-  return obj;
-}
-
-function parseValue(val) {
-  if (val.stringValue !== undefined) return val.stringValue;
-  if (val.integerValue !== undefined) return Number(val.integerValue);
-  if (val.doubleValue !== undefined) return Number(val.doubleValue);
-  if (val.booleanValue !== undefined) return val.booleanValue;
-  if (val.nullValue !== undefined) return null;
-  if (val.arrayValue !== undefined) return (val.arrayValue.values || []).map(parseValue);
-  if (val.mapValue !== undefined) return convertFromFirestore(val.mapValue.fields || {});
-  return null;
 }
