@@ -76,4 +76,7 @@ export const READER_CONFIG = Object.freeze({
 export const MEMORY_STRATEGY = Object.freeze({
   imagePreloadCount: 3,
   imagePreloadAheadCount: 1,
+  CACHE_SIZE: 6,
+  LARGE_CACHE_SIZE: 3,
+  LARGE_FILE_THRESHOLD: 50 * 1024 * 1024,
 });
