@@ -54,7 +54,7 @@ export const ARCHIVE_WARNING_I18N_KEYS = Object.freeze({
 export const ARCHIVE_WARNING_EVENT = "archive-warning";
 
 export const ARCHIVE_WARNING_CONFIG = Object.freeze({
-  AUTO_CLOSE_MS: 5000,
+  AUTO_CLOSE_MS: 2500,
 });
 
 export const ARCHIVE_WORKER_MESSAGES = Object.freeze({
