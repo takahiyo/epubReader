@@ -7,6 +7,10 @@
 import {
   ARCHIVE_WARNING_EVENT,
   ARCHIVE_WARNING_TYPES,
+  ARCHIVE_LIBRARY_ERRORS,
+  ARCHIVE_PROCESSING_ERRORS,
+  ARCHIVE_WORKER_MESSAGES,
+  ASSET_PATHS,
   BOOK_TYPES,
   CDN_URLS,
   DATA_ATTRS,
@@ -137,6 +141,62 @@ async function loadScript(src) {
   });
 }
 
+const isWorkerSupported = () => typeof Worker !== "undefined";
+
+function createRarWorker() {
+  if (!isWorkerSupported()) return null;
+  try {
+    return new Worker(new URL("../workers/rar-worker.js", import.meta.url), { type: "module" });
+  } catch (error) {
+    console.warn(ARCHIVE_LIBRARY_ERRORS.UNRAR_WORKER_FALLBACK, error);
+    return null;
+  }
+}
+
+class ArchiveWorkerClient {
+  constructor(worker) {
+    this.worker = worker;
+    this.requestId = 0;
+    this.pending = new Map();
+
+    this.worker.addEventListener("message", (event) => {
+      const { id, type, payload, error } = event.data || {};
+      if (!id || !this.pending.has(id)) return;
+      const { resolve, reject } = this.pending.get(id);
+      this.pending.delete(id);
+      if (type === ARCHIVE_WORKER_MESSAGES.ERROR) {
+        reject(new Error(error?.message || ARCHIVE_LIBRARY_ERRORS.UNRAR_LOAD_FAILED));
+        return;
+      }
+      resolve(payload);
+    });
+
+    this.worker.addEventListener("error", (event) => {
+      this.rejectAll(new Error(event?.message || ARCHIVE_LIBRARY_ERRORS.UNRAR_LOAD_FAILED));
+    });
+  }
+
+  rejectAll(error) {
+    for (const { reject } of this.pending.values()) {
+      reject(error);
+    }
+    this.pending.clear();
+  }
+
+  request(type, payload, transfer = []) {
+    return new Promise((resolve, reject) => {
+      const id = ++this.requestId;
+      this.pending.set(id, { resolve, reject });
+      this.worker.postMessage({ id, type, payload }, transfer);
+    });
+  }
+
+  terminate() {
+    this.worker?.terminate();
+    this.pending.clear();
+  }
+}
+
 /**
  * @returns {Promise<Object>}
  */
@@ -152,11 +212,15 @@ async function ensureJSZip() {
     return existing;
   }
 
+  if (!existing && typeof document === "undefined") {
+    throw new Error(ARCHIVE_LIBRARY_ERRORS.JSZIP_NOT_FOUND);
+  }
+
   if (existing && isPlaceholder(existing)) {
     console.warn("JSZip vendor file is a placeholder. Loading JSZip from CDN...");
   }
 
-  const sources = [CDN_URLS.JSZIP, CDN_URLS.JSZIP_FALLBACK];
+  const sources = [ASSET_PATHS.VENDOR_JSZIP, CDN_URLS.JSZIP, CDN_URLS.JSZIP_FALLBACK];
   for (const src of sources) {
     try {
       await loadScript(src);
@@ -169,7 +233,7 @@ async function ensureJSZip() {
     }
   }
 
-  throw new Error("JSZipの読み込みに失敗しました。公式JSZipを配置するかCDNにアクセスできる環境で再試行してください。");
+  throw new Error(ARCHIVE_LIBRARY_ERRORS.JSZIP_LOAD_FAILED);
 }
 
 function emitArchiveWarnings(warningTypes = []) {
@@ -197,6 +261,10 @@ async function ensureUnrar() {
     }
   }
 
+  if (typeof window === "undefined") {
+    throw new Error(ARCHIVE_LIBRARY_ERRORS.UNRAR_NOT_FOUND);
+  }
+
   try {
     console.log("Loading node-unrar-js from CDN...");
 
@@ -217,7 +285,7 @@ async function ensureUnrar() {
 
     if (!createExtractor) {
       console.error("Loaded module exports:", module);
-      throw new Error("createExtractorFromData がモジュール内に見つかりません。");
+      throw new Error(ARCHIVE_LIBRARY_ERRORS.UNRAR_NOT_FOUND);
     }
 
     console.log("node-unrar-js loaded successfully.");
@@ -231,7 +299,8 @@ async function ensureUnrar() {
     };
   } catch (error) {
     console.error("RAR Library Load Error:", error);
-    throw new Error(`RARライブラリの読み込みに失敗しました: ${error.message}`);
+    const message = error instanceof Error ? error.message : ARCHIVE_LIBRARY_ERRORS.UNRAR_LOAD_FAILED;
+    throw new Error(message);
   }
 }
 
@@ -357,6 +426,7 @@ export class RarHandler extends ArchiveHandler {
     this.type = BOOK_TYPES.RAR;
     this.extractor = null;
     this.headers = [];
+    this.workerClient = null;
   }
 
   /**
@@ -364,13 +434,29 @@ export class RarHandler extends ArchiveHandler {
    * @returns {Promise<RarHandler>}
    */
   async init() {
-    const { createExtractorFromData } = await ensureUnrar();
     const buffer = await this.file.arrayBuffer();
-    const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
-    const list = extractor.getFileList();
-    const headers = [...(list?.fileHeaders ?? [])];
-    this.extractor = extractor;
-    this.headers = headers;
+    const worker = createRarWorker();
+    if (worker) {
+      const client = new ArchiveWorkerClient(worker);
+      try {
+        const payload = await client.request(ARCHIVE_WORKER_MESSAGES.INIT, { buffer }, [buffer]);
+        this.workerClient = client;
+        this.headers = payload?.headers ?? [];
+      } catch (error) {
+        console.warn(ARCHIVE_LIBRARY_ERRORS.UNRAR_WORKER_FALLBACK, error);
+        client.terminate();
+        this.workerClient = null;
+      }
+    }
+
+    if (!this.workerClient) {
+      const { createExtractorFromData } = await ensureUnrar();
+      const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
+      const list = extractor.getFileList();
+      const headers = [...(list?.fileHeaders ?? [])];
+      this.extractor = extractor;
+      this.headers = headers;
+    }
     emitArchiveWarnings([
       ARCHIVE_WARNING_TYPES.RAR_NO_STREAM,
       ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT,
@@ -407,9 +493,19 @@ export class RarHandler extends ArchiveHandler {
    * @returns {Promise<Blob>}
    */
   async getFileBlob(path) {
-    if (!this.extractor) {
-      throw new Error("RARが初期化されていません。");
+    if (!this.extractor && !this.workerClient) {
+      throw new Error(ARCHIVE_LIBRARY_ERRORS.UNRAR_NOT_FOUND);
     }
+    if (this.workerClient) {
+      const payload = await this.workerClient.request(ARCHIVE_WORKER_MESSAGES.EXTRACT, { path });
+      const buffer = payload?.buffer;
+      if (!buffer) {
+        throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
+      }
+      const mimeType = resolveImageMimeType(path);
+      return new Blob([buffer], { type: mimeType });
+    }
+
     const extracted = this.extractor.extract({ files: [path] });
     const files = [...(extracted?.files ?? [])];
     const item = files.find((entry) => {
@@ -420,7 +516,7 @@ export class RarHandler extends ArchiveHandler {
 
     const data = item?.extraction?.data ?? item?.extraction ?? item?.data ?? null;
     if (!data || data.length === 0) {
-      throw new Error(`RAR内にファイルが見つからないか抽出に失敗しました: ${path}`);
+      throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
     }
 
     const mimeType = resolveImageMimeType(path);

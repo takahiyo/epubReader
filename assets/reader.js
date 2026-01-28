@@ -20,6 +20,8 @@ import {
   CSS_WRITING_MODES,
   UI_DEFAULTS,
   MEMORY_STRATEGY,
+  READER_LOADING_PHASES,
+  READER_LOADING_STATUSES,
 } from "./constants.js";
 import { createArchiveHandler } from "./js/core/archive-handler.js";
 
@@ -169,6 +171,7 @@ export class ReaderController {
     imageElementId,
     pageIndicatorId,
     onProgress,
+    onLoadingUpdate,
     onReady,
     onImageZoom,
   }) {
@@ -177,6 +180,7 @@ export class ReaderController {
     this.imageElement = document.getElementById(imageElementId);
     this.pageIndicator = document.getElementById(pageIndicatorId);
     this.onProgress = onProgress;
+    this.onLoadingUpdate = onLoadingUpdate;
     this.onReady = onReady;
     this.onImageZoom = onImageZoom;
     this.rendition = null;
@@ -231,6 +235,21 @@ export class ReaderController {
     this.bindPanEvents();
     this.bindZoomEvents();
     this.setupZoomSlider();
+  }
+
+  emitLoadingUpdate({ phase, status, current, total } = {}) {
+    if (!this.onLoadingUpdate || !phase || !status) return;
+    const percentage =
+      Number.isFinite(current) && Number.isFinite(total) && total > 0
+        ? Math.round((current / total) * 100)
+        : null;
+    this.onLoadingUpdate({
+      phase,
+      status,
+      current,
+      total,
+      percentage,
+    });
   }
 
   resetReaderState() {
@@ -1333,7 +1352,15 @@ export class ReaderController {
     this.toc = [];
     void bookType;
     this.imageArchiveSize = file?.size ?? 0;
+    this.emitLoadingUpdate({
+      phase: READER_LOADING_PHASES.ARCHIVE_INIT,
+      status: READER_LOADING_STATUSES.START,
+    });
     const handler = await createArchiveHandler(file);
+    this.emitLoadingUpdate({
+      phase: READER_LOADING_PHASES.ARCHIVE_INIT,
+      status: READER_LOADING_STATUSES.COMPLETE,
+    });
     this.archiveHandler = handler;
     // 画像書庫として扱う
     this.type = BOOK_TYPES.IMAGE;
@@ -1343,7 +1370,17 @@ export class ReaderController {
       const archiveLabel = handler.getArchiveLabel();
       console.log(`Processing ${archiveLabel} file: ${file.name}`);
 
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.ARCHIVE_LIST,
+        status: READER_LOADING_STATUSES.START,
+      });
       const imageEntries = await handler.listImageEntries();
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.ARCHIVE_LIST,
+        status: READER_LOADING_STATUSES.COMPLETE,
+        current: imageEntries.length,
+        total: imageEntries.length,
+      });
       console.log(`Filtered ${imageEntries.length} image entries from ${archiveLabel}`);
 
       if (imageEntries.length === 0) {
@@ -1379,9 +1416,21 @@ export class ReaderController {
         images.length
       );
       console.log(`Preloading ${preloadCount} images to object URLs...`);
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
+        status: READER_LOADING_STATUSES.START,
+        current: 0,
+        total: preloadCount,
+      });
 
       for (let index = 0; index < preloadCount; index += 1) {
         await this.convertImageAtIndex(index, { reportError: true });
+        this.emitLoadingUpdate({
+          phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
+          status: READER_LOADING_STATUSES.PROGRESS,
+          current: index + 1,
+          total: preloadCount,
+        });
       }
 
       this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
@@ -1401,8 +1450,18 @@ export class ReaderController {
         metadata: { title: file.name, creator: "画像書籍" },
         toc: [],
       });
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.READY,
+        status: READER_LOADING_STATUSES.COMPLETE,
+        current: this.imageIndex + 1,
+        total: this.imagePages.length,
+      });
     } catch (error) {
       console.error("Error opening image book:", error);
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.ARCHIVE_INIT,
+        status: READER_LOADING_STATUSES.ERROR,
+      });
       throw new Error(`画像書籍の読み込みに失敗しました: ${error.message}`);
     }
   }
@@ -1416,6 +1475,12 @@ export class ReaderController {
     if (!image) return null;
 
     try {
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+        status: READER_LOADING_STATUSES.START,
+        current: index + 1,
+        total: this.imageEntries.length,
+      });
       const handler = this.archiveHandler;
       if (!handler) {
         throw new Error("アーカイブハンドラが初期化されていません。");
@@ -1429,12 +1494,24 @@ export class ReaderController {
       const objectUrl = URL.createObjectURL(blob);
       this.imagePages[index] = objectUrl;
       this.manageImageCache(index);
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+        status: READER_LOADING_STATUSES.COMPLETE,
+        current: index + 1,
+        total: this.imageEntries.length,
+      });
       return objectUrl;
     } catch (error) {
       const pageNumber = index + 1;
       const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）`;
       console.error(message, error);
       this.imagePageErrors[index] = message;
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+        status: READER_LOADING_STATUSES.ERROR,
+        current: index + 1,
+        total: this.imageEntries.length,
+      });
       if (reportError) {
         this.showImageConvertError(message);
       }

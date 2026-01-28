@@ -53,6 +53,27 @@ export const ARCHIVE_WARNING_I18N_KEYS = Object.freeze({
 
 export const ARCHIVE_WARNING_EVENT = "archive-warning";
 
+export const ARCHIVE_WORKER_MESSAGES = Object.freeze({
+  INIT: "archive_worker_init",
+  EXTRACT: "archive_worker_extract",
+  ERROR: "archive_worker_error",
+});
+
+export const READER_LOADING_PHASES = Object.freeze({
+  ARCHIVE_INIT: "archive_init",
+  ARCHIVE_LIST: "archive_list",
+  IMAGE_PRELOAD: "image_preload",
+  IMAGE_CONVERT: "image_convert",
+  READY: "ready",
+});
+
+export const READER_LOADING_STATUSES = Object.freeze({
+  START: "start",
+  PROGRESS: "progress",
+  COMPLETE: "complete",
+  ERROR: "error",
+});
+
 // ============================================
 // リーダー設定
 // ============================================
