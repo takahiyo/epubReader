@@ -2124,7 +2124,7 @@ function setupEvents() {
     if (!authStatus.authenticated) {
       if (syncStatus) {
         syncStatus.textContent = t('syncNeedsLoginStatus');
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
       }
       return;
     }
@@ -2134,7 +2134,7 @@ function setupEvents() {
       manualSyncButton.textContent = t('syncInProgress');
       if (syncStatus) {
         syncStatus.textContent = t('syncStarting');
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
       }
 
       // Pull index
@@ -2147,10 +2147,10 @@ function setupEvents() {
 
       if (syncStatus) {
         syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
         setTimeout(() => {
           syncStatus.textContent = '';
-          setStatusClass(syncStatus, null);
+          renderers.setStatusClass(syncStatus, null);
         }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
@@ -2172,7 +2172,7 @@ function setupEvents() {
         }
 
         syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
 
         // 詳細をアラートでも表示（ユーザーに気づかせるため）
         alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);

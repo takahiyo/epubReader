@@ -4,7 +4,7 @@
  * Firestore SDKへの直接アクセスは廃止されました。
  */
 
-import { SYNC_CONFIG } from "./constants.js";
+import { SYNC_CONFIG, WORKERS_CONFIG } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { t, tReplace } from "./i18n.js";
@@ -54,6 +54,7 @@ export class CloudSync {
       settings?.firebaseEndpoint ||
       settings?.firebaseSyncEndpoint ||
       (typeof window !== "undefined" && window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT) ||
+      WORKERS_CONFIG.SYNC_ENDPOINT ||
       ""
     );
   }
