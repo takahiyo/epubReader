@@ -44,6 +44,7 @@ import {
   FILESTORE_CONFIG,
   FILE_EXTENSIONS,
   ARCHIVE_WARNING_EVENT,
+  ARCHIVE_WARNING_CONFIG,
   DOM_IDS,
   DOM_SELECTORS,
   CSS_VARS,
@@ -70,6 +71,7 @@ let pageDirection = settings.pageDirection;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let progressDisplayMode = settings.progressDisplayMode ?? UI_DEFAULTS.progressDisplayMode;
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
+let archiveWarningTimeoutId = null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
   const legacyConfig = UI_DEFAULTS.legacyDirectionMap[legacyDirection];
@@ -136,11 +138,24 @@ function setArchiveWarnings(warningTypes = []) {
   const uniqueTypes = [...new Set(warningTypes)];
   archiveWarningTypes = uniqueTypes;
   renderers.showArchiveWarnings(uniqueTypes);
+  if (archiveWarningTimeoutId) {
+    clearTimeout(archiveWarningTimeoutId);
+    archiveWarningTimeoutId = null;
+  }
+  if (uniqueTypes.length > 0 && ARCHIVE_WARNING_CONFIG.AUTO_CLOSE_MS > 0) {
+    archiveWarningTimeoutId = setTimeout(() => {
+      clearArchiveWarnings();
+    }, ARCHIVE_WARNING_CONFIG.AUTO_CLOSE_MS);
+  }
 }
 
 function clearArchiveWarnings() {
   archiveWarningTypes = [];
   renderers.hideArchiveWarnings();
+  if (archiveWarningTimeoutId) {
+    clearTimeout(archiveWarningTimeoutId);
+    archiveWarningTimeoutId = null;
+  }
 }
 
 if (typeof document !== "undefined") {
