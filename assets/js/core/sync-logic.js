@@ -263,11 +263,16 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             if (!item?.cloudBookId) continue;
             try {
                 const stateResponse = await _cloudSync.pullState(item.cloudBookId);
-                if (stateResponse?.state) {
-                    _storage.setCloudState(item.cloudBookId, stateResponse.state);
+                // 取得したデータが有効（stateプロパティを持つ、または空ではない）場合のみ適用
+                if (stateResponse && Object.keys(stateResponse).length > 0) {
+                    const stateToApply = stateResponse.state ?? stateResponse;
+                    if (stateToApply && Object.keys(stateToApply).length > 0) {
+                        _storage.setCloudState(item.cloudBookId, stateToApply);
+                    }
                 }
             } catch (error) {
-                console.warn("クラウド状態の取得に失敗しました:", error);
+                // ネットワークエラーなどは警告を出すが、404的な「データなし」は許容する
+                console.log(`[Sync] State not found or skipped for: ${item.cloudBookId}`);
             }
         }
     } catch (error) {
