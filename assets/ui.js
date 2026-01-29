@@ -6,6 +6,7 @@ import {
   TIMING_CONFIG,
   TOUCH_CONFIG,
   UI_CLASSES,
+  UI_TIMING_CONFIG,
   DOM_IDS,
   DOM_SELECTORS,
   WRITING_MODES,
@@ -213,7 +214,7 @@ export class UIController {
         // 処理完了後、フラグをリセット
         setTimeout(() => {
           isProcessing = false;
-        }, TIMING_CONFIG.CLICK_PROCESS_RESET_MS);
+        }, UI_TIMING_CONFIG.CLICK_PROCESS_RESET_MS);
       }
     };
 
@@ -641,7 +642,7 @@ export class UIController {
     document.body.appendChild(overlay);
 
     // 10秒後に自動削除
-    setTimeout(() => overlay.remove(), TIMING_CONFIG.DEBUG_GRID_AUTO_HIDE_MS);
+    setTimeout(() => overlay.remove(), UI_TIMING_CONFIG.DEBUG_GRID_AUTO_HIDE_MS);
   }
 
   /**
