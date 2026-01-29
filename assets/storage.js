@@ -548,6 +548,12 @@ export class StorageService {
     this.save();
   }
 
+  setCloudIndexUpdatedAt(updatedAt) {
+    if (!updatedAt) return;
+    this.data.cloudIndexUpdatedAt = updatedAt;
+    this.save();
+  }
+
   setCloudState(cloudBookId, state) {
     if (!cloudBookId || !state) return;
     const existing = this.data.cloudStates?.[cloudBookId];

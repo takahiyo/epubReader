@@ -406,12 +406,27 @@ export class CloudSync {
     if (resolvedSource === "local") return { source: "local", status: "skipped" };
     // "firebase" means Worker(D1) in this new implementation
     if (resolvedSource === "firebase") {
-        // Full snapshot push to Firebase/Worker is NOT supported in the new D1 logic yet.
-        // D1 logic focuses on per-book 'pushState' and index 'pushIndex'.
-        // If 'push' is called for full backup, we might need a separate endpoint or just skip it.
-        // For now, we skip full backup sync for D1 to encourage granular sync.
-        console.warn("Full backup push is not implemented for D1 backend yet.");
-        return { source: "firebase", status: "skipped_full_backup" };
+      console.log("D1 granular sync starting...");
+      const updatedAt = Date.now();
+      const snapshot = this.storage.snapshot();
+      const indexDelta = snapshot.cloudIndex ?? {};
+      await this.pushIndexDelta(indexDelta, updatedAt, settings);
+
+      const lastBookId = this.storage.data.lastBookId;
+      if (lastBookId) {
+        const state = this.storage.getBookState(lastBookId);
+        if (state) {
+          await this.pushState(lastBookId, state, updatedAt, settings);
+        }
+      }
+
+      if (typeof this.storage.setCloudIndexUpdatedAt === "function") {
+        this.storage.setCloudIndexUpdatedAt(updatedAt);
+      } else {
+        this.storage.data.cloudIndexUpdatedAt = updatedAt;
+        this.storage.save();
+      }
+      return { source: "firebase", status: "success", updatedAt };
     }
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) return { source: "onedrive", status: "unauthenticated" };

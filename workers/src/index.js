@@ -91,7 +91,7 @@ async function pullIndexD1(db, uid, since = null) {
     SELECT data, updated_at FROM user_indexes WHERE user_id = ?
   `).bind(uid).first();
 
-  if (!result) return { index: {} };
+  if (!result || !result.data) return { index: {}, updatedAt: 0 };
 
   const dbUpdatedAt = result.updated_at;
   
@@ -100,8 +100,15 @@ async function pullIndexD1(db, uid, since = null) {
     return { unchanged: true, updatedAt: dbUpdatedAt };
   }
 
-  const indexData = JSON.parse(result.data);
-  return { ...indexData, updatedAt: dbUpdatedAt }; // dataの中にindexフィールドが含まれる想定
+  try {
+    const payload = JSON.parse(result.data);
+    return {
+      index: payload?.index || payload || {},
+      updatedAt: dbUpdatedAt,
+    };
+  } catch (e) {
+    return { index: {}, updatedAt: dbUpdatedAt };
+  }
 }
 
 // インデックスの保存 (マージして保存)
