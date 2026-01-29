@@ -8,6 +8,7 @@ import { SYNC_CONFIG, WORKERS_CONFIG } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { t, tReplace } from "./i18n.js";
+import { buildCloudStatePayload } from "./cloudState.js";
 
 export class CloudSync {
   constructor(storage) {
@@ -406,12 +407,32 @@ export class CloudSync {
     if (resolvedSource === "local") return { source: "local", status: "skipped" };
     // "firebase" means Worker(D1) in this new implementation
     if (resolvedSource === "firebase") {
-        // Full snapshot push to Firebase/Worker is NOT supported in the new D1 logic yet.
-        // D1 logic focuses on per-book 'pushState' and index 'pushIndex'.
-        // If 'push' is called for full backup, we might need a separate endpoint or just skip it.
-        // For now, we skip full backup sync for D1 to encourage granular sync.
-        console.warn("Full backup push is not implemented for D1 backend yet.");
-        return { source: "firebase", status: "skipped_full_backup" };
+      // NOTE:
+      // - D1同期はフルバックアップではなく、インデックス/状態のグラニュラー同期を採用。
+      // - 同期仕様は cloudState.js に集約し、AIエージェントの誤修正を防止する。
+      console.log("D1 granular sync starting...");
+      const updatedAt = Date.now();
+      const snapshot = this.storage.snapshot();
+      const indexDelta = snapshot.cloudIndex ?? {};
+      await this.pushIndexDelta(indexDelta, updatedAt, settings);
+
+      const lastBookId = this.storage.data.lastBookId;
+      const lastCloudBookId = lastBookId ? this.storage.getCloudBookId(lastBookId) : null;
+      if (lastBookId && lastCloudBookId) {
+        const payload = buildCloudStatePayload(this.storage, lastBookId, lastCloudBookId);
+        if (payload?.state) {
+          await this.pushState(lastCloudBookId, payload.state, payload.updatedAt, settings);
+        }
+      }
+
+      this.storage.setSettings({ lastSyncAt: updatedAt });
+      if (typeof this.storage.setCloudIndexUpdatedAt === "function") {
+        this.storage.setCloudIndexUpdatedAt(updatedAt);
+      } else {
+        this.storage.data.cloudIndexUpdatedAt = updatedAt;
+        this.storage.save();
+      }
+      return { source: "firebase", status: "success", updatedAt };
     }
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) return { source: "onedrive", status: "unauthenticated" };
