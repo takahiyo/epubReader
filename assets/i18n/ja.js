@@ -129,7 +129,9 @@ export const UI_STRINGS_JA = Object.freeze({
   // 同期プロンプト
   syncPromptTitle: "同期の確認",
   syncPromptMessage: "他の端末で、より新しい読書位置があります。",
+  syncPromptMessageWithDevice: "他の端末（{device}）で、より新しい読書位置があります。",
   syncPromptLocalMessage: "この端末の状態が新しいようです。アップロードしますか？",
+  syncPromptLocalMessageWithDevice: "この端末の状態が新しいようです（他の端末: {device}）。アップロードしますか？",
   syncPromptJump: "最新の読書位置は {page} ですがジャンプしますか？",
   syncPromptRemote: "ジャンプする（{time}）",
   syncPromptLocal: "キャンセル",

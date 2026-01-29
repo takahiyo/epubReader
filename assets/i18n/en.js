@@ -129,7 +129,9 @@ export const UI_STRINGS_EN = Object.freeze({
   // Sync prompts
   syncPromptTitle: "Sync available",
   syncPromptMessage: "A newer reading position is available on another device.",
+  syncPromptMessageWithDevice: "A newer reading position is available on {device}.",
   syncPromptLocalMessage: "This device has newer data. Upload it?",
+  syncPromptLocalMessageWithDevice: "This device has newer data. Upload it? (Other device: {device})",
   syncPromptJump: "Latest reading position is {page}. Jump to it?",
   syncPromptRemote: "Continue from other device ({time})",
   syncPromptLocal: "Keep this device's position",

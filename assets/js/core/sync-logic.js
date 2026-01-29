@@ -369,7 +369,7 @@ export async function handleAuthLogin() {
 /**
  * 同期競合解決のプロンプト
  */
-export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }, uiLanguage) {
+export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo }, uiLanguage) {
     return new Promise((resolve) => {
         if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
             resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
@@ -378,10 +378,18 @@ export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }, uiLang
 
         const strings = getUiStrings(uiLanguage);
         const preferRemote = remoteUpdatedAt >= localUpdatedAt;
+        const deviceLabel = remoteDeviceInfo?.trim();
 
         if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
         if (elements.syncModalMessage) {
-            elements.syncModalMessage.textContent = preferRemote ? strings.syncPromptMessage : strings.syncPromptLocalMessage;
+            const message = preferRemote
+                ? deviceLabel
+                    ? tReplace("syncPromptMessageWithDevice", { device: deviceLabel }, uiLanguage)
+                    : strings.syncPromptMessage
+                : deviceLabel
+                    ? tReplace("syncPromptLocalMessageWithDevice", { device: deviceLabel }, uiLanguage)
+                    : strings.syncPromptLocalMessage;
+            elements.syncModalMessage.textContent = message;
         }
         if (elements.syncUseRemote) {
             const timeText = formatRelativeTime(remoteUpdatedAt, uiLanguage);
@@ -568,7 +576,10 @@ export async function resolveSyncedProgress(
             remoteLocation !== null &&
             localLocation !== remoteLocation
         ) {
-            const choice = await promptSyncResolution({ localUpdatedAt, remoteUpdatedAt }, uiLanguage);
+            const choice = await promptSyncResolution(
+                { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null },
+                uiLanguage
+            );
             if (choice === "remote") {
                 applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
                 _storage.setSettings({ lastSyncAt: Date.now() });
