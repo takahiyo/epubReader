@@ -131,13 +131,15 @@ export class CloudSync {
       throw new Error(json.error);
     }
 
-    const data = json?.data;
+const data = json?.data;
     const isEmptyData =
       data == null ||
       (Array.isArray(data) && data.length === 0) ||
       (typeof data === "object" && !Array.isArray(data) && Object.keys(data).length === 0);
+    
+    // SSOT: /sync/state/pull においてデータが空なのは、新規書籍では正常なため log に留める
     if (isEmptyData) {
-      console.warn(`[CloudSync] Empty response data from worker: ${path}`);
+      console.log(`[CloudSync] No granular data found for path: ${path}`);
     }
 
     return json?.data ?? json;
