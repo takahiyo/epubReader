@@ -4,6 +4,8 @@
 export const TIMING_CONFIG = Object.freeze({
   AUTO_SYNC_INTERVAL_MS: 30000, // 自動同期間隔 (30秒)
   AUTO_SYNC_DEBOUNCE_MS: 1500, // 自動同期デバウンス (1.5秒)
+  SYNC_PROGRESS_DELTA_PERCENT: 4.0, // 進捗差分で即時同期する閾値 (%)
+  SYNC_IDLE_MS: 60000, // 進捗更新が止まった時の同期アイドル時間
   RESIZE_DEBOUNCE_MS: 250, // リサイズデバウンス
   SCROLL_MODE_UPDATE_DELAY_MS: 100, // スクロールモード更新遅延
   LOCATIONS_CHECK_INTERVAL_MS: 500, // ロケーション確認間隔
