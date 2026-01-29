@@ -107,6 +107,14 @@ export const UI_CLASSES = Object.freeze({
 });
 
 // ============================================
+// UI タイミング設定
+// ============================================
+export const UI_TIMING_CONFIG = Object.freeze({
+  CLICK_PROCESS_RESET_MS: 100,
+  DEBUG_GRID_AUTO_HIDE_MS: 10000,
+});
+
+// ============================================
 // DOM ID / Selector (SSOT)
 // ============================================
 export const DOM_IDS = Object.freeze({
