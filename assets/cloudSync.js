@@ -21,7 +21,18 @@ export class CloudSync {
       settings.saveDestination ||
       settings.source ||
       SYNC_CONFIG.DEFAULT_SOURCE;
-    const normalized = SYNC_CONFIG.LEGACY_ALIASES[selected] ?? selected;
+    
+    // SSOT: "local"は同期を無効にする特別な値
+    // しかし、ユーザーが明示的にD1を無効化していない限り、
+    // デフォルトでD1を使用すべき
+    // 後方互換性: 'local'が設定されている場合、D1が利用可能ならD1を使用
+    const shouldUseD1 = selected === "local" && 
+                       !settings.explicitlyDisabledSync &&
+                       (settings.firebaseEndpoint || settings.firebaseSyncEndpoint);
+    
+    const effectiveSource = shouldUseD1 ? SYNC_CONFIG.DEFAULT_SOURCE : selected;
+    const normalized = SYNC_CONFIG.LEGACY_ALIASES[effectiveSource] ?? effectiveSource;
+    
     if (SYNC_CONFIG.ALLOWED_SOURCES.includes(normalized)) {
       return normalized;
     }
