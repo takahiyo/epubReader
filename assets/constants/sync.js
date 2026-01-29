@@ -10,6 +10,13 @@ export const SYNC_SOURCES = Object.freeze({
 export const PROGRESS_PRECISION = 0.1;
 
 // ============================================
+// 同期リトライ設定
+// ============================================
+export const SYNC_RETRY_MAX = 3;
+export const SYNC_RETRY_BASE_MS = 500;
+export const SYNC_RETRY_MAX_MS = 4000;
+
+// ============================================
 // 同期ソース設定
 // ============================================
 export const SYNC_CONFIG = Object.freeze({

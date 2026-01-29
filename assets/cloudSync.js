@@ -4,7 +4,13 @@
  * Firestore SDKへの直接アクセスは廃止されました。
  */
 
-import { SYNC_CONFIG, WORKERS_CONFIG } from "./constants.js";
+import {
+  SYNC_CONFIG,
+  SYNC_RETRY_BASE_MS,
+  SYNC_RETRY_MAX,
+  SYNC_RETRY_MAX_MS,
+  WORKERS_CONFIG,
+} from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { t, tReplace } from "./i18n.js";
@@ -80,6 +86,41 @@ export class CloudSync {
     return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
   }
 
+  getRetryDelayMs(attempt) {
+    const backoff = SYNC_RETRY_BASE_MS * 2 ** attempt;
+    return Math.min(backoff, SYNC_RETRY_MAX_MS);
+  }
+
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  isRetryableStatus(status) {
+    return status >= 500;
+  }
+
+  async fetchWithRetry(url, options) {
+    for (let attempt = 0; attempt <= SYNC_RETRY_MAX; attempt += 1) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok && this.isRetryableStatus(response.status)) {
+          if (attempt < SYNC_RETRY_MAX) {
+            await this.sleep(this.getRetryDelayMs(attempt));
+            continue;
+          }
+        }
+        return response;
+      } catch (error) {
+        if (attempt < SYNC_RETRY_MAX) {
+          await this.sleep(this.getRetryDelayMs(attempt));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error(t("cloudSyncWorkersFailed"));
+  }
+
   async getFirebaseIdToken() {
     const info = await getIdTokenInfo();
     if (!info?.idToken) return null;
@@ -115,7 +156,7 @@ export class CloudSync {
     }
     const url = this.buildWorkerSyncUrl(endpoint, path);
     
-    const response = await fetch(url, {
+    const response = await this.fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, ...payload }),
@@ -131,7 +172,7 @@ export class CloudSync {
       throw new Error(json.error);
     }
 
-const data = json?.data;
+    const data = json?.data;
     const isEmptyData =
       data == null ||
       (Array.isArray(data) && data.length === 0) ||
