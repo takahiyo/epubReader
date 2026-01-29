@@ -90,6 +90,9 @@ let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
 let autoSyncTimeout = null;
+let autoSyncIdleTimeout = null;
+let lastSyncedProgressPercentage = null;
+let lastSyncedProgressAt = null;
 let bookmarkMenuMode = UI_DEFAULTS.bookmarkMenuMode;
 let currentToc = [];
 let uiInitialized = false;
@@ -553,6 +556,7 @@ async function handleFile(file) {
     storage.upsertBook(info);
     currentBookId = id;
     currentBookInfo = info;
+    resetAutoSyncTracking();
 
     let cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
     if (cloudBookId) {
@@ -703,6 +707,7 @@ function openCloudOnlyBook(cloudBookId) {
   currentBookId = null;
   currentBookInfo = null;
   currentCloudBookId = cloudBookId;
+  resetAutoSyncTracking();
 
   if (elements.viewer) {
     elements.viewer.classList.add(UI_CLASSES.HIDDEN);
@@ -754,6 +759,7 @@ async function openFromLibrary(bookId, options = {}) {
 
     currentBookId = bookId;
     currentBookInfo = info;
+    resetAutoSyncTracking();
     currentCloudBookId = storage.getCloudBookId(bookId);
     if (syncLogic.isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
       try {
@@ -900,7 +906,7 @@ function handleProgress(progress) {
     pageDirection,
     imageViewMode: reader?.imageViewMode,
   });
-  scheduleAutoSyncPush();
+  handleProgressAutoSync(progress?.percentage);
   renderers.updateProgressBarDisplay();
 }
 
@@ -1606,6 +1612,37 @@ function applyProgressDisplayMode(mode) {
 
 async function pushCurrentBookSync() {
   await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
+  const progress = currentBookId ? storage.getProgress(currentBookId) : null;
+  if (Number.isFinite(progress?.percentage)) {
+    lastSyncedProgressPercentage = progress.percentage;
+  }
+  lastSyncedProgressAt = Date.now();
+}
+
+function clearAutoSyncPendingTimers() {
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+    autoSyncTimeout = null;
+  }
+  if (autoSyncIdleTimeout) {
+    clearTimeout(autoSyncIdleTimeout);
+    autoSyncIdleTimeout = null;
+  }
+}
+
+function resetAutoSyncTracking() {
+  lastSyncedProgressPercentage = null;
+  lastSyncedProgressAt = null;
+  clearAutoSyncPendingTimers();
+}
+
+function isAutoSyncReady(authStatus = checkAuthStatus()) {
+  if (!autoSyncEnabled || !currentCloudBookId) return false;
+  if (!shouldEnableAutoSync(authStatus)) {
+    syncAutoSyncPolicy(authStatus);
+    return false;
+  }
+  return true;
 }
 
 function toggleAutoSync(enabled) {
@@ -1616,10 +1653,7 @@ function toggleAutoSync(enabled) {
     clearInterval(autoSyncInterval);
     autoSyncInterval = null;
   }
-  if (autoSyncTimeout) {
-    clearTimeout(autoSyncTimeout);
-    autoSyncTimeout = null;
-  }
+  clearAutoSyncPendingTimers();
 
   if (enabled) {
     // 定期的に自動同期 (TIMING_CONFIG.AUTO_SYNC_INTERVAL_MS)
@@ -1650,12 +1684,12 @@ function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
   return shouldEnable;
 }
 
+// 進捗更新以外のイベント向けデバウンス同期
 function scheduleAutoSyncPush() {
-  if (!autoSyncEnabled || !currentCloudBookId) return;
-  const authStatus = checkAuthStatus();
-  if (!shouldEnableAutoSync(authStatus)) {
-    syncAutoSyncPolicy(authStatus);
-    return;
+  if (!isAutoSyncReady()) return;
+  if (autoSyncIdleTimeout) {
+    clearTimeout(autoSyncIdleTimeout);
+    autoSyncIdleTimeout = null;
   }
   if (autoSyncTimeout) {
     clearTimeout(autoSyncTimeout);
@@ -1668,6 +1702,47 @@ function scheduleAutoSyncPush() {
       console.error("Auto-sync failed:", error);
     }
   }, TIMING_CONFIG.AUTO_SYNC_DEBOUNCE_MS);
+}
+
+function scheduleAutoSyncIdlePush() {
+  if (!isAutoSyncReady()) return;
+  if (autoSyncIdleTimeout) {
+    clearTimeout(autoSyncIdleTimeout);
+  }
+  autoSyncIdleTimeout = setTimeout(async () => {
+    autoSyncIdleTimeout = null;
+    try {
+      await pushCurrentBookSync();
+    } catch (error) {
+      console.error("Auto-sync failed:", error);
+    }
+  }, TIMING_CONFIG.SYNC_IDLE_MS);
+}
+
+function shouldPushProgressImmediately(progressPercentage) {
+  if (!Number.isFinite(progressPercentage)) return false;
+  if (!Number.isFinite(lastSyncedProgressPercentage)) return false;
+  return Math.abs(progressPercentage - lastSyncedProgressPercentage) >= TIMING_CONFIG.SYNC_PROGRESS_DELTA_PERCENT;
+}
+
+function handleProgressAutoSync(progressPercentage) {
+  if (!isAutoSyncReady()) return;
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+    autoSyncTimeout = null;
+  }
+  if (shouldPushProgressImmediately(progressPercentage)) {
+    clearAutoSyncPendingTimers();
+    void (async () => {
+      try {
+        await pushCurrentBookSync();
+      } catch (error) {
+        console.error("Auto-sync failed:", error);
+      }
+    })();
+    return;
+  }
+  scheduleAutoSyncIdlePush();
 }
 
 function exportData() {
