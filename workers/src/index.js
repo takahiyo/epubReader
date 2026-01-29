@@ -1,5 +1,11 @@
 // workers/src/index.js
 
+/**
+ * D1データベーステーブル定義 (SSOT)
+ * @constant {Object} D1_TABLES
+ * @property {string} userIndexes - ユーザーの書籍インデックステーブル
+ * @property {string} bookStates - 書籍の読書状態テーブル
+ */
 const D1_TABLES = Object.freeze({
   userIndexes: "user_indexes",
   bookStates: "book_states",
@@ -72,21 +78,46 @@ export default {
 // ==========================================
 
 // 書籍状態の取得
+/**
+ * D1から書籍の読書状態を取得します
+ * @param {D1Database} db - D1データベースインスタンス
+ * @param {string} uid - ユーザーID
+ * @param {string} bookId - 書籍ID (cloudBookId)
+ * @returns {Promise<Object>} 書籍の状態データ (なければ空オブジェクト)
+ */
 async function pullStateD1(db, uid, bookId) {
+  console.log(`[pullStateD1] Fetching state for user: ${uid}, book: ${bookId}`);
   const result = await db.prepare(`
     SELECT data FROM ${D1_TABLES.bookStates} WHERE user_id = ? AND book_id = ?
   `)
     .bind(uid, bookId)
     .first();
 
-  if (!result) return {};
-  return JSON.parse(result.data);
+  if (!result) {
+    console.log(`[pullStateD1] No state found for book: ${bookId}`);
+    return {};
+  }
+  const parsed = JSON.parse(result.data);
+  console.log(`[pullStateD1] State retrieved for book: ${bookId}`, parsed);
+  return parsed;
 }
 
 // 書籍状態の保存 (Upsert)
+/**
+ * 書籍の読書状態をD1に保存します (存在する場合は更新)
+ * @param {D1Database} db - D1データベースインスタンス
+ * @param {string} uid - ユーザーID
+ * @param {string} bookId - 書籍ID (cloudBookId)
+ * @param {Object} state - 書籍の状態データ
+ * @param {number} updatedAt - 更新日時 (UNIX timestamp)
+ * @returns {Promise<Object>} 処理結果
+ */
 async function pushStateD1(db, uid, bookId, state, updatedAt) {
+  console.log(`[pushStateD1] Saving state for user: ${uid}, book: ${bookId}`);
   const json = JSON.stringify(state);
-  await db.prepare(`
+  console.log(`[pushStateD1] State data size: ${json.length} bytes, updatedAt: ${updatedAt}`);
+  
+  const result = await db.prepare(`
     INSERT INTO ${D1_TABLES.bookStates} (user_id, book_id, data, updated_at)
     VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id, book_id) DO UPDATE SET
@@ -96,52 +127,83 @@ async function pushStateD1(db, uid, bookId, state, updatedAt) {
     .bind(uid, bookId, json, updatedAt)
     .run();
 
-  return { status: "success", source: "d1" };
+  console.log(`[pushStateD1] State saved successfully. Changes: ${result.changes}, LastRowId: ${result.lastRowId}`);
+  return { status: "success", source: "d1", changes: result.changes };
 }
 
 // インデックスの取得 (差分同期対応)
+/**
+ * ユーザーの書籍インデックスをD1から取得します
+ * @param {D1Database} db - D1データベースインスタンス
+ * @param {string} uid - ユーザーID
+ * @param {number|null} since - クライアントが持つ最終更新時刻 (差分同期用)
+ * @returns {Promise<Object>} インデックスデータと更新時刻
+ */
 async function pullIndexD1(db, uid, since = null) {
+  console.log(`[pullIndexD1] Fetching index for user: ${uid}, since: ${since}`);
   const result = await db.prepare(`
     SELECT data, updated_at FROM ${D1_TABLES.userIndexes} WHERE user_id = ?
   `)
     .bind(uid)
     .first();
 
-  if (!result || !result.data) return { index: {}, updatedAt: 0 };
+  if (!result || !result.data) {
+    console.log(`[pullIndexD1] No index found for user: ${uid}`);
+    return { index: {}, updatedAt: 0 };
+  }
 
   const dbUpdatedAt = result.updated_at;
+  console.log(`[pullIndexD1] Index found, dbUpdatedAt: ${dbUpdatedAt}, clientSince: ${since}`);
   
   // クライアントが持っているデータが最新なら中身を返さない
   if (since && dbUpdatedAt <= since) {
+    console.log(`[pullIndexD1] Client data is up-to-date, returning unchanged flag`);
     return { unchanged: true, updatedAt: dbUpdatedAt };
   }
 
   try {
     const payload = JSON.parse(result.data);
+    const indexKeys = Object.keys(payload?.index || payload || {});
+    console.log(`[pullIndexD1] Returning index with ${indexKeys.length} entries, updatedAt: ${dbUpdatedAt}`);
     return {
       index: payload?.index || payload || {},
       updatedAt: dbUpdatedAt,
     };
   } catch (e) {
+    console.error(`[pullIndexD1] Failed to parse index data:`, e);
     return { index: {}, updatedAt: dbUpdatedAt };
   }
 }
 
 // インデックスの保存 (マージして保存)
+/**
+ * ユーザーの書籍インデックスをD1に保存します (既存データとマージ)
+ * @param {D1Database} db - D1データベースインスタンス
+ * @param {string} uid - ユーザーID
+ * @param {Object} indexDelta - 追加/更新するインデックスデータ
+ * @param {number} updatedAt - 更新日時 (UNIX timestamp)
+ * @returns {Promise<Object>} 処理結果
+ */
 async function pushIndexD1(db, uid, indexDelta, updatedAt) {
+  console.log(`[pushIndexD1] Saving index for user: ${uid}, updatedAt: ${updatedAt}`);
+  console.log(`[pushIndexD1] Index delta contains ${Object.keys(indexDelta || {}).length} entries`);
+  
   // 1. 現在のデータを取得
   const current = await pullIndexD1(db, uid);
   const currentIndex = current.index || {};
+  console.log(`[pushIndexD1] Current index has ${Object.keys(currentIndex).length} entries`);
 
   // 2. マージ (deltaを上書き)
   const newIndex = { ...currentIndex, ...indexDelta };
+  console.log(`[pushIndexD1] Merged index has ${Object.keys(newIndex).length} entries`);
   
   // 3. 保存するオブジェクト全体を構築
   const payload = { index: newIndex, updatedAt };
   const json = JSON.stringify(payload);
+  console.log(`[pushIndexD1] Saving index data: ${json.length} bytes`);
 
   // 4. D1に保存
-  await db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO ${D1_TABLES.userIndexes} (user_id, data, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -151,7 +213,8 @@ async function pushIndexD1(db, uid, indexDelta, updatedAt) {
     .bind(uid, json, updatedAt)
     .run();
 
-  return { status: "success", source: "d1" };
+  console.log(`[pushIndexD1] Index saved successfully. Changes: ${result.changes}, LastRowId: ${result.lastRowId}`);
+  return { status: "success", source: "d1", changes: result.changes, entryCount: Object.keys(newIndex).length };
 }
 
 // ==========================================

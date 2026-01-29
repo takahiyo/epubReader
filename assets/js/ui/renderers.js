@@ -339,6 +339,11 @@ export function updateAuthStatusDisplay() {
     }
 }
 
+/**
+ * 同期ステータス表示の更新
+ * D1同期の最終同期時刻を表示します。
+ * @param {Object} authStatus 認証状態
+ */
 export function updateSyncStatusDisplay(authStatus) {
     if (elements.syncStatus && _storage) {
         const status = authStatus || (_actions.checkAuthStatus ? _actions.checkAuthStatus() : { authenticated: false });
@@ -346,7 +351,10 @@ export function updateSyncStatusDisplay(authStatus) {
             elements.syncStatus.textContent = t("syncNeedsLogin");
             return;
         }
-        const lastSyncAt = _storage.getSettings().lastIndexSyncAt;
+        // SSOT: lastIndexSyncAtとcloudIndexUpdatedAtの両方をチェック
+        const settings = _storage.getSettings();
+        const lastSyncAt = settings.lastIndexSyncAt || settings.lastSyncAt || _storage.data.cloudIndexUpdatedAt;
+        console.log('[updateSyncStatusDisplay] lastIndexSyncAt:', settings.lastIndexSyncAt, 'lastSyncAt:', settings.lastSyncAt, 'cloudIndexUpdatedAt:', _storage.data.cloudIndexUpdatedAt);
         if (!lastSyncAt) {
             elements.syncStatus.textContent = t("syncStatusNever");
             return;

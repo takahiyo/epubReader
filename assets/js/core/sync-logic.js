@@ -157,19 +157,30 @@ export function buildLibraryEntries(uiLanguage) {
 
 /**
  * クラウドにある全書籍情報を同期
+ * D1データベースからインデックスを取得し、ローカルデータとマージします。
+ * @param {boolean} uiInitialized UIが初期化済みかどうか
+ * @param {string} bookmarkMenuMode ブックマークメニューモード
  */
 export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
-    if (!isCloudSyncEnabled() || !_storage || !_cloudSync) return;
+    if (!isCloudSyncEnabled() || !_storage || !_cloudSync) {
+        console.log('[syncAllBooksFromCloud] Sync skipped: not enabled or missing dependencies');
+        return;
+    }
 
+    console.log('[syncAllBooksFromCloud] Starting D1 sync...');
     let didApplyIndex = false;
     try {
+        console.log('[syncAllBooksFromCloud] Pulling index from D1...');
         const remote = await _cloudSync.pullIndex();
+        console.log('[syncAllBooksFromCloud] Pull index result:', remote);
         const index = remote?.index ?? {};
         const updatedAt = remote?.updatedAt ?? Date.now();
         const hasRemoteIndex = hasIndexData(index);
+        console.log('[syncAllBooksFromCloud] Index has data:', hasRemoteIndex, 'updatedAt:', updatedAt);
         _storage.mergeCloudIndex(index, updatedAt);
         if (hasRemoteIndex && !isEmptySyncResult(remote)) {
             didApplyIndex = true;
+            console.log('[syncAllBooksFromCloud] Index successfully applied');
         }
 
         const library = _storage.data.library;
@@ -203,6 +214,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             }
         }
     } catch (error) {
+        console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
         console.warn("クラウドの同期に失敗しました:", error);
     }
 
@@ -245,15 +257,32 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             }
         }
     } catch (error) {
+        console.error('[syncAllBooksFromCloud] Failed to upload local books:', error);
         console.warn("ローカル書籍のアップロードに失敗しました:", error);
     }
 
     if (didApplyIndex) {
+        const now = Date.now();
+        console.log('[syncAllBooksFromCloud] Sync successful, setting lastIndexSyncAt:', now);
         _storage.setSettings({
-            lastSyncAt: Date.now(),
-            lastIndexSyncAt: Date.now(),
+            lastSyncAt: now,
+            lastIndexSyncAt: now,
+        });
+        // 同期状態を保持するためにcloudIndexUpdatedAtも更新
+        if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
+            _storage.setCloudIndexUpdatedAt(now);
+        } else {
+            _storage.data.cloudIndexUpdatedAt = now;
+            _storage.save();
+        }
+        console.log('[syncAllBooksFromCloud] Storage state after sync:', {
+            lastSyncAt: _storage.getSettings().lastSyncAt,
+            lastIndexSyncAt: _storage.getSettings().lastIndexSyncAt,
+            cloudIndexUpdatedAt: _storage.data.cloudIndexUpdatedAt
         });
         uiCallbacks.updateSyncStatusDisplay();
+    } else {
+        console.log('[syncAllBooksFromCloud] No index was applied, sync status not updated');
     }
     if (uiInitialized) {
         uiCallbacks.renderLibrary();

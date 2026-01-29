@@ -401,6 +401,12 @@ export class CloudSync {
   // Public API Wrappers (Backward Compatibility)
   // ===============================
 
+  /**
+   * データをクラウドにプッシュします。
+   * D1バックエンドへの同期を実行します。
+   * @param {string} source 同期先ソース ("firebase"/"onedrive"/"pcloud"/"local")
+   * @returns {Promise<Object>} 同期結果
+   */
   async push(source) {
     const { settings, resolvedSource } = this.getSettings(source);
 
@@ -410,28 +416,42 @@ export class CloudSync {
       // NOTE:
       // - D1同期はフルバックアップではなく、インデックス/状態のグラニュラー同期を採用。
       // - 同期仕様は cloudState.js に集約し、AIエージェントの誤修正を防止する。
-      console.log("D1 granular sync starting...");
+      console.log("[CloudSync.push] D1 granular sync starting...");
       const updatedAt = Date.now();
       const snapshot = this.storage.snapshot();
       const indexDelta = snapshot.cloudIndex ?? {};
-      await this.pushIndexDelta(indexDelta, updatedAt, settings);
+      console.log("[CloudSync.push] Pushing index delta with", Object.keys(indexDelta).length, "entries");
+      const indexResult = await this.pushIndexDelta(indexDelta, updatedAt, settings);
+      console.log("[CloudSync.push] Index push result:", indexResult);
 
       const lastBookId = this.storage.data.lastBookId;
       const lastCloudBookId = lastBookId ? this.storage.getCloudBookId(lastBookId) : null;
       if (lastBookId && lastCloudBookId) {
+        console.log("[CloudSync.push] Pushing state for current book:", lastCloudBookId);
         const payload = buildCloudStatePayload(this.storage, lastBookId, lastCloudBookId);
         if (payload?.state) {
-          await this.pushState(lastCloudBookId, payload.state, payload.updatedAt, settings);
+          const stateResult = await this.pushState(lastCloudBookId, payload.state, payload.updatedAt, settings);
+          console.log("[CloudSync.push] State push result:", stateResult);
         }
       }
 
-      this.storage.setSettings({ lastSyncAt: updatedAt });
+      // SSOT: 同期時刻を複数のフィールドに設定して一貫性を保つ
+      console.log("[CloudSync.push] Setting sync timestamps:", updatedAt);
+      this.storage.setSettings({ 
+        lastSyncAt: updatedAt,
+        lastIndexSyncAt: updatedAt  // SSOT: 表示用に明示的に設定
+      });
       if (typeof this.storage.setCloudIndexUpdatedAt === "function") {
         this.storage.setCloudIndexUpdatedAt(updatedAt);
       } else {
         this.storage.data.cloudIndexUpdatedAt = updatedAt;
         this.storage.save();
       }
+      console.log("[CloudSync.push] Sync completed successfully. Timestamps set:", {
+        lastSyncAt: this.storage.getSettings().lastSyncAt,
+        lastIndexSyncAt: this.storage.getSettings().lastIndexSyncAt,
+        cloudIndexUpdatedAt: this.storage.data.cloudIndexUpdatedAt
+      });
       return { source: "firebase", status: "success", updatedAt };
     }
     if (resolvedSource === "onedrive") {
