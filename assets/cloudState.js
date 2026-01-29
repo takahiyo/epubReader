@@ -40,6 +40,7 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
     writingMode: progress?.writingMode ?? null,
     pageDirection: progress?.pageDirection ?? null,
     imageViewMode: progress?.imageViewMode ?? null,
+    fontSize: progress?.fontSize ?? null,
     updatedAt,
   };
 

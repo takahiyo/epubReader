@@ -524,6 +524,7 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
             writingMode: state.writingMode ?? existing.writingMode,
             pageDirection: state.pageDirection ?? existing.pageDirection,
             imageViewMode: state.imageViewMode ?? existing.imageViewMode,
+            fontSize: state.fontSize ?? existing.fontSize,
             updatedAt: state.updatedAt ?? Date.now(),
         });
     }
