@@ -995,9 +995,15 @@ function handleBookReady(payload) {
   storage.upsertBook({ ...currentBookInfo, title });
   if (currentCloudBookId) {
     const author = metadata.creator || metadata.author || "";
-    upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
-      title,
-      author,
+    fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
+      storage,
+      cloudSync,
+      isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+      uiLanguage,
+      overrides: {
+        title,
+        author,
+      },
     }).catch((error) => {
       console.warn("クラウドメタデータの更新に失敗しました:", error);
     });
