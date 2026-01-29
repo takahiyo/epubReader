@@ -155,7 +155,8 @@ async function pullIndexD1(db, uid, since = null) {
   const dbUpdatedAt = result.updated_at;
   console.log(`[pullIndexD1] Index found, dbUpdatedAt: ${dbUpdatedAt}, clientSince: ${since}`);
   
-  // クライアントが持っているデータが最新なら中身を返さない
+  // SSOT: クライアントが持っているデータが最新なら unchanged フラグを返す
+  // 重要: unchangedでも同期成功として扱い、クライアント側で同期時刻を更新する必要がある
   if (since && dbUpdatedAt <= since) {
     console.log(`[pullIndexD1] Client data is up-to-date, returning unchanged flag`);
     return { unchanged: true, updatedAt: dbUpdatedAt };

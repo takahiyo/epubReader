@@ -158,6 +158,11 @@ export function buildLibraryEntries(uiLanguage) {
 /**
  * クラウドにある全書籍情報を同期
  * D1データベースからインデックスを取得し、ローカルデータとマージします。
+ * 
+ * SSOT: D1差分同期の正しい処理
+ * - unchangedフラグが返された場合も同期成功として扱い、同期時刻を更新する
+ * - これにより「同期完了」→「リロード後に未実施に戻る」問題を防ぐ
+ * 
  * @param {boolean} uiInitialized UIが初期化済みかどうか
  * @param {string} bookmarkMenuMode ブックマークメニューモード
  */
@@ -173,14 +178,31 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
         console.log('[syncAllBooksFromCloud] Pulling index from D1...');
         const remote = await _cloudSync.pullIndex();
         console.log('[syncAllBooksFromCloud] Pull index result:', remote);
-        const index = remote?.index ?? {};
-        const updatedAt = remote?.updatedAt ?? Date.now();
-        const hasRemoteIndex = hasIndexData(index);
-        console.log('[syncAllBooksFromCloud] Index has data:', hasRemoteIndex, 'updatedAt:', updatedAt);
-        _storage.mergeCloudIndex(index, updatedAt);
-        if (hasRemoteIndex && !isEmptySyncResult(remote)) {
+        
+        // SSOT: unchangedフラグを正しく処理する
+        // D1からのレスポンスが { unchanged: true, updatedAt: timestamp } の場合、
+        // データは最新であり、同期時刻のみ更新する必要がある
+        if (remote?.unchanged === true) {
+            console.log('[syncAllBooksFromCloud] Index is unchanged, data is up-to-date');
             didApplyIndex = true;
-            console.log('[syncAllBooksFromCloud] Index successfully applied');
+            const updatedAt = remote.updatedAt ?? Date.now();
+            // 同期時刻を更新（インデックス自体は変更なし）
+            if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
+                _storage.setCloudIndexUpdatedAt(updatedAt);
+            } else {
+                _storage.data.cloudIndexUpdatedAt = updatedAt;
+            }
+        } else {
+            // データが返された場合は通常のマージ処理
+            const index = remote?.index ?? {};
+            const updatedAt = remote?.updatedAt ?? Date.now();
+            const hasRemoteIndex = hasIndexData(index);
+            console.log('[syncAllBooksFromCloud] Index has data:', hasRemoteIndex, 'updatedAt:', updatedAt);
+            _storage.mergeCloudIndex(index, updatedAt);
+            if (hasRemoteIndex && !isEmptySyncResult(remote)) {
+                didApplyIndex = true;
+                console.log('[syncAllBooksFromCloud] Index successfully applied');
+            }
         }
 
         const library = _storage.data.library;
@@ -264,16 +286,20 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
     if (didApplyIndex) {
         const now = Date.now();
         console.log('[syncAllBooksFromCloud] Sync successful, setting lastIndexSyncAt:', now);
+        // SSOT: 同期時刻を複数のフィールドに設定して一貫性を保つ
         _storage.setSettings({
             lastSyncAt: now,
             lastIndexSyncAt: now,
         });
-        // 同期状態を保持するためにcloudIndexUpdatedAtも更新
-        if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
-            _storage.setCloudIndexUpdatedAt(now);
-        } else {
-            _storage.data.cloudIndexUpdatedAt = now;
-            _storage.save();
+        // cloudIndexUpdatedAtはmergeCloudIndexまたはunchanged処理で既に更新されている
+        // 念のため明示的に設定
+        if (!_storage.data.cloudIndexUpdatedAt || _storage.data.cloudIndexUpdatedAt < now) {
+            if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
+                _storage.setCloudIndexUpdatedAt(now);
+            } else {
+                _storage.data.cloudIndexUpdatedAt = now;
+                _storage.save();
+            }
         }
         console.log('[syncAllBooksFromCloud] Storage state after sync:', {
             lastSyncAt: _storage.getSettings().lastSyncAt,

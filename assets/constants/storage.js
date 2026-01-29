@@ -53,6 +53,7 @@ export const STORAGE_SOURCE_ALIASES = Object.freeze({
 export const DEFAULT_SETTINGS = Object.freeze({
   syncEnabled: false,
   lastSyncAt: null,
+  lastIndexSyncAt: null, // SSOT: D1インデックス同期の最終時刻
   apiKey: "<必要ならキー>",
   endpoint: "",
   source: STORAGE_SOURCE_DEFAULT,

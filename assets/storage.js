@@ -174,6 +174,7 @@ export class StorageService {
           ...normalizedSettings,
           syncEnabled: normalizedSettings.syncEnabled ?? defaultData.settings.syncEnabled,
           lastSyncAt: normalizedSettings.lastSyncAt ?? defaultData.settings.lastSyncAt,
+          lastIndexSyncAt: normalizedSettings.lastIndexSyncAt ?? defaultData.settings.lastIndexSyncAt, // SSOT: D1インデックス同期時刻
           apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
           endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
           source: normalizedSource || defaultData.settings.source,
@@ -382,6 +383,7 @@ export class StorageService {
           ...normalizedSettings,
           syncEnabled: normalizedSettings.syncEnabled ?? defaultData.settings.syncEnabled,
           lastSyncAt: normalizedSettings.lastSyncAt ?? defaultData.settings.lastSyncAt,
+          lastIndexSyncAt: normalizedSettings.lastIndexSyncAt ?? defaultData.settings.lastIndexSyncAt, // SSOT: D1インデックス同期時刻
           apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
           endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
           source: normalizedSource || defaultData.settings.source,
