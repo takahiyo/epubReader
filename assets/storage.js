@@ -12,6 +12,7 @@ import {
   DEVICE_COLOR_PALETTE,
   DEFAULT_SETTINGS,
   DEFAULT_DATA_SHAPE,
+  BOOK_TYPES,
 } from "./constants.js";
 
 const STORAGE_KEY = STORAGE_CONFIG.KEY;
@@ -122,12 +123,33 @@ const ensureDeviceSettings = (settings) => {
   };
 };
 
+const getBookmarkUpdatedAt = (bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0;
+
+const getBookmarkType = (bookmark) => bookmark?.bookType ?? bookmark?.type ?? null;
+
 const getBookmarkKey = (bookmark) => {
+  const bookmarkType = getBookmarkType(bookmark);
   const cfi = bookmark?.cfi;
+  if (bookmarkType === BOOK_TYPES.EPUB && cfi) return `cfi:${cfi}`;
+
+  const location = bookmark?.location;
+  if (typeof location === "number") return `location:${location}`;
+
+  const index = bookmark?.index;
+  if (typeof index === "number") return `index:${index}`;
+
   if (cfi) return `cfi:${cfi}`;
-  const createdAt = bookmark?.createdAt;
-  if (!createdAt) return null;
-  return `createdAt:${createdAt}`;
+  return null;
+};
+
+const pickNewerBookmark = (existing, incoming) => {
+  if (!existing) return incoming;
+  const incomingUpdatedAt = getBookmarkUpdatedAt(incoming);
+  const existingUpdatedAt = getBookmarkUpdatedAt(existing);
+  if (incomingUpdatedAt > existingUpdatedAt) return incoming;
+  if (incomingUpdatedAt < existingUpdatedAt) return existing;
+  if (!existing.label && incoming?.label) return incoming;
+  return existing;
 };
 
 // デフォルトデータ構造（設定はSSOTから参照）
@@ -240,15 +262,12 @@ export class StorageService {
     const currentList = this.data.bookmarks[bookId] ?? [];
     const map = new Map();
 
-    // 既存と新規をマージ（cfi をキーに重複排除、なければ createdAt にフォールバック）
+    // 既存と新規をマージ（位置キーで重複排除、updatedAt を最優先で採用）
     [...currentList, ...incomingList].forEach((bookmark) => {
       const key = getBookmarkKey(bookmark);
       if (!key) return;
       const existing = map.get(key);
-      // ラベルがある方を優先、あるいは新しい方を優先する
-      if (!existing || (!existing.label && bookmark.label)) {
-        map.set(key, bookmark);
-      }
+      map.set(key, pickNewerBookmark(existing, bookmark));
     });
 
     const mergedList = Array.from(map.values())
@@ -438,9 +457,7 @@ export class StorageService {
         const key = getBookmarkKey(bookmark);
         if (!key) return;
         const existing = map.get(key);
-        if (!existing || (!existing.label && bookmark.label)) {
-          map.set(key, bookmark);
-        }
+        map.set(key, pickNewerBookmark(existing, bookmark));
       });
       const mergedList = Array.from(map.values())
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
