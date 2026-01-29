@@ -152,8 +152,8 @@ export class CloudSync {
   }
 
   async pullIndex(settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
+    const resolvedSource = this.resolveSource("d1", settings);
+    if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
     // 差分同期: 最後の同期時刻以降の更新のみ取得
@@ -162,24 +162,24 @@ export class CloudSync {
   }
 
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
+    const resolvedSource = this.resolveSource("d1", settings);
+    if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
     return this.postWorkerSync("/sync/index/push", { indexDelta, updatedAt }, settings);
   }
 
   async pullState(cloudBookId, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
+    const resolvedSource = this.resolveSource("d1", settings);
+    if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
     return this.postWorkerSync("/sync/state/pull", { cloudBookId }, settings);
   }
 
   async pushState(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
-    const resolvedSource = this.resolveSource("firebase", settings);
-    if (resolvedSource !== "firebase") {
+    const resolvedSource = this.resolveSource("d1", settings);
+    if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
     const normalizedState = this.normalizeCloudState(state, updatedAt);
@@ -404,15 +404,15 @@ export class CloudSync {
   /**
    * データをクラウドにプッシュします。
    * D1バックエンドへの同期を実行します。
-   * @param {string} source 同期先ソース ("firebase"/"onedrive"/"pcloud"/"local")
+   * @param {string} source 同期先ソース ("d1"/"onedrive"/"pcloud"/"local")
    * @returns {Promise<Object>} 同期結果
    */
   async push(source) {
     const { settings, resolvedSource } = this.getSettings(source);
 
     if (resolvedSource === "local") return { source: "local", status: "skipped" };
-    // "firebase" means Worker(D1) in this new implementation
-    if (resolvedSource === "firebase") {
+    // "d1" means Worker(D1) in this implementation
+    if (resolvedSource === "d1") {
       // NOTE:
       // - D1同期はフルバックアップではなく、インデックス/状態のグラニュラー同期を採用。
       // - 同期仕様は cloudState.js に集約し、AIエージェントの誤修正を防止する。
@@ -452,7 +452,7 @@ export class CloudSync {
         lastIndexSyncAt: this.storage.getSettings().lastIndexSyncAt,
         cloudIndexUpdatedAt: this.storage.data.cloudIndexUpdatedAt
       });
-      return { source: "firebase", status: "success", updatedAt };
+      return { source: "d1", status: "success", updatedAt };
     }
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) return { source: "onedrive", status: "unauthenticated" };
@@ -471,11 +471,11 @@ export class CloudSync {
     const { settings, resolvedSource } = this.getSettings(source);
 
     if (resolvedSource === "local") return { source: "local", status: "skipped" };
-    if (resolvedSource === "firebase") {
-        // Similarly, full restore from D1 is not implemented in granular logic.
-        // We use syncAllBooksFromCloud (pullIndex) instead.
-        console.warn("Full backup pull is not implemented for D1 backend yet.");
-        return { source: "firebase", status: "skipped_full_restore" };
+    if (resolvedSource === "d1") {
+        // D1ではフルリストアではなく、差分同期を使用する
+        // syncAllBooksFromCloud (pullIndex) を使用すること
+        console.warn("Full backup pull is not implemented for D1 backend. Use syncAllBooksFromCloud instead.");
+        return { source: "d1", status: "skipped_full_restore" };
     }
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) return { source: "onedrive", status: "unauthenticated" };

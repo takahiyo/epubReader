@@ -76,7 +76,7 @@ function hasIndexData(index) {
  * SSOT: D1同期の前提条件
  * 1. 認証済みであること
  * 2. Workerエンドポイントが設定されていること
- * 3. sourceが"firebase"であること（D1バックエンドを使用）
+ * 3. sourceが"d1"であること（D1バックエンドを使用）
  * 
  * 注: ユーザーが明示的にsource="local"に設定している場合は無効となる
  */
@@ -109,9 +109,9 @@ export function isCloudSyncEnabled() {
     });
     
     // D1同期が有効な条件:
-    // - resolvedSourceが"firebase"（D1バックエンド）
+    // - resolvedSourceが"d1"（Cloudflare D1バックエンド）
     // - Workerエンドポイントが設定されている
-    const isEnabled = resolvedSource === "firebase" && !!endpoint;
+    const isEnabled = resolvedSource === "d1" && !!endpoint;
     console.log('[isCloudSyncEnabled] Result:', isEnabled);
     return isEnabled;
 }
