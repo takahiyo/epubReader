@@ -214,6 +214,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
         // SSOT: unchangedフラグを正しく処理する
         // D1からのレスポンスが { unchanged: true, updatedAt: timestamp } の場合、
         // データは最新であり、同期時刻のみ更新する必要がある
+        let index = {}; // デフォルト値を設定
         if (remote?.unchanged === true) {
             console.log('[syncAllBooksFromCloud] Index is unchanged, data is up-to-date');
             didApplyIndex = true;
@@ -224,9 +225,11 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             } else {
                 _storage.data.cloudIndexUpdatedAt = updatedAt;
             }
+            // unchangedの場合、既存のcloudIndexを使用
+            index = _storage.data.cloudIndex ?? {};
         } else {
             // データが返された場合は通常のマージ処理
-            const index = remote?.index ?? {};
+            index = remote?.index ?? {};
             const updatedAt = remote?.updatedAt ?? Date.now();
             const hasRemoteIndex = hasIndexData(index);
             console.log('[syncAllBooksFromCloud] Index has data:', hasRemoteIndex, 'updatedAt:', updatedAt);
