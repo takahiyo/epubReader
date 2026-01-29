@@ -8,6 +8,7 @@ import { SYNC_CONFIG, WORKERS_CONFIG } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { t, tReplace } from "./i18n.js";
+import { buildCloudStatePayload } from "./cloudState.js";
 
 export class CloudSync {
   constructor(storage) {
@@ -406,6 +407,9 @@ export class CloudSync {
     if (resolvedSource === "local") return { source: "local", status: "skipped" };
     // "firebase" means Worker(D1) in this new implementation
     if (resolvedSource === "firebase") {
+      // NOTE:
+      // - D1同期はフルバックアップではなく、インデックス/状態のグラニュラー同期を採用。
+      // - 同期仕様は cloudState.js に集約し、AIエージェントの誤修正を防止する。
       console.log("D1 granular sync starting...");
       const updatedAt = Date.now();
       const snapshot = this.storage.snapshot();
@@ -413,13 +417,15 @@ export class CloudSync {
       await this.pushIndexDelta(indexDelta, updatedAt, settings);
 
       const lastBookId = this.storage.data.lastBookId;
-      if (lastBookId) {
-        const state = this.storage.getBookState(lastBookId);
-        if (state) {
-          await this.pushState(lastBookId, state, updatedAt, settings);
+      const lastCloudBookId = lastBookId ? this.storage.getCloudBookId(lastBookId) : null;
+      if (lastBookId && lastCloudBookId) {
+        const payload = buildCloudStatePayload(this.storage, lastBookId, lastCloudBookId);
+        if (payload?.state) {
+          await this.pushState(lastCloudBookId, payload.state, payload.updatedAt, settings);
         }
       }
 
+      this.storage.setSettings({ lastSyncAt: updatedAt });
       if (typeof this.storage.setCloudIndexUpdatedAt === "function") {
         this.storage.setCloudIndexUpdatedAt(updatedAt);
       } else {

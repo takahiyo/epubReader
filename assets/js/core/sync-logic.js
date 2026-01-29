@@ -8,6 +8,7 @@
 
 import { UI_CLASSES, UI_SYMBOLS } from "../../constants.js";
 import { formatRelativeTime, getUiStrings, tReplace, t as t_core } from "../../i18n.js";
+import { buildCloudStatePayload as buildCloudStatePayloadSSOT } from "../../cloudState.js";
 import { elements } from "../ui/elements.js";
 import { generateCloudBookId, upsertCloudIndexEntry } from "./file-handler.js";
 
@@ -391,35 +392,8 @@ export function promptSyncCandidate(candidates, uiLanguage) {
  * クラウド状態のペイロードを構築
  */
 export function buildCloudStatePayload(localBookId, cloudBookId) {
-    if (!_storage) return { cloudBookId, state: {}, updatedAt: 0 };
-    const progress = _storage.getProgress(localBookId) ?? {};
-    const bookmarks = _storage.getBookmarks(localBookId) ?? [];
-    const bookInfo = _storage.data.library[localBookId];
-
-    const updatedAt = Math.max(
-        progress?.updatedAt ?? 0,
-        ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0)
-    );
-
-    const state = {
-        progress: progress?.percentage ?? 0,
-        lastCfi: progress?.location ?? null,
-        bookType: bookInfo?.type ?? null,
-        location: progress?.location ?? null,
-        bookmarks: bookmarks.map((bookmark) => ({
-            ...bookmark,
-            bookType: bookmark.bookType ?? bookmark.type ?? null,
-            deviceId: bookmark.deviceId ?? null,
-            deviceColor: bookmark.deviceColor ?? null,
-            updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
-        })),
-        // 読書環境の同期
-        writingMode: progress?.writingMode ?? null,
-        pageDirection: progress?.pageDirection ?? null,
-        imageViewMode: progress?.imageViewMode ?? null,
-        updatedAt,
-    };
-    return { cloudBookId, state, updatedAt };
+    // SSOT: cloudState.js に集約し、同期仕様のブレを防ぐ
+    return buildCloudStatePayloadSSOT(_storage, localBookId, cloudBookId);
 }
 
 /**
