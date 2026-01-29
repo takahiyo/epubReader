@@ -7,6 +7,8 @@
  * - AIエージェントが誤って重複実装や削除を行わないよう、SSOTとして明示しています。
  */
 
+import { getDeviceInfo } from "./storage.js";
+
 /**
  * クラウド同期用の状態ペイロードを構築する
  * @param {import("./storage.js").StorageService} storage
@@ -18,6 +20,7 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
   const progress = storage.getProgress(localBookId) ?? {};
   const bookmarks = storage.getBookmarks(localBookId) ?? [];
   const bookInfo = storage.data?.library?.[localBookId];
+  const deviceInfo = typeof getDeviceInfo === "function" ? getDeviceInfo() : null;
 
   const updatedAt = Math.max(
     progress?.updatedAt ?? 0,
@@ -41,6 +44,7 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
     pageDirection: progress?.pageDirection ?? null,
     imageViewMode: progress?.imageViewMode ?? null,
     fontSize: progress?.fontSize ?? null,
+    deviceInfo,
     updatedAt,
   };
 
