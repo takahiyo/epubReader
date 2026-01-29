@@ -7,6 +7,8 @@ export const SYNC_SOURCES = Object.freeze({
   PCLOUD: "pcloud",
 });
 
+export const PROGRESS_PRECISION = 0.1;
+
 // ============================================
 // 同期ソース設定
 // ============================================

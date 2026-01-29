@@ -51,6 +51,7 @@ import {
   ASSET_PATHS,
   READER_CONFIG,
   SYNC_SOURCES,
+  PROGRESS_PRECISION,
 } from "./constants.js";
 
 // ========================================
@@ -183,6 +184,12 @@ if (typeof document !== "undefined") {
 // ========================================
 
 let saveProgressTimeout;
+function roundProgressPercentage(value) {
+  if (!Number.isFinite(value)) return value;
+  const factor = 1 / PROGRESS_PRECISION;
+  return Math.round(value * factor) / factor;
+}
+
 function saveProgressDebounced() {
   clearTimeout(saveProgressTimeout);
   saveProgressTimeout = setTimeout(() => {
@@ -205,7 +212,7 @@ function saveCurrentProgress() {
       cfi = reader.pagination.pages[pageIndex].cfi;
     }
 
-    const percentage = total > 1 ? (pageIndex / (total - 1)) * 100 : 0;
+    const percentage = roundProgressPercentage(total > 1 ? (pageIndex / (total - 1)) * 100 : 0);
 
     progressData = {
       percentage,
@@ -216,7 +223,7 @@ function saveCurrentProgress() {
     // 画像書庫
     const index = (typeof reader.imageIndex === 'object' && reader.imageIndex !== null) ? (reader.imageIndex.index ?? 0) : Number(reader.imageIndex || 0);
     const total = reader.imagePages.length;
-    const percentage = total > 1 ? (index / (total - 1)) * 100 : 0;
+    const percentage = roundProgressPercentage(total > 1 ? (index / (total - 1)) * 100 : 0);
 
     progressData = {
       percentage,
@@ -896,9 +903,10 @@ async function applyReadingState(progress) {
 function handleProgress(progress) {
   if (!currentBookId) return;
 
-
+  const roundedPercentage = roundProgressPercentage(progress?.percentage);
   storage.setProgress(currentBookId, {
     ...progress,
+    percentage: roundedPercentage,
     writingMode,
     fontSize,
     theme,
