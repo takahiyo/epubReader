@@ -73,15 +73,47 @@ function hasIndexData(index) {
 
 /**
  * クラウド同期が有効かどうかを確認
+ * SSOT: D1同期の前提条件
+ * 1. 認証済みであること
+ * 2. Workerエンドポイントが設定されていること
+ * 3. sourceが"firebase"であること（D1バックエンドを使用）
+ * 
+ * 注: ユーザーが明示的にsource="local"に設定している場合は無効となる
  */
 export function isCloudSyncEnabled() {
-    if (!_checkAuthStatus || !_storage || !_cloudSync) return false;
-    const authStatus = _checkAuthStatus();
-    if (!authStatus.authenticated) {
+    if (!_checkAuthStatus || !_storage || !_cloudSync) {
+        console.log('[isCloudSyncEnabled] Missing dependencies:', {
+            checkAuthStatus: !!_checkAuthStatus,
+            storage: !!_storage,
+            cloudSync: !!_cloudSync
+        });
         return false;
     }
+    
+    const authStatus = _checkAuthStatus();
+    if (!authStatus.authenticated) {
+        console.log('[isCloudSyncEnabled] Not authenticated');
+        return false;
+    }
+    
     const settings = _storage.getSettings();
-    return _cloudSync.resolveSource(null, settings) === "firebase";
+    const resolvedSource = _cloudSync.resolveSource(null, settings);
+    const endpoint = _cloudSync.getWorkerEndpoint(settings);
+    
+    console.log('[isCloudSyncEnabled] Check:', {
+        resolvedSource,
+        hasEndpoint: !!endpoint,
+        endpoint: endpoint ? endpoint.substring(0, 50) + '...' : 'none',
+        userSource: settings.source,
+        userDestination: settings.saveDestination
+    });
+    
+    // D1同期が有効な条件:
+    // - resolvedSourceが"firebase"（D1バックエンド）
+    // - Workerエンドポイントが設定されている
+    const isEnabled = resolvedSource === "firebase" && !!endpoint;
+    console.log('[isCloudSyncEnabled] Result:', isEnabled);
+    return isEnabled;
 }
 
 /**
