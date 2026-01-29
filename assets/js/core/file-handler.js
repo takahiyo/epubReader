@@ -13,6 +13,7 @@ import {
     UI_CLASSES,
     IMAGE_VIEW_MODES
 } from "../../constants.js";
+import { createArchiveHandler } from "./archive-handler.js";
 import { resolveErrorCode, t } from "../ui/i18n-utils.js";
 import { showLoading, hideLoading } from "../ui/overlay-manager.js";
 import { elements } from "../ui/elements.js";
@@ -80,6 +81,42 @@ export async function hashBuffer(buffer) {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     return hex;
+}
+
+function resolveArchiveEntrySize(entry) {
+    const sizeCandidates = [
+        entry?.uncompressedSize,
+        entry?.size,
+        entry?.packedSize,
+        entry?.fileSize,
+        entry?.unpackedSize,
+        entry?.compressedSize,
+        entry?._data?.uncompressedSize,
+        entry?._data?.compressedSize,
+        entry?.data?.length,
+    ];
+    const size = sizeCandidates.find((candidate) => Number.isFinite(candidate));
+    return Number.isFinite(size) ? size : 0;
+}
+
+function buildArchiveFingerprintPayload(entries) {
+    const sorted = [...entries].sort((a, b) => a.path.localeCompare(b.path, "en", { numeric: true, sensitivity: "base" }));
+    return {
+        count: sorted.length,
+        files: sorted.map(({ path, entry }) => ({
+            path,
+            size: resolveArchiveEntrySize(entry),
+        })),
+    };
+}
+
+export async function buildArchiveFingerprint(file) {
+    const handler = await createArchiveHandler(file);
+    const entries = await handler.listImageEntries();
+    const payload = buildArchiveFingerprintPayload(entries);
+    const json = JSON.stringify(payload);
+    const buffer = new TextEncoder().encode(json).buffer;
+    return hashBuffer(buffer);
 }
 
 /**

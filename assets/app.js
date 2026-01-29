@@ -526,7 +526,10 @@ async function handleFile(file) {
     }
     console.log(`Detected file type: ${type}`);
 
-    const contentHash = await fileHandler.hashBuffer(buffer);
+    const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
+    const contentHash = isArchiveBook
+      ? await fileHandler.buildArchiveFingerprint(file)
+      : await fileHandler.hashBuffer(buffer); // EPUBは従来のコンテンツハッシュを継続使用
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
