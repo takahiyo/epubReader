@@ -14,6 +14,7 @@ import {
     CSS_VARS,
     DOM_IDS,
     DOM_SELECTORS,
+    ARCHIVE_WARNING_I18N_KEYS,
     IMAGE_VIEW_MODES,
     READING_DIRECTIONS,
     PROGRESS_CONFIG,
@@ -74,6 +75,42 @@ export function setMaterialIconLabel(button, iconName, labelText) {
     icon.textContent = iconName;
     const label = document.createTextNode(` ${labelText}`);
     button.replaceChildren(icon, label);
+}
+
+export function showArchiveWarnings(warningTypes = []) {
+    if (!elements.archiveWarningBanner) return;
+    const warningKeys = warningTypes
+        .map((type) => ARCHIVE_WARNING_I18N_KEYS[type])
+        .filter(Boolean);
+
+    if (!warningKeys.length) {
+        hideArchiveWarnings();
+        return;
+    }
+
+    if (elements.archiveWarningTitle) {
+        elements.archiveWarningTitle.textContent = t("archiveWarningTitle");
+    }
+    if (elements.archiveWarningClose) {
+        elements.archiveWarningClose.textContent = t("closeButtonLabel");
+        elements.archiveWarningClose.setAttribute("aria-label", t("closeButtonLabel"));
+    }
+    if (elements.archiveWarningList) {
+        const items = warningKeys.map((key) => {
+            const li = document.createElement("li");
+            li.textContent = t(key);
+            return li;
+        });
+        elements.archiveWarningList.replaceChildren(...items);
+    }
+    elements.archiveWarningBanner.classList.remove(UI_CLASSES.HIDDEN);
+}
+
+export function hideArchiveWarnings() {
+    if (!elements.archiveWarningBanner) return;
+    elements.archiveWarningBanner.classList.add(UI_CLASSES.HIDDEN);
+    elements.archiveWarningTitle?.replaceChildren();
+    elements.archiveWarningList?.replaceChildren();
 }
 
 /**
@@ -302,6 +339,11 @@ export function updateAuthStatusDisplay() {
     }
 }
 
+/**
+ * 同期ステータス表示の更新
+ * D1同期の最終同期時刻を表示します。
+ * @param {Object} authStatus 認証状態
+ */
 export function updateSyncStatusDisplay(authStatus) {
     if (elements.syncStatus && _storage) {
         const status = authStatus || (_actions.checkAuthStatus ? _actions.checkAuthStatus() : { authenticated: false });
@@ -309,7 +351,10 @@ export function updateSyncStatusDisplay(authStatus) {
             elements.syncStatus.textContent = t("syncNeedsLogin");
             return;
         }
-        const lastSyncAt = _storage.getSettings().lastSyncAt;
+        // SSOT: lastIndexSyncAtとcloudIndexUpdatedAtの両方をチェック
+        const settings = _storage.getSettings();
+        const lastSyncAt = settings.lastIndexSyncAt || settings.lastSyncAt || _storage.data.cloudIndexUpdatedAt;
+        console.log('[updateSyncStatusDisplay] lastIndexSyncAt:', settings.lastIndexSyncAt, 'lastSyncAt:', settings.lastSyncAt, 'cloudIndexUpdatedAt:', _storage.data.cloudIndexUpdatedAt);
         if (!lastSyncAt) {
             elements.syncStatus.textContent = t("syncStatusNever");
             return;

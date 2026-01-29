@@ -79,6 +79,15 @@
       <img id="pageImage" alt="" />
     </div>
 
+    <!-- アーカイブ警告バナー -->
+    <div id="archiveWarningBanner" class="archive-warning hidden" role="status" aria-live="polite">
+      <div class="archive-warning-body">
+        <p id="archiveWarningTitle" class="archive-warning-title"></p>
+        <ul id="archiveWarningList" class="archive-warning-list"></ul>
+      </div>
+      <button id="archiveWarningClose" class="archive-warning-close" type="button"></button>
+    </div>
+
     <!-- 空の状態（本が未選択） -->
     <div id="emptyState" class="empty-state">
       <img id="emptyStateIcon" src="assets/bookreader.png" class="empty-book-icon" alt="" />
@@ -309,10 +318,24 @@
             </select>
           </div>
           <div class="setting-item">
-            <label for="settingsDefaultDirection" id="settingsDefaultDirectionLabel"></label>
-            <select id="settingsDefaultDirection">
-              <option value="rtl" selected></option>
+            <label for="settingsDefaultWritingMode" id="settingsDefaultWritingModeLabel"></label>
+            <select id="settingsDefaultWritingMode">
+              <option value="horizontal-tb"></option>
+              <option value="vertical-rl"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsDefaultPageDirection" id="settingsDefaultPageDirectionLabel"></label>
+            <select id="settingsDefaultPageDirection">
+              <option value="rtl"></option>
               <option value="ltr"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsDefaultImageViewMode" id="settingsDefaultImageViewModeLabel"></label>
+            <select id="settingsDefaultImageViewMode">
+              <option value="single"></option>
+              <option value="spread"></option>
             </select>
           </div>
         </div>

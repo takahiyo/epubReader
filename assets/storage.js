@@ -265,6 +265,10 @@ export class StorageService {
   setProgress(bookId, progress) {
     this.data.progress[bookId] = {
       ...progress,
+      // 読書環境も保存
+      writingMode: progress.writingMode,
+      pageDirection: progress.pageDirection,
+      imageViewMode: progress.imageViewMode,
       updatedAt: Date.now(),
     };
     this.save();
@@ -541,6 +545,12 @@ export class StorageService {
     if (updatedAt) {
       this.data.cloudIndexUpdatedAt = updatedAt;
     }
+    this.save();
+  }
+
+  setCloudIndexUpdatedAt(updatedAt) {
+    if (!updatedAt) return;
+    this.data.cloudIndexUpdatedAt = updatedAt;
     this.save();
   }
 

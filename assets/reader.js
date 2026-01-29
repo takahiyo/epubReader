@@ -18,12 +18,119 @@ import {
   READING_DIRECTIONS,
   IMAGE_VIEW_MODES,
   CSS_WRITING_MODES,
-  MIME_TYPES,
-  FILE_EXTENSIONS,
   UI_DEFAULTS,
+  MEMORY_STRATEGY,
+  READER_LOADING_PHASES,
+  READER_LOADING_STATUSES,
 } from "./constants.js";
+import { createArchiveHandler } from "./js/core/archive-handler.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
+const getMemoryStrategy = () => {
+  if (typeof window !== "undefined" && window.EPUB_READER_CONFIG?.MEMORY_STRATEGY) {
+    return window.EPUB_READER_CONFIG.MEMORY_STRATEGY;
+  }
+  return MEMORY_STRATEGY;
+};
+const normalizeRelativePath = (path) => {
+  if (!path) return path;
+  const normalized = path.replace(/\\/g, "/");
+  const withoutQuery = normalized.split(/[?#]/)[0];
+  try {
+    const dummyBase = "http://dummy";
+    const fullUrl = new URL(withoutQuery, dummyBase);
+    return fullUrl.pathname.replace(/^\//, "");
+  } catch (error) {
+    const parts = withoutQuery.split("/").filter(p => p && p !== ".");
+    const result = [];
+    for (const part of parts) {
+      if (part === ".." && result.length > 0) {
+        result.pop();
+      } else if (part !== "..") {
+        result.push(part);
+      }
+    }
+    return result.join("/");
+  }
+};
+const safeDecodeURIComponent = (value) => {
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+};
+const safeEncodeURI = (value) => {
+  try {
+    return encodeURI(value);
+  } catch (error) {
+    return value;
+  }
+};
+const normalizeResourceEncoding = (value) => {
+  if (!value) return value;
+  const decoded = safeDecodeURIComponent(value);
+  return safeEncodeURI(decoded);
+};
+const normalizeResourcePath = (url, spineItem) => {
+  if (!url || /^(https?:|data:|blob:)/i.test(url)) {
+    return url;
+  }
+
+  const normalized = url.replace(/\\/g, "/");
+  const [pathPart] = normalized.split(/[?#]/);
+
+  if (!spineItem?.href) {
+    return normalizeRelativePath(pathPart);
+  }
+
+  const baseParts = spineItem.href.replace(/\\/g, "/").split("/").slice(0, -1);
+  const base = baseParts.join("/");
+
+  if (!base) {
+    return normalizeRelativePath(pathPart);
+  }
+
+  if (pathPart.startsWith("/")) {
+    return normalizeRelativePath(pathPart.replace(/^\/+/, ""));
+  }
+
+  const isExplicitRelative = pathPart.startsWith("./") || pathPart.startsWith("../");
+  const hasDirectory = pathPart.includes("/");
+  if (!isExplicitRelative && hasDirectory && !pathPart.startsWith(`${base}/`)) {
+    return normalizeRelativePath(pathPart);
+  }
+
+  const shouldResolve = !pathPart.startsWith(`${base}/`) && pathPart !== base;
+  const combined = shouldResolve ? `${base}/${pathPart}` : pathPart;
+  return normalizeRelativePath(combined);
+};
+const normalizeResourceKey = (url, spineItem, book) => {
+  if (!url || /^(https?:|data:|blob:)/i.test(url)) {
+    return url;
+  }
+
+  const normalized = normalizeResourcePath(url, spineItem);
+  const resolved = book?.path?.resolve ? book.path.resolve(normalized) : normalized;
+  const encoded = normalizeResourceEncoding(resolved);
+  return normalizeRelativePath(encoded);
+};
+const normalizeResourceComparisonKey = (url, spineItem, book) => {
+  const normalized = normalizeResourceKey(url, spineItem, book);
+  if (!normalized) return normalized;
+  return normalized.replace(/\.[^./?#]+$/, (ext) => ext.toLowerCase());
+};
+const normalizeResourceFilenameKey = (filename) => {
+  if (!filename) return filename;
+  const encoded = normalizeResourceEncoding(filename);
+  return encoded.replace(/\.[^./?#]+$/, (ext) => ext.toLowerCase());
+};
+const normalizeZipEntryKey = (value, { lowerCase = false } = {}) => {
+  if (!value) return value;
+  const decoded = safeDecodeURIComponent(value);
+  const normalized = decoded.replace(/\\/g, "/");
+  return lowerCase ? normalized.toLowerCase() : normalized;
+};
 
 class PageController {
   constructor(onChange) {
@@ -64,6 +171,7 @@ export class ReaderController {
     imageElementId,
     pageIndicatorId,
     onProgress,
+    onLoadingUpdate,
     onReady,
     onImageZoom,
   }) {
@@ -72,16 +180,19 @@ export class ReaderController {
     this.imageElement = document.getElementById(imageElementId);
     this.pageIndicator = document.getElementById(pageIndicatorId);
     this.onProgress = onProgress;
+    this.onLoadingUpdate = onLoadingUpdate;
     this.onReady = onReady;
     this.onImageZoom = onImageZoom;
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "zip" | "rar"
+    this.type = null; // "epub" | "image"
+    this.archiveHandler = null;
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
     this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
@@ -95,6 +206,7 @@ export class ReaderController {
     this.currentPageIndex = 0;
     this.usingPaginator = false;
     this.resourceUrlCache = new Map();
+    this.zipFileKeyMap = null;
     this.resourceLoader = null;
     this.pageContainer = null;
     this.fontSize = null;
@@ -125,6 +237,21 @@ export class ReaderController {
     this.setupZoomSlider();
   }
 
+  emitLoadingUpdate({ phase, status, current, total } = {}) {
+    if (!this.onLoadingUpdate || !phase || !status) return;
+    const percentage =
+      Number.isFinite(current) && Number.isFinite(total) && total > 0
+        ? Math.round((current / total) * 100)
+        : null;
+    this.onLoadingUpdate({
+      phase,
+      status,
+      current,
+      total,
+      percentage,
+    });
+  }
+
   resetReaderState() {
     if (this.rendition?.destroy) {
       try {
@@ -142,7 +269,9 @@ export class ReaderController {
     }
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "zip" | "rar"
+    this.type = null; // "epub" | "image"
+    this.archiveHandler = null;
+    this.revokeImagePages();
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
@@ -162,6 +291,7 @@ export class ReaderController {
     this.usingPaginator = false;
     this.resourceUrlCache.forEach((url) => URL.revokeObjectURL(url));
     this.resourceUrlCache.clear();
+    this.zipFileKeyMap = null;
     this.resourceLoader = null;
     this.pageContainer = null;
     this.spineItems = [];
@@ -191,6 +321,15 @@ export class ReaderController {
       if (slider) slider.value = this.getZoomConfig().min;
     }
     this.updateTransform();
+  }
+
+  revokeImagePages() {
+    if (!this.imagePages?.length) return;
+    this.imagePages.forEach((page) => {
+      if (typeof page === "string" && page.startsWith("blob:")) {
+        URL.revokeObjectURL(page);
+      }
+    });
   }
 
   /**
@@ -271,6 +410,29 @@ export class ReaderController {
     }
     console.log("JSZip loaded successfully (local)");
     return localJszip;
+  }
+
+  getZipFileKeyMap() {
+    if (this.zipFileKeyMap) {
+      return this.zipFileKeyMap;
+    }
+    const zipFiles = this.book?.archive?.zip?.files;
+    if (!zipFiles) {
+      return null;
+    }
+    const map = new Map();
+    for (const key of Object.keys(zipFiles)) {
+      const normalized = normalizeZipEntryKey(key);
+      if (normalized && !map.has(normalized)) {
+        map.set(normalized, key);
+      }
+      const lower = normalizeZipEntryKey(key, { lowerCase: true });
+      if (lower && !map.has(lower)) {
+        map.set(lower, key);
+      }
+    }
+    this.zipFileKeyMap = map;
+    return map;
   }
 
   async loadJSZipFromCdn(isPlaceholder) {
@@ -1005,103 +1167,118 @@ export class ReaderController {
       if (this.paginator?.destroy) {
         this.paginator.destroy();
       }
-      const resolveResourceUrl = (url, spineItem) => {
-        if (!url || /^(https?:|data:|blob:)/i.test(url)) {
-          return url;
-        }
-
-        // Try book.resolve first (ePub.js built-in)
-        if (this.book?.resolve) {
-          try {
-            const resolved = this.book.resolve(url, spineItem?.href);
-            if (resolved) return resolved;
-          } catch (error) {
-            // ignore and fallback
-          }
-        }
-
-        // Manual resolution with ".." normalization
-        if (spineItem?.href) {
-          // Get base directory from spine item href
-          const baseParts = spineItem.href.split("/").slice(0, -1);
-          const base = baseParts.join("/");
-
-          // Combine base and url
-          const combined = base ? `${base}/${url}` : url;
-
-          // Normalize backslashes to forward slashes
-          const normalized = combined.replace(/\\/g, "/");
-
-          // Remove query and hash
-          const withoutQuery = normalized.split(/[?#]/)[0];
-
-          // Use URL constructor to normalize ".." and "."
-          try {
-            // Prepend a dummy base to use URL API
-            const dummyBase = "http://dummy";
-            const fullUrl = new URL(withoutQuery, dummyBase);
-            // Extract pathname and remove leading slash
-            const result = fullUrl.pathname.replace(/^\//, "");
-            return result;
-          } catch (error) {
-            // Fallback: manual ".." removal
-            const parts = withoutQuery.split("/").filter(p => p && p !== ".");
-            const result = [];
-            for (const part of parts) {
-              if (part === ".." && result.length > 0) {
-                result.pop();
-              } else if (part !== "..") {
-                result.push(part);
-              }
-            }
-            return result.join("/");
-          }
-        }
-
-        return url;
-      };
-
       const resourceLoader = async (url, spineItem) => {
         if (!url) return url;
         if (/^(https?:|data:|blob:)/i.test(url)) {
           return url;
         }
 
-        const resolvedUrl = resolveResourceUrl(url, spineItem);
+        const resolvedUrl = normalizeResourceKey(url, spineItem, this.book);
+        const resolvedComparisonKey = normalizeResourceComparisonKey(resolvedUrl, spineItem, null);
 
         if (this.resourceUrlCache.has(resolvedUrl)) {
           return this.resourceUrlCache.get(resolvedUrl);
         }
 
         try {
-          // Try multiple candidate keys to find the resource
-          const candidates = [
+          // リソース検索用の候補パスを生成
+          // EPUBによってパス形式が異なるため、複数のパターンを試行
+          const filename = url.split("/").pop();
+          const candidateSeeds = [
             resolvedUrl,
-            resolvedUrl.replace(/^\//, ""), // without leading slash
-            `/${resolvedUrl}`, // with leading slash
-            decodeURIComponent(resolvedUrl), // decoded
-            encodeURI(resolvedUrl), // encoded
-            url // original
+            resolvedUrl?.replace(/^\//, ""),
+            url,
+            `OEBPS/${url}`,
+            `OEBPS/${resolvedUrl}`,
+            filename,
+            `Images/${filename}`,
+            `OEBPS/Images/${filename}`,
+            safeDecodeURIComponent(url),
+            safeDecodeURIComponent(resolvedUrl),
+            safeEncodeURI(safeDecodeURIComponent(url)),
+            safeEncodeURI(safeDecodeURIComponent(resolvedUrl)),
           ];
+          const candidates = candidateSeeds
+            .map((candidate) => normalizeResourceKey(candidate, spineItem, this.book))
+            .filter((value, index, array) => value && array.indexOf(value) === index);
 
           let resourceItem = null;
-          let foundKey = null;
 
           for (const candidate of candidates) {
             try {
-              const item = this.book?.resources?.get?.(candidate);
+              let item = this.book?.resources?.get?.(candidate);
+
+              // Promiseの場合は解決を待つ
+              if (item && typeof item.then === 'function') {
+                item = await item;
+              }
+
               if (item) {
                 resourceItem = item;
-                foundKey = candidate;
                 break;
               }
             } catch (e) {
-              // try next candidate
+              // 次の候補を試行
             }
           }
 
-          if (resourceItem?.then) {
-            resourceItem = await resourceItem;
+          // マニフェストからのあいまい検索（フォールバック）
+          if (!resourceItem && this.book?.package?.manifest) {
+            try {
+              const manifest = this.book.package.manifest;
+              const targetFilename = normalizeResourceFilenameKey(filename);
+
+              const foundItem = Object.values(manifest).find(item => {
+                if (!item.href) return false;
+                const resolvedHref = this.book?.path?.resolve ? this.book.path.resolve(item.href) : item.href;
+                const manifestKey = normalizeResourceComparisonKey(resolvedHref, spineItem, null);
+                if (!manifestKey) return false;
+                return manifestKey === resolvedComparisonKey
+                  || (targetFilename && manifestKey.endsWith("/" + targetFilename));
+              });
+
+              if (foundItem) {
+                const resolvedHref = this.book?.path?.resolve ? this.book.path.resolve(foundItem.href) : foundItem.href;
+                const normalizedHref = normalizeResourceKey(resolvedHref, spineItem, null);
+                let item = this.book.resources.get(normalizedHref);
+                if (item && typeof item.then === 'function') {
+                  item = await item;
+                }
+                if (item) {
+                  resourceItem = item;
+                }
+              }
+            } catch (e) {
+              // あいまい検索失敗
+            }
+          }
+
+          if (!resourceItem) {
+            const zip = this.book?.archive?.zip;
+            const zipFileKeyMap = this.getZipFileKeyMap();
+            if (zip && zipFileKeyMap) {
+              const zipKeySeeds = [
+                resolvedUrl,
+                url,
+                safeDecodeURIComponent(url),
+                safeDecodeURIComponent(resolvedUrl),
+              ];
+              const zipKeys = zipKeySeeds
+                .map((value) => normalizeZipEntryKey(value))
+                .filter((value, index, array) => value && array.indexOf(value) === index);
+
+              for (const key of zipKeys) {
+                const lookupKey = normalizeZipEntryKey(key, { lowerCase: true });
+                const realKey = zipFileKeyMap.get(key) ?? zipFileKeyMap.get(lookupKey);
+                if (!realKey) continue;
+                const fileEntry = zip.file(realKey);
+                if (!fileEntry) continue;
+                const blob = await fileEntry.async("blob");
+                const objectUrl = URL.createObjectURL(blob);
+                this.resourceUrlCache.set(resolvedUrl, objectUrl);
+                return objectUrl;
+              }
+            }
           }
 
           if (!resourceItem) {
@@ -1173,162 +1350,45 @@ export class ReaderController {
   async openImageBook(file, startPage = 0, bookType = null) {
     this.resetReaderState();
     this.toc = [];
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    const isRar =
-      bookType === BOOK_TYPES.RAR ||
-      ext === FILE_EXTENSIONS.RAR ||
-      ext === FILE_EXTENSIONS.CBR ||
-      file.type === MIME_TYPES.RAR ||
-      file.type === MIME_TYPES.CBR ||
-      file.type === MIME_TYPES.RAR_LEGACY;
-    // type: "zip" | "rar" として設定
-    this.type = isRar ? BOOK_TYPES.RAR : BOOK_TYPES.ZIP;
-    const buffer = await file.arrayBuffer();
+    void bookType;
+    this.imageArchiveSize = file?.size ?? 0;
+    this.emitLoadingUpdate({
+      phase: READER_LOADING_PHASES.ARCHIVE_INIT,
+      status: READER_LOADING_STATUSES.START,
+    });
+    const handler = await createArchiveHandler(file);
+    this.emitLoadingUpdate({
+      phase: READER_LOADING_PHASES.ARCHIVE_INIT,
+      status: READER_LOADING_STATUSES.COMPLETE,
+    });
+    this.archiveHandler = handler;
+    // 画像書庫として扱う
+    this.type = BOOK_TYPES.IMAGE;
     let images = [];
 
     try {
-      console.log(`Processing ${isRar ? 'RAR' : 'ZIP/CBZ'} file: ${file.name}`);
-      console.log(`File size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+      const archiveLabel = handler.getArchiveLabel();
+      console.log(`Processing ${archiveLabel} file: ${file.name}`);
 
-      if (isRar) {
-        console.log("Opening RAR file...");
-        const { createExtractorFromData } = await this.ensureUnrar();
-        const extractor = await createExtractorFromData({ data: new Uint8Array(buffer) });
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.ARCHIVE_LIST,
+        status: READER_LOADING_STATUSES.START,
+      });
+      const imageEntries = await handler.listImageEntries();
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.ARCHIVE_LIST,
+        status: READER_LOADING_STATUSES.COMPLETE,
+        current: imageEntries.length,
+        total: imageEntries.length,
+      });
+      console.log(`Filtered ${imageEntries.length} image entries from ${archiveLabel}`);
 
-        // 1. getFileListの結果から fileHeaders を取得して配列に変換
-        // 修正: v2では戻り値が { arcHeader, fileHeaders } となっているため .fileHeaders にアクセスする
-        const list = extractor.getFileList();
-        const headers = [...list.fileHeaders];
-
-        console.log(`Found ${headers.length} entries in RAR`);
-
-        // デバッグ: 最初の数エントリを表示
-        if (headers.length > 0) {
-          console.log('Sample RAR entries:', headers.slice(0, 3).map(h => ({
-            name: h?.name ?? h?.fileName ?? h?.filename ?? h?.path,
-            isDir: h?.flags?.directory ?? h?.isDirectory ?? h?.directory
-          })));
-        }
-
-        const imageHeaders = headers.filter((header) => {
-          const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
-          if (!name) return false;
-
-          const normalized = name.replace(/\\/g, "/");
-          const fileName = normalized.split("/").pop() ?? "";
-          const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
-
-          if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
-            return false;
-          }
-
-          const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
-          return !isDir && isImage;
-        });
-
-        console.log(`Filtered ${imageHeaders.length} image entries`);
-
-        if (imageHeaders.length === 0) {
-          console.error('No image files found in RAR. Available files:', headers.map(h => h?.name ?? h?.fileName));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
-        }
-
-        const imageNames = imageHeaders
-          .map((header) => header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "")
-          .filter(Boolean);
-
-        console.log('Extracting images:', imageNames);
-
-        // 2. extractメソッドを使用し、結果から files を取得して配列に変換
-        // 修正: v2では戻り値が { arcHeader, files } となっているため .files にアクセスする
-        const extracted = extractor.extract({ files: imageNames });
-        const extractedFiles = [...extracted.files];
-
-        images = extractedFiles
-          .map((item) => {
-            const header = item?.fileHeader ?? item?.header ?? item;
-            const name = header?.name ?? header?.fileName ?? header?.filename ?? item?.name ?? "";
-
-            // 3. データ取得ロジックをv2に対応 (item.extraction が Uint8Array の場合がある)
-            let data = item?.extraction;
-            if (data && data.data) {
-              // 古い構造へのフォールバック
-              data = data.data;
-            } else if (item?.data) {
-              data = item.data;
-            }
-
-            if (!data) {
-              console.warn(`Failed to extract data for: ${name}`);
-              return null;
-            }
-
-            return { path: name, data };
-          })
-          .filter((entry) => entry !== null && entry.path && entry.data);
-
-        console.log(`Successfully extracted ${images.length} images from RAR`);
-      } else {
-        console.log("Opening ZIP/CBZ file...");
-        const JSZipLib = await this.ensureJSZip();
-        // ArrayBuffer を Uint8Array に変換して安全に JSZip に渡す
-        const zipData = new Uint8Array(buffer);
-
-        // 【追加】マジックナンバーの最終確認
-        // ZIP として指定されているが、実際には RAR のシグネチャを持つ場合のフォールバック
-        if (zipData[0] === 0x52 && zipData[1] === 0x61 && zipData[2] === 0x72) {
-          console.warn("ZIP/CBZとして指定されましたがRARの署名を検出しました。RARとして開き直します。");
-          return this.openImageBook(file, startPage, BOOK_TYPES.RAR);
-        }
-
-        const zip = await JSZipLib.loadAsync(zipData).catch(err => {
-          // エラー内容を確認し、RAR の可能性がある場合は再試行を検討
-          if (err.message.includes("end of central directory") || err.message.includes("signature")) {
-            // ここでも念のため再チェック
-            if (zipData[0] === 0x52 && zipData[1] === 0x61 && zipData[2] === 0x72) {
-              return this.openImageBook(file, startPage, BOOK_TYPES.RAR);
-            }
-          }
-          throw err;
-        });
-
-        const entries = [];
-        zip.forEach((path, entry) => {
-          // ディレクトリを除外
-          if (!entry.dir) {
-            entries.push({ path, entry });
-          }
-        });
-
-        console.log(`Found ${entries.length} files in ZIP`);
-
-        // デバッグ: 最初の数エントリを表示
-        if (entries.length > 0) {
-          console.log('Sample ZIP entries:', entries.slice(0, 5).map(e => e.path));
-        }
-
-        images = entries
-          .filter(({ path }) => {
-            const normalized = path.replace(/\\/g, "/");
-            const fileName = normalized.split("/").pop() ?? normalized;
-
-            // 隠しファイルを除外
-            if (fileName.startsWith('.') || fileName.startsWith('__') || fileName.toLowerCase() === 'thumbs.db') {
-              return false;
-            }
-
-            const isImage = /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(fileName);
-            return isImage;
-          })
-          .map(({ path, entry }) => ({ path, entry }));
-
-        console.log(`Filtered ${images.length} image entries from ZIP`);
-
-        if (images.length === 0) {
-          console.error('No image files found in ZIP. Available files:', entries.map(e => e.path));
-          throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
-        }
+      if (imageEntries.length === 0) {
+        console.error("No image files found in archive.");
+        throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
       }
+
+      images = imageEntries.map(({ path, entry }) => ({ path, entry }));
 
       if (!images.length) {
         throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
@@ -1350,11 +1410,27 @@ export class ReaderController {
       this.imagePages = new Array(images.length).fill(null);
       this.imagePageErrors = new Array(images.length).fill(null);
 
-      const preloadCount = Math.min(3, images.length);
-      console.log(`Preloading ${preloadCount} images to base64...`);
+      const memoryStrategy = getMemoryStrategy();
+      const preloadCount = Math.min(
+        memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount,
+        images.length
+      );
+      console.log(`Preloading ${preloadCount} images to object URLs...`);
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
+        status: READER_LOADING_STATUSES.START,
+        current: 0,
+        total: preloadCount,
+      });
 
       for (let index = 0; index < preloadCount; index += 1) {
         await this.convertImageAtIndex(index, { reportError: true });
+        this.emitLoadingUpdate({
+          phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
+          status: READER_LOADING_STATUSES.PROGRESS,
+          current: index + 1,
+          total: preloadCount,
+        });
       }
 
       this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
@@ -1364,7 +1440,7 @@ export class ReaderController {
       if (loadedCount === 0) {
         await this.convertImageAtIndex(this.imageIndex, { reportError: true });
         if (!this.imagePages[this.imageIndex]) {
-          console.error('All preloaded images failed to convert to base64');
+          console.error('All preloaded images failed to convert to object URLs');
           throw new Error("画像の読み込みに失敗しました。最初のページの変換に失敗しました。");
         }
       }
@@ -1374,8 +1450,18 @@ export class ReaderController {
         metadata: { title: file.name, creator: "画像書籍" },
         toc: [],
       });
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.READY,
+        status: READER_LOADING_STATUSES.COMPLETE,
+        current: this.imageIndex + 1,
+        total: this.imagePages.length,
+      });
     } catch (error) {
       console.error("Error opening image book:", error);
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.ARCHIVE_INIT,
+        status: READER_LOADING_STATUSES.ERROR,
+      });
       throw new Error(`画像書籍の読み込みに失敗しました: ${error.message}`);
     }
   }
@@ -1389,43 +1475,78 @@ export class ReaderController {
     if (!image) return null;
 
     try {
-      let base64 = null;
-      if (image.entry) {
-        base64 = await image.entry.async("base64");
-        if (!base64) {
-          throw new Error("base64データが空です。");
-        }
-      } else if (image.data) {
-        if (!image.data || image.data.length === 0) {
-          throw new Error("画像データが空です。");
-        }
-        base64 = this.uint8ToBase64(image.data);
-      } else {
-        throw new Error("変換元データが見つかりませんでした。");
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+        status: READER_LOADING_STATUSES.START,
+        current: index + 1,
+        total: this.imageEntries.length,
+      });
+      const handler = this.archiveHandler;
+      if (!handler) {
+        throw new Error("アーカイブハンドラが初期化されていません。");
       }
 
-      const ext = image.path.split(".").pop()?.toLowerCase() ?? "jpeg";
-      const mime =
-        ext === "png" ? "image/png" :
-          ext === "gif" ? "image/gif" :
-            ext === "webp" ? "image/webp" :
-              ext === "avif" ? "image/avif" :
-                ext === "bmp" ? "image/bmp" :
-                  ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-                    "image/jpeg";
-      const dataUrl = `data:${mime};base64,${base64}`;
-      this.imagePages[index] = dataUrl;
-      return dataUrl;
+      const blob = await handler.getFileBlob(image.path);
+      if (!blob || blob.size === 0) {
+        throw new Error("画像データが空です。");
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      this.imagePages[index] = objectUrl;
+      this.manageImageCache(index);
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+        status: READER_LOADING_STATUSES.COMPLETE,
+        current: index + 1,
+        total: this.imageEntries.length,
+      });
+      return objectUrl;
     } catch (error) {
       const pageNumber = index + 1;
       const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）`;
       console.error(message, error);
       this.imagePageErrors[index] = message;
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+        status: READER_LOADING_STATUSES.ERROR,
+        current: index + 1,
+        total: this.imageEntries.length,
+      });
       if (reportError) {
         this.showImageConvertError(message);
       }
       return null;
     }
+  }
+
+  getImageCacheSize() {
+    const memoryStrategy = getMemoryStrategy();
+    const cacheSize = memoryStrategy?.CACHE_SIZE ?? MEMORY_STRATEGY.CACHE_SIZE;
+    const largeCacheSize = memoryStrategy?.LARGE_CACHE_SIZE ?? MEMORY_STRATEGY.LARGE_CACHE_SIZE;
+    const largeFileThreshold = memoryStrategy?.LARGE_FILE_THRESHOLD ?? MEMORY_STRATEGY.LARGE_FILE_THRESHOLD;
+    if (this.imageArchiveSize >= largeFileThreshold) {
+      return largeCacheSize;
+    }
+    return cacheSize;
+  }
+
+  manageImageCache(currentIndex) {
+    if (!this.isImageBook() || !this.imagePages.length) return;
+    const cacheSize = this.getImageCacheSize();
+    if (!Number.isFinite(cacheSize) || cacheSize < 0) return;
+
+    const minIndex = Math.max(0, currentIndex - cacheSize);
+    const maxIndex = Math.min(this.imagePages.length - 1, currentIndex + cacheSize);
+
+    this.imagePages.forEach((page, index) => {
+      if (index >= minIndex && index <= maxIndex) return;
+      if (typeof page === "string") {
+        URL.revokeObjectURL(page);
+      }
+      if (page !== null) {
+        this.imagePages[index] = null;
+      }
+    });
   }
 
   showImageConvertError(message) {
@@ -1481,11 +1602,11 @@ export class ReaderController {
 
     // ★追加: データがまだロードされていない（nullの）場合は、ここで変換処理を実行する
     if (!this.imagePages[index] && !this.imagePageErrors[index]) {
-      // convertImageAtIndex は ZIP/RAR から画像を解凍し、this.imagePages[index] にセットします
+      // convertImageAtIndex はアーカイブから画像を取得し、this.imagePages[index] にセットします
       await this.convertImageAtIndex(index);
     }
 
-    // imagePages[index] が Promise (ZIP解凍待ち) の可能性があるため await する
+    // imagePages[index] が Promise (アーカイブ読込待ち) の可能性があるため await する
     try {
       const src = await this.imagePages[index];
       return src;
@@ -1568,8 +1689,10 @@ export class ReaderController {
 
     this.loadImagePage(index);
     // プリロード
-    if (index + 1 < this.imagePages.length) {
-      this.loadImagePage(index + 1);
+    const memoryStrategy = getMemoryStrategy();
+    const preloadAheadCount = memoryStrategy.imagePreloadAheadCount;
+    if (index + preloadAheadCount < this.imagePages.length) {
+      this.loadImagePage(index + preloadAheadCount);
     }
 
     if (!isWideSpread) {
@@ -1691,7 +1814,8 @@ export class ReaderController {
     }
 
     // プリロード
-    const preloadStep = this.currentSpreadStep || 1;
+    const memoryStrategy = getMemoryStrategy();
+    const preloadStep = this.currentSpreadStep || memoryStrategy.imagePreloadAheadCount;
     if (targetIndex + preloadStep < this.imagePages.length) {
       // 次の画像データだけ取得しておく（キャッシュ乗る）
       this.getPageDimensions(targetIndex + preloadStep);
@@ -1739,7 +1863,7 @@ export class ReaderController {
   }
 
   isImageBook() {
-    return this.type === BOOK_TYPES.ZIP || this.type === BOOK_TYPES.RAR;
+    return this.type === BOOK_TYPES.IMAGE;
   }
 
   // 現在のページが横長かどうかを確認（Navigation用）
@@ -1763,10 +1887,10 @@ export class ReaderController {
       return;
     }
 
-    const dataUrl = await this.convertImageAtIndex(index, { reportError: true });
-    if (!dataUrl) return;
+    const objectUrl = await this.convertImageAtIndex(index, { reportError: true });
+    if (!objectUrl) return;
     if (currentToken === this.imageLoadToken) {
-      this.imageElement.src = dataUrl;
+      this.imageElement.src = objectUrl;
       this.imageElement.alt = "ページ画像";
       this.imageElement.title = "";
     }
@@ -1890,6 +2014,7 @@ export class ReaderController {
       targetIndex = Math.max(0, this.imageIndex - (step || 1));
     }
     await this.goTo(targetIndex);
+    this.manageImageCache(this.imageIndex);
   }
 
   async next(step) {
@@ -1920,6 +2045,7 @@ export class ReaderController {
       targetIndex = Math.min(this.imagePages.length - 1, this.imageIndex + (step || 1));
     }
     await this.goTo(targetIndex);
+    this.manageImageCache(this.imageIndex);
   }
 
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
@@ -1949,7 +2075,7 @@ export class ReaderController {
       cfi,
       percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
       createdAt: Date.now(),
-      bookType: this.type, // "zip" | "rar"
+      bookType: this.type, // "image"
     };
     if (deviceId !== undefined) bookmark.deviceId = deviceId;
     if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
@@ -1968,6 +2094,7 @@ export class ReaderController {
         // 画像書庫の場合、範囲チェックをして移動
         this.imageIndex = Math.max(0, Math.min(bookmark, this.imagePages.length - 1));
         this.renderImagePage();
+        this.manageImageCache(this.imageIndex);
       }
       return;
     }
@@ -1996,13 +2123,14 @@ export class ReaderController {
         const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
         this.pageController.goTo(index);
       }
-    } else if (bookType === BOOK_TYPES.ZIP || bookType === BOOK_TYPES.RAR || bookType === BOOK_TYPES.IMAGE) {
+    } else if (bookType !== BOOK_TYPES.EPUB) {
       // 画像書庫: location は imageIndex
       const targetIndex = typeof bookmark.location === "number"
         ? bookmark.location
         : Math.round((bookmark.percentage / 100) * this.imagePages.length) - 1;
       this.imageIndex = Math.max(0, Math.min(targetIndex, this.imagePages.length - 1));
       this.renderImagePage();
+      this.manageImageCache(this.imageIndex);
     }
   }
 
@@ -2173,15 +2301,6 @@ export class ReaderController {
     };
   }
 
-  uint8ToBase64(uint8) {
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < uint8.length; i += chunkSize) {
-      binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize));
-    }
-    return btoa(binary);
-  }
-
   injectImageZoom() {
     /* Image zoom on click is disabled per user request
     if (this.type === BOOK_TYPES.EPUB) {
@@ -2238,8 +2357,8 @@ export class ReaderController {
   // ========================================
 
   getActiveViewer() {
-    // 画像モード（zip/rar）なら imageViewer
-    if (this.type === BOOK_TYPES.ZIP || this.type === BOOK_TYPES.RAR) {
+    // 画像モードなら imageViewer
+    if (this.isImageBook()) {
       return this.imageViewer;
     }
     // EPUBなら viewer

@@ -43,11 +43,14 @@ import {
   IMAGE_VIEW_MODES,
   FILESTORE_CONFIG,
   FILE_EXTENSIONS,
+  ARCHIVE_WARNING_EVENT,
+  ARCHIVE_WARNING_CONFIG,
   DOM_IDS,
   DOM_SELECTORS,
   CSS_VARS,
   ASSET_PATHS,
   READER_CONFIG,
+  SYNC_SOURCES,
 } from "./constants.js";
 
 // ========================================
@@ -69,6 +72,7 @@ let pageDirection = settings.pageDirection;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let progressDisplayMode = settings.progressDisplayMode ?? UI_DEFAULTS.progressDisplayMode;
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
+let archiveWarningTimeoutId = null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
   const legacyConfig = UI_DEFAULTS.legacyDirectionMap[legacyDirection];
@@ -79,7 +83,9 @@ if (!writingMode || !pageDirection) {
 }
 if (!writingMode) writingMode = UI_DEFAULTS.writingMode;
 if (!pageDirection) pageDirection = UI_DEFAULTS.pageDirection;
-let defaultDirection = settings.defaultDirection ?? UI_DEFAULTS.defaultDirection;
+let defaultWritingMode = settings.defaultWritingMode ?? UI_DEFAULTS.writingMode;
+let defaultPageDirection = settings.defaultPageDirection ?? UI_DEFAULTS.defaultDirection;
+let defaultImageViewMode = settings.defaultImageViewMode ?? UI_DEFAULTS.imageViewMode;
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
@@ -90,6 +96,7 @@ let uiInitialized = false;
 let floatVisible = false;
 let googleLoginReady = false;
 let userOverrodeDirection = false;
+let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
@@ -127,6 +134,39 @@ syncLogic.init({
     applyReadingState,
   },
 });
+
+function setArchiveWarnings(warningTypes = []) {
+  const uniqueTypes = [...new Set(warningTypes)];
+  archiveWarningTypes = uniqueTypes;
+  renderers.showArchiveWarnings(uniqueTypes);
+  if (archiveWarningTimeoutId) {
+    clearTimeout(archiveWarningTimeoutId);
+    archiveWarningTimeoutId = null;
+  }
+  if (uniqueTypes.length > 0 && ARCHIVE_WARNING_CONFIG.AUTO_CLOSE_MS > 0) {
+    archiveWarningTimeoutId = setTimeout(() => {
+      clearArchiveWarnings();
+    }, ARCHIVE_WARNING_CONFIG.AUTO_CLOSE_MS);
+  }
+}
+
+function clearArchiveWarnings() {
+  archiveWarningTypes = [];
+  renderers.hideArchiveWarnings();
+  if (archiveWarningTimeoutId) {
+    clearTimeout(archiveWarningTimeoutId);
+    archiveWarningTimeoutId = null;
+  }
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener(ARCHIVE_WARNING_EVENT, (event) => {
+    const warningTypes = event?.detail?.warningTypes ?? [];
+    if (Array.isArray(warningTypes) && warningTypes.length > 0) {
+      setArchiveWarnings(warningTypes);
+    }
+  });
+}
 
 
 
@@ -468,6 +508,7 @@ function handleToggleZoom() {
 // ========================================
 
 async function handleFile(file) {
+  clearArchiveWarnings();
   showLoading();
   userOverrodeDirection = false;
   try {
@@ -600,7 +641,7 @@ async function handleFile(file) {
       // [追加] デフォルトの開き方向を適用
       // 保存された進行状況に方向が含まれていないため、常にデフォルト（またはユーザー設定）を適用
       // ※将来的には個別の方向保存に対応する可能性があるが、現状はデフォルト設定を使用
-      reader.setImageReadingDirection(defaultDirection);
+      reader.setImageReadingDirection(defaultPageDirection);
       renderers.updateReadingDirectionButtonLabel();
       renderers.updateProgressBarDirection();
     }
@@ -683,6 +724,7 @@ function openCloudOnlyBook(cloudBookId) {
 }
 
 async function openFromLibrary(bookId, options = {}) {
+  clearArchiveWarnings();
   showLoading();
   // ★追加: UI描画更新のために少し待機
   await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
@@ -763,6 +805,8 @@ async function openFromLibrary(bookId, options = {}) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
 
+      showLoading();
+      await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
       await reader.openEpub(file, { location: start, percentage: startProgress });
     } else {
       // 空の状態を非表示、画像ビューアを表示
@@ -809,13 +853,26 @@ function persistReadingState(update) {
 
 async function applyReadingState(progress) {
   if (!progress) return;
-  if (progress.writingMode && progress.writingMode !== writingMode) {
+
+  // 1. 書字方向・開き方向の復元
+  if (progress.writingMode) {
     writingMode = progress.writingMode;
-    if (elements.writingModeSelect) {
-      elements.writingModeSelect.value = writingMode;
-    }
-    await applyReadingSettings(writingMode, pageDirection);
+    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
   }
+  if (progress.pageDirection) {
+    pageDirection = progress.pageDirection;
+    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+  }
+  // 両方を適用
+  await applyReadingSettings(writingMode, pageDirection);
+
+  // 2. 表示モード（単ページ/見開き）の復元
+  if (progress.imageViewMode && reader) {
+    reader.imageViewMode = progress.imageViewMode;
+    renderers.updateSpreadModeButtonLabel();
+  }
+
+  // 3. テーマ・フォント等の復元
   if (progress.theme && progress.theme !== theme) {
     applyTheme(progress.theme);
   }
@@ -837,6 +894,8 @@ function handleProgress(progress) {
     fontSize,
     theme,
     uiLanguage,
+    pageDirection,
+    imageViewMode: reader?.imageViewMode,
   });
   scheduleAutoSyncPush();
   renderers.updateProgressBarDisplay();
@@ -892,15 +951,42 @@ function handleBookReady(payload) {
   currentToc = toc;
 
   // 方向判定とUI更新
+  // 方向判定とUI更新
   if (currentBookInfo.type === BOOK_TYPES.EPUB) {
-    // メタデータから方向を取得（設定値があればそちらを優先）
-    const metadataDirection = metadata.direction;
-    if (metadataDirection && !userOverrodeDirection) {
-      pageDirection = metadataDirection;
-      if (elements.pageDirectionSelect) {
-        elements.pageDirectionSelect.value = pageDirection;
-      }
+    const settings = storage.getSettings();
+    const progress = storage.getProgress(currentBookId);
+
+    // 優先順位: 1. 個別保存設定 > 2. メタデータ > 3. ユーザーデフォルト
+    let targetPageDirection = progress?.pageDirection;
+    let targetWritingMode = progress?.writingMode;
+
+    // 1. 個別設定がない場合、メタデータをチェック
+    if (!targetPageDirection && metadata.direction) {
+      targetPageDirection = metadata.direction;
     }
+
+    // 2. まだ決まっていない場合、デフォルト設定を使用
+    if (!targetPageDirection) {
+      targetPageDirection = settings.defaultPageDirection;
+    }
+    if (!targetWritingMode) {
+      targetWritingMode = settings.defaultWritingMode;
+    }
+
+    // 適用（ユーザーによる一時的な変更フラグがある場合は無視...しないほうが良いかも？
+    // ユーザーが「今」変更したならそれが最優先だが、userOverrodeDirection はどういうスコープ？
+    // handleBookReady は本を開いた直後に来るはず。
+
+    if (!userOverrodeDirection) {
+      pageDirection = targetPageDirection;
+      writingMode = targetWritingMode || writingMode;
+
+      if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+      if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+
+      applyReadingSettings(writingMode, pageDirection);
+    }
+
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
   }
 
@@ -909,9 +995,15 @@ function handleBookReady(payload) {
   storage.upsertBook({ ...currentBookInfo, title });
   if (currentCloudBookId) {
     const author = metadata.creator || metadata.author || "";
-    upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
-      title,
-      author,
+    fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
+      storage,
+      cloudSync,
+      isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+      uiLanguage,
+      overrides: {
+        title,
+        author,
+      },
     }).catch((error) => {
       console.warn("クラウドメタデータの更新に失敗しました:", error);
     });
@@ -1313,6 +1405,9 @@ function applyUiLanguage(nextLanguage) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
+  if (archiveWarningTypes.length > 0) {
+    renderers.showArchiveWarnings(archiveWarningTypes);
+  }
   if (elements.librarySectionTitle) elements.librarySectionTitle.textContent = strings.librarySectionTitle;
   if (elements.libraryViewGrid) {
     elements.libraryViewGrid.setAttribute("aria-label", strings.libraryViewGridLabel);
@@ -1327,8 +1422,14 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
-  if (elements.settingsDefaultDirectionLabel) {
-    elements.settingsDefaultDirectionLabel.textContent = strings.settingsDefaultDirectionLabel;
+  if (elements.settingsDefaultWritingModeLabel) {
+    elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
+  }
+  if (elements.settingsDefaultPageDirectionLabel) {
+    elements.settingsDefaultPageDirectionLabel.textContent = strings.settingsDefaultPageDirectionLabel;
+  }
+  if (elements.settingsDefaultImageViewModeLabel) {
+    elements.settingsDefaultImageViewModeLabel.textContent = strings.settingsDefaultImageViewModeLabel;
   }
   if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
@@ -1404,10 +1505,23 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.progressDisplayPage;
     if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
   }
-  if (elements.settingsDefaultDirection) {
-    const options = elements.settingsDefaultDirection.options;
-    if (options[0]) options[0].textContent = strings.settingsLayoutDirectionRtl;
-    if (options[1]) options[1].textContent = strings.settingsLayoutDirectionLtr;
+  if (elements.settingsDefaultWritingMode) {
+    const options = elements.settingsDefaultWritingMode.options;
+    if (options[0]) options[0].textContent = strings.writingModeHorizontal; // "横書き"
+    if (options[1]) options[1].textContent = strings.writingModeVertical;   // "縦書き"
+    elements.settingsDefaultWritingMode.value = defaultWritingMode;
+  }
+  if (elements.settingsDefaultPageDirection) {
+    const options = elements.settingsDefaultPageDirection.options;
+    if (options[0]) options[0].textContent = strings.pageDirectionRtl; // "右開き"
+    if (options[1]) options[1].textContent = strings.pageDirectionLtr; // "左開き"
+    elements.settingsDefaultPageDirection.value = defaultPageDirection;
+  }
+  if (elements.settingsDefaultImageViewMode) {
+    const options = elements.settingsDefaultImageViewMode.options;
+    if (options[0]) options[0].textContent = strings.spreadModeSingle; // "単ページ"
+    if (options[1]) options[1].textContent = strings.spreadModeDouble; // "見開き"
+    elements.settingsDefaultImageViewMode.value = defaultImageViewMode;
   }
   if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
   if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
@@ -1977,9 +2091,19 @@ function setupEvents() {
     await applyReadingSettings(null, e.target.value);
   });
 
-  elements.settingsDefaultDirection?.addEventListener('change', (e) => {
-    defaultDirection = e.target.value;
-    storage.setSettings({ defaultDirection });
+  elements.settingsDefaultWritingMode?.addEventListener('change', (e) => {
+    defaultWritingMode = e.target.value;
+    storage.setSettings({ defaultWritingMode });
+  });
+
+  elements.settingsDefaultPageDirection?.addEventListener('change', (e) => {
+    defaultPageDirection = e.target.value;
+    storage.setSettings({ defaultPageDirection });
+  });
+
+  elements.settingsDefaultImageViewMode?.addEventListener('change', (e) => {
+    defaultImageViewMode = e.target.value;
+    storage.setSettings({ defaultImageViewMode });
   });
 
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
@@ -2007,17 +2131,21 @@ function setupEvents() {
     if (!authStatus.authenticated) {
       if (syncStatus) {
         syncStatus.textContent = t('syncNeedsLoginStatus');
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
       }
       return;
     }
 
     try {
+      const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
+      if (resolvedSource !== SYNC_SOURCES.WORKERS) {
+        storage.setSettings({ source: SYNC_SOURCES.WORKERS });
+      }
       manualSyncButton.disabled = true;
       manualSyncButton.textContent = t('syncInProgress');
       if (syncStatus) {
         syncStatus.textContent = t('syncStarting');
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
       }
 
       // Pull index
@@ -2030,10 +2158,10 @@ function setupEvents() {
 
       if (syncStatus) {
         syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
         setTimeout(() => {
           syncStatus.textContent = '';
-          setStatusClass(syncStatus, null);
+          renderers.setStatusClass(syncStatus, null);
         }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
@@ -2055,7 +2183,7 @@ function setupEvents() {
         }
 
         syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
 
         // 詳細をアラートでも表示（ユーザーに気づかせるため）
         alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);
@@ -2081,6 +2209,7 @@ function setupEvents() {
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
   elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
+  elements.archiveWarningClose?.addEventListener('click', () => clearArchiveWarnings());
 
   // 検索機能
   const executeSearch = async () => {

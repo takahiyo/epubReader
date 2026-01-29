@@ -41,6 +41,43 @@ export const FILE_EXTENSIONS = Object.freeze({
   CBZ: "cbz",
 });
 
+export const ARCHIVE_WARNING_TYPES = Object.freeze({
+  RAR_NO_STREAM: "rar_no_stream",
+  RAR_SOLID_FULL_EXTRACT: "rar_solid_full_extract",
+});
+
+export const ARCHIVE_WARNING_I18N_KEYS = Object.freeze({
+  [ARCHIVE_WARNING_TYPES.RAR_NO_STREAM]: "rarWarningNoStream",
+  [ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT]: "rarWarningSolidFullExtract",
+});
+
+export const ARCHIVE_WARNING_EVENT = "archive-warning";
+
+export const ARCHIVE_WARNING_CONFIG = Object.freeze({
+  AUTO_CLOSE_MS: 2500,
+});
+
+export const ARCHIVE_WORKER_MESSAGES = Object.freeze({
+  INIT: "archive_worker_init",
+  EXTRACT: "archive_worker_extract",
+  ERROR: "archive_worker_error",
+});
+
+export const READER_LOADING_PHASES = Object.freeze({
+  ARCHIVE_INIT: "archive_init",
+  ARCHIVE_LIST: "archive_list",
+  IMAGE_PRELOAD: "image_preload",
+  IMAGE_CONVERT: "image_convert",
+  READY: "ready",
+});
+
+export const READER_LOADING_STATUSES = Object.freeze({
+  START: "start",
+  PROGRESS: "progress",
+  COMPLETE: "complete",
+  ERROR: "error",
+});
+
 // ============================================
 // リーダー設定
 // ============================================
@@ -68,4 +105,15 @@ export const READER_CONFIG = Object.freeze({
   TEXT_SEGMENT_STEP: 24,
   DEFAULT_LINE_HEIGHT: 1.8,
   LOCATIONS_CHARS_PER_PAGE: 1600,
+});
+
+// ============================================
+// メモリ/キャッシュ戦略
+// ============================================
+export const MEMORY_STRATEGY = Object.freeze({
+  imagePreloadCount: 3,
+  imagePreloadAheadCount: 1,
+  CACHE_SIZE: 6,
+  LARGE_CACHE_SIZE: 3,
+  LARGE_FILE_THRESHOLD: 50 * 1024 * 1024,
 });

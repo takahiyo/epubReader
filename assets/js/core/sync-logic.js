@@ -8,6 +8,7 @@
 
 import { UI_CLASSES, UI_SYMBOLS } from "../../constants.js";
 import { formatRelativeTime, getUiStrings, tReplace, t as t_core } from "../../i18n.js";
+import { buildCloudStatePayload as buildCloudStatePayloadSSOT } from "../../cloudState.js";
 import { elements } from "../ui/elements.js";
 import { generateCloudBookId, upsertCloudIndexEntry } from "./file-handler.js";
 
@@ -56,6 +57,18 @@ export function init(config) {
  */
 function t(key, uiLanguage) {
     return t_core(key, uiLanguage);
+}
+
+function isEmptySyncResult(result) {
+    if (result == null) return true;
+    if (Array.isArray(result)) return result.length === 0;
+    if (typeof result === "object") return Object.keys(result).length === 0;
+    return false;
+}
+
+function hasIndexData(index) {
+    if (!index || typeof index !== "object") return false;
+    return Object.keys(index).length > 0;
 }
 
 /**
@@ -144,15 +157,31 @@ export function buildLibraryEntries(uiLanguage) {
 
 /**
  * クラウドにある全書籍情報を同期
+ * D1データベースからインデックスを取得し、ローカルデータとマージします。
+ * @param {boolean} uiInitialized UIが初期化済みかどうか
+ * @param {string} bookmarkMenuMode ブックマークメニューモード
  */
 export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
-    if (!isCloudSyncEnabled() || !_storage || !_cloudSync) return;
+    if (!isCloudSyncEnabled() || !_storage || !_cloudSync) {
+        console.log('[syncAllBooksFromCloud] Sync skipped: not enabled or missing dependencies');
+        return;
+    }
 
+    console.log('[syncAllBooksFromCloud] Starting D1 sync...');
+    let didApplyIndex = false;
     try {
+        console.log('[syncAllBooksFromCloud] Pulling index from D1...');
         const remote = await _cloudSync.pullIndex();
+        console.log('[syncAllBooksFromCloud] Pull index result:', remote);
         const index = remote?.index ?? {};
         const updatedAt = remote?.updatedAt ?? Date.now();
+        const hasRemoteIndex = hasIndexData(index);
+        console.log('[syncAllBooksFromCloud] Index has data:', hasRemoteIndex, 'updatedAt:', updatedAt);
         _storage.mergeCloudIndex(index, updatedAt);
+        if (hasRemoteIndex && !isEmptySyncResult(remote)) {
+            didApplyIndex = true;
+            console.log('[syncAllBooksFromCloud] Index successfully applied');
+        }
 
         const library = _storage.data.library;
         Object.keys(library).forEach((localBookId) => {
@@ -185,6 +214,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             }
         }
     } catch (error) {
+        console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
         console.warn("クラウドの同期に失敗しました:", error);
     }
 
@@ -227,11 +257,33 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             }
         }
     } catch (error) {
+        console.error('[syncAllBooksFromCloud] Failed to upload local books:', error);
         console.warn("ローカル書籍のアップロードに失敗しました:", error);
     }
 
-    _storage.setSettings({ lastSyncAt: Date.now() });
-    uiCallbacks.updateSyncStatusDisplay();
+    if (didApplyIndex) {
+        const now = Date.now();
+        console.log('[syncAllBooksFromCloud] Sync successful, setting lastIndexSyncAt:', now);
+        _storage.setSettings({
+            lastSyncAt: now,
+            lastIndexSyncAt: now,
+        });
+        // 同期状態を保持するためにcloudIndexUpdatedAtも更新
+        if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
+            _storage.setCloudIndexUpdatedAt(now);
+        } else {
+            _storage.data.cloudIndexUpdatedAt = now;
+            _storage.save();
+        }
+        console.log('[syncAllBooksFromCloud] Storage state after sync:', {
+            lastSyncAt: _storage.getSettings().lastSyncAt,
+            lastIndexSyncAt: _storage.getSettings().lastIndexSyncAt,
+            cloudIndexUpdatedAt: _storage.data.cloudIndexUpdatedAt
+        });
+        uiCallbacks.updateSyncStatusDisplay();
+    } else {
+        console.log('[syncAllBooksFromCloud] No index was applied, sync status not updated');
+    }
     if (uiInitialized) {
         uiCallbacks.renderLibrary();
         uiCallbacks.renderHistory();
@@ -369,31 +421,8 @@ export function promptSyncCandidate(candidates, uiLanguage) {
  * クラウド状態のペイロードを構築
  */
 export function buildCloudStatePayload(localBookId, cloudBookId) {
-    if (!_storage) return { cloudBookId, state: {}, updatedAt: 0 };
-    const progress = _storage.getProgress(localBookId) ?? {};
-    const bookmarks = _storage.getBookmarks(localBookId) ?? [];
-    const bookInfo = _storage.data.library[localBookId];
-
-    const updatedAt = Math.max(
-        progress?.updatedAt ?? 0,
-        ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0)
-    );
-
-    const state = {
-        progress: progress?.percentage ?? 0,
-        lastCfi: progress?.location ?? null,
-        bookType: bookInfo?.type ?? null,
-        location: progress?.location ?? null,
-        bookmarks: bookmarks.map((bookmark) => ({
-            ...bookmark,
-            bookType: bookmark.bookType ?? bookmark.type ?? null,
-            deviceId: bookmark.deviceId ?? null,
-            deviceColor: bookmark.deviceColor ?? null,
-            updatedAt: bookmark?.updatedAt ?? bookmark?.createdAt ?? Date.now(),
-        })),
-        updatedAt,
-    };
-    return { cloudBookId, state, updatedAt };
+    // SSOT: cloudState.js に集約し、同期仕様のブレを防ぐ
+    return buildCloudStatePayloadSSOT(_storage, localBookId, cloudBookId);
 }
 
 /**
@@ -425,6 +454,10 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
             ...existing,
             location: state.lastCfi ?? existing.location,
             percentage: typeof state.progress === "number" ? state.progress : existing.percentage,
+            // 読書環境の復元
+            writingMode: state.writingMode ?? existing.writingMode,
+            pageDirection: state.pageDirection ?? existing.pageDirection,
+            imageViewMode: state.imageViewMode ?? existing.imageViewMode,
             updatedAt: state.updatedAt ?? Date.now(),
         });
     }
@@ -501,7 +534,7 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
     if (!isCloudSyncEnabled() || !_cloudSync) return;
     const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
     const result = await _cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
-    if (result) {
+    if (result && !isEmptySyncResult(result)) {
         _storage.setSettings({ lastSyncAt: Date.now() });
         uiCallbacks.updateSyncStatusDisplay();
     }

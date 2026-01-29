@@ -67,4 +67,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   autoSyncEnabled: null,
   deviceId: "",
   deviceColor: "",
+  // 読書環境のデフォルト設定
+  defaultWritingMode: UI_DEFAULTS.writingMode,
+  defaultPageDirection: UI_DEFAULTS.defaultDirection,
+  defaultImageViewMode: UI_DEFAULTS.imageViewMode,
 });

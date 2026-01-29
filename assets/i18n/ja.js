@@ -73,6 +73,11 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsLayoutDirectionRtl: "右開き (縦書き)",
   settingsLayoutDirectionLtr: "左開き (横書き)",
 
+  // デフォルト設定
+  settingsDefaultWritingModeLabel: "デフォルトの書字方向",
+  settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
+  settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
+
   // アカウント
   settingsAccountTitle: "アカウント",
   settingsDeviceTitle: "デバイス",
@@ -135,6 +140,9 @@ export const UI_STRINGS_JA = Object.freeze({
   candidateModalMessage: "クラウド上にこの書籍と思われるデータが見つかりました。\\n同期して続きから読みますか？",
   candidateUseLocal: "同期せず新規として扱う",
   closeButtonLabel: "閉じる",
+  archiveWarningTitle: "RARの注意点",
+  rarWarningNoStream: "RARはストリーミング読み込みできないため、全体をメモリ展開します。",
+  rarWarningSolidFullExtract: "solid RARの場合、途中ページ抽出でも先頭から全展開が必要です。",
 
   // クラウド
   libraryCloudMissingBadge: "この端末に未保存",
