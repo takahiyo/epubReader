@@ -27,18 +27,18 @@ export class CloudSync {
       settings.saveDestination ||
       settings.source ||
       SYNC_CONFIG.DEFAULT_SOURCE;
-    
+
     // SSOT: "local"は同期を無効にする特別な値
     // しかし、ユーザーが明示的にD1を無効化していない限り、
     // デフォルトでD1を使用すべき
     // 後方互換性: 'local'が設定されている場合、D1が利用可能ならD1を使用
-    const shouldUseD1 = selected === "local" && 
-                       !settings.explicitlyDisabledSync &&
-                       (settings.firebaseEndpoint || settings.firebaseSyncEndpoint);
-    
+    const shouldUseD1 = selected === "local" &&
+      !settings.explicitlyDisabledSync &&
+      (settings.firebaseEndpoint || settings.firebaseSyncEndpoint);
+
     const effectiveSource = shouldUseD1 ? SYNC_CONFIG.DEFAULT_SOURCE : selected;
     const normalized = SYNC_CONFIG.LEGACY_ALIASES[effectiveSource] ?? effectiveSource;
-    
+
     if (SYNC_CONFIG.ALLOWED_SOURCES.includes(normalized)) {
       return normalized;
     }
@@ -155,7 +155,7 @@ export class CloudSync {
       throw new Error(t("cloudSyncNoIdToken"));
     }
     const url = this.buildWorkerSyncUrl(endpoint, path);
-    
+
     const response = await this.fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -166,7 +166,7 @@ export class CloudSync {
       throw new Error(tReplace("cloudSyncWorkersFailed", { status: response.status }));
     }
     const json = await response.json();
-    
+
     // エラーレスポンスのハンドリング
     if (json.error) {
       throw new Error(json.error);
@@ -177,7 +177,7 @@ export class CloudSync {
       data == null ||
       (Array.isArray(data) && data.length === 0) ||
       (typeof data === "object" && !Array.isArray(data) && Object.keys(data).length === 0);
-    
+
     // SSOT: /sync/state/pull においてデータが空なのは、新規書籍では正常なため log に留める
     if (isEmptyData) {
       console.log(`[CloudSync] No granular data found for path: ${path}`);
@@ -193,7 +193,7 @@ export class CloudSync {
   async pullBookDataD1(bookId, settings = this.storage.getSettings()) {
     // D1移行後は個別のBookData取得もWorker経由で行う
     // (現在の実装ではpullStateがその役割を担うため、ここは互換性維持または未使用)
-    return {}; 
+    return {};
   }
 
   async matchBook(fingerprint, meta, settings = this.storage.getSettings()) {
@@ -491,7 +491,7 @@ export class CloudSync {
 
       // SSOT: 同期時刻を複数のフィールドに設定して一貫性を保つ
       console.log("[CloudSync.push] Setting sync timestamps:", updatedAt);
-      this.storage.setSettings({ 
+      this.storage.setSettings({
         lastSyncAt: updatedAt,
         lastIndexSyncAt: updatedAt  // SSOT: 表示用に明示的に設定
       });
@@ -499,9 +499,10 @@ export class CloudSync {
         this.storage.setCloudIndexUpdatedAt(updatedAt);
       } else {
         this.storage.data.cloudIndexUpdatedAt = updatedAt;
-        this.storage.save();
       }
-      console.log("[CloudSync.push] Sync completed successfully. Timestamps set:", {
+      // SSOT: 全ての同期時刻更新後に一度だけ永続化
+      this.storage.save();
+      console.log("[CloudSync.push] Sync completed and saved successfully. Timestamps set:", {
         lastSyncAt: this.storage.getSettings().lastSyncAt,
         lastIndexSyncAt: this.storage.getSettings().lastIndexSyncAt,
         cloudIndexUpdatedAt: this.storage.data.cloudIndexUpdatedAt
@@ -526,10 +527,10 @@ export class CloudSync {
 
     if (resolvedSource === "local") return { source: "local", status: "skipped" };
     if (resolvedSource === "d1") {
-        // D1ではフルリストアではなく、差分同期を使用する
-        // syncAllBooksFromCloud (pullIndex) を使用すること
-        console.warn("Full backup pull is not implemented for D1 backend. Use syncAllBooksFromCloud instead.");
-        return { source: "d1", status: "skipped_full_restore" };
+      // D1ではフルリストアではなく、差分同期を使用する
+      // syncAllBooksFromCloud (pullIndex) を使用すること
+      console.warn("Full backup pull is not implemented for D1 backend. Use syncAllBooksFromCloud instead.");
+      return { source: "d1", status: "skipped_full_restore" };
     }
     if (resolvedSource === "onedrive") {
       if (!isOneDriveTokenValid(settings?.onedriveToken)) return { source: "onedrive", status: "unauthenticated" };

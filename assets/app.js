@@ -1318,6 +1318,7 @@ function applyTheme(newTheme) {
   storage.setSettings({ theme });
   persistReadingState({ theme });
   renderers.updateThemeToggleIcon();
+  if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
 }
 
 // 移行済み: updateThemeToggleIcon
@@ -1329,6 +1330,7 @@ function applyFontSize(nextSize) {
   reader.applyFontSize(fontSize);
   storage.setSettings({ fontSize });
   persistReadingState({ fontSize });
+  if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
 }
 
 function applyUiLanguage(nextLanguage) {
@@ -1342,6 +1344,7 @@ function applyUiLanguage(nextLanguage) {
     elements.langIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
   }
   persistReadingState({ uiLanguage });
+  if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
 
   const strings = getUiStrings(nextLanguage);
   document.title = strings.documentTitle;
@@ -1609,6 +1612,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
     renderers.updateEpubScrollMode();
     storage.setSettings({ writingMode, pageDirection });
     persistReadingState({ writingMode, pageDirection });
+    if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {
@@ -2212,6 +2216,9 @@ function setupEvents() {
       if (currentBookId && currentCloudBookId) {
         await pushCurrentBookSync();
       }
+
+      // SSOT: 同期完了後の最終的な永続化
+      storage.save();
 
       if (syncStatus) {
         syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;

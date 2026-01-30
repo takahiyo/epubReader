@@ -89,17 +89,17 @@ export function isCloudSyncEnabled() {
         });
         return false;
     }
-    
+
     const authStatus = _checkAuthStatus();
     if (!authStatus.authenticated) {
         console.log('[isCloudSyncEnabled] Not authenticated');
         return false;
     }
-    
+
     const settings = _storage.getSettings();
     const resolvedSource = _cloudSync.resolveSource(null, settings);
     const endpoint = _cloudSync.getWorkerEndpoint(settings);
-    
+
     console.log('[isCloudSyncEnabled] Check:', {
         resolvedSource,
         hasEndpoint: !!endpoint,
@@ -107,7 +107,7 @@ export function isCloudSyncEnabled() {
         userSource: settings.source,
         userDestination: settings.saveDestination
     });
-    
+
     // D1同期が有効な条件:
     // - resolvedSourceが"d1"（Cloudflare D1バックエンド）
     // - Workerエンドポイントが設定されている
@@ -210,7 +210,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
         console.log('[syncAllBooksFromCloud] Pulling index from D1...');
         const remote = await _cloudSync.pullIndex();
         console.log('[syncAllBooksFromCloud] Pull index result:', remote);
-        
+
         // SSOT: unchangedフラグを正しく処理する
         // D1からのレスポンスが { unchanged: true, updatedAt: timestamp } の場合、
         // データは最新であり、同期時刻のみ更新する必要がある
@@ -227,6 +227,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             }
             // unchangedの場合、既存のcloudIndexを使用
             index = _storage.data.cloudIndex ?? {};
+            _storage.save(); // 同期時刻の更新を永続化
         } else {
             // データが返された場合は通常のマージ処理
             index = remote?.index ?? {};
@@ -338,9 +339,10 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
                 _storage.setCloudIndexUpdatedAt(now);
             } else {
                 _storage.data.cloudIndexUpdatedAt = now;
-                _storage.save();
             }
         }
+        // SSOT: 同期時刻とインデックスの更新を最終的に一度だけ永続化
+        _storage.save();
         console.log('[syncAllBooksFromCloud] Storage state after sync:', {
             lastSyncAt: _storage.getSettings().lastSyncAt,
             lastIndexSyncAt: _storage.getSettings().lastIndexSyncAt,
@@ -615,6 +617,7 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
         const result = await _cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
         if (result && !isEmptySyncResult(result)) {
             _storage.setSettings({ lastSyncAt: Date.now() });
+            _storage.save(); // 進捗プッシュ成功を永続化
             uiCallbacks.updateSyncStatusDisplay();
         }
     } catch (error) {
