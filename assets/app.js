@@ -247,7 +247,15 @@ const reader = new ReaderController({
   imageViewerId: "imageViewer",
   imageElementId: "pageImage",
   pageIndicatorId: "pageIndicator",
-  onProgress: (currentIndex, totalPages) => {
+  onProgress: ({ location, percentage }) => {
+    // reader.js は { location, percentage } を渡す。readerから現在値を取得して更新
+    const totalPages = reader.type === BOOK_TYPES.EPUB
+      ? (reader.pagination?.pages?.length || 0)
+      : (reader.imagePages?.length || 0);
+    const currentIndex = reader.type === BOOK_TYPES.EPUB
+      ? reader.currentPageIndex
+      : reader.imageIndex;
+
     ui.updateProgress(currentIndex, totalPages);
     saveCurrentProgress();
   },

@@ -384,12 +384,7 @@ export function updateSyncStatusDisplay(authStatus) {
 export function updateProgressBarDisplay() {
     if (!_state.currentBookId || !_storage) return;
 
-    if (elements.progressBarPanel) {
-        elements.progressBarPanel.classList.add(UI_CLASSES.HIDDEN);
-    }
-    if (elements.progressBarBackdrop) {
-        elements.progressBarBackdrop.classList.add(UI_CLASSES.HIDDEN);
-    }
+    // 注意: パネルの表示/非表示は UIController が管理する
 
     const progress = _storage.getProgress(_state.currentBookId);
     const percentage = progress?.percentage || 0;
