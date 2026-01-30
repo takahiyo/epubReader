@@ -44,11 +44,14 @@ import {
   FILESTORE_CONFIG,
   FILE_EXTENSIONS,
   ARCHIVE_WARNING_EVENT,
+  ARCHIVE_WARNING_CONFIG,
   DOM_IDS,
   DOM_SELECTORS,
   CSS_VARS,
   ASSET_PATHS,
   READER_CONFIG,
+  SYNC_SOURCES,
+  PROGRESS_PRECISION,
 } from "./constants.js";
 
 // ========================================
@@ -70,6 +73,7 @@ let pageDirection = settings.pageDirection;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let progressDisplayMode = settings.progressDisplayMode ?? UI_DEFAULTS.progressDisplayMode;
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
+let archiveWarningTimeoutId = null;
 const legacyDirection = settings.readingDirection;
 if (!writingMode || !pageDirection) {
   const legacyConfig = UI_DEFAULTS.legacyDirectionMap[legacyDirection];
@@ -86,7 +90,7 @@ let defaultImageViewMode = settings.defaultImageViewMode ?? UI_DEFAULTS.imageVie
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
-let autoSyncTimeout = null;
+let lastSavedPercentage = null;
 let bookmarkMenuMode = UI_DEFAULTS.bookmarkMenuMode;
 let currentToc = [];
 let uiInitialized = false;
@@ -136,11 +140,24 @@ function setArchiveWarnings(warningTypes = []) {
   const uniqueTypes = [...new Set(warningTypes)];
   archiveWarningTypes = uniqueTypes;
   renderers.showArchiveWarnings(uniqueTypes);
+  if (archiveWarningTimeoutId) {
+    clearTimeout(archiveWarningTimeoutId);
+    archiveWarningTimeoutId = null;
+  }
+  if (uniqueTypes.length > 0 && ARCHIVE_WARNING_CONFIG.AUTO_CLOSE_MS > 0) {
+    archiveWarningTimeoutId = setTimeout(() => {
+      clearArchiveWarnings();
+    }, ARCHIVE_WARNING_CONFIG.AUTO_CLOSE_MS);
+  }
 }
 
 function clearArchiveWarnings() {
   archiveWarningTypes = [];
   renderers.hideArchiveWarnings();
+  if (archiveWarningTimeoutId) {
+    clearTimeout(archiveWarningTimeoutId);
+    archiveWarningTimeoutId = null;
+  }
 }
 
 if (typeof document !== "undefined") {
@@ -160,15 +177,18 @@ if (typeof document !== "undefined") {
 
 
 // ========================================
-// 進捗保存（デバウンス処理）
+// 進捗保存
 // ========================================
+function roundProgressPercentage(value) {
+  if (!Number.isFinite(value)) return value;
+  const factor = 1 / PROGRESS_PRECISION;
+  return Math.round(value * factor) / factor;
+}
 
-let saveProgressTimeout;
-function saveProgressDebounced() {
-  clearTimeout(saveProgressTimeout);
-  saveProgressTimeout = setTimeout(() => {
-    saveCurrentProgress();
-  }, 1000);
+function shouldPersistLocalProgress(percentage) {
+  if (!Number.isFinite(percentage)) return false;
+  if (!Number.isFinite(lastSavedPercentage)) return true;
+  return Math.abs(percentage - lastSavedPercentage) >= TIMING_CONFIG.LOCAL_SAVE_THRESHOLD_PERCENT;
 }
 
 function saveCurrentProgress() {
@@ -186,7 +206,7 @@ function saveCurrentProgress() {
       cfi = reader.pagination.pages[pageIndex].cfi;
     }
 
-    const percentage = total > 1 ? (pageIndex / (total - 1)) * 100 : 0;
+    const percentage = roundProgressPercentage(total > 1 ? (pageIndex / (total - 1)) * 100 : 0);
 
     progressData = {
       percentage,
@@ -200,7 +220,7 @@ function saveCurrentProgress() {
     // 画像書庫
     const index = (typeof reader.imageIndex === 'object' && reader.imageIndex !== null) ? (reader.imageIndex.index ?? 0) : Number(reader.imageIndex || 0);
     const total = reader.imagePages.length;
-    const percentage = total > 1 ? (index / (total - 1)) * 100 : 0;
+    const percentage = roundProgressPercentage(total > 1 ? (index / (total - 1)) * 100 : 0);
 
     progressData = {
       percentage,
@@ -212,14 +232,10 @@ function saveCurrentProgress() {
     };
   }
 
-  if (progressData) {
-    storage.setProgress(currentBookId, progressData);
+  if (!progressData || !shouldPersistLocalProgress(progressData.percentage)) return;
 
-    // 自動同期トリガー（関数が存在する場合のみ）
-    if (typeof triggerAutoSync === 'function' && typeof syncLogic.isCloudSyncEnabled === 'function' && syncLogic.isCloudSyncEnabled() && autoSyncEnabled) {
-      triggerAutoSync();
-    }
-  }
+  storage.setProgress(currentBookId, progressData);
+  lastSavedPercentage = progressData.percentage;
 }
 
 // ========================================
@@ -233,7 +249,7 @@ const reader = new ReaderController({
   pageIndicatorId: "pageIndicator",
   onProgress: (currentIndex, totalPages) => {
     ui.updateProgress(currentIndex, totalPages);
-    saveProgressDebounced();
+    saveCurrentProgress();
   },
   onReady: (data) => {
     // 起動時の初期化関連
@@ -499,6 +515,7 @@ function handleToggleZoom() {
 
 async function handleFile(file) {
   clearArchiveWarnings();
+  await pushCurrentBookSyncOnAction();
   showLoading();
   userOverrodeDirection = false;
   try {
@@ -516,7 +533,10 @@ async function handleFile(file) {
     }
     console.log(`Detected file type: ${type}`);
 
-    const contentHash = await fileHandler.hashBuffer(buffer);
+    const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
+    const contentHash = isArchiveBook
+      ? await fileHandler.buildArchiveFingerprint(file)
+      : await fileHandler.hashBuffer(buffer); // EPUBは従来のコンテンツハッシュを継続使用
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
@@ -540,6 +560,7 @@ async function handleFile(file) {
     storage.upsertBook(info);
     currentBookId = id;
     currentBookInfo = info;
+    resetLocalSaveTracking();
 
     let cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
     if (cloudBookId) {
@@ -647,11 +668,6 @@ async function handleFile(file) {
     if (floatVisible) {
       toggleFloatOverlay(false);
     }
-
-    // 自動同期が有効なら保存
-    if (syncAutoSyncPolicy(checkAuthStatus())) {
-      await pushCurrentBookSync();
-    }
   } catch (error) {
     console.error("Error in handleFile:", error);
     console.error("Error stack:", error.stack);
@@ -690,6 +706,7 @@ function openCloudOnlyBook(cloudBookId) {
   currentBookId = null;
   currentBookInfo = null;
   currentCloudBookId = cloudBookId;
+  resetLocalSaveTracking();
 
   if (elements.viewer) {
     elements.viewer.classList.add(UI_CLASSES.HIDDEN);
@@ -715,6 +732,7 @@ function openCloudOnlyBook(cloudBookId) {
 
 async function openFromLibrary(bookId, options = {}) {
   clearArchiveWarnings();
+  await pushCurrentBookSyncOnAction();
   showLoading();
   // ★追加: UI描画更新のために少し待機
   await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
@@ -741,6 +759,7 @@ async function openFromLibrary(bookId, options = {}) {
 
     currentBookId = bookId;
     currentBookInfo = info;
+    resetLocalSaveTracking();
     currentCloudBookId = storage.getCloudBookId(bookId);
     if (syncLogic.isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
       try {
@@ -811,7 +830,6 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     storage.addHistory(bookId);
-    scheduleAutoSyncPush();
     renderers.renderBookmarkMarkers();
     renderers.updateProgressBarDisplay();
     renderers.updateSearchButtonState();
@@ -839,6 +857,10 @@ function persistReadingState(update) {
   if (!currentBookId) return;
   const existing = storage.getProgress(currentBookId) ?? {};
   storage.setProgress(currentBookId, { ...existing, ...update });
+}
+
+function resetLocalSaveTracking() {
+  lastSavedPercentage = null;
 }
 
 async function applyReadingState(progress) {
@@ -880,22 +902,29 @@ async function applyReadingState(progress) {
   if (progress.uiLanguage && progress.uiLanguage !== uiLanguage) {
     applyUiLanguage(progress.uiLanguage);
   }
+
+  if (Number.isFinite(progress.percentage)) {
+    lastSavedPercentage = progress.percentage;
+  }
 }
 
 function handleProgress(progress) {
   if (!currentBookId) return;
 
-
-  storage.setProgress(currentBookId, {
-    ...progress,
-    writingMode,
-    fontSize,
-    theme,
-    uiLanguage,
-    pageDirection,
-    imageViewMode: reader?.imageViewMode,
-  });
-  scheduleAutoSyncPush();
+  const roundedPercentage = roundProgressPercentage(progress?.percentage);
+  if (shouldPersistLocalProgress(roundedPercentage)) {
+    storage.setProgress(currentBookId, {
+      ...progress,
+      percentage: roundedPercentage,
+      writingMode,
+      fontSize,
+      theme,
+      uiLanguage,
+      pageDirection,
+      imageViewMode: reader?.imageViewMode,
+    });
+    lastSavedPercentage = roundedPercentage;
+  }
   renderers.updateProgressBarDisplay();
 }
 
@@ -993,9 +1022,15 @@ function handleBookReady(payload) {
   storage.upsertBook({ ...currentBookInfo, title });
   if (currentCloudBookId) {
     const author = metadata.creator || metadata.author || "";
-    upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
-      title,
-      author,
+    fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
+      storage,
+      cloudSync,
+      isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+      uiLanguage,
+      overrides: {
+        title,
+        author,
+      },
     }).catch((error) => {
       console.warn("クラウドメタデータの更新に失敗しました:", error);
     });
@@ -1069,8 +1104,17 @@ function addBookmark() {
     renderers.renderBookmarks(bookmarkMenuMode);
     renderers.renderBookmarkMarkers();
 
-    // 自動同期
-    scheduleAutoSyncPush();
+    // しおり追加直後は即時同期
+    const authStatus = checkAuthStatus();
+    if (!authStatus.authenticated) {
+      syncAutoSyncPolicy(authStatus);
+      return;
+    }
+    if (syncLogic.isCloudSyncEnabled()) {
+      syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId).catch((error) => {
+        console.error("Auto-sync failed:", error);
+      });
+    }
   }
 }
 
@@ -1597,30 +1641,67 @@ async function pushCurrentBookSync() {
   await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
 }
 
-function toggleAutoSync(enabled) {
-  autoSyncEnabled = enabled;
-  storage.setSettings({ autoSyncEnabled: enabled });
+function isAutoSyncReady(authStatus = checkAuthStatus()) {
+  if (!autoSyncEnabled || !currentCloudBookId) return false;
+  if (!shouldEnableAutoSync(authStatus)) {
+    syncAutoSyncPolicy(authStatus);
+    return false;
+  }
+  return true;
+}
 
+async function pushCurrentBookSyncIfReady() {
+  if (!isAutoSyncReady()) return;
+  const authStatus = checkAuthStatus();
+  if (!authStatus.authenticated) {
+    syncAutoSyncPolicy(authStatus);
+    return;
+  }
+  try {
+    await pushCurrentBookSync();
+  } catch (error) {
+    console.error("Auto-sync failed:", error);
+  }
+}
+
+async function pushCurrentBookSyncOnAction() {
+  if (!currentBookId || !currentCloudBookId) return;
+  if (!syncLogic.isCloudSyncEnabled()) return;
+  const authStatus = checkAuthStatus();
+  if (!authStatus.authenticated) {
+    syncAutoSyncPolicy(authStatus);
+    return;
+  }
+  try {
+    await pushCurrentBookSync();
+  } catch (error) {
+    console.error("Auto-sync failed:", error);
+  }
+}
+
+function getAutoSyncIntervalMs() {
+  if (typeof document !== "undefined" && document.hidden) {
+    return TIMING_CONFIG.BACKGROUND_SYNC_INTERVAL_MS;
+  }
+  return TIMING_CONFIG.PERIODIC_SYNC_MS;
+}
+
+function restartAutoSyncInterval() {
   if (autoSyncInterval) {
     clearInterval(autoSyncInterval);
     autoSyncInterval = null;
   }
-  if (autoSyncTimeout) {
-    clearTimeout(autoSyncTimeout);
-    autoSyncTimeout = null;
-  }
+  if (!autoSyncEnabled) return;
+  autoSyncInterval = setInterval(async () => {
+    await pushCurrentBookSyncIfReady();
+  }, getAutoSyncIntervalMs());
+}
 
-  if (enabled) {
-    // 定期的に自動同期 (TIMING_CONFIG.AUTO_SYNC_INTERVAL_MS)
-    autoSyncInterval = setInterval(async () => {
-      try {
-        await pushCurrentBookSync();
-        console.log('Auto-sync completed');
-      } catch (error) {
-        console.error('Auto-sync failed:', error);
-      }
-    }, TIMING_CONFIG.AUTO_SYNC_INTERVAL_MS);
-  }
+function toggleAutoSync(enabled) {
+  autoSyncEnabled = enabled;
+  storage.setSettings({ autoSyncEnabled: enabled });
+
+  restartAutoSyncInterval();
 }
 
 function shouldEnableAutoSync() {
@@ -1640,23 +1721,7 @@ function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
 }
 
 function scheduleAutoSyncPush() {
-  if (!autoSyncEnabled || !currentCloudBookId) return;
-  const authStatus = checkAuthStatus();
-  if (!shouldEnableAutoSync(authStatus)) {
-    syncAutoSyncPolicy(authStatus);
-    return;
-  }
-  if (autoSyncTimeout) {
-    clearTimeout(autoSyncTimeout);
-  }
-  autoSyncTimeout = setTimeout(async () => {
-    autoSyncTimeout = null;
-    try {
-      await pushCurrentBookSync();
-    } catch (error) {
-      console.error("Auto-sync failed:", error);
-    }
-  }, TIMING_CONFIG.AUTO_SYNC_DEBOUNCE_MS);
+  void pushCurrentBookSyncOnAction();
 }
 
 function exportData() {
@@ -2123,17 +2188,21 @@ function setupEvents() {
     if (!authStatus.authenticated) {
       if (syncStatus) {
         syncStatus.textContent = t('syncNeedsLoginStatus');
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
       }
       return;
     }
 
     try {
+      const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
+      if (resolvedSource !== SYNC_SOURCES.WORKERS) {
+        storage.setSettings({ source: SYNC_SOURCES.WORKERS });
+      }
       manualSyncButton.disabled = true;
       manualSyncButton.textContent = t('syncInProgress');
       if (syncStatus) {
         syncStatus.textContent = t('syncStarting');
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
       }
 
       // Pull index
@@ -2146,10 +2215,10 @@ function setupEvents() {
 
       if (syncStatus) {
         syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
         setTimeout(() => {
           syncStatus.textContent = '';
-          setStatusClass(syncStatus, null);
+          renderers.setStatusClass(syncStatus, null);
         }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
@@ -2171,7 +2240,7 @@ function setupEvents() {
         }
 
         syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
-        setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
 
         // 詳細をアラートでも表示（ユーザーに気づかせるため）
         alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);
@@ -2333,15 +2402,12 @@ function setupEvents() {
   });
 
   window.addEventListener('pagehide', () => {
+    void pushCurrentBookSyncOnAction();
+  });
+
+  document.addEventListener('visibilitychange', () => {
     if (!autoSyncEnabled) return;
-    const authStatus = checkAuthStatus();
-    if (!authStatus.authenticated) {
-      syncAutoSyncPolicy(authStatus);
-      return;
-    }
-    pushCurrentBookSync().catch((error) => {
-      console.error("Auto-sync failed:", error);
-    });
+    restartAutoSyncInterval();
   });
   // ズームボタン
   elements.toggleZoom?.addEventListener('click', handleToggleZoom);

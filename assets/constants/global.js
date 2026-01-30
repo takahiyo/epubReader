@@ -41,6 +41,7 @@ import {
   UI_DEFAULTS,
   UI_ICONS,
   UI_SYMBOLS,
+  UI_TIMING_CONFIG,
 } from "./ui.js";
 import {
   FIREBASE_CONFIG,
@@ -80,6 +81,7 @@ export const BOOK_READER_CONSTANTS = Object.freeze({
   UI_ICONS,
   UI_SYMBOLS,
   UI_CLASSES,
+  UI_TIMING_CONFIG,
   DOM_IDS,
   DOM_SELECTORS,
   CSS_VARS,

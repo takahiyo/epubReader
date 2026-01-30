@@ -339,6 +339,11 @@ export function updateAuthStatusDisplay() {
     }
 }
 
+/**
+ * 同期ステータス表示の更新
+ * D1同期の最終同期時刻を表示します。
+ * @param {Object} authStatus 認証状態
+ */
 export function updateSyncStatusDisplay(authStatus) {
     if (elements.syncStatus && _storage) {
         const status = authStatus || (_actions.checkAuthStatus ? _actions.checkAuthStatus() : { authenticated: false });
@@ -346,12 +351,29 @@ export function updateSyncStatusDisplay(authStatus) {
             elements.syncStatus.textContent = t("syncNeedsLogin");
             return;
         }
-        const lastSyncAt = _storage.getSettings().lastSyncAt;
-        if (!lastSyncAt) {
+        // SSOT: 同期時刻の優先順位
+        // 1. cloudIndexUpdatedAt（D1から取得した最新のインデックス更新時刻）
+        // 2. lastIndexSyncAt（明示的なインデックス同期時刻）
+        // 3. lastSyncAt（旧形式の同期時刻、後方互換性のため）
+        const settings = _storage.getSettings();
+        const cloudIndexUpdatedAt = _storage.data.cloudIndexUpdatedAt;
+        const lastIndexSyncAt = settings.lastIndexSyncAt;
+        const lastSyncAt = settings.lastSyncAt;
+        
+        // 最も新しい時刻を使用
+        const syncTimestamp = cloudIndexUpdatedAt || lastIndexSyncAt || lastSyncAt;
+        
+        console.log('[updateSyncStatusDisplay] Using timestamp:', syncTimestamp, 'from:', {
+            cloudIndexUpdatedAt,
+            lastIndexSyncAt,
+            lastSyncAt
+        });
+        
+        if (!syncTimestamp) {
             elements.syncStatus.textContent = t("syncStatusNever");
             return;
         }
-        const timeText = _syncLogic.formatLibraryMeta({ progressPercentage: 0, timestamp: lastSyncAt }, _state.uiLanguage).split(" / ").pop();
+        const timeText = _syncLogic.formatLibraryMeta({ progressPercentage: 0, timestamp: syncTimestamp }, _state.uiLanguage).split(" / ").pop();
         elements.syncStatus.textContent = t("syncStatusLabel").replace("{time}", timeText || "--");
     }
 }

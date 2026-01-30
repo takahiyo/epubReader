@@ -1,439 +1,74 @@
-# Epub Reader (静的ウェブアプリ / PWA)
+# AI Coding Guidelines
 
-ブラウザだけで EPUB と画像スキャン書籍（CBZ/ZIP）を読める軽量なリーダーです。Windows / Android / iPad / Quest 3 のブラウザで動作し、しおり・ブックマーク・履歴をローカルに保存します。Firebase SDK での直接通信と、フォールバック用の Cloudflare Workers 経由通信による冗長化されたクラウド同期を提供します。
+AIによるコーディング作業において、コードの品質と安全性を確保するための汎用ガイドライン集です。
 
-本プロジェクトは開発スピードと試行錯誤を重視し、**AI によるバイブコーディング（vibe coding）**を積極的に取り入れて実装しています。
+## 目的
 
----
-
-## 特徴
-
-- 📚 EPUB と画像スキャン(CBZ/ZIP)の両対応
-- 🔖 しおり / ブックマーク / 履歴の自動保存
-- 🔄 冗長化されたクラウド同期 (Firebase SDK → フォールバック: Cloudflare Workers)
-- 🖼️ 挿絵・画像のクリック拡大、画像書籍のページ送り UI
-- 📑 ライブラリ/履歴ビューと進捗表示、最後のしおりからの再開
-- 💾 IndexedDB にファイルを保存するため、再読み込み後もアップロード不要
-- 📱 PWA 対応（インストール/オフライン利用可能）
-
----
-
-## 対応環境
-
-- Windows：Chrome / Edge
-- Android：Chrome
-- iPad：Safari / Chrome（WebKit）
-- Quest 3：ブラウザ
-
-※「まずブラウザで使えること」を最優先し、PWA は上乗せで提供します。
-
----
-
-## アーキテクチャ
-
-```
-┌─────────────────────────────┐
-│ Browser (Windows/Android/iPad)│
-│  - Web App / PWA              │
-│  - IndexedDB (library cache)  │
-│  - Firebase SDK (優先)        │
-└───────────┬─────────────────┘
-            │
-            ├─ ① 優先: Firebase SDK (直接通信)
-            │   HTTPS
-            │   ▼
-            │  ┌─────────────────────────────┐
-            │  │ Firebase Database             │
-            │  │  - Firestore or Realtime DB   │
-            │  │  - bookmarks/history/settings │
-            │  └─────────────────────────────┘
-            │
-            └─ ② フォールバック: Cloudflare Workers 経由
-                HTTPS
-                ▼
-               ┌─────────────────────────────┐
-               │ Cloudflare Workers (API)      │
-               │  - auth / validation / routing│
-               └───────────────┬─────────────┘
-                               │
-                               ▼
-               ┌─────────────────────────────┐
-               │ Firebase Database             │
-               │  - Firestore or Realtime DB   │
-               │  - bookmarks/history/settings │
-               └─────────────────────────────┘
-
-(静的配信は Cloudflare Pages)
-```
-
-### 運用前提
-
-- **ソース管理**：GitHub（本リポジトリ）
-- **ホスティング**：Cloudflare Pages（静的サイトとして配信）
-- **同期方式（冗長化）**：
-  - **優先**: Firebase SDK による直接通信
-  - **フォールバック**: Cloudflare Workers 経由での通信（SDK 通信失敗時）
-- **永続化**：Firebase Database（Firestore または Realtime Database）
-
----
+- **SSOT（Single Source of Truth）の徹底** - 定数の重複を防ぎ、保守性を確保
+- **モジュール化とコメントの完備** - 機能追加や分割時の破壊を防止
+- **ガイドラインの整備** - 以降の開発をスムーズに行うための基盤
 
 ## 使い方
 
-1. `index.html` をブラウザで開くか、Cloudflare Pages などで公開します。
-2. 「EPUB を選択」または「画像スキャン書籍」をクリックし、`.epub` もしくは `.cbz/.zip` を読み込みます。
-3. 読書中に「ここにしおりを追加」で位置を保存できます。しおり一覧や履歴から再開可能です。
-4. テーマ切替や拡大表示などは画面右側のボタンから操作します。
+### 新規プロジェクトへの導入
 
----
+1. このリポジトリの内容（README.md以外）を**プロジェクトのルートにコピー**
+2. プロジェクト固有の調整があれば各ガイドに追記
 
-## RAR 代替手段の評価と対応方針
+### AIへの指示
 
-- 詳細は `docs/rar-support.md` を参照してください。
-
----
-
-## クラウド同期
-
-### 同期方式の方針（冗長化構成）
-
-本アプリは **Firebase SDK による直接通信を優先** し、SDK での通信に失敗した場合に **自動的に Cloudflare Workers 経由の通信にフォールバック** する冗長化構成を採用しています。
-
-この方式により、以下のメリットがあります：
-
-- **通常時の高速性**: Firebase SDK による直接通信で低レイテンシを実現
-- **耐障害性**: ネットワーク制限や広告ブロッカーで SDK が使えない環境でも Workers 経由で動作
-- **メンテナンス性**: Firebase のメンテナンス時や一時的な障害時も継続利用可能
-
-### 同期対象
-
-- しおり / ブックマーク
-- 履歴
-- 進捗
-- UI 設定（テーマ、表示など）
-
-### 設定方法
-
-#### 1) Firebase SDK 設定（優先方式）
-
-アプリの設定画面で以下の Firebase 設定を入力します：
-
-```json
-{
-  "apiKey": "your-firebase-api-key",
-  "authDomain": "your-app.firebaseapp.com",
-  "projectId": "your-project-id",
-  "storageBucket": "your-app.appspot.com",
-  "messagingSenderId": "123456789",
-  "appId": "your-app-id",
-  "databaseURL": "https://your-app.firebaseio.com"
-}
+開発セッション開始時：
+```
+まず CORE_PRINCIPLES.md を読んでください。
+その後、このプロジェクトの構造を確認し、既存パターンを把握してから作業を開始してください。
 ```
 
-**注意**: Firestore を使う場合は `databaseURL` は不要です。Realtime Database を使う場合は必要です。
+## ドキュメント構成
 
-#### 2) Cloudflare Workers エンドポイント設定（フォールバック用）
+| ファイル | 内容 | 読むタイミング |
+|----------|------|----------------|
+| [INDEX.md](./INDEX.md) | 目次・運用説明 | 最初に |
+| [CORE_PRINCIPLES.md](./CORE_PRINCIPLES.md) | **基本原則（最重要）** | 毎回の作業開始時 |
+| [SSOT_GUIDE.md](./SSOT_GUIDE.md) | 定数管理・SSOT実践 | 定数追加時 |
+| [MODULE_GUIDE.md](./MODULE_GUIDE.md) | モジュール化・依存注入 | 機能追加時 |
+| [COMMENT_GUIDE.md](./COMMENT_GUIDE.md) | コメント・ドキュメント規約 | 常時 |
+| [REFACTOR_GUIDE.md](./REFACTOR_GUIDE.md) | 分割・リファクタリング全般 | コード整理時 |
+| [CSS_GUIDE.md](./CSS_GUIDE.md) | CSS分割の詳細規則 | CSS改修時 |
 
-Firebase SDK での通信が失敗した場合に使用される Workers の URL を設定します：
+## 基本原則（概要）
+
+詳細は [CORE_PRINCIPLES.md](./CORE_PRINCIPLES.md) を参照。
+
+### 絶対遵守事項
+
+1. **SSOT の厳守** - 定数をコード内に直接記述しない
+2. **既存構造の保護** - モジュール構造・初期化順序を破壊しない
+3. **コメントによる意図の明示** - コメントなしでコードを追加しない
+4. **変更前の確認義務** - 影響範囲を確認してから変更する
+
+## プロジェクトへの適用例
+
+導入後のプロジェクト構成（ルート配置）：
 
 ```
-https://your-worker.your-subdomain.workers.dev
+your-project/
+├── CORE_PRINCIPLES.md     ← AIが最初に発見しやすい
+├── INDEX.md
+├── SSOT_GUIDE.md
+├── MODULE_GUIDE.md
+├── COMMENT_GUIDE.md
+├── REFACTOR_GUIDE.md
+├── CSS_GUIDE.md
+├── src/
+├── assets/
+└── README.md              ← プロジェクト固有の説明
 ```
 
-#### 3) 同期の実行
-
-1. 設定完了後、「今すぐクラウド同期」を押します
-2. アプリは以下の順序で通信を試行します：
-   - **Step 1**: Firebase SDK で直接通信を試行
-   - **Step 2**: SDK が失敗した場合、Workers 経由で通信
-3. しおり/履歴/進捗/設定が JSON 形式で保存されます
-4. 同期完了後、他の端末からも同じデータにアクセスできます
-
-### 通信フローの詳細
-
-```javascript
-// 疑似コード
-async function syncToCloud(data) {
-  try {
-    // ① Firebase SDK で直接通信を試行
-    await saveToFirebaseSDK(data);
-    console.log('Firebase SDK で同期成功');
-    return { success: true, method: 'sdk' };
-  } catch (sdkError) {
-    console.warn('Firebase SDK 通信失敗、Workers にフォールバック', sdkError);
-    
-    try {
-      // ② Workers 経由で通信
-      await saveViaWorkers(data);
-      console.log('Workers 経由で同期成功');
-      return { success: true, method: 'workers' };
-    } catch (workersError) {
-      console.error('すべての同期方式が失敗', workersError);
-      return { success: false, error: workersError };
-    }
-  }
-}
-```
-
-### Firebase SDK 実装の要件
-
-ブラウザ側では Firebase JavaScript SDK (v9+ modular SDK) を使用します：
-
-```html
-<!-- CDN 経由で読み込み -->
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-  import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-  // または Realtime Database
-  import { getDatabase, ref, set, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-</script>
-```
-
-### Workers 実装例（フォールバック用）
-
-Workers はシンプルなプロキシとして実装します。Firebase Admin SDK を使用して Firebase にアクセスします。
-
-```javascript
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-
-export default {
-  async fetch(request, env) {
-    // CORS 対応
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-      });
-    }
-
-    try {
-      // Firebase Admin SDK 初期化
-      const app = initializeApp({
-        credential: cert(JSON.parse(env.FIREBASE_SERVICE_ACCOUNT)),
-      });
-      const db = getFirestore(app);
-
-      const { action, payload, userId } = await request.json();
-
-      if (action === 'save') {
-        // データを保存
-        await db.collection('users').doc(userId).set(payload.data, { merge: true });
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
-      }
-
-      if (action === 'load') {
-        // データを読み込み
-        const docSnap = await db.collection('users').doc(userId).get();
-        const data = docSnap.exists ? docSnap.data() : null;
-        return new Response(JSON.stringify({ data }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
-      }
-
-      return new Response('Bad request', { status: 400 });
-    } catch (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
-    }
-  },
-};
-```
-
-**環境変数設定**:
-- `FIREBASE_SERVICE_ACCOUNT`: Firebase サービスアカウントの JSON キー
-
----
-
-## ⚠️ 同期機能に関する注意（トラブルシューティング）
-
-### 冗長化構成により改善される問題
-
-本アプリの冗長化構成により、以下のような環境でも同期が動作する可能性が高まります：
-
-- **広告ブロッカー有効時**: Firebase SDK が遮断されても Workers 経由で通信
-- **企業ネットワーク**: Firebase SDK がファイアウォールで遮断されても Workers 経由で通信
-- **一部のモバイル環境**: SDK の初期化に失敗する環境でも Workers で補完
-
-### それでも同期が失敗する場合
-
-#### 1. 広告ブロック機能の確認
-
-uBlock Origin, AdBlock, Privacy Badger などが有効な場合、**両方の通信経路が遮断される可能性**があります。本アプリのページに対してこれらの機能を無効化してください。
-
-#### 2. Brave ブラウザの場合
-
-アドレスバーのライオンマーク（Brave Shields）をクリックし、シールドを **DOWN（無効）** に設定してください。
-
-#### 3. ネットワーク環境の確認
-
-社内ネットワークや学校の Wi-Fi で、Firebase と Workers の両方への接続が制限されている場合があります。
-
-#### 4. 開発者ツールでの確認
-
-ブラウザの開発者ツール（F12）→ Console タブで、どちらの通信方式が使用されているか確認できます：
-
-- `Firebase SDK で同期成功` → SDK での直接通信が成功
-- `Firebase SDK 通信失敗、Workers にフォールバック` → Workers 経由に切り替わった
-- `すべての同期方式が失敗` → 両方とも失敗（設定や環境を確認）
-
----
-
-## 同期・バックアップの流れ
-
-- 「設定・閲覧データを書き出す」で JSON をダウンロードできます（他端末への手動移行用）
-- 「設定を読み込む」にバックアップ JSON を渡すと、しおりや履歴が復元されます
-- ファイル本体は IndexedDB に保存されます。別端末で開く場合はファイルを再アップロードするか、クラウド同期で設定を復元してください
-
-端末移行時は以下のいずれかで復元します：
-- (A) クラウド同期（Firebase SDK → Workers フォールバック）
-- (B) JSON の手動移行
-
----
-
-## セットアップ（開発者向け）
-
-### 1) ローカルで起動
-
-静的ファイルなので、ローカル HTTP サーバで動作確認できます。
-
-- Python：`python -m http.server 8000`
-- Node.js：`npx serve`
-
-起動後：`http://localhost:8000/` を開きます。
-
-### 2) Firebase プロジェクトのセットアップ
-
-#### Firestore を使う場合
-
-1. Firebase Console でプロジェクトを作成
-2. Firestore Database を有効化
-3. セキュリティルールを設定：
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-4. ウェブアプリを追加して Firebase 設定を取得
-5. アプリの設定画面に Firebase 設定を入力
-
-#### Realtime Database を使う場合
-
-1. Firebase Console でプロジェクトを作成
-2. Realtime Database を有効化
-3. セキュリティルールを設定：
-
-```json
-{
-  "rules": {
-    "users": {
-      "$userId": {
-        ".read": "$userId === auth.uid",
-        ".write": "$userId === auth.uid"
-      }
-    }
-  }
-}
-```
-
-4. ウェブアプリを追加して Firebase 設定を取得（`databaseURL` も含む）
-5. アプリの設定画面に Firebase 設定を入力
-
-### 3) Cloudflare Pages へデプロイ
-
-- GitHub リポジトリと Pages を連携し、`main` への push で自動デプロイ
-- 静的サイトのため、基本的にビルド工程は不要
-
-### 4) Cloudflare Workers のセットアップ（フォールバック用）
-
-1. Workers プロジェクトを作成：
-
-```bash
-npm create cloudflare@latest epub-reader-sync
-cd epub-reader-sync
-```
-
-2. Firebase Admin SDK をインストール：
-
-```bash
-npm install firebase-admin
-```
-
-3. 上記の Workers 実装例をコピー
-
-4. Firebase サービスアカウントキーを取得：
-   - Firebase Console → プロジェクト設定 → サービスアカウント
-   - 「新しい秘密鍵の生成」でキーをダウンロード
-
-5. Workers の環境変数に設定：
-
-```bash
-wrangler secret put FIREBASE_SERVICE_ACCOUNT
-# JSON キーの内容を貼り付け
-```
-
-6. デプロイ：
-
-```bash
-wrangler deploy
-```
-
-7. デプロイされた Workers の URL をアプリの設定に追加
-
----
-
-## リポジトリ構成（目安）
-
-- `index.html`：アプリ本体
-- `assets/`：JS/CSS/画像など
-  - `assets/js/sync.js`：同期ロジック（SDK → Workers フォールバック）
-  - `assets/vendor/`：`jszip` / `unrar` などの追加ライブラリ
-  - CDN 経由で `epubjs` と Firebase SDK を読み込み
-- `workers/`：Cloudflare Workers のコード（フォールバック用 API）
-- `dev.html` / `test.html`：開発・検証用（必要なら `tools/` へ隔離）
-
-### 不要コード/不要ファイルの整理方針
-
-本プロジェクトは「AI バイブコーディングで素早く作る」性格上、試作の残骸が溜まりやすい前提です。以下の基準で整理します。
-
-- **本番配信に不要**：`dev.html` / `test.html` / `index.html.backup` などは削除または `tools/` に移動
-- **旧実装の残骸**：Workers のみの実装や GAS 前提のコードは削除
-- **実装が二重化している**：同じ責務の関数・設定が複数ある場合は統合
-
----
-
-## 開発メモ
-
-- Firebase SDK と Workers の両方に対応した同期ロジックを `assets/js/sync.js` に実装
-- Firebase SDK は CDN 経由で modular SDK (v9+) を使用
-- Workers はシンプルなプロキシとして実装し、Firebase Admin SDK で Firebase にアクセス
-- 追加ライブラリは `assets/vendor` と CDN 経由で管理（ビルド工程不要）
-
----
-
-## Roadmap（例）
-
-- ✅ Firebase SDK → Workers フォールバックの冗長化実装
-- PWA の安定化（iPad/Safari の挙動差分吸収）
-- 同期の衝突解決（最終更新タイムスタンプベース、マージ方針）
-- 複数端末間のリアルタイム同期（Firebase onSnapshot 活用）
-- オフライン対応の強化（IndexedDB との同期キュー）
-
----
+**ルート配置を推奨する理由**：
+- AIがプロジェクト構造を確認する際、最初に目に入る
+- 「CORE_PRINCIPLES.md を読んで」という指示が簡潔
+- 毎回読ませるファイルは発見しやすい場所に置くべき
 
 ## ライセンス
 
-本リポジトリのコードはプロジェクト要件に従い自由に利用してください。
+このガイドラインは自由に利用・改変できます。
