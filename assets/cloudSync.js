@@ -30,13 +30,13 @@ export class CloudSync {
 
     // SSOT: "local"は同期を無効にする特別な値
     // しかし、ユーザーが明示的にD1を無効化していない限り、
-    // デフォルトでD1を使用すべき
-    // 後方互換性: 'local'が設定されている場合、D1が利用可能ならD1を使用
+    // エンドポイントが設定されていればD1を使用すべき
+    const hasEndpoint = !!this.getWorkerEndpoint(settings);
     const shouldUseD1 = selected === "local" &&
       !settings.explicitlyDisabledSync &&
-      (settings.firebaseEndpoint || settings.firebaseSyncEndpoint);
+      hasEndpoint;
 
-    const effectiveSource = shouldUseD1 ? SYNC_CONFIG.DEFAULT_SOURCE : selected;
+    const effectiveSource = shouldUseD1 ? "d1" : selected;
     const normalized = SYNC_CONFIG.LEGACY_ALIASES[effectiveSource] ?? effectiveSource;
 
     if (SYNC_CONFIG.ALLOWED_SOURCES.includes(normalized)) {

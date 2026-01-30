@@ -2199,8 +2199,8 @@ function setupEvents() {
 
     try {
       const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
-      if (resolvedSource !== SYNC_SOURCES.WORKERS) {
-        storage.setSettings({ source: SYNC_SOURCES.WORKERS });
+      if (resolvedSource !== SYNC_SOURCES.D1) {
+        storage.setSettings({ source: SYNC_SOURCES.D1 });
       }
       manualSyncButton.disabled = true;
       manualSyncButton.textContent = t('syncInProgress');

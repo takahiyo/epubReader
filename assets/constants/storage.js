@@ -42,7 +42,7 @@ export const DEFAULT_DATA_SHAPE = Object.freeze({
 // ============================================
 // ストレージソース正規化
 // ============================================
-export const STORAGE_SOURCE_DEFAULT = "local";
+export const STORAGE_SOURCE_DEFAULT = "d1";
 export const STORAGE_SOURCE_ALIASES = Object.freeze({
   drive: STORAGE_SOURCE_DEFAULT,
 });

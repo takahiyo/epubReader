@@ -1,8 +1,9 @@
 import { STORAGE_SOURCE_DEFAULT } from "./storage.js";
 
 export const SYNC_SOURCES = Object.freeze({
-  LOCAL: STORAGE_SOURCE_DEFAULT,
+  LOCAL: "local", // ローカルのみ（同期無効）
   D1: "d1", // Cloudflare D1 (Workers経由)
+  WORKERS: "d1", // エイリアス: Workers経由のD1
   ONEDRIVE: "onedrive",
   PCLOUD: "pcloud",
 });
