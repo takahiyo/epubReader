@@ -604,36 +604,23 @@ async function handleFile(file) {
     currentCloudBookId = cloudBookId;
 
     const syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
-    await applyReadingState(syncedProgress);
-
-    // 同期されたしおりをUIに反映
-    renderers.renderBookmarks(bookmarkMenuMode);
-    renderers.renderBookmarkMarkers();
-
     const startLocation = syncedProgress?.location;
     const startProgress = syncedProgress?.percentage;
 
     renderers.hideCloudEmptyState();
-    // isImageBook: zip または rar の場合
-    const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
-    if (!isImageBook) {
-      console.log("Opening EPUB...");
 
-      // 空の状態を非表示、ビューアを表示
+    // 1. ビューアの切り替えと初期表示設定
+    if (!isArchiveBook) {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
         elements.viewer.classList.add(UI_CLASSES.VISIBLE);
       }
-      // EPUBスクロールモードを解除（ページ分割描画のため）
       if (elements.fullscreenReader) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
-
       showLoading();
-
-      // ★追加: UI描画更新のために少し待機
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
@@ -646,10 +633,6 @@ async function handleFile(file) {
         hideLoading();
       }
     } else {
-      console.log(`Opening image book (${info.type})...`);
-      console.log(`Start location: ${startLocation}`);
-
-      // 空の状態を非表示、画像ビューアを表示
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.add(UI_CLASSES.HIDDEN);
@@ -660,15 +643,15 @@ async function handleFile(file) {
       await reader.openImageBook(
         new File([new Uint8Array(buffer)], file.name, { type: mime }),
         typeof startLocation === "number" ? startLocation : 0,
-        info.type // "zip" | "rar" を渡す
+        type
       );
-      // [追加] デフォルトの開き方向を適用
-      // 保存された進行状況に方向が含まれていないため、常にデフォルト（またはユーザー設定）を適用
-      // ※将来的には個別の方向保存に対応する可能性があるが、現状はデフォルト設定を使用
-      reader.setImageReadingDirection(defaultPageDirection);
-      renderers.updateReadingDirectionButtonLabel();
-      renderers.updateProgressBarDirection();
     }
+
+    // 2. 状態の適用（オープン後に実行することで初期化による上書きを防ぐ）
+    await applyReadingState(syncedProgress);
+
+    // 同期されたしおりをUIに反映
+    renderers.renderBookmarks(bookmarkMenuMode);
 
     console.log("Book opened successfully");
     hideLoading();
@@ -815,14 +798,13 @@ async function openFromLibrary(bookId, options = {}) {
     // isImageBook: zip または rar の場合
     const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
     if (!isImageBook) {
-      // 空の状態を非表示、ビューアを表示
+      // ... (既存のUI制御コード)
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
         elements.viewer.classList.add(UI_CLASSES.VISIBLE);
       }
-      // EPUBスクロールモードを解除（ページ分割描画のため）
       if (elements.fullscreenReader) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
@@ -831,7 +813,7 @@ async function openFromLibrary(bookId, options = {}) {
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
       await reader.openEpub(file, { location: start, percentage: startProgress });
     } else {
-      // 空の状態を非表示、画像ビューアを表示
+      // ... (既存のUI制御コード)
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.viewer) {
         elements.viewer.classList.add(UI_CLASSES.HIDDEN);
@@ -840,6 +822,11 @@ async function openFromLibrary(bookId, options = {}) {
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
       await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type);
+    }
+
+    // [修正] オープン処理の後に状態を再適用
+    if (progress) {
+      await applyReadingState(progress);
     }
 
     storage.addHistory(bookId);
@@ -877,19 +864,25 @@ function resetLocalSaveTracking() {
 }
 
 async function applyReadingState(progress) {
-  if (!progress) return;
+  // 書籍ごとの記録がない場合はデフォルト設定を使用
+  const targetWritingMode = progress?.writingMode || defaultWritingMode;
+  const targetPageDirection = progress?.pageDirection || defaultPageDirection;
 
   // 1. 書字方向・開き方向の復元
-  if (progress.writingMode) {
-    writingMode = progress.writingMode;
-    if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
-  }
-  if (progress.pageDirection) {
-    pageDirection = progress.pageDirection;
-    if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
-  }
-  // 両方を適用
+  writingMode = targetWritingMode;
+  if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+
+  pageDirection = targetPageDirection;
+  if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
+
+  // 両方を適用（リーダー本体への反映）
   await applyReadingSettings(writingMode, pageDirection);
+
+  if (!progress) {
+    // 新規書籍でも初期状態の表示を更新
+    renderers.updateProgressBarDisplay();
+    return;
+  }
 
   // 2. 表示モード（単ページ/見開き）の復元
   if (progress.imageViewMode && reader) {
@@ -919,6 +912,9 @@ async function applyReadingState(progress) {
   if (Number.isFinite(progress.percentage)) {
     lastSavedPercentage = progress.percentage;
   }
+
+  // 最後に表示を確実に更新（しおりマーカー等）
+  renderers.updateProgressBarDisplay();
 }
 
 function handleProgress(progress) {
