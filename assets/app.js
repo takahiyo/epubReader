@@ -191,6 +191,9 @@ function saveCurrentProgress() {
     progressData = {
       percentage,
       location: cfi,
+      // 読書環境も保存（EPUB用）
+      writingMode,
+      pageDirection,
       updatedAt: Date.now()
     };
   } else {
@@ -202,6 +205,9 @@ function saveCurrentProgress() {
     progressData = {
       percentage,
       location: index,
+      // 画像書庫用の表示設定も保存
+      imageViewMode: reader.imageViewMode,
+      pageDirection: reader.imageReadingDirection,
       updatedAt: Date.now()
     };
   }
@@ -854,6 +860,14 @@ async function applyReadingState(progress) {
   if (progress.imageViewMode && reader) {
     reader.imageViewMode = progress.imageViewMode;
     renderers.updateSpreadModeButtonLabel();
+  }
+
+  // 2.5. 画像書庫の開き方向の復元
+  // 画像書庫では pageDirection を imageReadingDirection として復元
+  if (progress.pageDirection && reader && reader.type !== BOOK_TYPES.EPUB) {
+    reader.setImageReadingDirection(progress.pageDirection);
+    renderers.updateReadingDirectionButtonLabel();
+    renderers.updateProgressBarDirection();
   }
 
   // 3. テーマ・フォント等の復元
