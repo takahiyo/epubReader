@@ -274,6 +274,7 @@ export class StorageService {
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       .slice(0, MAX_BOOKMARKS_PER_BOOK);
 
+    console.log(`[Storage] Merged bookmarks for ${bookId}: ${currentList.length} -> ${mergedList.length}`);
     this.data.bookmarks[bookId] = mergedList;
     this.save();
   }
@@ -284,12 +285,10 @@ export class StorageService {
 
   setProgress(bookId, progress) {
     this.data.progress[bookId] = {
+      ...(this.data.progress[bookId] ?? {}),
       ...progress,
-      // 読書環境も保存
-      writingMode: progress.writingMode,
-      pageDirection: progress.pageDirection,
-      imageViewMode: progress.imageViewMode,
-      updatedAt: Date.now(),
+      // 指定がなければ現在時刻を使用、あればそれを尊重（クラウド同期用）
+      updatedAt: progress.updatedAt ?? Date.now(),
     };
     this.save();
   }

@@ -352,23 +352,23 @@ export function updateSyncStatusDisplay(authStatus) {
             return;
         }
         // SSOT: 同期時刻の優先順位
-        // 1. cloudIndexUpdatedAt（D1から取得した最新のインデックス更新時刻）
-        // 2. lastIndexSyncAt（明示的なインデックス同期時刻）
-        // 3. lastSyncAt（旧形式の同期時刻、後方互換性のため）
+        // 1. lastSyncAt（ユーザーが最後に同期を実行した時刻）
+        // 2. lastIndexSyncAt（インデックス同期完了時刻）
+        // 3. cloudIndexUpdatedAt（サーバー側のインデックス更新時刻、フォールバック用）
         const settings = _storage.getSettings();
         const cloudIndexUpdatedAt = _storage.data.cloudIndexUpdatedAt;
         const lastIndexSyncAt = settings.lastIndexSyncAt;
         const lastSyncAt = settings.lastSyncAt;
-        
-        // 最も新しい時刻を使用
-        const syncTimestamp = cloudIndexUpdatedAt || lastIndexSyncAt || lastSyncAt;
-        
+
+        // ユーザーが同期ボタンを押した時刻を優先
+        const syncTimestamp = lastSyncAt || lastIndexSyncAt || cloudIndexUpdatedAt;
+
         console.log('[updateSyncStatusDisplay] Using timestamp:', syncTimestamp, 'from:', {
             cloudIndexUpdatedAt,
             lastIndexSyncAt,
             lastSyncAt
         });
-        
+
         if (!syncTimestamp) {
             elements.syncStatus.textContent = t("syncStatusNever");
             return;
@@ -384,12 +384,7 @@ export function updateSyncStatusDisplay(authStatus) {
 export function updateProgressBarDisplay() {
     if (!_state.currentBookId || !_storage) return;
 
-    if (elements.progressBarPanel) {
-        elements.progressBarPanel.classList.add(UI_CLASSES.HIDDEN);
-    }
-    if (elements.progressBarBackdrop) {
-        elements.progressBarBackdrop.classList.add(UI_CLASSES.HIDDEN);
-    }
+    // 注意: パネルの表示/非表示は UIController が管理する
 
     const progress = _storage.getProgress(_state.currentBookId);
     const percentage = progress?.percentage || 0;
@@ -843,45 +838,57 @@ export function renderBookmarks(mode = "current") {
  * プログレスバー上のしおりマーカー描画
  */
 export function renderBookmarkMarkers() {
-    if (!elements.progressTrack) return;
-    elements.progressTrack.querySelectorAll(DOM_SELECTORS.BOOKMARK_MARKER).forEach((node) => node.remove());
+    // 全ての進捗トラック（メインとフローティング）を対象にする
+    const tracks = document.querySelectorAll(DOM_SELECTORS.PROGRESS_TRACK);
+    if (!tracks.length) return;
+
+    // 既存のマーカーを削除
+    tracks.forEach(track => {
+        track.querySelectorAll(DOM_SELECTORS.BOOKMARK_MARKER).forEach((node) => node.remove());
+    });
+
     if (!_state.currentBookId || !_storage) return;
 
     const bookmarks = _storage.getBookmarks(_state.currentBookId);
     if (!bookmarks.length) return;
 
     bookmarks.forEach((bookmark) => {
-        const marker = document.createElement("button");
-        marker.type = "button";
-        marker.className = UI_CLASSES.BOOKMARK_MARKER;
         const percentage = Math.min(100, Math.max(0, bookmark.percentage ?? 0));
-        marker.style.left = `${percentage}%`;
-        if (bookmark.deviceColor) marker.style.background = bookmark.deviceColor;
 
-        let tooltipText = bookmark.label || t("bookmarkDefault");
-        if (_state.progressDisplayMode === "page") {
-            if (_state.currentBookInfo?.type === BOOK_TYPES.EPUB) {
-                const totalPages = _actions.getEpubPaginationTotal ? _actions.getEpubPaginationTotal() : null;
-                if (totalPages) {
-                    const pageIndex = Math.max(1, Math.round((percentage / 100) * totalPages));
-                    tooltipText += ` (${pageIndex}/${totalPages})`;
+        // 各トラックに対してマーカーを生成
+        tracks.forEach(track => {
+            const marker = document.createElement("button");
+            marker.type = "button";
+            marker.className = UI_CLASSES.BOOKMARK_MARKER;
+            marker.style.left = `${percentage}%`;
+            if (bookmark.deviceColor) marker.style.background = bookmark.deviceColor;
+
+            let tooltipText = bookmark.label || t("bookmarkDefault");
+            if (_state.progressDisplayMode === "page") {
+                if (_state.currentBookInfo?.type === BOOK_TYPES.EPUB) {
+                    const totalPages = _actions.getEpubPaginationTotal ? _actions.getEpubPaginationTotal() : null;
+                    if (totalPages) {
+                        const pageIndex = Math.max(1, Math.round((percentage / 100) * totalPages));
+                        tooltipText += ` (${pageIndex}/${totalPages})`;
+                    }
+                } else if (_state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR)) {
+                    const totalPages = _reader.imagePages?.length || 1;
+                    const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
+                    tooltipText += ` (${pageNumber}/${totalPages})`;
                 }
-            } else if (_state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR)) {
-                const totalPages = _reader.imagePages?.length || 1;
-                const pageNumber = Math.max(1, Math.round((percentage / 100) * totalPages));
-                tooltipText += ` (${pageNumber}/${totalPages})`;
+            } else {
+                tooltipText += ` (${Math.round(percentage)}%)`;
             }
-        } else {
-            tooltipText += ` (${Math.round(percentage)}%)`;
-        }
-        marker.title = tooltipText;
+            marker.title = tooltipText;
 
-        marker.onclick = (e) => {
-            e.stopPropagation();
-            if (_reader) _reader.goTo(bookmark);
-        };
+            marker.onclick = (e) => {
+                e.stopPropagation();
+                if (_actions.closeAllMenus) _actions.closeAllMenus();
+                if (_reader) _reader.goTo(bookmark);
+            };
 
-        elements.progressTrack.appendChild(marker);
+            track.appendChild(marker);
+        });
     });
 }
 
