@@ -225,4 +225,5 @@ export const UI_STRINGS_JA = Object.freeze({
   library_delete_confirm: "この本を削除しますか？\n（クラウド上のデータは保持されます）",
   delete_button: "削除",
   undo_button: "やり直し",
+  linkMismatchWarning: "選択された書籍は、ライブラリ上の書籍と内容が異なる可能性があります。\n\nこのまま紐付けますか？",
 });
