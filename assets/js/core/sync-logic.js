@@ -290,11 +290,12 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             let cloudBookId = _storage.getCloudBookId(localBook.id);
 
             if (cloudBookId && !cloudIndex[cloudBookId]) {
-                console.log(`Re-uploading metadata for linked book: ${localBook.title}`);
+                console.log(`[Sync] Re-uploading missing metadata for linked book to D1: ${localBook.title}`);
                 await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash, {
                     storage: _storage,
                     cloudSync: _cloudSync,
                     isCloudSyncEnabled,
+                    uiLanguage: _storage.getSettings().uiLanguage,
                 });
                 continue;
             }
@@ -308,13 +309,14 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
                     console.log(`Linking local book "${localBook.title}" to existing cloud book`);
                     _storage.setBookLink(localBook.id, matchEntry.cloudBookId);
                 } else {
-                    console.log(`Uploading new book to cloud: ${localBook.title}`);
+                    console.log(`[Sync] Uploading new local book to D1: ${localBook.title}`);
                     cloudBookId = generateCloudBookId();
                     _storage.setBookLink(localBook.id, cloudBookId);
                     await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash, {
                         storage: _storage,
                         cloudSync: _cloudSync,
                         isCloudSyncEnabled,
+                        uiLanguage: _storage.getSettings().uiLanguage,
                     });
                 }
             }
@@ -332,16 +334,8 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             lastSyncAt: now,
             lastIndexSyncAt: now,
         });
-        // cloudIndexUpdatedAtはmergeCloudIndexまたはunchanged処理で既に更新されている
-        // 念のため明示的に設定
-        if (!_storage.data.cloudIndexUpdatedAt || _storage.data.cloudIndexUpdatedAt < now) {
-            if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
-                _storage.setCloudIndexUpdatedAt(now);
-            } else {
-                _storage.data.cloudIndexUpdatedAt = now;
-            }
-        }
-        // SSOT: 同期時刻とインデックスの更新を最終的に一度だけ永続化
+        // lastIndexSyncAt (UI表示用) は更新するが、cloudIndexUpdatedAt (同期トークン) は
+        // pull/pushのレスポンスに基づいた値のみを維持し、ここでは上書きしない
         _storage.save();
         console.log('[syncAllBooksFromCloud] Storage state after sync:', {
             lastSyncAt: _storage.getSettings().lastSyncAt,

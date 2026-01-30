@@ -176,13 +176,20 @@ export function buildCloudMeta({ cloudBookId, info, fingerprint, storage, overri
 export async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, { storage, cloudSync, isCloudSyncEnabled, uiLanguage, overrides = {} }) {
     if (!cloudBookId) return null;
     const meta = buildCloudMeta({ cloudBookId, info, fingerprint, storage, overrides, uiLanguage });
-    storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
+
     if (isCloudSyncEnabled()) {
         try {
             await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
+            // プッシュ成功後にのみローカルのクラウドインデックスを更新
+            storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
         } catch (error) {
-            console.warn("クラウドインデックスの更新に失敗しました:", error);
+            console.warn("クラウドインデックスの更新に失敗しました。次回の同期で再試行されます:", error);
+            // 失敗時はローカルのクラウドインデックスを更新しないことで、
+            // 次回の syncAllBooksFromCloud のアップロードループで再試行対象になるようにする
         }
+    } else {
+        // 同期が無効な場合はローカルのみ更新
+        storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
     }
     return meta;
 }
