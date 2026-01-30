@@ -1897,6 +1897,9 @@ function showLibrary() {
   pendingDeletes.clear();
 
   openModal(elements.openFileModal);
+  if (elements.librarySearchInput) {
+    elements.librarySearchInput.value = "";
+  }
   renderers.renderLibrary();
 
   // モーダルの閉じるボタンにイベントを追加
@@ -2441,7 +2444,7 @@ function setupEvents() {
 
   // ライブラリ検索入力欄
   elements.librarySearchInput?.addEventListener('input', (e) => {
-    filterLibraryCards(e.target.value);
+    renderers.filterLibraryCards(e.target.value);
   });
 }
 
