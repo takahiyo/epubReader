@@ -597,6 +597,11 @@ async function handleFile(file) {
 
     const syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     await applyReadingState(syncedProgress);
+
+    // 同期されたしおりをUIに反映
+    renderers.renderBookmarks(bookmarkMenuMode);
+    renderers.renderBookmarkMarkers();
+
     const startLocation = syncedProgress?.location;
     const startProgress = syncedProgress?.percentage;
 

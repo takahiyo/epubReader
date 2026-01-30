@@ -274,6 +274,7 @@ export class StorageService {
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       .slice(0, MAX_BOOKMARKS_PER_BOOK);
 
+    console.log(`[Storage] Merged bookmarks for ${bookId}: ${currentList.length} -> ${mergedList.length}`);
     this.data.bookmarks[bookId] = mergedList;
     this.save();
   }
