@@ -610,10 +610,14 @@ export async function resolveSyncedProgress(
 export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
     if (!currentBookId || !currentCloudBookId) return;
     if (!isCloudSyncEnabled() || !_cloudSync) return;
-    const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
-    const result = await _cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
-    if (result && !isEmptySyncResult(result)) {
-        _storage.setSettings({ lastSyncAt: Date.now() });
-        uiCallbacks.updateSyncStatusDisplay();
+    try {
+        const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
+        const result = await _cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
+        if (result && !isEmptySyncResult(result)) {
+            _storage.setSettings({ lastSyncAt: Date.now() });
+            uiCallbacks.updateSyncStatusDisplay();
+        }
+    } catch (error) {
+        console.warn("クラウド同期に失敗しました:", error);
     }
 }
