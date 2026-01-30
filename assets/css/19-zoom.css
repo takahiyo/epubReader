@@ -265,3 +265,26 @@ body.is-zoomed .modal {
   pointer-events: none !important;
   opacity: 0 !important;
 }
+
+/* =====================================
+[REF]
+- HTML: #viewer / .spread-container / #pageImage
+- JS: assets/reader.js（transform操作）
+- STATE: なし
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム起点（左上）の強制 */
+#viewer,
+.viewer,
+#imageViewer .spread-container,
+#pageImage {
+  transform-origin: 0 0 !important;
+}
+
+/* ズーム時はブラウザ既定のタッチ操作を無効化 */
+body.is-zoomed #viewer,
+body.is-zoomed .viewer,
+body.is-zoomed #imageViewer {
+  touch-action: none;
+}

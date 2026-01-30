@@ -2415,10 +2415,14 @@ export class ReaderController {
     this.panStartY = 0;
 
     const startDrag = (x, y) => {
-      // ズームしていない、またはクリックした場所がビューア内でないならドラッグしない
-      // しかし window イベントで捕捉するため、ここで判定する
+      // ズームしていない、またはピンチ中はドラッグしない
+      if (this.zoomScale <= this.getZoomConfig().min || this.isPinching) return;
+
       const active = this.getActiveViewer();
-      if (!active || this.zoomScale <= this.getZoomConfig().min || this.isPinching) return;
+      if (active) {
+        // コンテナ外のクリックは無視（念のため）
+        // ただし window イベントで追跡するため、開始判定のみ active 上
+      }
 
       this.isDragging = true;
       this.lastMouseX = x;
@@ -2469,11 +2473,6 @@ export class ReaderController {
     window.addEventListener('mouseup', endDrag);
 
     // タッチイベント
-    // タッチは viewer に対してバインドしてしまうと、拡大時に領域外がありうるが、
-    // 基本は viewer 内で開始されるはず
-    // パン操作中はデフォルトのスクロールなどを防ぐ必要がある
-
-    // パッシブでないリスナーが必要（preventDefaultするため）
     const touchOpts = { passive: false };
 
     window.addEventListener('touchstart', (e) => {
@@ -2482,14 +2481,14 @@ export class ReaderController {
         if (e.touches.length === 1) {
           startDrag(e.touches[0].clientX, e.touches[0].clientY);
           // ズーム中はブラウザのスクロール等を防ぐ
-          // e.preventDefault(); // これをするとクリックも効かなくなる可能性があるが、ズーム中はクリック無効でよいか？
+          // パン操作中のみ preventDefault したいが、タップ判定も必要
+          // ここではズームモード中なら無効化する
         }
       }
-    }, { passive: false });
+    }, touchOpts);
 
     window.addEventListener('touchmove', (e) => {
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
-        console.log('Touch move detected', e.touches.length);
         e.preventDefault(); // ドラッグ中は画面スクロール停止
         moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
@@ -2504,15 +2503,35 @@ export class ReaderController {
       const active = this.getActiveViewer();
       if (!active || !active.contains(event.target)) return;
 
-      const { step } = this.getZoomConfig();
-      if (!this.isZoomMode()) return;
+      // Ctrlキーなしのホイールは無視するか、スクロールとして扱うか議論があるが
+      // ここでは仕様通りズームとして扱う
+      // ただし、トラックパッドの慣性スクロールなどが大量に来るので間引きが必要かもしれないが
+      // シンプルな実装にする
 
-      console.log('Wheel event detected');
+      const { step, min, max } = this.getZoomConfig();
+
+      // ズームしていない状態で、縮小方向への操作は無視（スクロールさせる）
+      // ただし、ここではシンプルに「ズーム機能」として実装する
+
+      if (!event.ctrlKey && !this.isZoomMode()) {
+        // Ctrlキーなし＆非ズーム時は通常のスクロールに任せる？
+        // 要件によるが、マウス操作でズームと言われているので、
+        // 常時ホイール＝ズームだと使いづらい（ページスクロールできない）。
+        // Ctrl + Wheel を推奨するか、あるいはズームモード中のみホイール有効にするか。
+        // 既存実装は isZoomMode チェックがあったが、それだと初回ズームができない。
+        // -> isZoomMode check was preventing zoom start.
+        // -> User request: "Mouse operation (wheel)". usually implies Ctrl+Wheel or just Wheel.
+        // Let's allow Wheel to Start Zoom if Ctrl is pressed OR if already zoomed.
+        if (!event.ctrlKey) return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
       const direction = event.deltaY < 0 ? 1 : -1;
-      this.setZoomLevel(this.zoomScale + direction * step);
+      const nextScale = this.zoomScale + direction * step;
+
+      this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
     };
 
     const handleTouchStart = (event) => {
@@ -2525,6 +2544,8 @@ export class ReaderController {
         this.isDragging = false;
         this.pinchStartDistance = this.getPinchDistance(event.touches);
         this.pinchStartScale = this.zoomScale;
+        // ピンチ中心を保存
+        this.pinchCenterStart = this.getPinchCenter(event.touches);
       }
     };
 
@@ -2533,12 +2554,13 @@ export class ReaderController {
       if (!active || !active.contains(event.target)) return;
 
       if (this.isPinching && event.touches.length === 2) {
-        console.log('Touch move detected', event.touches.length);
         event.preventDefault();
         const distance = this.getPinchDistance(event.touches);
+        const center = this.getPinchCenter(event.touches);
+
         if (this.pinchStartDistance > 0) {
           const scale = this.pinchStartScale * (distance / this.pinchStartDistance);
-          this.setZoomLevel(scale);
+          this.setZoomLevel(scale, center);
         }
       }
     };
@@ -2550,13 +2572,27 @@ export class ReaderController {
       }
     };
 
-    this.imageViewer?.addEventListener('wheel', handleWheel, { passive: false });
-    this.viewer?.addEventListener('wheel', handleWheel, { passive: false });
+    // passive: false で preventDefault できるようにする
+    const opts = { passive: false };
 
-    this.imageViewer?.addEventListener('touchstart', handleTouchStart, { passive: false });
-    this.imageViewer?.addEventListener('touchmove', handleTouchMove, { passive: false });
-    this.imageViewer?.addEventListener('touchend', handleTouchEnd, { passive: false });
-    this.imageViewer?.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    if (this.imageViewer) {
+      this.imageViewer.addEventListener('wheel', handleWheel, opts);
+      this.imageViewer.addEventListener('touchstart', handleTouchStart, opts);
+      this.imageViewer.addEventListener('touchmove', handleTouchMove, opts);
+      this.imageViewer.addEventListener('touchend', handleTouchEnd, opts);
+      this.imageViewer.addEventListener('touchcancel', handleTouchEnd, opts);
+    }
+    if (this.viewer) {
+      this.viewer.addEventListener('wheel', handleWheel, opts);
+    }
+  }
+
+  getPinchCenter(touches) {
+    const [t1, t2] = touches;
+    return {
+      x: (t1.clientX + t2.clientX) / 2,
+      y: (t1.clientY + t2.clientY) / 2
+    };
   }
 
   getPinchDistance(touches) {
@@ -2575,7 +2611,8 @@ export class ReaderController {
     }
   }
 
-  setZoomLevel(scale) {
+  setZoomLevel(scale, center) {
+    const oldScale = this.zoomScale;
     this.zoomScale = parseFloat(scale);
     const body = document.body;
     const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
@@ -2585,9 +2622,49 @@ export class ReaderController {
     if (this.zoomScale < min) this.zoomScale = min;
     if (this.zoomScale > max) this.zoomScale = max;
 
+    // 中心点指定がある場合のパン補正 (Zoom towards center)
+    // center: { x, y } (clientX, clientY)
+    if (center && Math.abs(this.zoomScale - oldScale) > 0.001) {
+      let active = this.getActiveViewer();
+      const target = this.getZoomTarget();
+      // EPUBなど、ターゲット自体がViewerとして返される場合は親要素をコンテナ（ビューポート）とする
+      if (active === target && active?.parentElement) {
+        active = active.parentElement;
+      }
+
+      if (active) {
+        const rect = active.getBoundingClientRect();
+        // コンテナ内の相対座標
+        const mouseX = center.x - rect.left;
+        const mouseY = center.y - rect.top;
+
+        // 計算式: newPan = mousePos - (mousePos - oldPan) * (newScale / oldScale)
+        // transform-origin: 0 0 前提
+        const ratio = this.zoomScale / oldScale;
+        this.panX = mouseX - (mouseX - this.panX) * ratio;
+        this.panY = mouseY - (mouseY - this.panY) * ratio;
+      }
+    } else if (Math.abs(this.zoomScale - oldScale) > 0.001 && !center && this.zoomScale > min) {
+      // 中心指定がない場合は画面中央を基準にする
+      let active = this.getActiveViewer();
+      const target = this.getZoomTarget();
+      if (active === target && active?.parentElement) {
+        active = active.parentElement;
+      }
+
+      if (active) {
+        const rect = active.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const ratio = this.zoomScale / oldScale;
+        this.panX = centerX - (centerX - this.panX) * ratio;
+        this.panY = centerY - (centerY - this.panY) * ratio;
+      }
+    }
+
     if (this.zoomScale > min) {
       body.classList.add(UI_CLASSES.IS_ZOOMED);
-      this.imageZoomed = true; // 旧プロパティとの互換性
+      this.imageZoomed = true;
       if (slider) slider.value = this.zoomScale;
     } else {
       body.classList.remove(UI_CLASSES.IS_ZOOMED);
@@ -2597,7 +2674,7 @@ export class ReaderController {
       if (slider) slider.value = min;
     }
     this.syncZoomedClass();
-    this.onImageZoom?.(this.imageZoomed);
+    this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     this.updateTransform();
   }
 
@@ -2635,20 +2712,50 @@ export class ReaderController {
   }
 
   clampPan() {
-    const container = this.getActiveViewer();
+    let container = this.getActiveViewer();
     const target = this.getZoomTarget();
     if (!container || !target) return;
 
+    // EPUBなど、ターゲット自体がViewerの場合は親要素をコンテナとする
+    if (container === target && container?.parentElement) {
+      container = container.parentElement;
+    }
+
     const containerRect = container.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
 
-    if (!containerRect.width || !containerRect.height) return;
+    // ターゲットの元サイズ（scale=1.0）を取得
+    // target.offsetWidth / offsetHeight は transform の影響を受けない（レイアウトサイズ）
+    // ただし、getBoundingClientRect は transform の影響を受けるので注意
+    const targetWidth = target.offsetWidth;
+    const targetHeight = target.offsetHeight;
 
-    const maxPanX = Math.max(0, (targetRect.width - containerRect.width) / 2);
-    const maxPanY = Math.max(0, (targetRect.height - containerRect.height) / 2);
+    // スケール後のサイズ
+    const scaledWidth = targetWidth * this.zoomScale;
+    const scaledHeight = targetHeight * this.zoomScale;
 
-    this.panX = Math.min(maxPanX, Math.max(-maxPanX, this.panX));
-    this.panY = Math.min(maxPanY, Math.max(-maxPanY, this.panY));
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+
+    // 水平方向
+    if (scaledWidth <= containerWidth) {
+      // 画面より小さい場合は中央寄せ
+      this.panX = (containerWidth - scaledWidth) / 2;
+    } else {
+      // 画面より大きい場合、端までスクロールできるようにする
+      // 左上(0,0) ～ 右下(containerWidth - scaledWidth, containerHeight - scaledHeight)
+      const minPanX = containerWidth - scaledWidth;
+      const maxPanX = 0;
+      this.panX = Math.min(maxPanX, Math.max(minPanX, this.panX));
+    }
+
+    // 垂直方向
+    if (scaledHeight <= containerHeight) {
+      this.panY = (containerHeight - scaledHeight) / 2;
+    } else {
+      const minPanY = containerHeight - scaledHeight;
+      const maxPanY = 0;
+      this.panY = Math.min(maxPanY, Math.max(minPanY, this.panY));
+    }
   }
 
   toggleZoom() {
