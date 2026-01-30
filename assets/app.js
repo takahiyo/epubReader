@@ -572,6 +572,18 @@ async function handleFile(file) {
 
     let cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
     if (cloudBookId) {
+      // 紐付け時（pendingCloudBookId がある場合）の照合チェック
+      if (pendingCloudBookId && syncLogic.isCloudSyncEnabled()) {
+        const cloudMeta = storage.data.cloudIndex?.[cloudBookId];
+        if (cloudMeta && cloudMeta.fingerprints && !cloudMeta.fingerprints.includes(contentHash)) {
+          const proceed = confirm(translate('linkMismatchWarning'));
+          if (!proceed) {
+            hideLoading();
+            pendingCloudBookId = null;
+            return;
+          }
+        }
+      }
       storage.setBookLink(id, cloudBookId);
     }
     if (syncLogic.isCloudSyncEnabled()) {
