@@ -352,23 +352,23 @@ export function updateSyncStatusDisplay(authStatus) {
             return;
         }
         // SSOT: 同期時刻の優先順位
-        // 1. cloudIndexUpdatedAt（D1から取得した最新のインデックス更新時刻）
-        // 2. lastIndexSyncAt（明示的なインデックス同期時刻）
-        // 3. lastSyncAt（旧形式の同期時刻、後方互換性のため）
+        // 1. lastSyncAt（ユーザーが最後に同期を実行した時刻）
+        // 2. lastIndexSyncAt（インデックス同期完了時刻）
+        // 3. cloudIndexUpdatedAt（サーバー側のインデックス更新時刻、フォールバック用）
         const settings = _storage.getSettings();
         const cloudIndexUpdatedAt = _storage.data.cloudIndexUpdatedAt;
         const lastIndexSyncAt = settings.lastIndexSyncAt;
         const lastSyncAt = settings.lastSyncAt;
-        
-        // 最も新しい時刻を使用
-        const syncTimestamp = cloudIndexUpdatedAt || lastIndexSyncAt || lastSyncAt;
-        
+
+        // ユーザーが同期ボタンを押した時刻を優先
+        const syncTimestamp = lastSyncAt || lastIndexSyncAt || cloudIndexUpdatedAt;
+
         console.log('[updateSyncStatusDisplay] Using timestamp:', syncTimestamp, 'from:', {
             cloudIndexUpdatedAt,
             lastIndexSyncAt,
             lastSyncAt
         });
-        
+
         if (!syncTimestamp) {
             elements.syncStatus.textContent = t("syncStatusNever");
             return;
