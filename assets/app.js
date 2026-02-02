@@ -304,6 +304,25 @@ applyCssVariablesFromConfig();
 // UIコントローラー初期化
 // ========================================
 
+const createDebouncedHandler = (callback, delayMs) => {
+  let timeoutId = null;
+  return (...args) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      callback(...args);
+    }, delayMs);
+  };
+};
+
+const debouncedResizeHandler = createDebouncedHandler(() => {
+  if (!reader.handleResize) return;
+  console.log(`[onResize] handleResize (debounced ${TIMING_CONFIG.RESIZE_DEBOUNCE_MS}ms)`);
+  reader.handleResize();
+}, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
+
 const ui = new UIController({
   isBookOpen: () => reader.book !== null || reader.imagePages.length > 0,
   isPageNavigationEnabled: () => true, // 常に有効（必要なら調整）
@@ -328,7 +347,7 @@ const ui = new UIController({
   },
   onResize: () => {
     // リサイズ時のリペジネーション (EPUBのみ)
-    reader.handleResize?.();
+    debouncedResizeHandler();
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
