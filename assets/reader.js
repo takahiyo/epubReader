@@ -383,16 +383,15 @@ export class ReaderController {
     const currentLocator = this.getPageLocator(this.currentPageIndex);
 
     // リペジネーション実行
+    const paginationMetrics = this.getPaginationViewportMetrics();
     const newSettings = {
-      viewportWidth: this.viewer?.clientWidth || window.innerWidth,
-      viewportHeight: this.viewer?.clientHeight || window.innerHeight,
+      viewportWidth: paginationMetrics.viewportWidth,
+      viewportHeight: paginationMetrics.viewportHeight,
+      maxWidth: paginationMetrics.maxWidthValue,
+      contentWidth: paginationMetrics.contentWidth,
+      padding: paginationMetrics.edgePadding,
+      lineHeight: paginationMetrics.lineHeight,
     };
-    const maxWidthValue = this.getReaderMaxWidthValue();
-    newSettings.maxWidth = maxWidthValue;
-    newSettings.contentWidth = this.getEffectiveContentWidth(
-      newSettings.viewportWidth,
-      maxWidthValue
-    );
 
     try {
       await this.paginator.repaginate(newSettings);
@@ -853,6 +852,56 @@ export class ReaderController {
     return Math.max(16, inlinePadding, blockPadding);
   }
 
+  getEpubPageLayoutValues() {
+    return {
+      edgePadding: this.getEdgePadding(),
+      lineHeight: getReaderLineHeight(),
+      maxWidthValue: this.getReaderMaxWidthValue(),
+    };
+  }
+
+  applyEpubPageLayoutStyles(target, { edgePadding, lineHeight, maxWidthValue }) {
+    if (!target) return;
+    target.style.padding = `${edgePadding}px`;
+    target.style.lineHeight = `${lineHeight}`;
+    if (maxWidthValue) {
+      target.style.maxWidth = maxWidthValue;
+    } else {
+      target.style.removeProperty("max-width");
+    }
+    target.style.margin = "0 auto";
+    target.style.width = "100%";
+    target.style.minHeight = "100%";
+    target.style.boxSizing = "border-box";
+  }
+
+  getPaginationViewportMetrics() {
+    const viewer = this.viewer || document.body;
+    const viewportWidth = viewer?.clientWidth || window.innerWidth;
+    const viewportHeight = viewer?.clientHeight || window.innerHeight;
+    const layout = this.getEpubPageLayoutValues();
+    const probe = document.createElement("div");
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    probe.style.pointerEvents = "none";
+    probe.style.left = "-99999px";
+    probe.style.top = "0";
+    this.applyEpubPageLayoutStyles(probe, layout);
+    viewer.appendChild(probe);
+    const rect = probe.getBoundingClientRect();
+    probe.remove();
+    const contentWidth =
+      Number.isFinite(rect.width) && rect.width > 0
+        ? rect.width
+        : this.getEffectiveContentWidth(viewportWidth, layout.maxWidthValue);
+    return {
+      viewportWidth,
+      viewportHeight,
+      contentWidth,
+      ...layout,
+    };
+  }
+
   computeSegmentIndexForFragment(htmlString, fragmentId) {
     if (!htmlString || !fragmentId) return 0;
 
@@ -1171,10 +1220,11 @@ export class ReaderController {
       return this.paginationPromise;
     }
 
-    const viewportWidth = this.viewer?.clientWidth || window.innerWidth;
-    const viewportHeight = this.viewer?.clientHeight || window.innerHeight;
-    const maxWidthValue = this.getReaderMaxWidthValue();
-    const contentWidth = this.getEffectiveContentWidth(viewportWidth, maxWidthValue);
+    const paginationMetrics = this.getPaginationViewportMetrics();
+    const viewportWidth = paginationMetrics.viewportWidth;
+    const viewportHeight = paginationMetrics.viewportHeight;
+    const maxWidthValue = paginationMetrics.maxWidthValue;
+    const contentWidth = paginationMetrics.contentWidth;
     const baseFontSize = Number.parseFloat(
       window.getComputedStyle(this.viewer || document.body)?.fontSize
     ) || 16;
@@ -1182,7 +1232,7 @@ export class ReaderController {
       this.writingMode === WRITING_MODES.VERTICAL
         ? CSS_WRITING_MODES.VERTICAL
         : CSS_WRITING_MODES.HORIZONTAL;
-    const edgePadding = this.getEdgePadding();
+    const edgePadding = paginationMetrics.edgePadding;
 
     this.paginationPromise = (async () => {
       const spineItems = [];
@@ -1381,7 +1431,7 @@ export class ReaderController {
         contentWidth,
         maxWidth: maxWidthValue,
         fontSize: baseFontSize,
-        lineHeight: getReaderLineHeight(),
+        lineHeight: paginationMetrics.lineHeight,
         writingMode,
         padding: edgePadding,
       });
@@ -2265,19 +2315,8 @@ export class ReaderController {
       this.viewer.style.height = "100%";
     }
     if (this.pageContainer) {
-      const edgePadding = this.getEdgePadding();
-      this.pageContainer.style.padding = `${edgePadding}px`;
-      this.pageContainer.style.lineHeight = `${getReaderLineHeight()}`;
-      const maxWidthValue = this.getReaderMaxWidthValue();
-      if (maxWidthValue) {
-        this.pageContainer.style.maxWidth = maxWidthValue;
-      } else {
-        this.pageContainer.style.removeProperty("max-width");
-      }
-      this.pageContainer.style.margin = "0 auto";
-      this.pageContainer.style.width = "100%";
-      this.pageContainer.style.minHeight = "100%";
-      this.pageContainer.style.boxSizing = "border-box";
+      const layout = this.getEpubPageLayoutValues();
+      this.applyEpubPageLayoutStyles(this.pageContainer, layout);
     }
     this.applyWritingModeToContents();
   }
