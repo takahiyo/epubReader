@@ -196,6 +196,7 @@ export class ReaderController {
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
     this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
+    this.repaginationRequestId = 0;
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
     this.pageDirection = READING_DIRECTIONS.LTR;
@@ -342,7 +343,10 @@ export class ReaderController {
       return;
     }
 
-    console.log("handleResize: リペジネーション開始");
+    this.repaginationRequestId += 1;
+    const repaginationRequestId = this.repaginationRequestId;
+
+    console.log(`handleResize: リペジネーション開始 (requestId=${repaginationRequestId})`);
 
     // 現在のページ位置を保存
     const currentLocator = this.getPageLocator(this.currentPageIndex);
@@ -355,6 +359,12 @@ export class ReaderController {
 
     try {
       await this.paginator.repaginate(newSettings);
+      if (repaginationRequestId !== this.repaginationRequestId) {
+        console.debug(
+          `handleResize: 古いリペジネーション結果を無視 (requestId=${repaginationRequestId}, currentId=${this.repaginationRequestId})`
+        );
+        return;
+      }
       this.pagination = { pages: this.paginator.pages };
       this.pageController.setTotalPages(this.pagination.pages.length);
 
@@ -369,7 +379,9 @@ export class ReaderController {
         }
       }
 
-      console.log(`handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ)`);
+      console.log(
+        `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${repaginationRequestId})`
+      );
     } catch (error) {
       console.error("handleResize: リペジネーション失敗", error);
     }
