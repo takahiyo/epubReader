@@ -96,7 +96,9 @@ function createMeasurementContainer(settings) {
   page.style.lineHeight = `${toCssLineHeight(settings.lineHeight, DEFAULTS.lineHeight)}`;
   page.style.writingMode = settings.writingMode;
   page.style.overflow = "hidden";
-  page.style.wordBreak = "break-word";
+  page.style.textAlign = "var(--reader-text-align)";
+  page.style.lineBreak = "var(--reader-line-break)";
+  page.style.wordBreak = "var(--reader-word-break)";
   page.style.hyphens = "auto";
 
   const style = document.createElement("style");
