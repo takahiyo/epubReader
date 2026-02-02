@@ -296,26 +296,72 @@ export class EpubPaginator {
     this.pages = [];
     this.pageStartIndexMap = [];
     this.measurement = null;
+    this.paginationRun = null;
+    this.paginationPromise = null;
   }
 
   async paginate() {
+    return this.runPagination();
+  }
+
+  async runPagination() {
+    const previousRun = this.paginationRun;
+    const previousPromise = this.paginationPromise;
+    if (previousRun && previousPromise) {
+      previousRun.cancelled = true;
+      try {
+        await previousPromise;
+      } catch (error) {
+        if (!this.isCancellationError(error)) {
+          throw error;
+        }
+      }
+    }
+    const run = { cancelled: false };
+    this.paginationRun = run;
+    const promise = this.performPagination(run);
+    this.paginationPromise = promise;
+    return promise;
+  }
+
+  ensureNotCancelled(run) {
+    if (run && run.cancelled) {
+      const error = new Error("Pagination cancelled");
+      error.name = "PaginationCancelledError";
+      throw error;
+    }
+  }
+
+  isCancellationError(error) {
+    return error && error.name === "PaginationCancelledError";
+  }
+
+  resetMeasurement() {
+    if (this.measurement) {
+      this.measurement.container.remove();
+      this.measurement = null;
+    }
+    this.measurement = createMeasurementContainer(this.settings);
+  }
+
+  async performPagination(run) {
+    this.ensureNotCancelled(run);
     if (!document || !document.body) {
       throw new Error("EpubPaginator requires a browser DOM.");
     }
     this.pages = [];
     this.pageStartIndexMap = [];
 
-    if (this.measurement) {
-      this.measurement.container.remove();
-    }
-    this.measurement = createMeasurementContainer(this.settings);
+    this.resetMeasurement();
 
     for (let spineIndex = 0; spineIndex < this.spineItems.length; spineIndex += 1) {
+      this.ensureNotCancelled(run);
       const spineItem = this.spineItems[spineIndex];
       const parsed = new DOMParser().parseFromString(spineItem.htmlString || "", "text/html");
       const body = parsed.body;
 
       await resolveResources(body, this.resourceLoader, spineItem);
+      this.ensureNotCancelled(run);
       const segments = createSegments(body);
       if (!segments.length) {
         continue;
@@ -327,10 +373,11 @@ export class EpubPaginator {
       let safetyCounter = 0;
 
       while (startIndex < totalUnits) {
+        this.ensureNotCancelled(run);
         if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
           break;
         }
-        const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits);
+        const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits, run);
         const safeEndIndex = Math.max(endIndex, startIndex + 1);
         const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
         const htmlFragment = serializeRange(range);
@@ -360,7 +407,7 @@ export class EpubPaginator {
     };
   }
 
-  async findFittingEndIndex(segments, startIndex, totalUnits) {
+  async findFittingEndIndex(segments, startIndex, totalUnits, run) {
     const { page } = this.measurement;
     let low = startIndex + 1;
     let high = totalUnits;
@@ -368,6 +415,7 @@ export class EpubPaginator {
     let iterations = 0;
 
     while (low <= high && iterations < MAX_BINARY_SEARCH_ITERATIONS) {
+      this.ensureNotCancelled(run);
       const mid = Math.floor((low + high) / 2);
       const range = createRangeFromSegmentIndices(segments, startIndex, mid);
       const htmlFragment = serializeRange(range);
@@ -386,6 +434,7 @@ export class EpubPaginator {
     const singleFragment = serializeRange(singleRange);
     let canFitSingle = false;
     for (let attempt = 0; attempt < MAX_FIT_ATTEMPTS; attempt += 1) {
+      this.ensureNotCancelled(run);
       canFitSingle = await measureFits(page, singleFragment, this.settings);
       if (canFitSingle) break;
     }
@@ -425,7 +474,7 @@ export class EpubPaginator {
 
   async repaginate(nextSettings = {}) {
     this.settings = normalizeSettings({ ...this.settings, ...nextSettings });
-    return this.paginate();
+    return this.runPagination();
   }
 
   destroy() {
