@@ -32,6 +32,7 @@ const getMemoryStrategy = () => {
   }
   return MEMORY_STRATEGY;
 };
+const getReaderLineHeight = () => READER_CONFIG.lineHeight ?? READER_CONFIG.DEFAULT_LINE_HEIGHT;
 const normalizeRelativePath = (path) => {
   if (!path) return path;
   const normalized = path.replace(/\\/g, "/");
@@ -1380,7 +1381,7 @@ export class ReaderController {
         contentWidth,
         maxWidth: maxWidthValue,
         fontSize: baseFontSize,
-        lineHeight: 1.8,
+        lineHeight: getReaderLineHeight(),
         writingMode,
         padding: edgePadding,
       });
@@ -2266,7 +2267,7 @@ export class ReaderController {
     if (this.pageContainer) {
       const edgePadding = this.getEdgePadding();
       this.pageContainer.style.padding = `${edgePadding}px`;
-      this.pageContainer.style.lineHeight = "1.8";
+      this.pageContainer.style.lineHeight = `${getReaderLineHeight()}`;
       const maxWidthValue = this.getReaderMaxWidthValue();
       if (maxWidthValue) {
         this.pageContainer.style.maxWidth = maxWidthValue;
