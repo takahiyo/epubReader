@@ -40,7 +40,8 @@ const DEFAULTS = {
   writingMode: READER_CONFIG.writingMode,
   lineHeight: READER_CONFIG.lineHeight,
   margin: READER_CONFIG.margin,
-  padding: READER_CONFIG.padding
+  padding: READER_CONFIG.padding,
+  maxWidth: READER_CONFIG.layout?.maxWidth
 };
 
 const MAX_BINARY_SEARCH_ITERATIONS = READER_CONFIG.MAX_BINARY_SEARCH_ITERATIONS;
@@ -73,7 +74,10 @@ function createMeasurementContainer(settings) {
   container.style.position = "fixed";
   container.style.left = "-99999px";
   container.style.top = "0";
-  container.style.width = `${settings.viewportWidth}px`;
+  const containerWidth = Number.isFinite(settings.contentWidth)
+    ? settings.contentWidth
+    : settings.viewportWidth;
+  container.style.width = `${containerWidth}px`;
   container.style.height = `${settings.viewportHeight}px`;
   container.style.overflow = "hidden";
   container.style.visibility = "hidden";
@@ -87,6 +91,7 @@ function createMeasurementContainer(settings) {
   page.style.boxSizing = "border-box";
   page.style.padding = toCssSize(settings.padding, DEFAULTS.padding);
   page.style.margin = toCssSize(settings.margin, DEFAULTS.margin);
+  page.style.maxWidth = toCssSize(settings.maxWidth, DEFAULTS.maxWidth);
   page.style.fontSize = toCssSize(settings.fontSize, DEFAULTS.fontSize);
   page.style.lineHeight = `${toCssLineHeight(settings.lineHeight, DEFAULTS.lineHeight)}`;
   page.style.writingMode = settings.writingMode;

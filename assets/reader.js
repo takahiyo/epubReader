@@ -238,6 +238,36 @@ export class ReaderController {
     this.setupZoomSlider();
   }
 
+  getReaderMaxWidthValue() {
+    const root = document.documentElement;
+    const cssValue = root
+      ? getComputedStyle(root).getPropertyValue("--reader-max-width").trim()
+      : "";
+    return cssValue || READER_CONFIG.layout?.maxWidth || "";
+  }
+
+  resolveCssWidthPx(value, referenceElement = null) {
+    if (!value) return null;
+    const host = referenceElement || this.viewer || document.body;
+    if (!host) return null;
+    const probe = document.createElement("div");
+    probe.style.position = "absolute";
+    probe.style.visibility = "hidden";
+    probe.style.pointerEvents = "none";
+    probe.style.width = value;
+    host.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return Number.isFinite(width) && width > 0 ? width : null;
+  }
+
+  getEffectiveContentWidth(viewportWidth, maxWidthValue = "") {
+    const resolvedMaxWidth = maxWidthValue || this.getReaderMaxWidthValue();
+    const maxWidthPx = this.resolveCssWidthPx(resolvedMaxWidth);
+    if (!maxWidthPx) return viewportWidth;
+    return Math.min(viewportWidth, maxWidthPx);
+  }
+
   emitLoadingUpdate({ phase, status, current, total } = {}) {
     if (!this.onLoadingUpdate || !phase || !status) return;
     const percentage =
@@ -356,6 +386,12 @@ export class ReaderController {
       viewportWidth: this.viewer?.clientWidth || window.innerWidth,
       viewportHeight: this.viewer?.clientHeight || window.innerHeight,
     };
+    const maxWidthValue = this.getReaderMaxWidthValue();
+    newSettings.maxWidth = maxWidthValue;
+    newSettings.contentWidth = this.getEffectiveContentWidth(
+      newSettings.viewportWidth,
+      maxWidthValue
+    );
 
     try {
       await this.paginator.repaginate(newSettings);
@@ -1136,6 +1172,8 @@ export class ReaderController {
 
     const viewportWidth = this.viewer?.clientWidth || window.innerWidth;
     const viewportHeight = this.viewer?.clientHeight || window.innerHeight;
+    const maxWidthValue = this.getReaderMaxWidthValue();
+    const contentWidth = this.getEffectiveContentWidth(viewportWidth, maxWidthValue);
     const baseFontSize = Number.parseFloat(
       window.getComputedStyle(this.viewer || document.body)?.fontSize
     ) || 16;
@@ -1339,6 +1377,8 @@ export class ReaderController {
       this.paginator = new EpubPaginator(spineItems, resourceLoader, {
         viewportWidth,
         viewportHeight,
+        contentWidth,
+        maxWidth: maxWidthValue,
         fontSize: baseFontSize,
         lineHeight: 1.8,
         writingMode,
@@ -2227,7 +2267,12 @@ export class ReaderController {
       const edgePadding = this.getEdgePadding();
       this.pageContainer.style.padding = `${edgePadding}px`;
       this.pageContainer.style.lineHeight = "1.8";
-      this.pageContainer.style.maxWidth = "900px";
+      const maxWidthValue = this.getReaderMaxWidthValue();
+      if (maxWidthValue) {
+        this.pageContainer.style.maxWidth = maxWidthValue;
+      } else {
+        this.pageContainer.style.removeProperty("max-width");
+      }
       this.pageContainer.style.margin = "0 auto";
       this.pageContainer.style.width = "100%";
       this.pageContainer.style.minHeight = "100%";
