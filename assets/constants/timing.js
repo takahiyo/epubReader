@@ -1,4 +1,4 @@
-import { PROGRESS_PRECISION } from "./sync.js";
+import { PROGRESS_PRECISION } from "./progress.js";
 
 // ============================================
 // タイミング設定 (ミリ秒)
