@@ -295,6 +295,17 @@ function applyCssVariablesFromConfig() {
     if (layout.lineBreak) root.style.setProperty('--reader-line-break', layout.lineBreak);
     if (layout.wordBreak) root.style.setProperty('--reader-word-break', layout.wordBreak);
   }
+
+  // SSOT: READER_CONFIG に合わせて表示用タイポグラフィを統一
+  root.style.setProperty('--reader-line-height', `${READER_CONFIG.lineHeight}`);
+  root.style.setProperty(
+    '--reader-paragraph-margin',
+    typeof READER_CONFIG.paragraphMarginEm === "number"
+      ? `${READER_CONFIG.paragraphMarginEm}em`
+      : READER_CONFIG.paragraphMarginEm
+  );
+  root.style.setProperty('--reader-orphans', `${READER_CONFIG.orphans}`);
+  root.style.setProperty('--reader-widows', `${READER_CONFIG.widows}`);
 }
 
 // 初期化時に実行

@@ -87,6 +87,9 @@ export const READER_CONFIG = Object.freeze({
   fontSize: "16px",
   writingMode: "horizontal-tb",
   lineHeight: 1.6,
+  paragraphMarginEm: 0.8,
+  orphans: 1,
+  widows: 1,
   margin: "0",
   padding: "16px",
   // レイアウト設定（レスポンシブ・禁則処理）
