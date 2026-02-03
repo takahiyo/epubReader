@@ -24,6 +24,7 @@ import {
   READER_LOADING_STATUSES,
 } from "./constants.js";
 import { createArchiveHandler } from "./js/core/archive-handler.js";
+import { calculateProgressPercentage } from "./js/core/progress-utils.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 const getMemoryStrategy = () => {
@@ -1186,7 +1187,7 @@ export class ReaderController {
 
   updateProgressFromPagination(totalPages) {
     if (!totalPages) return;
-    const percentage = Math.round(((this.currentPageIndex + 1) / totalPages) * 100);
+    const percentage = calculateProgressPercentage(this.currentPageIndex, totalPages);
     const locator = this.getPageLocator(this.currentPageIndex);
     const fallbackLocator = locator ? null : this.getFallbackLocator();
     this.onProgress?.({
@@ -1855,7 +1856,7 @@ export class ReaderController {
     }
     this.onProgress?.({
       location: targetIndex,
-      percentage: Math.round(((targetIndex + 1) / this.imagePages.length) * 100),
+      percentage: calculateProgressPercentage(targetIndex, this.imagePages.length),
     });
   }
 
@@ -2200,7 +2201,7 @@ export class ReaderController {
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
     if (this.type === BOOK_TYPES.EPUB) {
       if (!this.pagination?.pages?.length) return null;
-      const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
+      const percentage = calculateProgressPercentage(this.currentPageIndex, this.pagination.pages.length);
       const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
       const cfi = locator ? `${locator.spineIndex}:${locator.segmentIndex}` : null;
       const bookmark = {
@@ -2222,7 +2223,7 @@ export class ReaderController {
       label,
       location: this.imageIndex, // imageIndex を location として保存
       cfi,
-      percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
+      percentage: calculateProgressPercentage(this.imageIndex, this.imagePages.length),
       createdAt: Date.now(),
       bookType: this.type, // "image"
     };
