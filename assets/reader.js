@@ -33,6 +33,16 @@ const getMemoryStrategy = () => {
   return MEMORY_STRATEGY;
 };
 const getReaderLineHeight = () => READER_CONFIG.lineHeight ?? READER_CONFIG.DEFAULT_LINE_HEIGHT;
+const PROGRESS_PERCENTAGE_DECIMALS = 1;
+const PROGRESS_PERCENTAGE_SCALE = 10 ** PROGRESS_PERCENTAGE_DECIMALS;
+const PERCENTAGE_BASE = 100;
+const calculateProgressPercentage = (currentIndex, totalPages) => {
+  if (!Number.isFinite(currentIndex) || !Number.isFinite(totalPages) || totalPages <= 0) {
+    return null;
+  }
+  const rawPercentage = ((currentIndex + 1) / totalPages) * PERCENTAGE_BASE;
+  return Math.round(rawPercentage * PROGRESS_PERCENTAGE_SCALE) / PROGRESS_PERCENTAGE_SCALE;
+};
 const normalizeRelativePath = (path) => {
   if (!path) return path;
   const normalized = path.replace(/\\/g, "/");
@@ -1186,7 +1196,7 @@ export class ReaderController {
 
   updateProgressFromPagination(totalPages) {
     if (!totalPages) return;
-    const percentage = Math.round(((this.currentPageIndex + 1) / totalPages) * 100);
+    const percentage = calculateProgressPercentage(this.currentPageIndex, totalPages);
     const locator = this.getPageLocator(this.currentPageIndex);
     const fallbackLocator = locator ? null : this.getFallbackLocator();
     this.onProgress?.({
@@ -2200,7 +2210,7 @@ export class ReaderController {
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
     if (this.type === BOOK_TYPES.EPUB) {
       if (!this.pagination?.pages?.length) return null;
-      const percentage = Math.round(((this.currentPageIndex + 1) / this.pagination.pages.length) * 100);
+      const percentage = calculateProgressPercentage(this.currentPageIndex, this.pagination.pages.length);
       const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
       const cfi = locator ? `${locator.spineIndex}:${locator.segmentIndex}` : null;
       const bookmark = {
@@ -2222,7 +2232,7 @@ export class ReaderController {
       label,
       location: this.imageIndex, // imageIndex を location として保存
       cfi,
-      percentage: Math.round(((this.imageIndex + 1) / this.imagePages.length) * 100),
+      percentage: calculateProgressPercentage(this.imageIndex, this.imagePages.length),
       createdAt: Date.now(),
       bookType: this.type, // "image"
     };
