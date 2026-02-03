@@ -811,31 +811,28 @@ export function renderBookmarks(mode = "current") {
         } else {
             metaText += ` / ${bookmark.percentage}%`;
         }
-    } else {
-        metaText += ` / ${bookmark.percentage}%`;
-}
-meta.textContent = metaText;
+        meta.textContent = metaText;
 
-info.append(label, meta);
+        info.append(label, meta);
 
-const deleteBtn = document.createElement("button");
-deleteBtn.className = "bookmark-delete";
-deleteBtn.textContent = UI_ICONS.DELETE;
-deleteBtn.onclick = (e) => {
-    e.stopPropagation();
-    if (confirm(t("bookmarkDeleteConfirm"))) {
-        _storage.removeBookmark(_state.currentBookId, bookmark.createdAt);
-        renderBookmarks(mode);
-        renderBookmarkMarkers();
-        if (_actions.scheduleAutoSyncPush) _actions.scheduleAutoSyncPush();
-    }
-};
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "bookmark-delete";
+        deleteBtn.textContent = UI_ICONS.DELETE;
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (confirm(t("bookmarkDeleteConfirm"))) {
+                _storage.removeBookmark(_state.currentBookId, bookmark.createdAt);
+                renderBookmarks(mode);
+                renderBookmarkMarkers();
+                if (_actions.scheduleAutoSyncPush) _actions.scheduleAutoSyncPush();
+            }
+        };
 
-item.append(info, deleteBtn);
-elements.bookmarkList.appendChild(item);
+        item.append(info, deleteBtn);
+        elements.bookmarkList.appendChild(item);
     });
 
-renderBookmarkMarkers();
+    renderBookmarkMarkers();
 }
 
 /**
