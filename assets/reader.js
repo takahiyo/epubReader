@@ -34,16 +34,6 @@ const getMemoryStrategy = () => {
   return MEMORY_STRATEGY;
 };
 const getReaderLineHeight = () => READER_CONFIG.lineHeight ?? READER_CONFIG.DEFAULT_LINE_HEIGHT;
-const PROGRESS_PERCENTAGE_DECIMALS = 1;
-const PROGRESS_PERCENTAGE_SCALE = 10 ** PROGRESS_PERCENTAGE_DECIMALS;
-const PERCENTAGE_BASE = 100;
-const calculateProgressPercentage = (currentIndex, totalPages) => {
-  if (!Number.isFinite(currentIndex) || !Number.isFinite(totalPages) || totalPages <= 0) {
-    return null;
-  }
-  const rawPercentage = ((currentIndex + 1) / totalPages) * PERCENTAGE_BASE;
-  return Math.round(rawPercentage * PROGRESS_PERCENTAGE_SCALE) / PROGRESS_PERCENTAGE_SCALE;
-};
 const normalizeRelativePath = (path) => {
   if (!path) return path;
   const normalized = path.replace(/\\/g, "/");
