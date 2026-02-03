@@ -409,9 +409,10 @@ export function updateProgressBarDisplay() {
                         elements.totalPages.textContent = totalPages.toString();
                     }
                 } else {
-                    elements.currentPageInput.value = Math.round(percentage);
+                    // 全ページ数が未確定（逐次パジネーション中）
+                    elements.currentPageInput.value = "";
                     if (elements.totalPages) {
-                        elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
+                        elements.totalPages.textContent = "?";
                     }
                 }
             } else if (_state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR)) {
@@ -810,28 +811,31 @@ export function renderBookmarks(mode = "current") {
         } else {
             metaText += ` / ${bookmark.percentage}%`;
         }
-        meta.textContent = metaText;
+    } else {
+        metaText += ` / ${bookmark.percentage}%`;
+}
+meta.textContent = metaText;
 
-        info.append(label, meta);
+info.append(label, meta);
 
-        const deleteBtn = document.createElement("button");
-        deleteBtn.className = "bookmark-delete";
-        deleteBtn.textContent = UI_ICONS.DELETE;
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (confirm(t("bookmarkDeleteConfirm"))) {
-                _storage.removeBookmark(_state.currentBookId, bookmark.createdAt);
-                renderBookmarks(mode);
-                renderBookmarkMarkers();
-                if (_actions.scheduleAutoSyncPush) _actions.scheduleAutoSyncPush();
-            }
-        };
+const deleteBtn = document.createElement("button");
+deleteBtn.className = "bookmark-delete";
+deleteBtn.textContent = UI_ICONS.DELETE;
+deleteBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (confirm(t("bookmarkDeleteConfirm"))) {
+        _storage.removeBookmark(_state.currentBookId, bookmark.createdAt);
+        renderBookmarks(mode);
+        renderBookmarkMarkers();
+        if (_actions.scheduleAutoSyncPush) _actions.scheduleAutoSyncPush();
+    }
+};
 
-        item.append(info, deleteBtn);
-        elements.bookmarkList.appendChild(item);
+item.append(info, deleteBtn);
+elements.bookmarkList.appendChild(item);
     });
 
-    renderBookmarkMarkers();
+renderBookmarkMarkers();
 }
 
 /**

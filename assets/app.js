@@ -470,7 +470,10 @@ renderers.init({
       closeExclusiveMenus();
     },
     scheduleAutoSyncPush,
-    getEpubPaginationTotal,
+    getEpubPaginationTotal: () => {
+      if (reader.type !== BOOK_TYPES.EPUB || !reader.paginator) return null;
+      return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
+    },
     setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
   }
 });
@@ -2040,7 +2043,7 @@ function setupEvents() {
   console.log('[setupEvents] Starting event setup...');
   console.log('[setupEvents] elements.menuOpen:', elements.menuOpen);
   console.log('[setupEvents] elements.leftMenu:', elements.leftMenu);
-  
+
   // メニューアクション
   if (elements.menuOpen) {
     elements.menuOpen.addEventListener('click', () => {
