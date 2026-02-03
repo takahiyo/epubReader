@@ -303,6 +303,11 @@ const reader = new ReaderController({
     const savedSnapshot = saveCurrentProgress(progressSnapshot);
     requestCloudSyncIfNeeded(savedSnapshot);
   },
+  onLoadingUpdate: (loadingInfo) => {
+    // ローディング状態の更新をコンソールに記録
+    // 将来的にUIに表示する場合はここで処理
+    console.log('[ReaderController] Loading update:', loadingInfo);
+  },
   onReady: (data) => {
     // 起動時の初期化関連
     if (data.metadata) {
