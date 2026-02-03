@@ -22,6 +22,7 @@ import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
+import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
 import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
@@ -32,7 +33,6 @@ import {
   MIME_TYPES,
   SUPPORTED_FORMATS,
   TIMING_CONFIG,
-  PROGRESS_CONFIG,
   UI_CLASSES,
   UI_ICONS,
   UI_SYMBOLS,
@@ -51,7 +51,7 @@ import {
   ASSET_PATHS,
   READER_CONFIG,
   SYNC_SOURCES,
-  PROGRESS_PRECISION,
+  CLOUD_SYNC_PAGE_THRESHOLD,
 } from "./constants.js";
 
 // ========================================
@@ -179,10 +179,24 @@ if (typeof document !== "undefined") {
 // ========================================
 // 進捗保存
 // ========================================
-function roundProgressPercentage(value) {
-  if (!Number.isFinite(value)) return value;
-  const factor = 1 / PROGRESS_PRECISION;
-  return Math.round(value * factor) / factor;
+function getCurrentTotalPages() {
+  if (!reader) return 0;
+  return reader.type === BOOK_TYPES.EPUB
+    ? (reader.pagination?.pages?.length || 0)
+    : (reader.imagePages?.length || 0);
+}
+
+function getCurrentPageIndex() {
+  if (!reader) return 0;
+  const rawIndex = reader.type === BOOK_TYPES.EPUB ? reader.currentPageIndex : reader.imageIndex;
+  return normalizePageIndex(rawIndex);
+}
+
+function getProgressSnapshot() {
+  const totalPages = getCurrentTotalPages();
+  const pageIndex = getCurrentPageIndex();
+  const percentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
+  return { pageIndex, totalPages, percentage };
 }
 
 function shouldPersistLocalProgress(percentage) {
@@ -191,14 +205,14 @@ function shouldPersistLocalProgress(percentage) {
   return Math.abs(percentage - lastSavedPercentage) >= TIMING_CONFIG.LOCAL_SAVE_THRESHOLD_PERCENT;
 }
 
-function saveCurrentProgress() {
+function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
   if (!currentBookId) return;
 
   let progressData = null;
 
   if (reader.type === BOOK_TYPES.EPUB) {
-    const pageIndex = (typeof reader.currentPageIndex === 'object' && reader.currentPageIndex !== null) ? (reader.currentPageIndex.index ?? reader.currentPageIndex.pageIndex ?? 0) : Number(reader.currentPageIndex || 0);
-    const total = reader.pagination?.pages?.length || 0;
+    const pageIndex = progressSnapshot.pageIndex;
+    const total = progressSnapshot.totalPages;
 
     // CFIの取得（ページオブジェクトから）
     let cfi = null;
@@ -206,7 +220,7 @@ function saveCurrentProgress() {
       cfi = reader.pagination.pages[pageIndex].cfi;
     }
 
-    const percentage = roundProgressPercentage(total > 1 ? (pageIndex / (total - 1)) * 100 : 0);
+    const percentage = progressSnapshot.percentage;
 
     progressData = {
       percentage,
@@ -218,9 +232,8 @@ function saveCurrentProgress() {
     };
   } else {
     // 画像書庫
-    const index = (typeof reader.imageIndex === 'object' && reader.imageIndex !== null) ? (reader.imageIndex.index ?? 0) : Number(reader.imageIndex || 0);
-    const total = reader.imagePages.length;
-    const percentage = roundProgressPercentage(total > 1 ? (index / (total - 1)) * 100 : 0);
+    const index = progressSnapshot.pageIndex;
+    const percentage = progressSnapshot.percentage;
 
     progressData = {
       percentage,
@@ -232,10 +245,45 @@ function saveCurrentProgress() {
     };
   }
 
-  if (!progressData || !shouldPersistLocalProgress(progressData.percentage)) return;
+  if (!progressData || !shouldPersistLocalProgress(progressData.percentage)) return progressSnapshot;
 
   storage.setProgress(currentBookId, progressData);
   lastSavedPercentage = progressData.percentage;
+  return progressSnapshot;
+}
+
+function shouldSyncCloudProgress(progressSnapshot) {
+  if (!progressSnapshot || !currentBookId || !currentCloudBookId) return false;
+  if (!syncLogic.isCloudSyncEnabled()) return false;
+  const progress = storage.getProgress(currentBookId) ?? {};
+  const lastSyncedPageIndex = Number.isFinite(progress.cloudSyncPageIndex) ? progress.cloudSyncPageIndex : null;
+  const lastSyncedAt = progress.cloudSyncAt ?? 0;
+  const pageDelta = lastSyncedPageIndex === null
+    ? Number.POSITIVE_INFINITY
+    : Math.abs(progressSnapshot.pageIndex - lastSyncedPageIndex);
+  const timeDelta = Date.now() - lastSyncedAt;
+  return pageDelta >= CLOUD_SYNC_PAGE_THRESHOLD || timeDelta >= getAutoSyncIntervalMs();
+}
+
+function updateCloudSyncSnapshot(progressSnapshot) {
+  if (!progressSnapshot || !currentBookId) return;
+  const existing = storage.getProgress(currentBookId) ?? {};
+  storage.setProgress(currentBookId, {
+    cloudSyncAt: Date.now(),
+    cloudSyncPageIndex: progressSnapshot.pageIndex,
+    cloudSyncPercentage: progressSnapshot.percentage,
+    updatedAt: existing.updatedAt,
+  });
+}
+
+async function requestCloudSyncIfNeeded(progressSnapshot) {
+  if (!shouldSyncCloudProgress(progressSnapshot)) return;
+  const authStatus = checkAuthStatus();
+  if (!authStatus.authenticated) {
+    syncAutoSyncPolicy(authStatus);
+    return;
+  }
+  await pushCurrentBookSync();
 }
 
 // ========================================
@@ -249,15 +297,11 @@ const reader = new ReaderController({
   pageIndicatorId: "pageIndicator",
   onProgress: ({ location, percentage }) => {
     // reader.js は { location, percentage } を渡す。readerから現在値を取得して更新
-    const totalPages = reader.type === BOOK_TYPES.EPUB
-      ? (reader.pagination?.pages?.length || 0)
-      : (reader.imagePages?.length || 0);
-    const currentIndex = reader.type === BOOK_TYPES.EPUB
-      ? reader.currentPageIndex
-      : reader.imageIndex;
+    const progressSnapshot = getProgressSnapshot();
 
-    ui.updateProgress(currentIndex, totalPages);
-    saveCurrentProgress();
+    ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages);
+    const savedSnapshot = saveCurrentProgress(progressSnapshot);
+    requestCloudSyncIfNeeded(savedSnapshot);
   },
   onReady: (data) => {
     // 起動時の初期化関連
@@ -1155,17 +1199,7 @@ function addBookmark() {
     renderers.renderBookmarks(bookmarkMenuMode);
     renderers.renderBookmarkMarkers();
 
-    // しおり追加直後は即時同期
-    const authStatus = checkAuthStatus();
-    if (!authStatus.authenticated) {
-      syncAutoSyncPolicy(authStatus);
-      return;
-    }
-    if (syncLogic.isCloudSyncEnabled()) {
-      syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId).catch((error) => {
-        console.error("Auto-sync failed:", error);
-      });
-    }
+    requestCloudSyncIfNeeded(getProgressSnapshot());
   }
 }
 
@@ -1369,7 +1403,7 @@ function applyTheme(newTheme) {
   storage.setSettings({ theme });
   persistReadingState({ theme });
   renderers.updateThemeToggleIcon();
-  if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
+  requestCloudSyncIfNeeded(getProgressSnapshot());
 }
 
 // 移行済み: updateThemeToggleIcon
@@ -1381,7 +1415,7 @@ function applyFontSize(nextSize) {
   reader.applyFontSize(fontSize);
   storage.setSettings({ fontSize });
   persistReadingState({ fontSize });
-  if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
+  requestCloudSyncIfNeeded(getProgressSnapshot());
 }
 
 function applyUiLanguage(nextLanguage) {
@@ -1395,7 +1429,7 @@ function applyUiLanguage(nextLanguage) {
     elements.langIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
   }
   persistReadingState({ uiLanguage });
-  if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
+  requestCloudSyncIfNeeded(getProgressSnapshot());
 
   const strings = getUiStrings(nextLanguage);
   document.title = strings.documentTitle;
@@ -1663,7 +1697,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
     renderers.updateEpubScrollMode();
     storage.setSettings({ writingMode, pageDirection });
     persistReadingState({ writingMode, pageDirection });
-    if (syncLogic.isCloudSyncEnabled()) pushCurrentBookSync();
+    requestCloudSyncIfNeeded(getProgressSnapshot());
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {
@@ -1693,7 +1727,11 @@ function applyProgressDisplayMode(mode) {
 
 
 async function pushCurrentBookSync() {
-  await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
+  const didSync = await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
+  if (didSync) {
+    updateCloudSyncSnapshot(getProgressSnapshot());
+  }
+  return didSync;
 }
 
 function isAutoSyncReady(authStatus = checkAuthStatus()) {
@@ -1720,15 +1758,8 @@ async function pushCurrentBookSyncIfReady() {
 }
 
 async function pushCurrentBookSyncOnAction() {
-  if (!currentBookId || !currentCloudBookId) return;
-  if (!syncLogic.isCloudSyncEnabled()) return;
-  const authStatus = checkAuthStatus();
-  if (!authStatus.authenticated) {
-    syncAutoSyncPolicy(authStatus);
-    return;
-  }
   try {
-    await pushCurrentBookSync();
+    await requestCloudSyncIfNeeded(getProgressSnapshot());
   } catch (error) {
     console.error("Auto-sync failed:", error);
   }
