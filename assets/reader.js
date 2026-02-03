@@ -316,6 +316,7 @@ export class ReaderController {
       this.currentPaginationRun.cancelled = true;
       this.currentPaginationRun = null;
     }
+    this._isInitialReadyCalled = false;
     this.toc = [];
     if (this.paginator?.destroy) {
       this.paginator.destroy();
@@ -782,10 +783,13 @@ export class ReaderController {
       this.pageController.goTo(startPage);
 
       // 初回のonReadyコールバック（メタデータと目次）
-      this.onReady?.({
-        metadata: this.book.package?.metadata,
-        toc: this.toc,
-      });
+      if (!this._isInitialReadyCalled) {
+        this._isInitialReadyCalled = true;
+        this.onReady?.({
+          metadata: this.book.package?.metadata,
+          toc: this.toc,
+        });
+      }
 
       // locations生成（検索の補助用）- バックグラウンドで実行
       console.log("Generating locations for search support...");
@@ -1282,7 +1286,7 @@ export class ReaderController {
         ? CSS_WRITING_MODES.VERTICAL
         : CSS_WRITING_MODES.HORIZONTAL;
 
-    // 新しいパディング計算を使用
+    // 新しいパディング方式（vPad/hPadが指定されている場合）
     const { hPad, vPad } = this.getPaddings();
     const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
 
@@ -1466,11 +1470,14 @@ export class ReaderController {
                   const startPage = this.resolveStartPageIndex(this._pendingStartLocation, this.pagination.pages.length);
                   this.pageController.goTo(startPage);
 
-                  // メタデータと目次を通知
-                  this.onReady?.({
-                    metadata: this.book.package?.metadata,
-                    toc: this.toc,
-                  });
+                  // メタデータと目次を通知（初回のみ、またはリパジネーション時は必要に応じて）
+                  if (!this._isInitialReadyCalled) {
+                    this._isInitialReadyCalled = true;
+                    this.onReady?.({
+                      metadata: this.book.package?.metadata,
+                      toc: this.toc,
+                    });
+                  }
                 } else {
                   // 2回目以降は現在のページがずれないように調整が必要な場合があるが、
                   // 基本的には pages が増えるだけなので、progress 表示などの更新を行う
@@ -2028,7 +2035,6 @@ export class ReaderController {
     if (!this.imagePages[this.imageIndex]) return false;
     // 既にキャッシュされていれば早い。キャッシュがなければ非同期になるが
     // ここでは簡易的に直近の判定結果を使いたいところ。
-    // しかし厳密には非同期。navigation内でawaitするのはUIレスポンスに関わる。
     // 一旦、毎回チェックする。
     return await this.isImageWide(this.imageIndex);
   }
@@ -2144,16 +2150,6 @@ export class ReaderController {
                 //     つまり [P-2, P-1] の次ページとして current が来ていると仮定するのが自然。
                 //     (P-1 と current がペアなら、今 current 単独で見ているのは変だが、
                 //      もし P-1(T) + current(W) なら P-1単独 -> current単独 となるので、今 current 閲覧中はありえる)
-                //
-                // ケース1: [P-2(T), P-1(T)] -> [current(T)...]
-                //   P-1 のパートナーは P-2. なので P-2 へ戻る (-2).
-                // ケース2: [P-1(T)] -> [current(W)] (P-1の次は本来ペアだが次がWなので単独)
-                //   これは「P-1から見た次」の話。
-                //   「戻る」動作は「何が表示されていたか」を復元する。
-                //   P-1 が P-2 とペアだったのか、単独だったのかを知りたい。
-                //   -> P-2 が T なら P-2 とペア (-2).
-                //   -> P-2 が W なら P-1 はペア相手不在(前のWとは組めない) -> P-1 は新しい先頭 (-1).
-                //   -> P-2 が存在しない(Index<0) -> P-1 は先頭 (-1).
                 //
                 // 結論:
                 //   P-1(T) の場合:
@@ -2312,6 +2308,12 @@ export class ReaderController {
   }
 
   async applyReadingDirection(writingMode, pageDirection) {
+    // もし既に設定が同じなら何もしない（無限ループ防止）
+    if (this.writingMode === writingMode && this.pageDirection === pageDirection) {
+      console.log("[Reader] applyReadingDirection: No change detected, skipping repagination");
+      return;
+    }
+
     if (pageDirection) {
       this.pageDirection = pageDirection;
     }
