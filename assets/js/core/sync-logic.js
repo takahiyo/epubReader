@@ -659,8 +659,8 @@ export async function resolveSyncedProgress(
  * 現在の書籍の進捗をクラウドにプッシュ
  */
 export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
-    if (!currentBookId || !currentCloudBookId) return;
-    if (!isCloudSyncEnabled() || !_cloudSync) return;
+    if (!currentBookId || !currentCloudBookId) return false;
+    if (!isCloudSyncEnabled() || !_cloudSync) return false;
     try {
         const payload = buildCloudStatePayload(currentBookId, currentCloudBookId);
         console.log(`[pushCurrentBookSync] Pushing state for ${currentBookId}...`, {
@@ -669,8 +669,9 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
         });
 
         const result = await _cloudSync.pushState(currentCloudBookId, payload.state, payload.updatedAt);
+        const didSync = Boolean(result && !isEmptySyncResult(result));
 
-        if (result && !isEmptySyncResult(result)) {
+        if (didSync) {
             _storage.setSettings({ lastSyncAt: Date.now() });
 
             // 重要: state のプッシュ成功後、インデックスの updatedAt も更新して他端末が検知できるようにする
@@ -693,7 +694,9 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
             _storage.save(); // すべての更新を永続化
             uiCallbacks.updateSyncStatusDisplay();
         }
+        return didSync;
     } catch (error) {
         console.warn("クラウド同期に失敗しました:", error);
     }
+    return false;
 }

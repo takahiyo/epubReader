@@ -24,6 +24,7 @@ import {
   READER_LOADING_STATUSES,
 } from "./constants.js";
 import { createArchiveHandler } from "./js/core/archive-handler.js";
+import { calculateProgressPercentage } from "./js/core/progress-utils.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 const getMemoryStrategy = () => {
@@ -1865,7 +1866,7 @@ export class ReaderController {
     }
     this.onProgress?.({
       location: targetIndex,
-      percentage: Math.round(((targetIndex + 1) / this.imagePages.length) * 100),
+      percentage: calculateProgressPercentage(targetIndex, this.imagePages.length),
     });
   }
 
