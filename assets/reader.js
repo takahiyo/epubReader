@@ -219,6 +219,7 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
+    this.resizeTimer = null; // [追加] リサイズ用のタイマー
 
     // [New] Zoom State
     this.zoomScale = 1.0;
@@ -365,6 +366,19 @@ export class ReaderController {
   }
 
   /**
+   * リサイズ時の処理（Debounce付き）
+   * 回転中などの連続発火を防ぐ
+   */
+  onResize() {
+    if (this.resizeTimer) {
+      clearTimeout(this.resizeTimer);
+    }
+    this.resizeTimer = setTimeout(() => {
+      this.handleResize();
+    }, 200); // 200ms待機してから実行
+  }
+
+  /**
    * リサイズ時の処理
    * ビューポートサイズ変更時にページ分割を再計算
    */
@@ -384,12 +398,15 @@ export class ReaderController {
 
     // リペジネーション実行
     const paginationMetrics = this.getPaginationViewportMetrics();
+    const { hPad, vPad } = this.getPaddings();
+    const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
+    
     const newSettings = {
       viewportWidth: paginationMetrics.viewportWidth,
       viewportHeight: paginationMetrics.viewportHeight,
       maxWidth: paginationMetrics.maxWidthValue,
       contentWidth: paginationMetrics.contentWidth,
-      padding: paginationMetrics.edgePadding,
+      padding: edgePadding,
       lineHeight: paginationMetrics.lineHeight,
     };
 
@@ -844,25 +861,46 @@ export class ReaderController {
     return matchIndex >= 0 ? matchIndex : fallbackSpineIndex;
   }
 
-  getEdgePadding() {
+  getPaddings() {
     const width = this.viewer?.clientWidth || window.innerWidth;
     const height = this.viewer?.clientHeight || window.innerHeight;
-    const inlinePadding = Math.round(width * 0.04);
-    const blockPadding = Math.round(height * 0.05);
-    return Math.max(16, inlinePadding, blockPadding);
+
+    // 横: 現状維持 (幅の4% または 高さの5% の大きい方、最低16px)
+    // これにより既存の「横幅」の感覚を維持します
+    const hPad = Math.max(16, Math.round(width * 0.04), Math.round(height * 0.05));
+
+    // 縦: 画面環境の95%を利用 -> 余白は合計5% (上下それぞれ2.5%)
+    const vPad = Math.max(16, Math.round(height * 0.025));
+
+    return { hPad, vPad };
+  }
+
+  getEdgePadding() {
+    // 後方互換性のため残す（横パディングを返す）
+    const { hPad } = this.getPaddings();
+    return hPad;
   }
 
   getEpubPageLayoutValues() {
+    const paddings = this.getPaddings();
     return {
-      edgePadding: this.getEdgePadding(),
+      edgePadding: this.getEdgePadding(), // 後方互換性のため
+      hPad: paddings.hPad,
+      vPad: paddings.vPad,
       lineHeight: getReaderLineHeight(),
       maxWidthValue: this.getReaderMaxWidthValue(),
     };
   }
 
-  applyEpubPageLayoutStyles(target, { edgePadding, lineHeight, maxWidthValue }) {
+  applyEpubPageLayoutStyles(target, { edgePadding, hPad, vPad, lineHeight, maxWidthValue }) {
     if (!target) return;
-    target.style.padding = `${edgePadding}px`;
+    // 新しいパディング方式（vPad/hPadが指定されている場合）
+    if (vPad !== undefined && hPad !== undefined) {
+      target.style.padding = `${vPad}px ${hPad}px`; // 上下 左右
+    } else {
+      // 後方互換性
+      target.style.padding = `${edgePadding}px`;
+    }
     target.style.lineHeight = `${lineHeight}`;
     if (maxWidthValue) {
       target.style.maxWidth = maxWidthValue;
@@ -1128,11 +1166,16 @@ export class ReaderController {
     // --- [修正終了] ---
 
     this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
-      img.style.maxWidth = "100%";
-      img.style.maxHeight = "70vh";
+      // 画面環境の95%を利用し、小さい画像は拡大する設定
+      img.style.width = "95%";       // 横95%強制
+      img.style.height = "95vh";     // 縦95%強制
+      img.style.objectFit = "contain"; // アスペクト比維持で枠内に収める
+      img.style.margin = "0 auto";   // 中央寄せ
       img.style.display = "block";
-      img.style.margin = "1em auto";
-      img.style.objectFit = "contain";
+      
+      // 以前のmax設定は干渉するため解除
+      img.style.maxWidth = "none";
+      img.style.maxHeight = "none";
     });
     this.resolveImagesInRenderedPage(page);
     this.interceptInternalLinks(this.pageContainer, page);
@@ -1232,7 +1275,10 @@ export class ReaderController {
       this.writingMode === WRITING_MODES.VERTICAL
         ? CSS_WRITING_MODES.VERTICAL
         : CSS_WRITING_MODES.HORIZONTAL;
-    const edgePadding = paginationMetrics.edgePadding;
+    
+    // 新しいパディング計算を使用
+    const { hPad, vPad } = this.getPaddings();
+    const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
 
     this.paginationPromise = (async () => {
       const spineItems = [];

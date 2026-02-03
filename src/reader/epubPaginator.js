@@ -104,9 +104,13 @@ function createMeasurementContainer(settings) {
   const style = document.createElement("style");
   style.textContent = `
     [data-epub-paginator="page"] img {
-      max-width: 100%;
-      max-height: 100%;
+      width: 95%;       /* reader.js に合わせる */
+      height: 95vh;     /* コンテナ(vh)に対する95% */
       object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      max-width: none;
+      max-height: none;
     }
     [data-epub-paginator="page"] svg {
       max-width: 100%;
