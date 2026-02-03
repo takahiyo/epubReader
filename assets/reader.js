@@ -311,9 +311,11 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
-    this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
-    this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
+    if (this.currentPaginationRun) {
+      this.currentPaginationRun.cancelled = true;
+      this.currentPaginationRun = null;
+    }
     this.toc = [];
     if (this.paginator?.destroy) {
       this.paginator.destroy();
@@ -1417,8 +1419,14 @@ export class ReaderController {
         padding: edgePadding,
       });
 
-      // 逐次読み込みループ
+      // 以前のパジネーション実行があれば中断
+      if (this.currentPaginationRun) {
+        this.currentPaginationRun.cancelled = true;
+      }
       const run = { cancelled: false };
+      this.currentPaginationRun = run;
+
+      // 逐次読み込みループ
       const progressiveGen = this.paginator.paginateProgressive(run);
       let isFirstChapterDone = false;
       let spineIndex = 0;
@@ -1442,6 +1450,11 @@ export class ReaderController {
 
               // 逐次計算の実行
               const result = await progressiveGen.next();
+              // 中断チェック
+              if (run.cancelled) {
+                console.log("Pagination cancelled during loop.");
+                return null;
+              }
               if (result.value) {
                 this.pagination.pages = result.value.pages;
                 this.pageController.setTotalPages(this.pagination.pages.length);
@@ -1474,6 +1487,9 @@ export class ReaderController {
         }
         spineIndex++;
       }
+
+      // 中断チェック
+      if (run.cancelled) return null;
 
       // 最終的な後処理（カバーページ追加など）
       await this.addCoverPageIfNeeded(this.pagination);
@@ -2310,9 +2326,19 @@ export class ReaderController {
 
     try {
       console.log("[Reader] applyReadingDirection:", { writingMode, pageDirection });
+
+      // 実行中のパジネーションを中断
+      if (this.currentPaginationRun) {
+        this.currentPaginationRun.cancelled = true;
+      }
+      this.paginationPromise = null;
       this.pagination = null;
-      await this.buildPagination();
-      this.pageController.goTo(this.currentPageIndex);
+
+      // 再計算を開始（非同期に待つ必要はないが、完了を待つことで確実に表示を更新する）
+      const pagination = await this.buildPagination();
+      if (pagination) {
+        this.pageController.goTo(this.currentPageIndex);
+      }
     } catch (error) {
       console.error("[Reader] Failed to apply reading direction:", error);
     }
