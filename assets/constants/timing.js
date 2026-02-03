@@ -1,3 +1,5 @@
+import { PROGRESS_SAVE_THRESHOLD_PERCENT } from "./progress.js";
+
 // ============================================
 // タイミング設定 (ミリ秒)
 // ============================================
@@ -7,7 +9,7 @@ export const TIMING_CONFIG = Object.freeze({
   PERIODIC_SYNC_MS: 1200000, // フォアグラウンド定期同期 (20分)
 
   // --- ローカル保存関連 ---
-  LOCAL_SAVE_THRESHOLD_PERCENT: 0.5, // ローカル保存を実行する進捗差分 (%)
+  LOCAL_SAVE_THRESHOLD_PERCENT: PROGRESS_SAVE_THRESHOLD_PERCENT, // ローカル保存を実行する進捗差分 (%)
 
   // --- UI/その他 (維持) ---
   RESIZE_DEBOUNCE_MS: 250,

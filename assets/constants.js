@@ -9,6 +9,7 @@ export * from "./constants/app-info.js";
 export * from "./constants/runtime-config.js";
 export * from "./constants/storage.js";
 export * from "./constants/sync.js";
+export * from "./constants/progress.js";
 export * from "./constants/ui.js";
 export * from "./constants/reader.js";
 export * from "./constants/interaction.js";
