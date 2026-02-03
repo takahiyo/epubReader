@@ -76,6 +76,17 @@
   word-break: var(--reader-word-break);
 }
 
+/* 表示側のタイポグラフィを計算側と同期（SSOT） */
+.epub-page {
+  line-height: var(--reader-line-height) !important;
+  orphans: var(--reader-orphans) !important;
+  widows: var(--reader-widows) !important;
+}
+
+.epub-page p {
+  margin: 0 0 var(--reader-paragraph-margin) 0 !important;
+}
+
 /* =====================================
 [REF]
 - HTML: .epub-page ruby/img（ルビ・画像）

@@ -10,6 +10,9 @@
  *     fontSize?: string | number,
  *     writingMode?: "vertical-rl" | "horizontal-tb",
  *     lineHeight?: string | number,
+ *     paragraphMarginEm?: string | number,
+ *     orphans?: number,
+ *     widows?: number,
  *     margin?: string,
  *     padding?: string
  *   }
@@ -39,6 +42,9 @@ const DEFAULTS = {
   fontSize: READER_CONFIG.fontSize,
   writingMode: READER_CONFIG.writingMode,
   lineHeight: READER_CONFIG.lineHeight,
+  paragraphMarginEm: READER_CONFIG.paragraphMarginEm,
+  orphans: READER_CONFIG.orphans,
+  widows: READER_CONFIG.widows,
   margin: READER_CONFIG.margin,
   padding: READER_CONFIG.padding,
   maxWidth: READER_CONFIG.layout?.maxWidth
@@ -68,6 +74,12 @@ function toCssLineHeight(value, fallback) {
   return value;
 }
 
+function toCssEm(value, fallback) {
+  if (value == null) return fallback;
+  if (typeof value === "number") return `${value}em`;
+  return value;
+}
+
 function createMeasurementContainer(settings) {
   const container = document.createElement("div");
   container.setAttribute("data-epub-paginator", "measurement");
@@ -86,6 +98,13 @@ function createMeasurementContainer(settings) {
 
   const page = document.createElement("div");
   page.setAttribute("data-epub-paginator", "page");
+  const lineHeightValue = toCssLineHeight(settings.lineHeight, DEFAULTS.lineHeight);
+  const paragraphMarginValue = toCssEm(
+    settings.paragraphMarginEm,
+    toCssEm(DEFAULTS.paragraphMarginEm, "0")
+  );
+  const orphansValue = settings.orphans ?? DEFAULTS.orphans;
+  const widowsValue = settings.widows ?? DEFAULTS.widows;
   page.style.width = "100%";
   page.style.height = "100%";
   page.style.boxSizing = "border-box";
@@ -93,7 +112,7 @@ function createMeasurementContainer(settings) {
   page.style.margin = toCssSize(settings.margin, DEFAULTS.margin);
   page.style.maxWidth = toCssSize(settings.maxWidth, DEFAULTS.maxWidth);
   page.style.fontSize = toCssSize(settings.fontSize, DEFAULTS.fontSize);
-  page.style.lineHeight = `${toCssLineHeight(settings.lineHeight, DEFAULTS.lineHeight)}`;
+  page.style.lineHeight = `${lineHeightValue}`;
   page.style.writingMode = settings.writingMode;
   page.style.overflow = "hidden";
   page.style.textAlign = "var(--reader-text-align)";
@@ -119,7 +138,15 @@ function createMeasurementContainer(settings) {
     [data-epub-paginator="page"] * {
       box-sizing: border-box;
     }
-    [data-epub-paginator="page"] p { margin: 0 0 0.8em 0; }
+    /* 計算・表示ルールの乖離を防ぐため、CSS側と同じ値を適用する */
+    [data-epub-paginator="page"] {
+      line-height: ${lineHeightValue} !important;
+      orphans: ${orphansValue} !important;
+      widows: ${widowsValue} !important;
+    }
+    [data-epub-paginator="page"] p {
+      margin: 0 0 ${paragraphMarginValue} 0;
+    }
   `;
 
   container.appendChild(style);
