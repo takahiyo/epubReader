@@ -2037,26 +2037,51 @@ function showSettings() {
 // ========================================
 
 function setupEvents() {
+  console.log('[setupEvents] Starting event setup...');
+  console.log('[setupEvents] elements.menuOpen:', elements.menuOpen);
+  console.log('[setupEvents] elements.leftMenu:', elements.leftMenu);
+  
   // メニューアクション
-  elements.menuOpen?.addEventListener('click', () => {
-    openFileDialog();
-  });
+  if (elements.menuOpen) {
+    elements.menuOpen.addEventListener('click', () => {
+      console.log('[menuOpen] Clicked!');
+      openFileDialog();
+    });
+    console.log('[setupEvents] menuOpen listener attached');
+  } else {
+    console.error('[setupEvents] elements.menuOpen is null or undefined!');
+  }
 
-  elements.menuLibrary?.addEventListener('click', () => {
-    showLibrary();
-  });
+  if (elements.menuLibrary) {
+    elements.menuLibrary.addEventListener('click', () => {
+      console.log('[menuLibrary] Clicked!');
+      showLibrary();
+    });
+    console.log('[setupEvents] menuLibrary listener attached');
+  } else {
+    console.error('[setupEvents] elements.menuLibrary is null!');
+  }
 
-  elements.menuSearch?.addEventListener('click', () => {
-    showSearch();
-  });
+  if (elements.menuSearch) {
+    elements.menuSearch.addEventListener('click', () => {
+      console.log('[menuSearch] Clicked!');
+      showSearch();
+    });
+  }
 
-  elements.menuBookmarks?.addEventListener('click', () => {
-    showBookmarks();
-  });
+  if (elements.menuBookmarks) {
+    elements.menuBookmarks.addEventListener('click', () => {
+      console.log('[menuBookmarks] Clicked!');
+      showBookmarks();
+    });
+  }
 
-  elements.menuHistory?.addEventListener('click', () => {
-    showHistory();
-  });
+  if (elements.menuHistory) {
+    elements.menuHistory.addEventListener('click', () => {
+      console.log('[menuHistory] Clicked!');
+      showHistory();
+    });
+  }
 
   elements.floatOpen?.addEventListener('click', () => {
     openFileDialog();
@@ -2532,6 +2557,8 @@ function setupEvents() {
 
 function init() {
   console.log("Initializing Epub Reader...");
+  console.log("[init] readyState:", document.readyState);
+  console.log("[init] elements object:", elements);
 
   // ライブラリ読み込み確認
   console.log("JSZip:", typeof JSZip !== "undefined" ? UI_ICONS.CHECK_MARK : UI_ICONS.ERROR_MARK);
