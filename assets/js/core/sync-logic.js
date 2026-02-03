@@ -573,10 +573,16 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
 
     if (state.lastCfi || typeof state.progress === "number") {
         const existing = _storage.getProgress(localBookId) ?? {};
+        const shouldPreservePercentage =
+            existing.location === null &&
+            (existing.updatedAt ?? 0) > (state.updatedAt ?? 0);
+        const nextPercentage = shouldPreservePercentage
+            ? existing.percentage
+            : (typeof state.progress === "number" ? state.progress : existing.percentage);
         const newProgress = {
             ...existing,
             location: state.lastCfi ?? existing.location,
-            percentage: typeof state.progress === "number" ? state.progress : existing.percentage,
+            percentage: nextPercentage,
             // 読書環境の復元
             writingMode: state.writingMode ?? existing.writingMode,
             pageDirection: state.pageDirection ?? existing.pageDirection,
@@ -620,6 +626,14 @@ export async function resolveSyncedProgress(
         const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
         const localLocation = localProgress?.location ?? null;
         const remoteLocation = remoteState?.lastCfi ?? null;
+
+        if (localUpdatedAt > remoteUpdatedAt && localLocation === null) {
+            _storage.setCloudState(resolvedCloudBookId, remoteState);
+            if (pushCurrentBookSync) {
+                await pushCurrentBookSync();
+            }
+            return _storage.getProgress(localBookId);
+        }
 
         if (
             localUpdatedAt !== remoteUpdatedAt &&
