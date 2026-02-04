@@ -25,11 +25,15 @@ export function detectFileType(fileOrBuffer) {
     if (fileOrBuffer instanceof ArrayBuffer) {
         const view = new Uint8Array(fileOrBuffer);
         if (view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
-            const str = String.fromCharCode(...view.slice(30, 60));
-            if (str.includes("mimetypeapplication/epub+zip")) {
+            // ZIP形式の場合、EPUBかどうかを判定するために mimetype ファイルを確認
+            // 一般的に mimetype はZIPの先頭付近にあるが、念のため広い範囲（100バイト）をチェック
+            const headerStr = String.fromCharCode(...view.slice(0, 100));
+            if (headerStr.includes("mimetype") && headerStr.includes("application/epub+zip")) {
                 return BOOK_TYPES.EPUB;
             }
-            return BOOK_TYPES.ZIP;
+            // EPUBと確信できない場合は null を返し、拡張子による判定へフォールバックさせる
+            // これにより、マジックナンバー判定の誤爆を防ぐ
+            return null;
         }
         if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
             return BOOK_TYPES.RAR;
