@@ -253,6 +253,8 @@ export const DOM_IDS = Object.freeze({
   SYNC_HINT: "syncHint",
   NOTION_STATUS_LABEL: "notionStatusLabel",
   NOTION_STATUS: "notionStatus",
+  NOTION_OAUTH_URL_LABEL: "notionOauthUrlLabel",
+  NOTION_OAUTH_URL_INPUT: "notionOauthUrl",
   NOTION_WORKSPACE_LABEL: "notionWorkspaceLabel",
   NOTION_WORKSPACE_INPUT: "notionWorkspace",
   NOTION_PARENT_PAGE_LABEL: "notionParentPageLabel",

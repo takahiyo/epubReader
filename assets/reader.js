@@ -206,6 +206,7 @@ export class ReaderController {
     this.paginator = null;
     this.pagination = null;
     this.paginationPromise = null;
+    this.paginationComplete = false;
     this.currentPageIndex = 0;
     this.usingPaginator = false;
     this.resourceUrlCache = new Map();
@@ -847,6 +848,36 @@ export class ReaderController {
     return 0;
   }
 
+  resolveStartPageIndexIfReady(startLocation, totalPages) {
+    if (!startLocation || typeof startLocation !== "object") {
+      return this.paginationComplete
+        ? this.resolveStartPageIndex(startLocation, totalPages)
+        : null;
+    }
+    const directLocator = startLocation.location;
+    const locator =
+      directLocator &&
+        typeof directLocator === "object" &&
+        typeof directLocator.spineIndex === "number" &&
+        typeof directLocator.segmentIndex === "number"
+        ? directLocator
+        : null;
+    if (locator) {
+      const pageIndex = this.findPageContaining(
+        locator.spineIndex,
+        locator.segmentIndex,
+        this.pagination?.pages ?? []
+      );
+      if (pageIndex >= 0) {
+        return pageIndex;
+      }
+      return null;
+    }
+    return this.paginationComplete
+      ? this.resolveStartPageIndex(startLocation, totalPages)
+      : null;
+  }
+
   isExternalLink(href) {
     if (!href) return false;
     return /^(https?:|mailto:|tel:|data:|blob:|ftp:)/i.test(href) || href.startsWith("//");
@@ -1291,6 +1322,7 @@ export class ReaderController {
     const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
 
     this.paginationPromise = (async () => {
+      this.paginationComplete = false;
       const { hPad, vPad } = this.getPaddings();
       const edgePadding = `${vPad}px ${hPad}px`;
       const baseFontSize = Number.parseFloat(
@@ -1467,8 +1499,13 @@ export class ReaderController {
                 if (!isFirstChapterDone) {
                   isFirstChapterDone = true;
                   // ローディング解除と初期表示
-                  const startPage = this.resolveStartPageIndex(this._pendingStartLocation, this.pagination.pages.length);
-                  this.pageController.goTo(startPage);
+                  const startPage = this.resolveStartPageIndexIfReady(
+                    this._pendingStartLocation,
+                    this.pagination.pages.length
+                  );
+                  if (startPage !== null) {
+                    this.pageController.goTo(startPage);
+                  }
 
                   // メタデータと目次を通知（初回のみ、またはリパジネーション時は必要に応じて）
                   if (!this._isInitialReadyCalled) {
@@ -1501,6 +1538,7 @@ export class ReaderController {
       // 最終的な後処理（カバーページ追加など）
       await this.addCoverPageIfNeeded(this.pagination);
       this.pageController.setTotalPages(this.pagination.pages.length);
+      this.paginationComplete = true;
       return this.pagination;
     })();
 

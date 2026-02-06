@@ -169,6 +169,8 @@ export const elements = {
     syncHint: getById(DOM_IDS.SYNC_HINT),
     notionStatusLabel: getById(DOM_IDS.NOTION_STATUS_LABEL),
     notionStatus: getById(DOM_IDS.NOTION_STATUS),
+    notionOauthUrlLabel: getById(DOM_IDS.NOTION_OAUTH_URL_LABEL),
+    notionOauthUrlInput: getById(DOM_IDS.NOTION_OAUTH_URL_INPUT),
     notionWorkspaceLabel: getById(DOM_IDS.NOTION_WORKSPACE_LABEL),
     notionWorkspaceInput: getById(DOM_IDS.NOTION_WORKSPACE_INPUT),
     notionParentPageLabel: getById(DOM_IDS.NOTION_PARENT_PAGE_LABEL),

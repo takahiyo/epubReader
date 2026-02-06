@@ -98,6 +98,8 @@ export const UI_STRINGS_JA = Object.freeze({
   notionStatusConnected: "連携済み",
   notionStatusPending: "連携待機中",
   notionStatusError: "連携エラー",
+  notionOauthUrlLabel: "連携URL",
+  notionOauthUrlPlaceholder: "例: {url}",
   notionWorkspaceLabel: "ワークスペース",
   notionParentPageLabel: "連携先ページ",
   notionDatabaseLabel: "読書ログDB",

@@ -10,6 +10,7 @@ export const NOTION_DEFAULT_SETTINGS = Object.freeze({
   workspaceName: "",
   parentPageId: "",
   databaseId: "",
+  oauthUrl: "",
   lastConnectedAt: null,
   lastSyncAt: null,
 });

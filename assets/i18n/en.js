@@ -98,6 +98,8 @@ export const UI_STRINGS_EN = Object.freeze({
   notionStatusConnected: "Connected",
   notionStatusPending: "Pending",
   notionStatusError: "Connection error",
+  notionOauthUrlLabel: "Integration URL",
+  notionOauthUrlPlaceholder: "Example: {url}",
   notionWorkspaceLabel: "Workspace",
   notionParentPageLabel: "Target Page",
   notionDatabaseLabel: "Reading Log DB",

@@ -136,6 +136,11 @@ function getNotionUrlSample() {
   return NOTION_CONFIG.OAUTH_URL_SAMPLE || NOTION_CONFIG.OAUTH_URL;
 }
 
+function getNotionOAuthUrl() {
+  const notionSettings = getNotionSettingsSnapshot();
+  return notionSettings.oauthUrl || NOTION_CONFIG.OAUTH_URL;
+}
+
 function normalizeEpubLocation(location) {
   if (!location) return null;
   if (
@@ -185,6 +190,14 @@ function renderNotionSettingsStatus() {
   if (elements.notionDatabaseInput) {
     elements.notionDatabaseInput.value = notionSettings.databaseId || t("notionValueEmpty");
   }
+  if (elements.notionOauthUrlInput) {
+    elements.notionOauthUrlInput.value = notionSettings.oauthUrl || "";
+    elements.notionOauthUrlInput.placeholder = tReplace(
+      "notionOauthUrlPlaceholder",
+      { url: getNotionUrlSample() },
+      uiLanguage,
+    );
+  }
   const isConnected = notionSettings.status === NOTION_INTEGRATION_STATUS.CONNECTED;
   if (elements.notionConnectButton) {
     elements.notionConnectButton.disabled = isConnected;
@@ -195,7 +208,7 @@ function renderNotionSettingsStatus() {
 }
 
 function handleNotionConnectClick() {
-  const notionUrl = NOTION_CONFIG.OAUTH_URL;
+  const notionUrl = getNotionOAuthUrl();
   if (!notionUrl) {
     alert(tReplace("notionConnectUnavailable", { url: getNotionUrlSample() }, uiLanguage));
     return;
@@ -1692,6 +1705,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.manualSyncButton) elements.manualSyncButton.textContent = strings.syncNowButton;
   if (elements.syncHint) elements.syncHint.textContent = strings.syncHint;
   if (elements.notionStatusLabel) elements.notionStatusLabel.textContent = strings.notionStatusLabel;
+  if (elements.notionOauthUrlLabel) elements.notionOauthUrlLabel.textContent = strings.notionOauthUrlLabel;
   if (elements.notionWorkspaceLabel) elements.notionWorkspaceLabel.textContent = strings.notionWorkspaceLabel;
   if (elements.notionParentPageLabel) elements.notionParentPageLabel.textContent = strings.notionParentPageLabel;
   if (elements.notionDatabaseLabel) elements.notionDatabaseLabel.textContent = strings.notionDatabaseLabel;
@@ -2415,6 +2429,17 @@ function setupEvents() {
     }
     // New Firebase Auth Login
     startGoogleLogin();
+  });
+
+  elements.notionOauthUrlInput?.addEventListener('input', (e) => {
+    const nextValue = e.target.value.trim();
+    const notionSettings = getNotionSettingsSnapshot();
+    storage.setSettings({
+      notionIntegration: {
+        ...notionSettings,
+        oauthUrl: nextValue,
+      },
+    });
   });
 
   elements.notionConnectButton?.addEventListener('click', handleNotionConnectClick);
