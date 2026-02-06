@@ -132,6 +132,44 @@ function getNotionSettingsSnapshot() {
   };
 }
 
+function getNotionUrlSample() {
+  return NOTION_CONFIG.OAUTH_URL_SAMPLE || NOTION_CONFIG.OAUTH_URL;
+}
+
+function normalizeEpubLocation(location) {
+  if (!location) return null;
+  if (
+    typeof location === "object" &&
+    Number.isFinite(location.spineIndex) &&
+    Number.isFinite(location.segmentIndex)
+  ) {
+    return {
+      spineIndex: location.spineIndex,
+      segmentIndex: location.segmentIndex,
+    };
+  }
+  if (typeof location === "string") {
+    const match = location.match(/^(\d+):(\d+)$/);
+    if (match) {
+      return {
+        spineIndex: Number(match[1]),
+        segmentIndex: Number(match[2]),
+      };
+    }
+  }
+  return null;
+}
+
+function normalizeProgressSnapshot(progress, bookType) {
+  if (!progress || bookType !== BOOK_TYPES.EPUB) return progress;
+  const normalizedLocation = normalizeEpubLocation(progress.location);
+  if (!normalizedLocation) return progress;
+  return {
+    ...progress,
+    location: normalizedLocation,
+  };
+}
+
 function renderNotionSettingsStatus() {
   const notionSettings = getNotionSettingsSnapshot();
   const statusKey = NOTION_STATUS_LABEL_KEYS[notionSettings.status] ?? "notionStatusDisconnected";
@@ -159,7 +197,7 @@ function renderNotionSettingsStatus() {
 function handleNotionConnectClick() {
   const notionUrl = NOTION_CONFIG.OAUTH_URL;
   if (!notionUrl) {
-    alert(t("notionConnectUnavailable"));
+    alert(tReplace("notionConnectUnavailable", { url: getNotionUrlSample() }, uiLanguage));
     return;
   }
   window.location.href = notionUrl;
@@ -278,8 +316,9 @@ function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
     const total = progressSnapshot.totalPages;
-    const locatorFromSnapshot = progressSnapshot.location;
-    const fallbackLocator = reader.pagination?.pages?.[pageIndex]?.cfi ?? null;
+    const locatorFromSnapshot = normalizeEpubLocation(progressSnapshot.location);
+    const fallbackLocator =
+      typeof reader.getPageLocator === "function" ? reader.getPageLocator(pageIndex) : null;
     const location = locatorFromSnapshot ?? fallbackLocator;
     const percentage = progressSnapshot.percentage;
 
@@ -935,11 +974,12 @@ async function openFromLibrary(bookId, options = {}) {
 
     const bookmarks = storage.getBookmarks(bookId);
     const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
-    await applyReadingState(progress);
+    const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
+    await applyReadingState(normalizedProgress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
-    const start = startFromBookmark ?? progress?.location;
-    const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
+    const start = startFromBookmark ?? normalizedProgress?.location;
+    const startProgress = explicitBookmark?.percentage ?? normalizedProgress?.percentage;
 
     // 【修正】読み込み時にタイプを再判定（DB内の情報の誤りを補正）
     const detectedType = fileHandler.detectFileType(record.buffer);
@@ -980,8 +1020,8 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     // [修正] オープン処理の後に状態を再適用
-    if (progress) {
-      await applyReadingState(progress);
+    if (normalizedProgress) {
+      await applyReadingState(normalizedProgress);
     }
 
     storage.addHistory(bookId);
@@ -1657,7 +1697,13 @@ function applyUiLanguage(nextLanguage) {
   if (elements.notionDatabaseLabel) elements.notionDatabaseLabel.textContent = strings.notionDatabaseLabel;
   if (elements.notionConnectButton) elements.notionConnectButton.textContent = strings.notionConnectButton;
   if (elements.notionDisconnectButton) elements.notionDisconnectButton.textContent = strings.notionDisconnectButton;
-  if (elements.notionHelpText) elements.notionHelpText.textContent = strings.notionHelpText;
+  if (elements.notionHelpText) {
+    elements.notionHelpText.textContent = tReplace(
+      "notionHelpText",
+      { url: getNotionUrlSample() },
+      uiLanguage,
+    );
+  }
   if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
   if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
   if (elements.firebaseAuthDomainLabel) {
