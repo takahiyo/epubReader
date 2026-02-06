@@ -52,6 +52,9 @@ import {
   READER_CONFIG,
   SYNC_SOURCES,
   CLOUD_SYNC_PAGE_THRESHOLD,
+  NOTION_INTEGRATION_STATUS,
+  NOTION_DEFAULT_SETTINGS,
+  NOTION_CONFIG,
 } from "./constants.js";
 
 // ========================================
@@ -101,6 +104,12 @@ let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
+const NOTION_STATUS_LABEL_KEYS = Object.freeze({
+  [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
+  [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
+  [NOTION_INTEGRATION_STATUS.PENDING]: "notionStatusPending",
+  [NOTION_INTEGRATION_STATUS.ERROR]: "notionStatusError",
+});
 
 // UI_STRINGS は i18n.js からインポート済み
 
@@ -113,6 +122,92 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function t(key) {
   return translate(key, uiLanguage);
+}
+
+function getNotionSettingsSnapshot() {
+  const currentSettings = storage.getSettings();
+  return {
+    ...NOTION_DEFAULT_SETTINGS,
+    ...(currentSettings.notionIntegration ?? {}),
+  };
+}
+
+function getNotionUrlSample() {
+  return NOTION_CONFIG.OAUTH_URL_SAMPLE || NOTION_CONFIG.OAUTH_URL;
+}
+
+function normalizeEpubLocation(location) {
+  if (!location) return null;
+  if (
+    typeof location === "object" &&
+    Number.isFinite(location.spineIndex) &&
+    Number.isFinite(location.segmentIndex)
+  ) {
+    return {
+      spineIndex: location.spineIndex,
+      segmentIndex: location.segmentIndex,
+    };
+  }
+  if (typeof location === "string") {
+    const match = location.match(/^(\d+):(\d+)$/);
+    if (match) {
+      return {
+        spineIndex: Number(match[1]),
+        segmentIndex: Number(match[2]),
+      };
+    }
+  }
+  return null;
+}
+
+function normalizeProgressSnapshot(progress, bookType) {
+  if (!progress || bookType !== BOOK_TYPES.EPUB) return progress;
+  const normalizedLocation = normalizeEpubLocation(progress.location);
+  if (!normalizedLocation) return progress;
+  return {
+    ...progress,
+    location: normalizedLocation,
+  };
+}
+
+function renderNotionSettingsStatus() {
+  const notionSettings = getNotionSettingsSnapshot();
+  const statusKey = NOTION_STATUS_LABEL_KEYS[notionSettings.status] ?? "notionStatusDisconnected";
+  if (elements.notionStatus) {
+    elements.notionStatus.textContent = t(statusKey);
+  }
+  if (elements.notionWorkspaceInput) {
+    elements.notionWorkspaceInput.value = notionSettings.workspaceName || t("notionValueEmpty");
+  }
+  if (elements.notionParentPageInput) {
+    elements.notionParentPageInput.value = notionSettings.parentPageId || t("notionValueEmpty");
+  }
+  if (elements.notionDatabaseInput) {
+    elements.notionDatabaseInput.value = notionSettings.databaseId || t("notionValueEmpty");
+  }
+  const isConnected = notionSettings.status === NOTION_INTEGRATION_STATUS.CONNECTED;
+  if (elements.notionConnectButton) {
+    elements.notionConnectButton.disabled = isConnected;
+  }
+  if (elements.notionDisconnectButton) {
+    elements.notionDisconnectButton.disabled = !isConnected;
+  }
+}
+
+function handleNotionConnectClick() {
+  const notionUrl = NOTION_CONFIG.OAUTH_URL;
+  if (!notionUrl) {
+    alert(tReplace("notionConnectUnavailable", { url: getNotionUrlSample() }, uiLanguage));
+    return;
+  }
+  window.location.href = notionUrl;
+}
+
+function handleNotionDisconnectClick() {
+  if (!confirm(t("notionDisconnectConfirm"))) return;
+  storage.setSettings({ notionIntegration: { ...NOTION_DEFAULT_SETTINGS } });
+  renderNotionSettingsStatus();
+  alert(t("notionDisconnected"));
 }
 
 // 同期ロジックの初期化
@@ -192,11 +287,19 @@ function getCurrentPageIndex() {
   return normalizePageIndex(rawIndex);
 }
 
-function getProgressSnapshot() {
+function getProgressSnapshot(progressOverride = {}) {
   const totalPages = getCurrentTotalPages();
   const pageIndex = getCurrentPageIndex();
-  const percentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
-  return { pageIndex, totalPages, percentage };
+  const fallbackPercentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
+  const percentage = Number.isFinite(progressOverride.percentage)
+    ? progressOverride.percentage
+    : fallbackPercentage;
+  return {
+    pageIndex,
+    totalPages,
+    percentage,
+    location: progressOverride.location ?? null,
+  };
 }
 
 function shouldPersistLocalProgress(percentage) {
@@ -213,18 +316,15 @@ function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
     const total = progressSnapshot.totalPages;
-
-    // CFIの取得（ページオブジェクトから）
-    let cfi = null;
-    if (reader.pagination?.pages?.[pageIndex]) {
-      cfi = reader.pagination.pages[pageIndex].cfi;
-    }
-
+    const locatorFromSnapshot = normalizeEpubLocation(progressSnapshot.location);
+    const fallbackLocator =
+      typeof reader.getPageLocator === "function" ? reader.getPageLocator(pageIndex) : null;
+    const location = locatorFromSnapshot ?? fallbackLocator;
     const percentage = progressSnapshot.percentage;
 
     progressData = {
       percentage,
-      location: cfi,
+      location,
       // 読書環境も保存（EPUB用）
       writingMode,
       pageDirection,
@@ -297,7 +397,7 @@ const reader = new ReaderController({
   pageIndicatorId: "pageIndicator",
   onProgress: ({ location, percentage }) => {
     // reader.js は { location, percentage } を渡す。readerから現在値を取得して更新
-    const progressSnapshot = getProgressSnapshot();
+    const progressSnapshot = getProgressSnapshot({ location, percentage });
 
     ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages);
     const savedSnapshot = saveCurrentProgress(progressSnapshot);
@@ -874,11 +974,12 @@ async function openFromLibrary(bookId, options = {}) {
 
     const bookmarks = storage.getBookmarks(bookId);
     const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
-    await applyReadingState(progress);
+    const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
+    await applyReadingState(normalizedProgress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
-    const start = startFromBookmark ?? progress?.location;
-    const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
+    const start = startFromBookmark ?? normalizedProgress?.location;
+    const startProgress = explicitBookmark?.percentage ?? normalizedProgress?.percentage;
 
     // 【修正】読み込み時にタイプを再判定（DB内の情報の誤りを補正）
     const detectedType = fileHandler.detectFileType(record.buffer);
@@ -919,8 +1020,8 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     // [修正] オープン処理の後に状態を再適用
-    if (progress) {
-      await applyReadingState(progress);
+    if (normalizedProgress) {
+      await applyReadingState(normalizedProgress);
     }
 
     storage.addHistory(bookId);
@@ -1583,11 +1684,26 @@ function applyUiLanguage(nextLanguage) {
     // storage.js の getDeviceInfo を使用
     elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
   }
+  renderNotionSettingsStatus();
 
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
+  if (elements.settingsNotionTitle) elements.settingsNotionTitle.textContent = strings.settingsNotionTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.manualSyncButton) elements.manualSyncButton.textContent = strings.syncNowButton;
   if (elements.syncHint) elements.syncHint.textContent = strings.syncHint;
+  if (elements.notionStatusLabel) elements.notionStatusLabel.textContent = strings.notionStatusLabel;
+  if (elements.notionWorkspaceLabel) elements.notionWorkspaceLabel.textContent = strings.notionWorkspaceLabel;
+  if (elements.notionParentPageLabel) elements.notionParentPageLabel.textContent = strings.notionParentPageLabel;
+  if (elements.notionDatabaseLabel) elements.notionDatabaseLabel.textContent = strings.notionDatabaseLabel;
+  if (elements.notionConnectButton) elements.notionConnectButton.textContent = strings.notionConnectButton;
+  if (elements.notionDisconnectButton) elements.notionDisconnectButton.textContent = strings.notionDisconnectButton;
+  if (elements.notionHelpText) {
+    elements.notionHelpText.textContent = tReplace(
+      "notionHelpText",
+      { url: getNotionUrlSample() },
+      uiLanguage,
+    );
+  }
   if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
   if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
   if (elements.firebaseAuthDomainLabel) {
@@ -2300,6 +2416,9 @@ function setupEvents() {
     // New Firebase Auth Login
     startGoogleLogin();
   });
+
+  elements.notionConnectButton?.addEventListener('click', handleNotionConnectClick);
+  elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
 
   // Manual sync button
   const manualSyncButton = document.getElementById(DOM_IDS.MANUAL_SYNC_BUTTON);
