@@ -105,6 +105,9 @@ export const UI_STRINGS_JA = Object.freeze({
   notionConnectButton: "Notionと連携する",
   notionDisconnectButton: "連携を解除",
   notionHelpText: "Notionのページを選択して読書ログDBを作成します。",
+  notionConnectUnavailable: "Notion連携の設定がまだ完了していません。",
+  notionDisconnectConfirm: "Notion連携を解除しますか？",
+  notionDisconnected: "Notion連携を解除しました。",
 
   // 同期
   syncToggleLabel: "同期を有効にする",

@@ -16,4 +16,5 @@ export const NOTION_DEFAULT_SETTINGS = Object.freeze({
 
 export const NOTION_CONFIG = Object.freeze({
   API_VERSION: "2022-06-28",
+  OAUTH_URL: "",
 });

@@ -105,6 +105,9 @@ export const UI_STRINGS_EN = Object.freeze({
   notionConnectButton: "Connect to Notion",
   notionDisconnectButton: "Disconnect",
   notionHelpText: "Select a Notion page to create the reading log database.",
+  notionConnectUnavailable: "Notion connection is not configured yet.",
+  notionDisconnectConfirm: "Disconnect Notion integration?",
+  notionDisconnected: "Notion integration was disconnected.",
 
   // Sync
   syncToggleLabel: "Enable sync",

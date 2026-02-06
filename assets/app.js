@@ -54,6 +54,7 @@ import {
   CLOUD_SYNC_PAGE_THRESHOLD,
   NOTION_INTEGRATION_STATUS,
   NOTION_DEFAULT_SETTINGS,
+  NOTION_CONFIG,
 } from "./constants.js";
 
 // ========================================
@@ -155,6 +156,22 @@ function renderNotionSettingsStatus() {
   }
 }
 
+function handleNotionConnectClick() {
+  const notionUrl = NOTION_CONFIG.OAUTH_URL;
+  if (!notionUrl) {
+    alert(t("notionConnectUnavailable"));
+    return;
+  }
+  window.location.href = notionUrl;
+}
+
+function handleNotionDisconnectClick() {
+  if (!confirm(t("notionDisconnectConfirm"))) return;
+  storage.setSettings({ notionIntegration: { ...NOTION_DEFAULT_SETTINGS } });
+  renderNotionSettingsStatus();
+  alert(t("notionDisconnected"));
+}
+
 // 同期ロジックの初期化
 syncLogic.init({
   storage,
@@ -232,11 +249,19 @@ function getCurrentPageIndex() {
   return normalizePageIndex(rawIndex);
 }
 
-function getProgressSnapshot() {
+function getProgressSnapshot(progressOverride = {}) {
   const totalPages = getCurrentTotalPages();
   const pageIndex = getCurrentPageIndex();
-  const percentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
-  return { pageIndex, totalPages, percentage };
+  const fallbackPercentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
+  const percentage = Number.isFinite(progressOverride.percentage)
+    ? progressOverride.percentage
+    : fallbackPercentage;
+  return {
+    pageIndex,
+    totalPages,
+    percentage,
+    location: progressOverride.location ?? null,
+  };
 }
 
 function shouldPersistLocalProgress(percentage) {
@@ -253,18 +278,14 @@ function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
     const total = progressSnapshot.totalPages;
-
-    // CFIの取得（ページオブジェクトから）
-    let cfi = null;
-    if (reader.pagination?.pages?.[pageIndex]) {
-      cfi = reader.pagination.pages[pageIndex].cfi;
-    }
-
+    const locatorFromSnapshot = progressSnapshot.location;
+    const fallbackLocator = reader.pagination?.pages?.[pageIndex]?.cfi ?? null;
+    const location = locatorFromSnapshot ?? fallbackLocator;
     const percentage = progressSnapshot.percentage;
 
     progressData = {
       percentage,
-      location: cfi,
+      location,
       // 読書環境も保存（EPUB用）
       writingMode,
       pageDirection,
@@ -337,7 +358,7 @@ const reader = new ReaderController({
   pageIndicatorId: "pageIndicator",
   onProgress: ({ location, percentage }) => {
     // reader.js は { location, percentage } を渡す。readerから現在値を取得して更新
-    const progressSnapshot = getProgressSnapshot();
+    const progressSnapshot = getProgressSnapshot({ location, percentage });
 
     ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages);
     const savedSnapshot = saveCurrentProgress(progressSnapshot);
@@ -2349,6 +2370,9 @@ function setupEvents() {
     // New Firebase Auth Login
     startGoogleLogin();
   });
+
+  elements.notionConnectButton?.addEventListener('click', handleNotionConnectClick);
+  elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
 
   // Manual sync button
   const manualSyncButton = document.getElementById(DOM_IDS.MANUAL_SYNC_BUTTON);
