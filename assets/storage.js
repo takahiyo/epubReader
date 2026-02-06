@@ -12,6 +12,8 @@ import {
   DEVICE_COLOR_PALETTE,
   DEFAULT_SETTINGS,
   DEFAULT_DATA_SHAPE,
+  NOTION_DEFAULT_SETTINGS,
+  NOTION_INTEGRATION_STATUS,
   BOOK_TYPES,
 } from "./constants.js";
 
@@ -181,6 +183,14 @@ export class StorageService {
 
       const normalizedSource = normalizeStorageSource(settings.source) ?? STORAGE_SOURCE_DEFAULT;
       const normalizedDestination = normalizeStorageSource(settings.saveDestination);
+      const notionIntegration = {
+        ...NOTION_DEFAULT_SETTINGS,
+        ...(settings.notionIntegration ?? {}),
+      };
+      const normalizedNotionStatus =
+        Object.values(NOTION_INTEGRATION_STATUS).includes(notionIntegration.status)
+          ? notionIntegration.status
+          : NOTION_DEFAULT_SETTINGS.status;
       const data = {
         ...defaultData,
         ...parsed,
@@ -207,6 +217,11 @@ export class StorageService {
           onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: normalizedSettings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: normalizedSettings.onedriveToken || defaultData.settings.onedriveToken,
+          notionIntegration: {
+            ...NOTION_DEFAULT_SETTINGS,
+            ...notionIntegration,
+            status: normalizedNotionStatus,
+          },
 
           autoSyncEnabled: normalizedSettings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },
