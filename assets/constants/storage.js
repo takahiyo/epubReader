@@ -1,4 +1,5 @@
 import { UI_DEFAULTS } from "./ui.js";
+import { NOTION_DEFAULT_SETTINGS } from "./notion.js";
 
 // ============================================
 // ストレージ設定
@@ -72,4 +73,5 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultWritingMode: UI_DEFAULTS.writingMode,
   defaultPageDirection: UI_DEFAULTS.defaultDirection,
   defaultImageViewMode: UI_DEFAULTS.imageViewMode,
+  notionIntegration: { ...NOTION_DEFAULT_SETTINGS },
 });
