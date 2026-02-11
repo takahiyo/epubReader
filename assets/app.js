@@ -1075,6 +1075,7 @@ async function applyReadingState(progress) {
   // 書籍ごとの記録がない場合はデフォルト設定を使用
   const targetWritingMode = progress?.writingMode || defaultWritingMode;
   const targetPageDirection = progress?.pageDirection || defaultPageDirection;
+  const targetImageViewMode = progress?.imageViewMode || defaultImageViewMode;
 
   // 1. 書字方向・開き方向の復元
   writingMode = targetWritingMode;
@@ -1083,27 +1084,27 @@ async function applyReadingState(progress) {
   pageDirection = targetPageDirection;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
 
-  // 両方を適用（リーダー本体への反映）
+  // 1.5. 両方を適用（リーダー本体への反映）
   await applyReadingSettings(writingMode, pageDirection);
 
-  if (!progress) {
-    // 新規書籍でも初期状態の表示を更新
-    renderers.updateProgressBarDisplay();
-    return;
-  }
-
   // 2. 表示モード（単ページ/見開き）の復元
-  if (progress.imageViewMode && reader) {
-    reader.imageViewMode = progress.imageViewMode;
+  if (reader) {
+    reader.imageViewMode = targetImageViewMode;
     renderers.updateSpreadModeButtonLabel();
   }
 
   // 2.5. 画像書庫の開き方向の復元
   // 画像書庫では pageDirection を imageReadingDirection として復元
-  if (progress.pageDirection && reader && reader.type !== BOOK_TYPES.EPUB) {
-    reader.setImageReadingDirection(progress.pageDirection);
+  if (reader && reader.type !== BOOK_TYPES.EPUB) {
+    reader.setImageReadingDirection(targetPageDirection);
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
+  }
+
+  if (!progress) {
+    // 新規書籍でも初期状態の表示を更新
+    renderers.updateProgressBarDisplay();
+    return;
   }
 
   // 3. テーマ・フォント等の復元
