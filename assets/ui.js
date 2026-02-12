@@ -358,26 +358,17 @@ export class UIController {
         }
       }
 
-      // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動
+      // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動（綴じ方向に依存しない）
       if (this.isImageBook?.() && this.isSpreadMode?.()) {
-        const direction = this.getReadingDirection();
         if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
           console.log('Spread adjustment: Prev 1 page');
-          // U3 (上中央) -> 1ページ戻る
-          if (direction === READING_DIRECTIONS.RTL) {
-            this.onPageNext?.(1); // RTLの「戻る」は物理的に左(Index増) = next()
-          } else {
-            this.onPagePrev?.(1); // LTRの「戻る」は物理的に左(Index減) = prev()
-          }
+          // U3 (上中央) -> 常に1ページ戻る
+          this.onPagePrev?.(1);
           return;
         } else if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
           console.log('Spread adjustment: Next 1 page');
-          // B3 (下中央) -> 1ページ進む
-          if (direction === READING_DIRECTIONS.RTL) {
-            this.onPagePrev?.(1); // RTLの「進む」は物理的に右(Index減) = prev()
-          } else {
-            this.onPageNext?.(1); // LTRの「進む」は物理的に右(Index増) = next()
-          }
+          // B3 (下中央) -> 常に1ページ進む
+          this.onPageNext?.(1);
           return;
         }
       }
