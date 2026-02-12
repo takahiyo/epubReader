@@ -2629,6 +2629,16 @@ function setupEvents() {
   let lastWheelTime = 0;
 
   wheelTarget?.addEventListener('wheel', (event) => {
+    console.log('[ZOOM-DIAG] app.js wheel on fullscreenReader:', {
+      target: event.target?.tagName + '#' + event.target?.id,
+      imageZoomed: reader.isZoomMode(),
+    });
+
+    // ズーム中はページ送りをスキップ（documentレベルのズームハンドラに任せる）
+    if (reader.isZoomMode()) {
+      return;
+    }
+
     // モーダルが開いている場合は無視
     if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
       !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||

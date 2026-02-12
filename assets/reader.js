@@ -2671,7 +2671,17 @@ export class ReaderController {
     // マウスイベント（リーダー領域内ならドラッグ開始）
     document.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
-      if (this.isEventInReaderArea(e)) {
+      const inArea = this.isEventInReaderArea(e);
+      if (this.imageZoomed) {
+        console.log('[ZOOM-DIAG] mousedown:', {
+          target: e.target?.tagName + '#' + e.target?.id,
+          targetClass: e.target?.className,
+          inReaderArea: inArea,
+          imageZoomed: this.imageZoomed,
+          isDragging: this.isDragging,
+        });
+      }
+      if (inArea) {
         startDrag(e.clientX, e.clientY);
       }
     });
@@ -2712,13 +2722,26 @@ export class ReaderController {
 
     // ホイールズーム（documentレベルで捕捉）
     document.addEventListener('wheel', (event) => {
-      if (!this.isEventInReaderArea(event)) return;
+      const inArea = this.isEventInReaderArea(event);
+      console.log('[ZOOM-DIAG] wheel event on document:', {
+        target: event.target?.tagName + '#' + event.target?.id,
+        targetClass: event.target?.className,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        deltaY: event.deltaY,
+        imageZoomed: this.imageZoomed,
+        inReaderArea: inArea,
+        zoomScale: this.zoomScale,
+        ctrlKey: event.ctrlKey,
+      });
+      if (!inArea) return;
 
       const { step } = this.getZoomConfig();
 
       // ズームモード中はCtrlキー不要でホイールズーム有効
       // ズームモード外ではCtrl+ホイールでのみズーム開始
       if (!this.imageZoomed && !event.ctrlKey) {
+        console.log('[ZOOM-DIAG] wheel: skipped (not zoomed, no ctrlKey)');
         return;
       }
 
@@ -2729,6 +2752,7 @@ export class ReaderController {
       const direction = event.deltaY > 0 ? 1 : -1;
       const nextScale = this.zoomScale + direction * step;
 
+      console.log('[ZOOM-DIAG] wheel: processing zoom', { direction, nextScale, step });
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
     }, { passive: false });
 
@@ -2863,7 +2887,10 @@ export class ReaderController {
 
   applyTransform() {
     const target = this.getZoomTarget();
-    if (!target) return;
+    if (!target) {
+      console.log('[ZOOM-DIAG] applyTransform: no target');
+      return;
+    }
 
     this.clampPan();
     if (this.zoomScale <= this.getZoomConfig().min) {
@@ -2872,7 +2899,13 @@ export class ReaderController {
       return;
     }
 
-    target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    const transformValue = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    console.log('[ZOOM-DIAG] applyTransform:', {
+      targetTag: target.tagName + '#' + target.id,
+      transform: transformValue,
+      zoomScale: this.zoomScale,
+    });
+    target.style.transform = transformValue;
     this.syncZoomSlider();
   }
 
@@ -2933,12 +2966,14 @@ export class ReaderController {
   }
 
   toggleZoom() {
+    console.log('[ZOOM-DIAG] toggleZoom called, current imageZoomed:', this.imageZoomed);
     const { min } = this.getZoomConfig();
     const body = document.body;
     const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
 
     if (this.imageZoomed) {
       // ズームモードOFF: スケール・パンをリセット
+      console.log('[ZOOM-DIAG] toggleZoom: turning OFF');
       this.imageZoomed = false;
       this.zoomScale = min;
       this.panX = 0;
@@ -2952,9 +2987,15 @@ export class ReaderController {
     }
 
     // ズームモードON: 1倍のまま開始（スライダーで拡大を促す）
+    console.log('[ZOOM-DIAG] toggleZoom: turning ON');
     this.imageZoomed = true;
     body.classList.add(UI_CLASSES.IS_ZOOMED);
     this.syncZoomedClass();
+    console.log('[ZOOM-DIAG] toggleZoom ON complete:', {
+      imageZoomed: this.imageZoomed,
+      bodyIsZoomed: body.classList.contains(UI_CLASSES.IS_ZOOMED),
+      zoomScale: this.zoomScale,
+    });
     this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     return true;
   }
