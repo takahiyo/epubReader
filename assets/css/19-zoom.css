@@ -167,11 +167,9 @@ body.is-zoomed .viewer:active {
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズーム時はスクロールを有効化（パン操作） */
+/* ズーム時はオーバーフロー非表示（パンはtransformで制御） */
 #imageViewer.zoomed {
-  overflow: auto;
-  /* タッチデバイスでの慣性スクロール */
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 
 /* =====================================
@@ -298,7 +296,22 @@ body.is-zoomed #imageViewer {
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズーム時はクリックオーバーレイを無効化（パン操作をビューアに直接届けるため） */
+/* ズーム時もクリックオーバーレイを有効にしてイベントを捕捉（iframe内にイベントが沈むのを防ぐ） */
 body.is-zoomed .click-overlay {
-  pointer-events: none !important;
+  pointer-events: all !important;
+  cursor: grab;
+  touch-action: none;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-dragging .click-overlay
+- JS: assets/reader.js（is-dragging 付与）
+- STATE: body.is-dragging
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ドラッグ中のカーソル表示 */
+body.is-dragging .click-overlay {
+  cursor: grabbing;
 }
