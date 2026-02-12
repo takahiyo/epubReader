@@ -2672,6 +2672,7 @@ export class ReaderController {
     document.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       if (this.isEventInReaderArea(e)) {
+        if (this.imageZoomed) console.log('[Zoom] mousedown: starting drag');
         startDrag(e.clientX, e.clientY);
       }
     });
@@ -2712,7 +2713,8 @@ export class ReaderController {
 
     // ホイールズーム（documentレベルで捕捉）
     document.addEventListener('wheel', (event) => {
-      if (!this.isEventInReaderArea(event)) return;
+      const inArea = this.isEventInReaderArea(event);
+      if (!inArea) return;
 
       const { step } = this.getZoomConfig();
 
@@ -2721,6 +2723,8 @@ export class ReaderController {
       if (!this.imageZoomed && !event.ctrlKey) {
         return;
       }
+
+      console.log('[Zoom] wheel:', { scale: this.zoomScale, deltaY: event.deltaY, target: this.getZoomTarget()?.tagName });
 
       event.preventDefault();
       event.stopPropagation();
@@ -2934,12 +2938,14 @@ export class ReaderController {
   }
 
   toggleZoom() {
+    console.log('[Zoom] toggleZoom called, current:', this.imageZoomed);
     const { min } = this.getZoomConfig();
     const body = document.body;
     const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
 
     if (this.imageZoomed) {
       // ズームモードOFF: スケール・パンをリセット
+      console.log('[Zoom] → OFF');
       this.imageZoomed = false;
       this.zoomScale = min;
       this.panX = 0;
@@ -2953,9 +2959,11 @@ export class ReaderController {
     }
 
     // ズームモードON: 1倍のまま開始（スライダーで拡大を促す）
+    console.log('[Zoom] → ON');
     this.imageZoomed = true;
     body.classList.add(UI_CLASSES.IS_ZOOMED);
     this.syncZoomedClass();
+    console.log('[Zoom] ON complete: is-zoomed=', body.classList.contains(UI_CLASSES.IS_ZOOMED), 'target=', this.getZoomTarget()?.tagName);
     this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     return true;
   }
