@@ -2704,32 +2704,19 @@ export class ReaderController {
       const active = this.getActiveViewer();
       if (!active || !active.contains(event.target)) return;
 
-      // Ctrlキーなしのホイールは無視するか、スクロールとして扱うか議論があるが
-      // ここでは仕様通りズームとして扱う
-      // ただし、トラックパッドの慣性スクロールなどが大量に来るので間引きが必要かもしれないが
-      // シンプルな実装にする
-
       const { step, min, max } = this.getZoomConfig();
 
-      // ズームしていない状態で、縮小方向への操作は無視（スクロールさせる）
-      // ただし、ここではシンプルに「ズーム機能」として実装する
-
-      if (!event.ctrlKey && !this.isZoomMode()) {
-        // Ctrlキーなし＆非ズーム時は通常のスクロールに任せる？
-        // 要件によるが、マウス操作でズームと言われているので、
-        // 常時ホイール＝ズームだと使いづらい（ページスクロールできない）。
-        // Ctrl + Wheel を推奨するか、あるいはズームモード中のみホイール有効にするか。
-        // 既存実装は isZoomMode チェックがあったが、それだと初回ズームができない。
-        // -> isZoomMode check was preventing zoom start.
-        // -> User request: "Mouse operation (wheel)". usually implies Ctrl+Wheel or just Wheel.
-        // Let's allow Wheel to Start Zoom if Ctrl is pressed OR if already zoomed.
-        if (!event.ctrlKey) return;
+      // ズームモード中はCtrlキー不要でホイールズーム有効
+      // ズームモード外ではCtrl+ホイールでのみズーム開始
+      if (!this.imageZoomed && !event.ctrlKey) {
+        return;
       }
 
       event.preventDefault();
       event.stopPropagation();
 
-      const direction = event.deltaY < 0 ? 1 : -1;
+      // 手前に回す(deltaY > 0) = ズームイン、奥に回す(deltaY < 0) = ズームアウト
+      const direction = event.deltaY > 0 ? 1 : -1;
       const nextScale = this.zoomScale + direction * step;
 
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });

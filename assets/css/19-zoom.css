@@ -289,3 +289,16 @@ body.is-zoomed .viewer,
 body.is-zoomed #imageViewer {
   touch-action: none;
 }
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .click-overlay
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時はクリックオーバーレイを無効化（パン操作をビューアに直接届けるため） */
+body.is-zoomed .click-overlay {
+  pointer-events: none !important;
+}
