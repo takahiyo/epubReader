@@ -2611,12 +2611,18 @@ export class ReaderController {
 
   /**
    * イベントがリーダー表示領域内で発生したか判定
-   * click-overlayが上に乗っていてもリーダー領域なら true を返す
+   * event.targetではなく座標で判定し、透明な上位レイヤー要素の影響を受けない
    */
   isEventInReaderArea(event) {
     const reader = document.getElementById(DOM_IDS.FULLSCREEN_READER);
     if (!reader) return false;
-    return reader.contains(event.target);
+    const rect = reader.getBoundingClientRect();
+    return (
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    );
   }
 
   bindPanEvents() {

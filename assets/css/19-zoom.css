@@ -26,10 +26,11 @@
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズーム時のUI制御 */
+/* ズーム時のUI制御（backdrop-filterとpointer-eventsを無効化し、イベントを透過させる） */
 body.is-zoomed #floatOverlay .float-backdrop {
   backdrop-filter: none !important;
   background: transparent !important;
+  pointer-events: none !important;
 }
 
 /* =====================================
