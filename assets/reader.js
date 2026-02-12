@@ -2592,7 +2592,7 @@ export class ReaderController {
   }
 
   isZoomMode() {
-    return this.zoomScale > this.getZoomConfig().min;
+    return this.imageZoomed;
   }
 
   setupZoomSlider() {
@@ -2616,8 +2616,8 @@ export class ReaderController {
     this.panStartY = 0;
 
     const startDrag = (x, y) => {
-      // ズームしていない、またはピンチ中はドラッグしない
-      if (this.zoomScale <= this.getZoomConfig().min || this.isPinching) return;
+      // ズームモードでないならドラッグしない
+      if (!this.imageZoomed || this.isPinching) return;
 
       const active = this.getActiveViewer();
       if (active) {
@@ -2805,10 +2805,9 @@ export class ReaderController {
   }
 
   syncZoomedClass() {
-    const isZoomed = this.zoomScale > this.getZoomConfig().min;
-    this.imageZoomed = isZoomed;
+    // CSSクラスの同期のみ（imageZoomedフラグはtoggleZoom()で制御）
     if (this.imageViewer) {
-      this.imageViewer.classList.toggle(UI_CLASSES.ZOOMED, isZoomed);
+      this.imageViewer.classList.toggle(UI_CLASSES.ZOOMED, this.imageZoomed);
     }
   }
 
@@ -2863,17 +2862,10 @@ export class ReaderController {
       }
     }
 
-    if (this.zoomScale > min) {
-      body.classList.add(UI_CLASSES.IS_ZOOMED);
-      this.imageZoomed = true;
-      if (slider) slider.value = this.zoomScale;
-    } else {
-      body.classList.remove(UI_CLASSES.IS_ZOOMED);
-      this.imageZoomed = false;
-      this.panX = 0;
-      this.panY = 0;
-      if (slider) slider.value = min;
-    }
+    // スライダーの値を同期
+    if (slider) slider.value = this.zoomScale;
+
+    // ズームモードの入り切りはここでは行わない（toggleZoom()で制御）
     this.syncZoomedClass();
     this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     this.updateTransform();
@@ -2960,13 +2952,29 @@ export class ReaderController {
   }
 
   toggleZoom() {
-    const { min, max } = this.getZoomConfig();
-    if (this.zoomScale > min) {
-      this.setZoomLevel(min);
+    const { min } = this.getZoomConfig();
+    const body = document.body;
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+
+    if (this.imageZoomed) {
+      // ズームモードOFF: スケール・パンをリセット
+      this.imageZoomed = false;
+      this.zoomScale = min;
+      this.panX = 0;
+      this.panY = 0;
+      body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      if (slider) slider.value = min;
+      this.syncZoomedClass();
+      this.onImageZoom?.(this.imageZoomed, this.zoomScale);
+      this.updateTransform();
       return false;
     }
-    const nextScale = Math.min(max, min + this.getZoomConfig().step);
-    this.setZoomLevel(nextScale);
+
+    // ズームモードON: 1倍のまま開始（スライダーで拡大を促す）
+    this.imageZoomed = true;
+    body.classList.add(UI_CLASSES.IS_ZOOMED);
+    this.syncZoomedClass();
+    this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     return true;
   }
 }

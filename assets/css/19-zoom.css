@@ -126,6 +126,7 @@ body.is-zoomed .float-settings,
 body.is-zoomed .float-top-right,
 body.is-zoomed #toggleLanguage,
 body.is-zoomed #toggleTheme,
+body.is-zoomed #toggleFullscreen,
 body.is-zoomed #openLangMenu {
   opacity: 0 !important;
   pointer-events: none !important;

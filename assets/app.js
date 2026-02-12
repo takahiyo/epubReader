@@ -684,16 +684,8 @@ const floatProgressHandler = new ProgressBarHandler({
 // UI表示ロジックは renderers.js に移行済み
 
 function handleToggleZoom() {
-  // ズーム切替
-  const isZoomed = reader.toggleZoom();
-
-  // Bodyにクラス適用（UI制御用）
-  if (isZoomed) {
-    document.body.classList.add(UI_CLASSES.IS_ZOOMED);
-  } else {
-    document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
-  }
-
+  // ズーム切替（toggleZoom()内部でbodyクラスも制御済み）
+  reader.toggleZoom();
   renderers.updateZoomButtonLabel();
 }
 
