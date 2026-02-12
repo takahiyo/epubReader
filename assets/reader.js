@@ -177,6 +177,7 @@ export class ReaderController {
     onReady,
     onImageZoom,
   }) {
+    console.log('[Reader] v2025-02-12a — zoom diag build');
     this.viewer = document.getElementById(viewerId);
     this.imageViewer = document.getElementById(imageViewerId);
     this.imageElement = document.getElementById(imageElementId);
