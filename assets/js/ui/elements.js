@@ -198,6 +198,7 @@ export const elements = {
     toggleReadingDirectionEpub: getById(DOM_IDS.TOGGLE_READING_DIRECTION_EPUB),
     toggleReadingDirectionImage: getById(DOM_IDS.TOGGLE_READING_DIRECTION_IMAGE),
     toggleZoom: getById(DOM_IDS.TOGGLE_ZOOM),
+    toggleFullscreen: getById(DOM_IDS.TOGGLE_FULLSCREEN),
     lottieLoader: getById(DOM_IDS.LOTTIE_LOADER),
     loadingText: getById(DOM_IDS.LOADING_TEXT),
 };

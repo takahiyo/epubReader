@@ -69,6 +69,8 @@ export const UI_ICONS = Object.freeze({
   READING_DIRECTION_TOGGLE: "⇄",
   SPREAD_DOUBLE: "auto_stories",
   SPREAD_SINGLE: "tablet",
+  FULLSCREEN_ENTER: "⛶",
+  FULLSCREEN_EXIT: "⛶",
 });
 
 // ============================================
@@ -276,6 +278,7 @@ export const DOM_IDS = Object.freeze({
   TOGGLE_READING_DIRECTION_EPUB: "toggleReadingDirectionEpub",
   TOGGLE_READING_DIRECTION_IMAGE: "toggleReadingDirectionImage",
   TOGGLE_ZOOM: "toggleZoom",
+  TOGGLE_FULLSCREEN: "toggleFullscreen",
   LOADING_TEXT: "loadingText",
   LOTTIE_LOADER: "lottie-loader",
   LEFT_MENU_BACKDROP: "leftMenuBackdrop",

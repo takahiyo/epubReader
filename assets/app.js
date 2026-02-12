@@ -697,6 +697,42 @@ function handleToggleZoom() {
   renderers.updateZoomButtonLabel();
 }
 
+// ========================================
+// 全画面切替
+// ========================================
+
+/**
+ * ブラウザの全画面表示を切り替える
+ * Fullscreen API を使用（F11相当）
+ */
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    // 全画面にする
+    document.documentElement.requestFullscreen().catch((err) => {
+      console.warn('[toggleFullscreen] 全画面への切替に失敗しました:', err);
+    });
+  } else {
+    // 全画面を解除する
+    document.exitFullscreen().catch((err) => {
+      console.warn('[toggleFullscreen] 全画面の解除に失敗しました:', err);
+    });
+  }
+}
+
+/**
+ * 全画面ボタンのラベルを現在の全画面状態に合わせて更新する
+ */
+function updateFullscreenButtonLabel() {
+  if (!elements.toggleFullscreen) return;
+  const isFullscreen = !!document.fullscreenElement;
+  elements.toggleFullscreen.textContent = isFullscreen
+    ? UI_ICONS.FULLSCREEN_EXIT
+    : UI_ICONS.FULLSCREEN_ENTER;
+  elements.toggleFullscreen.title = isFullscreen
+    ? t('fullscreenExitTitle')
+    : t('fullscreenEnterTitle');
+}
+
 // 移行済み: updateSpreadModeButtonLabel, updateReadingDirectionButtonLabel, updateReadingDirectionEpubButtonLabel, updateZoomButtonLabel, updateProgressBarDirection
 
 // 移行済み: updateAuthStatusDisplay, updateSyncStatusDisplay, updateFloatProgressBar
@@ -2668,6 +2704,13 @@ function setupEvents() {
       case 'ArrowDown':
         reader.next();
         break;
+      case 'Enter':
+        // 書籍を閲覧中のみ全画面を切り替える
+        if (currentBookId) {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+        break;
     }
   });
 
@@ -2681,6 +2724,16 @@ function setupEvents() {
   });
   // ズームボタン
   elements.toggleZoom?.addEventListener('click', handleToggleZoom);
+
+  // 全画面切替ボタン
+  elements.toggleFullscreen?.addEventListener('click', () => {
+    toggleFullscreen();
+  });
+
+  // 全画面状態が変わった時にボタンラベルを更新（Escキー等での解除にも対応）
+  document.addEventListener('fullscreenchange', () => {
+    updateFullscreenButtonLabel();
+  });
 
   // プログレスバー矢印
   elements.progressPrev?.addEventListener('click', () => {
@@ -2736,6 +2789,9 @@ function init() {
 
   // 検索ボタンの状態を更新
   renderers.updateSearchButtonState();
+
+  // 全画面ボタンの初期ラベルを設定
+  updateFullscreenButtonLabel();
 
   console.log("Epub Reader initialized");
 }

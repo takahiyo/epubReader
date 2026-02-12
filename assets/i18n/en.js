@@ -180,6 +180,8 @@ export const UI_STRINGS_EN = Object.freeze({
   readingDirectionRtlTitle: "Right binding (read right to left)",
   zoomInTitle: "Zoom in",
   zoomOutTitle: "Zoom out",
+  fullscreenEnterTitle: "Fullscreen",
+  fullscreenExitTitle: "Exit fullscreen",
   fontIncreaseLabel: "A+",
   fontDecreaseLabel: "A-",
   untitledBook: "Untitled",

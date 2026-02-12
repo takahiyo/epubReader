@@ -179,6 +179,8 @@ export const UI_STRINGS_JA = Object.freeze({
   readingDirectionRtlTitle: "右開き（右から左へ読む）",
   zoomInTitle: "ズームする",
   zoomOutTitle: "ズームを解除",
+  fullscreenEnterTitle: "全画面表示",
+  fullscreenExitTitle: "全画面解除",
   fontIncreaseLabel: "A+",
   fontDecreaseLabel: "A-",
   untitledBook: "無題",
