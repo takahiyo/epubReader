@@ -2609,6 +2609,16 @@ export class ReaderController {
     }
   }
 
+  /**
+   * イベントがリーダー表示領域内で発生したか判定
+   * click-overlayが上に乗っていてもリーダー領域なら true を返す
+   */
+  isEventInReaderArea(event) {
+    const reader = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+    if (!reader) return false;
+    return reader.contains(event.target);
+  }
+
   bindPanEvents() {
     if (typeof window === 'undefined') return;
 
@@ -2619,18 +2629,13 @@ export class ReaderController {
       // ズームモードでないならドラッグしない
       if (!this.imageZoomed || this.isPinching) return;
 
-      const active = this.getActiveViewer();
-      if (active) {
-        // コンテナ外のクリックは無視（念のため）
-        // ただし window イベントで追跡するため、開始判定のみ active 上
-      }
-
       this.isDragging = true;
       this.lastMouseX = x;
       this.lastMouseY = y;
 
       // カーソル変更
       document.body.classList.add(UI_CLASSES.IS_DRAGGING);
+      const active = this.getActiveViewer();
       if (active) active.style.cursor = 'grabbing';
     };
 
@@ -2654,57 +2659,56 @@ export class ReaderController {
       this.isDragging = false;
       document.body.classList.remove(UI_CLASSES.IS_DRAGGING);
       const active = this.getActiveViewer();
-      if (active) active.style.cursor = ''; // CSS class handles grab/grabbing
+      if (active) active.style.cursor = '';
     };
 
-    // マウスイベント
-    window.addEventListener('mousedown', (e) => {
-      const active = this.getActiveViewer();
-      if (active && active.contains(e.target)) {
-        // 右クリック等は除外
-        if (e.button !== 0) return;
+    // マウスイベント（リーダー領域内ならドラッグ開始）
+    document.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (this.isEventInReaderArea(e)) {
         startDrag(e.clientX, e.clientY);
       }
     });
 
-    window.addEventListener('mousemove', (e) => {
-      moveDrag(e.clientX, e.clientY);
+    document.addEventListener('mousemove', (e) => {
+      if (this.isDragging) {
+        e.preventDefault();
+        moveDrag(e.clientX, e.clientY);
+      }
     });
 
-    window.addEventListener('mouseup', endDrag);
+    document.addEventListener('mouseup', endDrag);
 
     // タッチイベント
     const touchOpts = { passive: false };
 
-    window.addEventListener('touchstart', (e) => {
-      const active = this.getActiveViewer();
-      if (active && active.contains(e.target) && this.isZoomMode()) {
+    document.addEventListener('touchstart', (e) => {
+      if (this.imageZoomed && this.isEventInReaderArea(e)) {
         if (e.touches.length === 1) {
+          e.preventDefault();
           startDrag(e.touches[0].clientX, e.touches[0].clientY);
-          // ズーム中はブラウザのスクロール等を防ぐ
-          // パン操作中のみ preventDefault したいが、タップ判定も必要
-          // ここではズームモード中なら無効化する
         }
       }
     }, touchOpts);
 
-    window.addEventListener('touchmove', (e) => {
+    document.addEventListener('touchmove', (e) => {
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
-        e.preventDefault(); // ドラッグ中は画面スクロール停止
+        e.preventDefault();
         moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
     }, touchOpts);
 
-    window.addEventListener('touchend', endDrag);
+    document.addEventListener('touchend', endDrag);
   }
 
   bindZoomEvents() {
     if (typeof window === 'undefined') return;
-    const handleWheel = (event) => {
-      const active = this.getActiveViewer();
-      if (!active || !active.contains(event.target)) return;
 
-      const { step, min, max } = this.getZoomConfig();
+    // ホイールズーム（documentレベルで捕捉）
+    document.addEventListener('wheel', (event) => {
+      if (!this.isEventInReaderArea(event)) return;
+
+      const { step } = this.getZoomConfig();
 
       // ズームモード中はCtrlキー不要でホイールズーム有効
       // ズームモード外ではCtrl+ホイールでのみズーム開始
@@ -2720,11 +2724,13 @@ export class ReaderController {
       const nextScale = this.zoomScale + direction * step;
 
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
-    };
+    }, { passive: false });
 
-    const handleTouchStart = (event) => {
-      const active = this.getActiveViewer();
-      if (!active || !active.contains(event.target)) return;
+    // ピンチズーム（documentレベルで捕捉）
+    const touchOpts = { passive: false };
+
+    document.addEventListener('touchstart', (event) => {
+      if (!this.isEventInReaderArea(event)) return;
 
       if (event.touches.length === 2) {
         event.preventDefault();
@@ -2732,15 +2738,11 @@ export class ReaderController {
         this.isDragging = false;
         this.pinchStartDistance = this.getPinchDistance(event.touches);
         this.pinchStartScale = this.zoomScale;
-        // ピンチ中心を保存
         this.pinchCenterStart = this.getPinchCenter(event.touches);
       }
-    };
+    }, touchOpts);
 
-    const handleTouchMove = (event) => {
-      const active = this.getActiveViewer();
-      if (!active || !active.contains(event.target)) return;
-
+    document.addEventListener('touchmove', (event) => {
       if (this.isPinching && event.touches.length === 2) {
         event.preventDefault();
         const distance = this.getPinchDistance(event.touches);
@@ -2751,28 +2753,14 @@ export class ReaderController {
           this.setZoomLevel(scale, center);
         }
       }
-    };
+    }, touchOpts);
 
-    const handleTouchEnd = (event) => {
+    document.addEventListener('touchend', (event) => {
       if (event.touches.length < 2) {
         this.isPinching = false;
         this.pinchStartDistance = 0;
       }
-    };
-
-    // passive: false で preventDefault できるようにする
-    const opts = { passive: false };
-
-    if (this.imageViewer) {
-      this.imageViewer.addEventListener('wheel', handleWheel, opts);
-      this.imageViewer.addEventListener('touchstart', handleTouchStart, opts);
-      this.imageViewer.addEventListener('touchmove', handleTouchMove, opts);
-      this.imageViewer.addEventListener('touchend', handleTouchEnd, opts);
-      this.imageViewer.addEventListener('touchcancel', handleTouchEnd, opts);
-    }
-    if (this.viewer) {
-      this.viewer.addEventListener('wheel', handleWheel, opts);
-    }
+    }, touchOpts);
   }
 
   getPinchCenter(touches) {
