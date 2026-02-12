@@ -446,6 +446,23 @@ body.google-auth-active .modal-backdrop {
 
 /* =====================================
 [REF]
+- HTML: #toggleFullscreen（全画面切替ボタン）
+- JS: assets/app.js（クリック）/ assets/js/ui/elements.js（toggleFullscreen 取得）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+#toggleFullscreen {
+  position: absolute;
+  right: var(--space-float-base);
+  top: calc(50% + var(--space-toggle-zoom-offset) + 56px);
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  pointer-events: auto;
+}
+
+/* =====================================
+[REF]
 - HTML: #toggleLanguage（旧言語切替ボタン/未配置）
 - JS: assets/js/ui/elements.js（toggleLanguage 取得）
 - STATE: なし

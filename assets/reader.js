@@ -206,6 +206,7 @@ export class ReaderController {
     this.paginator = null;
     this.pagination = null;
     this.paginationPromise = null;
+    this.paginationComplete = false;
     this.currentPageIndex = 0;
     this.usingPaginator = false;
     this.resourceUrlCache = new Map();
@@ -311,9 +312,12 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
-    this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
-    this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
     this.imageZoomed = false;
+    if (this.currentPaginationRun) {
+      this.currentPaginationRun.cancelled = true;
+      this.currentPaginationRun = null;
+    }
+    this._isInitialReadyCalled = false;
     this.toc = [];
     if (this.paginator?.destroy) {
       this.paginator.destroy();
@@ -401,7 +405,7 @@ export class ReaderController {
     const paginationMetrics = this.getPaginationViewportMetrics();
     const { hPad, vPad } = this.getPaddings();
     const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
-    
+
     const newSettings = {
       viewportWidth: paginationMetrics.viewportWidth,
       viewportHeight: paginationMetrics.viewportHeight,
@@ -767,7 +771,10 @@ export class ReaderController {
     this.updateEpubTheme();
 
     try {
+      // 開始位置を一時保存（逐次パジネーションの初回完了時に使用）
+      this._pendingStartLocation = startLocation;
       const pagination = await this.buildPagination();
+      // buildPagination 内で既に初回表示されるが、完了時の念押し
       if (!pagination?.pages?.length) {
         throw new Error("EPUBのページ分割に失敗しました。");
       }
@@ -777,10 +784,13 @@ export class ReaderController {
       this.pageController.goTo(startPage);
 
       // 初回のonReadyコールバック（メタデータと目次）
-      this.onReady?.({
-        metadata: this.book.package?.metadata,
-        toc: this.toc,
-      });
+      if (!this._isInitialReadyCalled) {
+        this._isInitialReadyCalled = true;
+        this.onReady?.({
+          metadata: this.book.package?.metadata,
+          toc: this.toc,
+        });
+      }
 
       // locations生成（検索の補助用）- バックグラウンドで実行
       console.log("Generating locations for search support...");
@@ -836,6 +846,36 @@ export class ReaderController {
       }
     }
     return 0;
+  }
+
+  resolveStartPageIndexIfReady(startLocation, totalPages) {
+    if (!startLocation || typeof startLocation !== "object") {
+      return this.paginationComplete
+        ? this.resolveStartPageIndex(startLocation, totalPages)
+        : null;
+    }
+    const directLocator = startLocation.location;
+    const locator =
+      directLocator &&
+        typeof directLocator === "object" &&
+        typeof directLocator.spineIndex === "number" &&
+        typeof directLocator.segmentIndex === "number"
+        ? directLocator
+        : null;
+    if (locator) {
+      const pageIndex = this.findPageContaining(
+        locator.spineIndex,
+        locator.segmentIndex,
+        this.pagination?.pages ?? []
+      );
+      if (pageIndex >= 0) {
+        return pageIndex;
+      }
+      return null;
+    }
+    return this.paginationComplete
+      ? this.resolveStartPageIndex(startLocation, totalPages)
+      : null;
   }
 
   isExternalLink(href) {
@@ -1173,7 +1213,7 @@ export class ReaderController {
       img.style.objectFit = "contain"; // アスペクト比維持で枠内に収める
       img.style.margin = "0 auto";   // 中央寄せ
       img.style.display = "block";
-      
+
       // 以前のmax設定は干渉するため解除
       img.style.maxWidth = "none";
       img.style.maxHeight = "none";
@@ -1276,61 +1316,32 @@ export class ReaderController {
       this.writingMode === WRITING_MODES.VERTICAL
         ? CSS_WRITING_MODES.VERTICAL
         : CSS_WRITING_MODES.HORIZONTAL;
-    
-    // 新しいパディング計算を使用
+
+    // 新しいパディング方式（vPad/hPadが指定されている場合）
     const { hPad, vPad } = this.getPaddings();
     const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
 
     this.paginationPromise = (async () => {
-      const spineItems = [];
+      this.paginationComplete = false;
+      const { hPad, vPad } = this.getPaddings();
+      const edgePadding = `${vPad}px ${hPad}px`;
+      const baseFontSize = Number.parseFloat(
+        window.getComputedStyle(this.viewer || document.body)?.fontSize
+      ) || 16;
+      const writingMode = this.writingMode === WRITING_MODES.VERTICAL
+        ? CSS_WRITING_MODES.VERTICAL
+        : CSS_WRITING_MODES.HORIZONTAL;
 
-      for (let i = 0; i < this.book.spine.length; i += 1) {
-        const item = this.book.spine.get(i);
-        if (!item) continue;
-        try {
-          await item.load(this.book.load.bind(this.book));
-          const doc = item.document || item.contents?.document;
-          const htmlString = doc?.body?.innerHTML ?? "";
-          if (htmlString.trim()) {
-            spineItems.push({
-              id: item.idref || item.id || `spine-${i}`,
-              href: item.href,
-              htmlString,
-            });
-          }
-        } catch (error) {
-          console.warn("Failed to load spine item for pagination:", error);
-        } finally {
-          if (item.unload) {
-            item.unload();
-          }
-        }
-      }
+      // 初回表示用のスケルトン pagination オブジェクトを作成
+      this.pagination = { pages: [] };
 
-      if (!spineItems.length) {
-        this.pagination = null;
-        return null;
-      }
-
-      if (this.paginator?.destroy) {
-        this.paginator.destroy();
-      }
-      const resourceLoader = async (url, spineItem) => {
+      this.resourceLoader = (async (url, spineItem) => {
         if (!url) return url;
-        if (/^(https?:|data:|blob:)/i.test(url)) {
-          return url;
-        }
-
+        if (/^(https?:|data:|blob:)/i.test(url)) return url;
         const resolvedUrl = normalizeResourceKey(url, spineItem, this.book);
-        const resolvedComparisonKey = normalizeResourceComparisonKey(resolvedUrl, spineItem, null);
-
-        if (this.resourceUrlCache.has(resolvedUrl)) {
-          return this.resourceUrlCache.get(resolvedUrl);
-        }
+        if (this.resourceUrlCache.has(resolvedUrl)) return this.resourceUrlCache.get(resolvedUrl);
 
         try {
-          // リソース検索用の候補パスを生成
-          // EPUBによってパス形式が異なるため、複数のパターンを試行
           const filename = url.split("/").pop();
           const candidateSeeds = [
             resolvedUrl,
@@ -1351,70 +1362,44 @@ export class ReaderController {
             .filter((value, index, array) => value && array.indexOf(value) === index);
 
           let resourceItem = null;
-
           for (const candidate of candidates) {
             try {
               let item = this.book?.resources?.get?.(candidate);
-
-              // Promiseの場合は解決を待つ
-              if (item && typeof item.then === 'function') {
-                item = await item;
-              }
-
+              if (item && typeof item.then === 'function') item = await item;
               if (item) {
                 resourceItem = item;
                 break;
               }
-            } catch (e) {
-              // 次の候補を試行
-            }
+            } catch (e) { }
           }
 
-          // マニフェストからのあいまい検索（フォールバック）
           if (!resourceItem && this.book?.package?.manifest) {
             try {
               const manifest = this.book.package.manifest;
               const targetFilename = normalizeResourceFilenameKey(filename);
-
+              const resolvedComparisonKey = normalizeResourceComparisonKey(resolvedUrl, spineItem, null);
               const foundItem = Object.values(manifest).find(item => {
                 if (!item.href) return false;
                 const resolvedHref = this.book?.path?.resolve ? this.book.path.resolve(item.href) : item.href;
                 const manifestKey = normalizeResourceComparisonKey(resolvedHref, spineItem, null);
-                if (!manifestKey) return false;
-                return manifestKey === resolvedComparisonKey
-                  || (targetFilename && manifestKey.endsWith("/" + targetFilename));
+                return manifestKey === resolvedComparisonKey || (targetFilename && manifestKey.endsWith("/" + targetFilename));
               });
-
               if (foundItem) {
                 const resolvedHref = this.book?.path?.resolve ? this.book.path.resolve(foundItem.href) : foundItem.href;
-                const normalizedHref = normalizeResourceKey(resolvedHref, spineItem, null);
-                let item = this.book.resources.get(normalizedHref);
-                if (item && typeof item.then === 'function') {
-                  item = await item;
-                }
-                if (item) {
-                  resourceItem = item;
-                }
+                let item = this.book.resources.get(normalizeResourceKey(resolvedHref, spineItem, null));
+                if (item && typeof item.then === 'function') item = await item;
+                if (item) resourceItem = item;
               }
-            } catch (e) {
-              // あいまい検索失敗
-            }
+            } catch (e) { }
           }
 
           if (!resourceItem) {
             const zip = this.book?.archive?.zip;
             const zipFileKeyMap = this.getZipFileKeyMap();
             if (zip && zipFileKeyMap) {
-              const zipKeySeeds = [
-                resolvedUrl,
-                url,
-                safeDecodeURIComponent(url),
-                safeDecodeURIComponent(resolvedUrl),
-              ];
-              const zipKeys = zipKeySeeds
+              const zipKeys = [resolvedUrl, url, safeDecodeURIComponent(url), safeDecodeURIComponent(resolvedUrl)]
                 .map((value) => normalizeZipEntryKey(value))
                 .filter((value, index, array) => value && array.indexOf(value) === index);
-
               for (const key of zipKeys) {
                 const lookupKey = normalizeZipEntryKey(key, { lowerCase: true });
                 const realKey = zipFileKeyMap.get(key) ?? zipFileKeyMap.get(lookupKey);
@@ -1429,18 +1414,8 @@ export class ReaderController {
             }
           }
 
-          if (!resourceItem) {
-            console.warn("[EPUB Resource] Not found:", {
-              originalUrl: url,
-              resolvedUrl: resolvedUrl,
-              spineHref: spineItem?.href,
-              triedCandidates: candidates
-            });
-            return url;
-          }
-          if (typeof resourceItem === "string") {
-            return resourceItem;
-          }
+          if (!resourceItem) return url;
+          if (typeof resourceItem === "string") return resourceItem;
           if (resourceItem instanceof Blob) {
             const objectUrl = URL.createObjectURL(resourceItem);
             this.resourceUrlCache.set(resolvedUrl, objectUrl);
@@ -1453,29 +1428,26 @@ export class ReaderController {
             this.resourceUrlCache.set(resolvedUrl, objectUrl);
             return objectUrl;
           }
-          if (resourceItem.getText) {
-            return await resourceItem.getText();
-          }
+          if (resourceItem.getText) return await resourceItem.getText();
           if (resourceItem.getBlob) {
             const blob = await resourceItem.getBlob();
             const objectUrl = URL.createObjectURL(blob);
             this.resourceUrlCache.set(resolvedUrl, objectUrl);
             return objectUrl;
           }
-          console.warn("Unknown resource API:", resourceItem);
           return url;
         } catch (error) {
           console.error("Failed to load resource:", resolvedUrl, error);
           return url;
         }
-      };
+      });
+      this.spineItems = [];
 
-      this.spineItems = spineItems;
-      this.resourceLoader = resourceLoader;
-      this.paginator = new EpubPaginator(spineItems, resourceLoader, {
-        viewportWidth,
-        viewportHeight,
-        contentWidth,
+      // パジネーター初期化 (spineItems は後で追加される)
+      this.paginator = new EpubPaginator([], this.resourceLoader, {
+        viewportWidth: paginationMetrics.viewportWidth,
+        viewportHeight: paginationMetrics.viewportHeight,
+        contentWidth: paginationMetrics.contentWidth,
         maxWidth: maxWidthValue,
         fontSize: baseFontSize,
         lineHeight: paginationMetrics.lineHeight,
@@ -1483,10 +1455,90 @@ export class ReaderController {
         padding: edgePadding,
       });
 
-      const pagination = await this.paginator.paginate();
-      await this.addCoverPageIfNeeded(pagination);
-      this.pagination = pagination;
-      this.pageController.setTotalPages(pagination.pages.length);
+      // 以前のパジネーション実行があれば中断
+      if (this.currentPaginationRun) {
+        this.currentPaginationRun.cancelled = true;
+      }
+      const run = { cancelled: false };
+      this.currentPaginationRun = run;
+
+      // 逐次読み込みループ
+      const progressiveGen = this.paginator.paginateProgressive(run);
+      let isFirstChapterDone = false;
+      let spineIndex = 0;
+
+      // Spineの項目を1つずつロードしてパジネーションに渡す
+      while (spineIndex < this.book.spine.length) {
+        const item = this.book.spine.get(spineIndex);
+        if (item) {
+          try {
+            await item.load(this.book.load.bind(this.book));
+            const doc = item.document || item.contents?.document;
+            const htmlString = doc?.body?.innerHTML ?? "";
+            if (htmlString.trim()) {
+              const newItem = {
+                id: item.idref || item.id || `spine-${spineIndex}`,
+                href: item.href,
+                htmlString,
+              };
+              this.spineItems.push(newItem);
+              this.paginator.spineItems.push(newItem);
+
+              // 逐次計算の実行
+              const result = await progressiveGen.next();
+              // 中断チェック
+              if (run.cancelled) {
+                console.log("Pagination cancelled during loop.");
+                return null;
+              }
+              if (result.value) {
+                this.pagination.pages = result.value.pages;
+                this.pageController.setTotalPages(this.pagination.pages.length);
+
+                // 第1チャプターが完了したら即座に表示を開始
+                if (!isFirstChapterDone) {
+                  isFirstChapterDone = true;
+                  // ローディング解除と初期表示
+                  const startPage = this.resolveStartPageIndexIfReady(
+                    this._pendingStartLocation,
+                    this.pagination.pages.length
+                  );
+                  if (startPage !== null) {
+                    this.pageController.goTo(startPage);
+                  }
+
+                  // メタデータと目次を通知（初回のみ、またはリパジネーション時は必要に応じて）
+                  if (!this._isInitialReadyCalled) {
+                    this._isInitialReadyCalled = true;
+                    this.onReady?.({
+                      metadata: this.book.package?.metadata,
+                      toc: this.toc,
+                    });
+                  }
+                } else {
+                  // 2回目以降は現在のページがずれないように調整が必要な場合があるが、
+                  // 基本的には pages が増えるだけなので、progress 表示などの更新を行う
+                  this.updateProgressFromPagination(this.pagination.pages.length);
+                }
+              }
+              if (result.done) break;
+            }
+          } catch (error) {
+            console.warn("Failed to load spine item for pagination:", error);
+          } finally {
+            if (item.unload) item.unload();
+          }
+        }
+        spineIndex++;
+      }
+
+      // 中断チェック
+      if (run.cancelled) return null;
+
+      // 最終的な後処理（カバーページ追加など）
+      await this.addCoverPageIfNeeded(this.pagination);
+      this.pageController.setTotalPages(this.pagination.pages.length);
+      this.paginationComplete = true;
       return this.pagination;
     })();
 
@@ -2021,7 +2073,6 @@ export class ReaderController {
     if (!this.imagePages[this.imageIndex]) return false;
     // 既にキャッシュされていれば早い。キャッシュがなければ非同期になるが
     // ここでは簡易的に直近の判定結果を使いたいところ。
-    // しかし厳密には非同期。navigation内でawaitするのはUIレスポンスに関わる。
     // 一旦、毎回チェックする。
     return await this.isImageWide(this.imageIndex);
   }
@@ -2137,16 +2188,6 @@ export class ReaderController {
                 //     つまり [P-2, P-1] の次ページとして current が来ていると仮定するのが自然。
                 //     (P-1 と current がペアなら、今 current 単独で見ているのは変だが、
                 //      もし P-1(T) + current(W) なら P-1単独 -> current単独 となるので、今 current 閲覧中はありえる)
-                //
-                // ケース1: [P-2(T), P-1(T)] -> [current(T)...]
-                //   P-1 のパートナーは P-2. なので P-2 へ戻る (-2).
-                // ケース2: [P-1(T)] -> [current(W)] (P-1の次は本来ペアだが次がWなので単独)
-                //   これは「P-1から見た次」の話。
-                //   「戻る」動作は「何が表示されていたか」を復元する。
-                //   P-1 が P-2 とペアだったのか、単独だったのかを知りたい。
-                //   -> P-2 が T なら P-2 とペア (-2).
-                //   -> P-2 が W なら P-1 はペア相手不在(前のWとは組めない) -> P-1 は新しい先頭 (-1).
-                //   -> P-2 が存在しない(Index<0) -> P-1 は先頭 (-1).
                 //
                 // 結論:
                 //   P-1(T) の場合:
@@ -2305,6 +2346,12 @@ export class ReaderController {
   }
 
   async applyReadingDirection(writingMode, pageDirection) {
+    // もし既に設定が同じなら何もしない（無限ループ防止）
+    if (this.writingMode === writingMode && this.pageDirection === pageDirection) {
+      console.log("[Reader] applyReadingDirection: No change detected, skipping repagination");
+      return;
+    }
+
     if (pageDirection) {
       this.pageDirection = pageDirection;
     }
@@ -2319,9 +2366,19 @@ export class ReaderController {
 
     try {
       console.log("[Reader] applyReadingDirection:", { writingMode, pageDirection });
+
+      // 実行中のパジネーションを中断
+      if (this.currentPaginationRun) {
+        this.currentPaginationRun.cancelled = true;
+      }
+      this.paginationPromise = null;
       this.pagination = null;
-      await this.buildPagination();
-      this.pageController.goTo(this.currentPageIndex);
+
+      // 再計算を開始（非同期に待つ必要はないが、完了を待つことで確実に表示を更新する）
+      const pagination = await this.buildPagination();
+      if (pagination) {
+        this.pageController.goTo(this.currentPageIndex);
+      }
     } catch (error) {
       console.error("[Reader] Failed to apply reading direction:", error);
     }

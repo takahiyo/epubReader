@@ -52,6 +52,9 @@ import {
   READER_CONFIG,
   SYNC_SOURCES,
   CLOUD_SYNC_PAGE_THRESHOLD,
+  NOTION_INTEGRATION_STATUS,
+  NOTION_DEFAULT_SETTINGS,
+  NOTION_CONFIG,
 } from "./constants.js";
 
 // ========================================
@@ -101,6 +104,12 @@ let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
+const NOTION_STATUS_LABEL_KEYS = Object.freeze({
+  [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
+  [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
+  [NOTION_INTEGRATION_STATUS.PENDING]: "notionStatusPending",
+  [NOTION_INTEGRATION_STATUS.ERROR]: "notionStatusError",
+});
 
 // UI_STRINGS は i18n.js からインポート済み
 
@@ -113,6 +122,105 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function t(key) {
   return translate(key, uiLanguage);
+}
+
+function getNotionSettingsSnapshot() {
+  const currentSettings = storage.getSettings();
+  return {
+    ...NOTION_DEFAULT_SETTINGS,
+    ...(currentSettings.notionIntegration ?? {}),
+  };
+}
+
+function getNotionUrlSample() {
+  return NOTION_CONFIG.OAUTH_URL_SAMPLE || NOTION_CONFIG.OAUTH_URL;
+}
+
+function getNotionOAuthUrl() {
+  const notionSettings = getNotionSettingsSnapshot();
+  return notionSettings.oauthUrl || NOTION_CONFIG.OAUTH_URL;
+}
+
+function normalizeEpubLocation(location) {
+  if (!location) return null;
+  if (
+    typeof location === "object" &&
+    Number.isFinite(location.spineIndex) &&
+    Number.isFinite(location.segmentIndex)
+  ) {
+    return {
+      spineIndex: location.spineIndex,
+      segmentIndex: location.segmentIndex,
+    };
+  }
+  if (typeof location === "string") {
+    const match = location.match(/^(\d+):(\d+)$/);
+    if (match) {
+      return {
+        spineIndex: Number(match[1]),
+        segmentIndex: Number(match[2]),
+      };
+    }
+  }
+  return null;
+}
+
+function normalizeProgressSnapshot(progress, bookType) {
+  if (!progress || bookType !== BOOK_TYPES.EPUB) return progress;
+  const normalizedLocation = normalizeEpubLocation(progress.location);
+  if (!normalizedLocation) return progress;
+  return {
+    ...progress,
+    location: normalizedLocation,
+  };
+}
+
+function renderNotionSettingsStatus() {
+  const notionSettings = getNotionSettingsSnapshot();
+  const statusKey = NOTION_STATUS_LABEL_KEYS[notionSettings.status] ?? "notionStatusDisconnected";
+  if (elements.notionStatus) {
+    elements.notionStatus.textContent = t(statusKey);
+  }
+  if (elements.notionWorkspaceInput) {
+    elements.notionWorkspaceInput.value = notionSettings.workspaceName || t("notionValueEmpty");
+  }
+  if (elements.notionParentPageInput) {
+    elements.notionParentPageInput.value = notionSettings.parentPageId || t("notionValueEmpty");
+  }
+  if (elements.notionDatabaseInput) {
+    elements.notionDatabaseInput.value = notionSettings.databaseId || t("notionValueEmpty");
+  }
+  if (elements.notionOauthUrlInput) {
+    elements.notionOauthUrlInput.value = notionSettings.oauthUrl || "";
+    elements.notionOauthUrlInput.placeholder = tReplace(
+      "notionOauthUrlPlaceholder",
+      { url: getNotionUrlSample() },
+      uiLanguage,
+    );
+  }
+  const isConnected = notionSettings.status === NOTION_INTEGRATION_STATUS.CONNECTED;
+  if (elements.notionConnectButton) {
+    elements.notionConnectButton.disabled = isConnected;
+  }
+  if (elements.notionDisconnectButton) {
+    elements.notionDisconnectButton.disabled = !isConnected;
+  }
+}
+
+function handleNotionConnectClick() {
+  const notionUrl = getNotionOAuthUrl();
+  if (!notionUrl) {
+    alert(tReplace("notionConnectUnavailable", { url: getNotionUrlSample() }, uiLanguage));
+    return;
+  }
+  window.location.href = notionUrl;
+}
+
+function handleNotionDisconnectClick() {
+  if (!confirm(t("notionDisconnectConfirm"))) return;
+  storage.setSettings({ notionIntegration: { ...NOTION_DEFAULT_SETTINGS } });
+  renderNotionSettingsStatus();
+  alert(t("notionDisconnected"));
 }
 
 // 同期ロジックの初期化
@@ -192,11 +300,19 @@ function getCurrentPageIndex() {
   return normalizePageIndex(rawIndex);
 }
 
-function getProgressSnapshot() {
+function getProgressSnapshot(progressOverride = {}) {
   const totalPages = getCurrentTotalPages();
   const pageIndex = getCurrentPageIndex();
-  const percentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
-  return { pageIndex, totalPages, percentage };
+  const fallbackPercentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
+  const percentage = Number.isFinite(progressOverride.percentage)
+    ? progressOverride.percentage
+    : fallbackPercentage;
+  return {
+    pageIndex,
+    totalPages,
+    percentage,
+    location: progressOverride.location ?? null,
+  };
 }
 
 function shouldPersistLocalProgress(percentage) {
@@ -213,18 +329,15 @@ function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
     const total = progressSnapshot.totalPages;
-
-    // CFIの取得（ページオブジェクトから）
-    let cfi = null;
-    if (reader.pagination?.pages?.[pageIndex]) {
-      cfi = reader.pagination.pages[pageIndex].cfi;
-    }
-
+    const locatorFromSnapshot = normalizeEpubLocation(progressSnapshot.location);
+    const fallbackLocator =
+      typeof reader.getPageLocator === "function" ? reader.getPageLocator(pageIndex) : null;
+    const location = locatorFromSnapshot ?? fallbackLocator;
     const percentage = progressSnapshot.percentage;
 
     progressData = {
       percentage,
-      location: cfi,
+      location,
       // 読書環境も保存（EPUB用）
       writingMode,
       pageDirection,
@@ -297,7 +410,7 @@ const reader = new ReaderController({
   pageIndicatorId: "pageIndicator",
   onProgress: ({ location, percentage }) => {
     // reader.js は { location, percentage } を渡す。readerから現在値を取得して更新
-    const progressSnapshot = getProgressSnapshot();
+    const progressSnapshot = getProgressSnapshot({ location, percentage });
 
     ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages);
     const savedSnapshot = saveCurrentProgress(progressSnapshot);
@@ -470,7 +583,10 @@ renderers.init({
       closeExclusiveMenus();
     },
     scheduleAutoSyncPush,
-    getEpubPaginationTotal,
+    getEpubPaginationTotal: () => {
+      if (reader.type !== BOOK_TYPES.EPUB || !reader.paginator) return null;
+      return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
+    },
     setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
   }
 });
@@ -579,6 +695,42 @@ function handleToggleZoom() {
   }
 
   renderers.updateZoomButtonLabel();
+}
+
+// ========================================
+// 全画面切替
+// ========================================
+
+/**
+ * ブラウザの全画面表示を切り替える
+ * Fullscreen API を使用（F11相当）
+ */
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    // 全画面にする
+    document.documentElement.requestFullscreen().catch((err) => {
+      console.warn('[toggleFullscreen] 全画面への切替に失敗しました:', err);
+    });
+  } else {
+    // 全画面を解除する
+    document.exitFullscreen().catch((err) => {
+      console.warn('[toggleFullscreen] 全画面の解除に失敗しました:', err);
+    });
+  }
+}
+
+/**
+ * 全画面ボタンのラベルを現在の全画面状態に合わせて更新する
+ */
+function updateFullscreenButtonLabel() {
+  if (!elements.toggleFullscreen) return;
+  const isFullscreen = !!document.fullscreenElement;
+  elements.toggleFullscreen.textContent = isFullscreen
+    ? UI_ICONS.FULLSCREEN_EXIT
+    : UI_ICONS.FULLSCREEN_ENTER;
+  elements.toggleFullscreen.title = isFullscreen
+    ? t('fullscreenExitTitle')
+    : t('fullscreenEnterTitle');
 }
 
 // 移行済み: updateSpreadModeButtonLabel, updateReadingDirectionButtonLabel, updateReadingDirectionEpubButtonLabel, updateZoomButtonLabel, updateProgressBarDirection
@@ -871,11 +1023,12 @@ async function openFromLibrary(bookId, options = {}) {
 
     const bookmarks = storage.getBookmarks(bookId);
     const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
-    await applyReadingState(progress);
+    const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
+    await applyReadingState(normalizedProgress);
     const explicitBookmark = options.bookmark;
     const startFromBookmark = explicitBookmark?.location ?? (options.useBookmark ? bookmarks[0]?.location : undefined);
-    const start = startFromBookmark ?? progress?.location;
-    const startProgress = explicitBookmark?.percentage ?? progress?.percentage;
+    const start = startFromBookmark ?? normalizedProgress?.location;
+    const startProgress = explicitBookmark?.percentage ?? normalizedProgress?.percentage;
 
     // 【修正】読み込み時にタイプを再判定（DB内の情報の誤りを補正）
     const detectedType = fileHandler.detectFileType(record.buffer);
@@ -916,8 +1069,8 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     // [修正] オープン処理の後に状態を再適用
-    if (progress) {
-      await applyReadingState(progress);
+    if (normalizedProgress) {
+      await applyReadingState(normalizedProgress);
     }
 
     storage.addHistory(bookId);
@@ -958,6 +1111,7 @@ async function applyReadingState(progress) {
   // 書籍ごとの記録がない場合はデフォルト設定を使用
   const targetWritingMode = progress?.writingMode || defaultWritingMode;
   const targetPageDirection = progress?.pageDirection || defaultPageDirection;
+  const targetImageViewMode = progress?.imageViewMode || defaultImageViewMode;
 
   // 1. 書字方向・開き方向の復元
   writingMode = targetWritingMode;
@@ -966,27 +1120,27 @@ async function applyReadingState(progress) {
   pageDirection = targetPageDirection;
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
 
-  // 両方を適用（リーダー本体への反映）
+  // 1.5. 両方を適用（リーダー本体への反映）
   await applyReadingSettings(writingMode, pageDirection);
 
-  if (!progress) {
-    // 新規書籍でも初期状態の表示を更新
-    renderers.updateProgressBarDisplay();
-    return;
-  }
-
   // 2. 表示モード（単ページ/見開き）の復元
-  if (progress.imageViewMode && reader) {
-    reader.imageViewMode = progress.imageViewMode;
+  if (reader) {
+    reader.imageViewMode = targetImageViewMode;
     renderers.updateSpreadModeButtonLabel();
   }
 
   // 2.5. 画像書庫の開き方向の復元
   // 画像書庫では pageDirection を imageReadingDirection として復元
-  if (progress.pageDirection && reader && reader.type !== BOOK_TYPES.EPUB) {
-    reader.setImageReadingDirection(progress.pageDirection);
+  if (reader && reader.type !== BOOK_TYPES.EPUB) {
+    reader.setImageReadingDirection(targetPageDirection);
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
+  }
+
+  if (!progress) {
+    // 新規書籍でも初期状態の表示を更新
+    renderers.updateProgressBarDisplay();
+    return;
   }
 
   // 3. テーマ・フォント等の復元
@@ -1580,11 +1734,27 @@ function applyUiLanguage(nextLanguage) {
     // storage.js の getDeviceInfo を使用
     elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
   }
+  renderNotionSettingsStatus();
 
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
+  if (elements.settingsNotionTitle) elements.settingsNotionTitle.textContent = strings.settingsNotionTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.manualSyncButton) elements.manualSyncButton.textContent = strings.syncNowButton;
   if (elements.syncHint) elements.syncHint.textContent = strings.syncHint;
+  if (elements.notionStatusLabel) elements.notionStatusLabel.textContent = strings.notionStatusLabel;
+  if (elements.notionOauthUrlLabel) elements.notionOauthUrlLabel.textContent = strings.notionOauthUrlLabel;
+  if (elements.notionWorkspaceLabel) elements.notionWorkspaceLabel.textContent = strings.notionWorkspaceLabel;
+  if (elements.notionParentPageLabel) elements.notionParentPageLabel.textContent = strings.notionParentPageLabel;
+  if (elements.notionDatabaseLabel) elements.notionDatabaseLabel.textContent = strings.notionDatabaseLabel;
+  if (elements.notionConnectButton) elements.notionConnectButton.textContent = strings.notionConnectButton;
+  if (elements.notionDisconnectButton) elements.notionDisconnectButton.textContent = strings.notionDisconnectButton;
+  if (elements.notionHelpText) {
+    elements.notionHelpText.textContent = tReplace(
+      "notionHelpText",
+      { url: getNotionUrlSample() },
+      uiLanguage,
+    );
+  }
   if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
   if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
   if (elements.firebaseAuthDomainLabel) {
@@ -2040,7 +2210,7 @@ function setupEvents() {
   console.log('[setupEvents] Starting event setup...');
   console.log('[setupEvents] elements.menuOpen:', elements.menuOpen);
   console.log('[setupEvents] elements.leftMenu:', elements.leftMenu);
-  
+
   // メニューアクション
   if (elements.menuOpen) {
     elements.menuOpen.addEventListener('click', () => {
@@ -2298,6 +2468,20 @@ function setupEvents() {
     startGoogleLogin();
   });
 
+  elements.notionOauthUrlInput?.addEventListener('input', (e) => {
+    const nextValue = e.target.value.trim();
+    const notionSettings = getNotionSettingsSnapshot();
+    storage.setSettings({
+      notionIntegration: {
+        ...notionSettings,
+        oauthUrl: nextValue,
+      },
+    });
+  });
+
+  elements.notionConnectButton?.addEventListener('click', handleNotionConnectClick);
+  elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
+
   // Manual sync button
   const manualSyncButton = document.getElementById(DOM_IDS.MANUAL_SYNC_BUTTON);
   const syncStatus = document.getElementById(DOM_IDS.SYNC_STATUS);
@@ -2520,6 +2704,13 @@ function setupEvents() {
       case 'ArrowDown':
         reader.next();
         break;
+      case 'Enter':
+        // 書籍を閲覧中のみ全画面を切り替える
+        if (currentBookId) {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+        break;
     }
   });
 
@@ -2533,6 +2724,16 @@ function setupEvents() {
   });
   // ズームボタン
   elements.toggleZoom?.addEventListener('click', handleToggleZoom);
+
+  // 全画面切替ボタン
+  elements.toggleFullscreen?.addEventListener('click', () => {
+    toggleFullscreen();
+  });
+
+  // 全画面状態が変わった時にボタンラベルを更新（Escキー等での解除にも対応）
+  document.addEventListener('fullscreenchange', () => {
+    updateFullscreenButtonLabel();
+  });
 
   // プログレスバー矢印
   elements.progressPrev?.addEventListener('click', () => {
@@ -2588,6 +2789,9 @@ function init() {
 
   // 検索ボタンの状態を更新
   renderers.updateSearchButtonState();
+
+  // 全画面ボタンの初期ラベルを設定
+  updateFullscreenButtonLabel();
 
   console.log("Epub Reader initialized");
 }

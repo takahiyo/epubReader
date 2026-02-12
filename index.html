@@ -370,6 +370,37 @@
           </div>
         </div>
 
+        <div class="settings-section">
+          <h4 id="settingsNotionTitle"></h4>
+          <div class="setting-item">
+            <label id="notionStatusLabel" for="notionStatus"></label>
+            <p id="notionStatus" class="setting-hint"></p>
+          </div>
+          <div class="setting-item">
+            <label id="notionOauthUrlLabel" for="notionOauthUrl"></label>
+            <input id="notionOauthUrl" type="text" />
+          </div>
+          <div class="setting-item">
+            <label id="notionWorkspaceLabel" for="notionWorkspace"></label>
+            <input id="notionWorkspace" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label id="notionParentPageLabel" for="notionParentPage"></label>
+            <input id="notionParentPage" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label id="notionDatabaseLabel" for="notionDatabase"></label>
+            <input id="notionDatabase" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <div class="setting-actions">
+              <button id="notionConnectButton" class="secondary-btn" type="button"></button>
+              <button id="notionDisconnectButton" class="secondary-btn" type="button"></button>
+            </div>
+            <p id="notionHelpText" class="setting-hint"></p>
+          </div>
+        </div>
+
 
 
       </div>
@@ -422,6 +453,7 @@
       <!-- 右中央 -->
       <button id="toggleTheme" type="button"></button>
       <button id="toggleZoom" class="hidden" type="button"></button>
+      <button id="toggleFullscreen" type="button"></button>
 
       <!-- 【追加】ズームスライダー用コンテナ -->
       <div id="zoomSliderContainer" class="zoom-slider-container">

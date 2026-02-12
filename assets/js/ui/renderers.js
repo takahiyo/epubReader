@@ -409,9 +409,10 @@ export function updateProgressBarDisplay() {
                         elements.totalPages.textContent = totalPages.toString();
                     }
                 } else {
-                    elements.currentPageInput.value = Math.round(percentage);
+                    // 全ページ数が未確定（逐次パジネーション中）
+                    elements.currentPageInput.value = "";
                     if (elements.totalPages) {
-                        elements.totalPages.textContent = PROGRESS_CONFIG.MAX_PERCENT.toString();
+                        elements.totalPages.textContent = "?";
                     }
                 }
             } else if (_state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR)) {

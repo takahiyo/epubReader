@@ -336,10 +336,87 @@ export class EpubPaginator {
     this.measurement = null;
     this.paginationRun = null;
     this.paginationPromise = null;
+    this.isComplete = false;
   }
 
   async paginate() {
+    // 互換性のため、一括計算版を呼び出す
     return this.runPagination();
+  }
+
+  /**
+   * 逐次パジネーション（非同期ジェネレータ）
+   * 各チャプターの計算が完了するたびに yield する。
+   */
+  async *paginateProgressive(run = { cancelled: false }) {
+    this.ensureNotCancelled(run);
+    if (!document || !document.body) {
+      throw new Error("EpubPaginator requires a browser DOM.");
+    }
+    this.pages = [];
+    this.pageStartIndexMap = [];
+    this.isComplete = false;
+
+    this.resetMeasurement();
+
+    for (let spineIndex = 0; spineIndex < this.spineItems.length; spineIndex += 1) {
+      this.ensureNotCancelled(run);
+      const spineItem = this.spineItems[spineIndex];
+      const parsed = new DOMParser().parseFromString(spineItem.htmlString || "", "text/html");
+      const body = parsed.body;
+
+      await resolveResources(body, this.resourceLoader, spineItem);
+      this.ensureNotCancelled(run);
+      const segments = createSegments(body);
+      if (!segments.length) {
+        continue;
+      }
+
+      const totalUnits = segments.length;
+      let startIndex = 0;
+      let pageCount = 0;
+      let safetyCounter = 0;
+
+      while (startIndex < totalUnits) {
+        this.ensureNotCancelled(run);
+        if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
+          break;
+        }
+        const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits, run);
+        const safeEndIndex = Math.max(endIndex, startIndex + 1);
+        const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
+        const htmlFragment = serializeRange(range);
+
+        this.pages.push({
+          spineIndex,
+          withinSpineOffset: `s:${startIndex}`,
+          htmlFragment,
+          estimatedCharCount: htmlFragment.length
+        });
+        this.pageStartIndexMap.push({ spineIndex, startIndex });
+
+        if (safeEndIndex <= startIndex) {
+          startIndex += 1;
+        } else {
+          startIndex = safeEndIndex;
+        }
+        pageCount += 1;
+        safetyCounter += 1;
+      }
+      // チャプター1つ分が終わるたびに現在の状態を yield
+      yield {
+        pages: [...this.pages],
+        isComplete: false
+      };
+    }
+
+    this.isComplete = true;
+    return {
+      pages: this.pages,
+      locatePage: this.locatePage.bind(this),
+      getLocator: this.getLocator.bind(this),
+      isComplete: true
+    };
   }
 
   async runPagination() {
