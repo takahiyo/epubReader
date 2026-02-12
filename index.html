@@ -504,6 +504,22 @@
           .catch(err => console.error('Service Worker registration failed', err));
       });
     }
+    // --- Zoom diagnostic (inline, bypasses SW cache) ---
+    document.addEventListener('wheel', function(e) {
+      if (document.body.classList.contains('is-zoomed')) {
+        console.log('[DIAG-INLINE] wheel in zoom mode, target:', e.target.tagName + '#' + e.target.id, 'deltaY:', e.deltaY);
+      }
+    }, { passive: true });
+    document.addEventListener('mousedown', function(e) {
+      if (document.body.classList.contains('is-zoomed')) {
+        console.log('[DIAG-INLINE] mousedown in zoom mode, target:', e.target.tagName + '#' + e.target.id, 'button:', e.button);
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (document.body.classList.contains('is-zoomed')) {
+        console.log('[DIAG-INLINE] click in zoom mode, target:', e.target.tagName + '#' + e.target.id);
+      }
+    });
   </script>
 </body>
 

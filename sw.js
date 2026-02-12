@@ -50,7 +50,7 @@ self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
 
-// 古いキャッシュを削除
+// 古いキャッシュを削除 + 即座にページを制御
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         loadConfig().then((config) =>
@@ -61,7 +61,7 @@ self.addEventListener('activate', (event) => {
                         .map((key) => caches.delete(key))
                 )
             )
-        )
+        ).then(() => self.clients.claim())
     );
 });
 
