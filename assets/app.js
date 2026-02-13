@@ -520,7 +520,9 @@ const ui = new UIController({
   },
   onResize: () => {
     // リサイズ時のリペジネーション (EPUBのみ)
-    debouncedResizeHandler();
+    // ui.js側で既に250msデバウンス済みなので直接呼び出す
+    if (!reader.handleResize) return;
+    reader.handleResize();
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -864,9 +866,10 @@ async function handleFile(file) {
           location: startLocation,
           percentage: startProgress,
         });
-      } finally {
-        // コンテンツ描画後にオーバーレイを消す
-        requestAnimationFrame(() => hideLoading());
+      } catch (epubError) {
+        // openEpub失敗時のみローディングを解除（成功時はapplyReadingState完了後に解除）
+        hideLoading();
+        throw epubError;
       }
     } else {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -2730,7 +2733,7 @@ function setupEvents() {
 
   // 全画面状態が変わった時にボタンラベルを更新
   // リペジネーションは window.resize イベント経由で自動的にトリガーされる
-  // （ui.js の setupResizeHandler → onResize → debouncedResizeHandler）
+  // （ui.js の setupResizeHandler → onResize → reader.handleResize）
   document.addEventListener('fullscreenchange', () => {
     updateFullscreenButtonLabel();
   });
