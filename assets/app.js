@@ -2727,9 +2727,10 @@ function setupEvents() {
     toggleFullscreen();
   });
 
-  // 全画面状態が変わった時にボタンラベルを更新（Escキー等での解除にも対応）
+  // 全画面状態が変わった時にボタンラベルを更新 + EPUBリペジネーション
   document.addEventListener('fullscreenchange', () => {
     updateFullscreenButtonLabel();
+    debouncedResizeHandler();
   });
 
   // プログレスバー矢印
