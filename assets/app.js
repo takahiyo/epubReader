@@ -684,10 +684,8 @@ const floatProgressHandler = new ProgressBarHandler({
 // UI表示ロジックは renderers.js に移行済み
 
 function handleToggleZoom() {
-  console.log('[App] handleToggleZoom called, current imageZoomed:', reader.isZoomMode());
   // ズーム切替（toggleZoom()内部でbodyクラスも制御済み）
-  const result = reader.toggleZoom();
-  console.log('[App] toggleZoom result:', result, 'isZoomMode:', reader.isZoomMode(), 'is-zoomed:', document.body.classList.contains('is-zoomed'));
+  reader.toggleZoom();
   renderers.updateZoomButtonLabel();
 }
 
@@ -2756,7 +2754,7 @@ function setupEvents() {
 // ========================================
 
 function init() {
-  console.log("Initializing Epub Reader... [build:2026-02-12a]");
+  console.log("Initializing Epub Reader...");
   console.log("[init] readyState:", document.readyState);
   console.log("[init] elements object:", elements);
 

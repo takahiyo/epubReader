@@ -1,5 +1,5 @@
 /**
- * sw.js - Service Worker (v5.1)
+ * sw.js - Service Worker
  *
  * PWA オフラインサポート用 Service Worker
  *
