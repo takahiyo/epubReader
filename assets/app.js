@@ -2629,6 +2629,11 @@ function setupEvents() {
   let lastWheelTime = 0;
 
   wheelTarget?.addEventListener('wheel', (event) => {
+    // ズーム中はページ送りをスキップ（documentレベルのズームハンドラに任せる）
+    if (reader.isZoomMode()) {
+      return;
+    }
+
     // モーダルが開いている場合は無視
     if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
       !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||
@@ -2722,9 +2727,28 @@ function setupEvents() {
     toggleFullscreen();
   });
 
-  // 全画面状態が変わった時にボタンラベルを更新（Escキー等での解除にも対応）
+  // 全画面状態が変わった時にボタンラベルを更新
+  // リペジネーションは window.resize イベント経由で自動的にトリガーされる
+  // ただし resize が発火しない環境へのフォールバックとして、
+  // ビューポート変更完了後にのみ補助的にトリガーする
+  let prevInnerWidth = window.innerWidth;
+  let prevInnerHeight = window.innerHeight;
   document.addEventListener('fullscreenchange', () => {
     updateFullscreenButtonLabel();
+    // ビューポートサイズが確定してから確認
+    requestAnimationFrame(() => {
+      const widthChanged = window.innerWidth !== prevInnerWidth;
+      const heightChanged = window.innerHeight !== prevInnerHeight;
+      prevInnerWidth = window.innerWidth;
+      prevInnerHeight = window.innerHeight;
+      if (widthChanged || heightChanged) {
+        // resize イベントが発火するはずなので、そちらに任せる
+        // （ui.js の setupResizeHandler → onResize → debouncedResizeHandler）
+        return;
+      }
+      // resize が発火しなかった場合のフォールバック
+      debouncedResizeHandler();
+    });
   });
 
   // プログレスバー矢印

@@ -2611,12 +2611,18 @@ export class ReaderController {
 
   /**
    * イベントがリーダー表示領域内で発生したか判定
-   * click-overlayが上に乗っていてもリーダー領域なら true を返す
+   * event.targetではなく座標で判定し、透明な上位レイヤー要素の影響を受けない
    */
   isEventInReaderArea(event) {
     const reader = document.getElementById(DOM_IDS.FULLSCREEN_READER);
     if (!reader) return false;
-    return reader.contains(event.target);
+    const rect = reader.getBoundingClientRect();
+    return (
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    );
   }
 
   bindPanEvents() {
@@ -2706,7 +2712,8 @@ export class ReaderController {
 
     // ホイールズーム（documentレベルで捕捉）
     document.addEventListener('wheel', (event) => {
-      if (!this.isEventInReaderArea(event)) return;
+      const inArea = this.isEventInReaderArea(event);
+      if (!inArea) return;
 
       const { step } = this.getZoomConfig();
 
@@ -2866,7 +2873,8 @@ export class ReaderController {
       return;
     }
 
-    target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    const transformValue = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    target.style.transform = transformValue;
     this.syncZoomSlider();
   }
 
@@ -2930,6 +2938,7 @@ export class ReaderController {
     const { min } = this.getZoomConfig();
     const body = document.body;
     const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+    const backdrop = document.querySelector('#floatOverlay .float-backdrop');
 
     if (this.imageZoomed) {
       // ズームモードOFF: スケール・パンをリセット
@@ -2939,6 +2948,7 @@ export class ReaderController {
       this.panY = 0;
       body.classList.remove(UI_CLASSES.IS_ZOOMED);
       if (slider) slider.value = min;
+      if (backdrop) backdrop.style.pointerEvents = '';
       this.syncZoomedClass();
       this.onImageZoom?.(this.imageZoomed, this.zoomScale);
       this.updateTransform();
@@ -2948,6 +2958,7 @@ export class ReaderController {
     // ズームモードON: 1倍のまま開始（スライダーで拡大を促す）
     this.imageZoomed = true;
     body.classList.add(UI_CLASSES.IS_ZOOMED);
+    if (backdrop) backdrop.style.pointerEvents = 'none';
     this.syncZoomedClass();
     this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     return true;
