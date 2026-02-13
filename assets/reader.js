@@ -2592,7 +2592,7 @@ export class ReaderController {
   }
 
   isZoomMode() {
-    return this.zoomScale > this.getZoomConfig().min;
+    return this.imageZoomed;
   }
 
   setupZoomSlider() {
@@ -2609,6 +2609,22 @@ export class ReaderController {
     }
   }
 
+  /**
+   * イベントがリーダー表示領域内で発生したか判定
+   * event.targetではなく座標で判定し、透明な上位レイヤー要素の影響を受けない
+   */
+  isEventInReaderArea(event) {
+    const reader = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+    if (!reader) return false;
+    const rect = reader.getBoundingClientRect();
+    return (
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    );
+  }
+
   bindPanEvents() {
     if (typeof window === 'undefined') return;
 
@@ -2616,14 +2632,8 @@ export class ReaderController {
     this.panStartY = 0;
 
     const startDrag = (x, y) => {
-      // ズームしていない、またはピンチ中はドラッグしない
-      if (this.zoomScale <= this.getZoomConfig().min || this.isPinching) return;
-
-      const active = this.getActiveViewer();
-      if (active) {
-        // コンテナ外のクリックは無視（念のため）
-        // ただし window イベントで追跡するため、開始判定のみ active 上
-      }
+      // ズームモードでないならドラッグしない
+      if (!this.imageZoomed || this.isPinching) return;
 
       this.isDragging = true;
       this.lastMouseX = x;
@@ -2631,6 +2641,7 @@ export class ReaderController {
 
       // カーソル変更
       document.body.classList.add(UI_CLASSES.IS_DRAGGING);
+      const active = this.getActiveViewer();
       if (active) active.style.cursor = 'grabbing';
     };
 
@@ -2654,90 +2665,79 @@ export class ReaderController {
       this.isDragging = false;
       document.body.classList.remove(UI_CLASSES.IS_DRAGGING);
       const active = this.getActiveViewer();
-      if (active) active.style.cursor = ''; // CSS class handles grab/grabbing
+      if (active) active.style.cursor = '';
     };
 
-    // マウスイベント
-    window.addEventListener('mousedown', (e) => {
-      const active = this.getActiveViewer();
-      if (active && active.contains(e.target)) {
-        // 右クリック等は除外
-        if (e.button !== 0) return;
+    // マウスイベント（リーダー領域内ならドラッグ開始）
+    document.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (this.isEventInReaderArea(e)) {
         startDrag(e.clientX, e.clientY);
       }
     });
 
-    window.addEventListener('mousemove', (e) => {
-      moveDrag(e.clientX, e.clientY);
+    document.addEventListener('mousemove', (e) => {
+      if (this.isDragging) {
+        e.preventDefault();
+        moveDrag(e.clientX, e.clientY);
+      }
     });
 
-    window.addEventListener('mouseup', endDrag);
+    document.addEventListener('mouseup', endDrag);
 
     // タッチイベント
     const touchOpts = { passive: false };
 
-    window.addEventListener('touchstart', (e) => {
-      const active = this.getActiveViewer();
-      if (active && active.contains(e.target) && this.isZoomMode()) {
+    document.addEventListener('touchstart', (e) => {
+      if (this.imageZoomed && this.isEventInReaderArea(e)) {
         if (e.touches.length === 1) {
+          e.preventDefault();
           startDrag(e.touches[0].clientX, e.touches[0].clientY);
-          // ズーム中はブラウザのスクロール等を防ぐ
-          // パン操作中のみ preventDefault したいが、タップ判定も必要
-          // ここではズームモード中なら無効化する
         }
       }
     }, touchOpts);
 
-    window.addEventListener('touchmove', (e) => {
+    document.addEventListener('touchmove', (e) => {
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
-        e.preventDefault(); // ドラッグ中は画面スクロール停止
+        e.preventDefault();
         moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
     }, touchOpts);
 
-    window.addEventListener('touchend', endDrag);
+    document.addEventListener('touchend', endDrag);
   }
 
   bindZoomEvents() {
     if (typeof window === 'undefined') return;
-    const handleWheel = (event) => {
-      const active = this.getActiveViewer();
-      if (!active || !active.contains(event.target)) return;
 
-      // Ctrlキーなしのホイールは無視するか、スクロールとして扱うか議論があるが
-      // ここでは仕様通りズームとして扱う
-      // ただし、トラックパッドの慣性スクロールなどが大量に来るので間引きが必要かもしれないが
-      // シンプルな実装にする
+    // ホイールズーム（documentレベルで捕捉）
+    document.addEventListener('wheel', (event) => {
+      const inArea = this.isEventInReaderArea(event);
+      if (!inArea) return;
 
-      const { step, min, max } = this.getZoomConfig();
+      const { step } = this.getZoomConfig();
 
-      // ズームしていない状態で、縮小方向への操作は無視（スクロールさせる）
-      // ただし、ここではシンプルに「ズーム機能」として実装する
-
-      if (!event.ctrlKey && !this.isZoomMode()) {
-        // Ctrlキーなし＆非ズーム時は通常のスクロールに任せる？
-        // 要件によるが、マウス操作でズームと言われているので、
-        // 常時ホイール＝ズームだと使いづらい（ページスクロールできない）。
-        // Ctrl + Wheel を推奨するか、あるいはズームモード中のみホイール有効にするか。
-        // 既存実装は isZoomMode チェックがあったが、それだと初回ズームができない。
-        // -> isZoomMode check was preventing zoom start.
-        // -> User request: "Mouse operation (wheel)". usually implies Ctrl+Wheel or just Wheel.
-        // Let's allow Wheel to Start Zoom if Ctrl is pressed OR if already zoomed.
-        if (!event.ctrlKey) return;
+      // ズームモード中はCtrlキー不要でホイールズーム有効
+      // ズームモード外ではCtrl+ホイールでのみズーム開始
+      if (!this.imageZoomed && !event.ctrlKey) {
+        return;
       }
 
       event.preventDefault();
       event.stopPropagation();
 
-      const direction = event.deltaY < 0 ? 1 : -1;
+      // 手前に回す(deltaY > 0) = ズームイン、奥に回す(deltaY < 0) = ズームアウト
+      const direction = event.deltaY > 0 ? 1 : -1;
       const nextScale = this.zoomScale + direction * step;
 
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
-    };
+    }, { passive: false });
 
-    const handleTouchStart = (event) => {
-      const active = this.getActiveViewer();
-      if (!active || !active.contains(event.target)) return;
+    // ピンチズーム（documentレベルで捕捉）
+    const touchOpts = { passive: false };
+
+    document.addEventListener('touchstart', (event) => {
+      if (!this.isEventInReaderArea(event)) return;
 
       if (event.touches.length === 2) {
         event.preventDefault();
@@ -2745,15 +2745,11 @@ export class ReaderController {
         this.isDragging = false;
         this.pinchStartDistance = this.getPinchDistance(event.touches);
         this.pinchStartScale = this.zoomScale;
-        // ピンチ中心を保存
         this.pinchCenterStart = this.getPinchCenter(event.touches);
       }
-    };
+    }, touchOpts);
 
-    const handleTouchMove = (event) => {
-      const active = this.getActiveViewer();
-      if (!active || !active.contains(event.target)) return;
-
+    document.addEventListener('touchmove', (event) => {
       if (this.isPinching && event.touches.length === 2) {
         event.preventDefault();
         const distance = this.getPinchDistance(event.touches);
@@ -2764,28 +2760,14 @@ export class ReaderController {
           this.setZoomLevel(scale, center);
         }
       }
-    };
+    }, touchOpts);
 
-    const handleTouchEnd = (event) => {
+    document.addEventListener('touchend', (event) => {
       if (event.touches.length < 2) {
         this.isPinching = false;
         this.pinchStartDistance = 0;
       }
-    };
-
-    // passive: false で preventDefault できるようにする
-    const opts = { passive: false };
-
-    if (this.imageViewer) {
-      this.imageViewer.addEventListener('wheel', handleWheel, opts);
-      this.imageViewer.addEventListener('touchstart', handleTouchStart, opts);
-      this.imageViewer.addEventListener('touchmove', handleTouchMove, opts);
-      this.imageViewer.addEventListener('touchend', handleTouchEnd, opts);
-      this.imageViewer.addEventListener('touchcancel', handleTouchEnd, opts);
-    }
-    if (this.viewer) {
-      this.viewer.addEventListener('wheel', handleWheel, opts);
-    }
+    }, touchOpts);
   }
 
   getPinchCenter(touches) {
@@ -2805,10 +2787,9 @@ export class ReaderController {
   }
 
   syncZoomedClass() {
-    const isZoomed = this.zoomScale > this.getZoomConfig().min;
-    this.imageZoomed = isZoomed;
+    // CSSクラスの同期のみ（imageZoomedフラグはtoggleZoom()で制御）
     if (this.imageViewer) {
-      this.imageViewer.classList.toggle(UI_CLASSES.ZOOMED, isZoomed);
+      this.imageViewer.classList.toggle(UI_CLASSES.ZOOMED, this.imageZoomed);
     }
   }
 
@@ -2863,17 +2844,10 @@ export class ReaderController {
       }
     }
 
-    if (this.zoomScale > min) {
-      body.classList.add(UI_CLASSES.IS_ZOOMED);
-      this.imageZoomed = true;
-      if (slider) slider.value = this.zoomScale;
-    } else {
-      body.classList.remove(UI_CLASSES.IS_ZOOMED);
-      this.imageZoomed = false;
-      this.panX = 0;
-      this.panY = 0;
-      if (slider) slider.value = min;
-    }
+    // スライダーの値を同期
+    if (slider) slider.value = this.zoomScale;
+
+    // ズームモードの入り切りはここでは行わない（toggleZoom()で制御）
     this.syncZoomedClass();
     this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     this.updateTransform();
@@ -2899,7 +2873,8 @@ export class ReaderController {
       return;
     }
 
-    target.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    const transformValue = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+    target.style.transform = transformValue;
     this.syncZoomSlider();
   }
 
@@ -2960,13 +2935,32 @@ export class ReaderController {
   }
 
   toggleZoom() {
-    const { min, max } = this.getZoomConfig();
-    if (this.zoomScale > min) {
-      this.setZoomLevel(min);
+    const { min } = this.getZoomConfig();
+    const body = document.body;
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+    const backdrop = document.querySelector('#floatOverlay .float-backdrop');
+
+    if (this.imageZoomed) {
+      // ズームモードOFF: スケール・パンをリセット
+      this.imageZoomed = false;
+      this.zoomScale = min;
+      this.panX = 0;
+      this.panY = 0;
+      body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      if (slider) slider.value = min;
+      if (backdrop) backdrop.style.pointerEvents = '';
+      this.syncZoomedClass();
+      this.onImageZoom?.(this.imageZoomed, this.zoomScale);
+      this.updateTransform();
       return false;
     }
-    const nextScale = Math.min(max, min + this.getZoomConfig().step);
-    this.setZoomLevel(nextScale);
+
+    // ズームモードON: 1倍のまま開始（スライダーで拡大を促す）
+    this.imageZoomed = true;
+    body.classList.add(UI_CLASSES.IS_ZOOMED);
+    if (backdrop) backdrop.style.pointerEvents = 'none';
+    this.syncZoomedClass();
+    this.onImageZoom?.(this.imageZoomed, this.zoomScale);
     return true;
   }
 }

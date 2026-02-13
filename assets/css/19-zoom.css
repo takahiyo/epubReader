@@ -26,10 +26,11 @@
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズーム時のUI制御 */
+/* ズーム時のUI制御（backdrop-filterとpointer-eventsを無効化し、イベントを透過させる） */
 body.is-zoomed #floatOverlay .float-backdrop {
   backdrop-filter: none !important;
   background: transparent !important;
+  pointer-events: none !important;
 }
 
 /* =====================================
@@ -126,6 +127,7 @@ body.is-zoomed .float-settings,
 body.is-zoomed .float-top-right,
 body.is-zoomed #toggleLanguage,
 body.is-zoomed #toggleTheme,
+body.is-zoomed #toggleFullscreen,
 body.is-zoomed #openLangMenu {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -166,11 +168,9 @@ body.is-zoomed .viewer:active {
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズーム時はスクロールを有効化（パン操作） */
+/* ズーム時はオーバーフロー非表示（パンはtransformで制御） */
 #imageViewer.zoomed {
-  overflow: auto;
-  /* タッチデバイスでの慣性スクロール */
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 
 /* =====================================
@@ -287,4 +287,32 @@ body.is-zoomed #viewer,
 body.is-zoomed .viewer,
 body.is-zoomed #imageViewer {
   touch-action: none;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-zoomed .click-overlay
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時もクリックオーバーレイを有効にしてイベントを捕捉（iframe内にイベントが沈むのを防ぐ） */
+body.is-zoomed .click-overlay {
+  pointer-events: all !important;
+  cursor: grab;
+  touch-action: none;
+}
+
+/* =====================================
+[REF]
+- HTML: body.is-dragging .click-overlay
+- JS: assets/reader.js（is-dragging 付与）
+- STATE: body.is-dragging
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ドラッグ中のカーソル表示 */
+body.is-dragging .click-overlay {
+  cursor: grabbing;
 }
