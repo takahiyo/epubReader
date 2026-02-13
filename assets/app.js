@@ -865,7 +865,8 @@ async function handleFile(file) {
           percentage: startProgress,
         });
       } finally {
-        hideLoading();
+        // コンテンツ描画後にオーバーレイを消す
+        requestAnimationFrame(() => hideLoading());
       }
     } else {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -2727,10 +2728,11 @@ function setupEvents() {
     toggleFullscreen();
   });
 
-  // 全画面状態が変わった時にボタンラベルを更新 + EPUBリペジネーション
+  // 全画面状態が変わった時にボタンラベルを更新
+  // リペジネーションは window.resize イベント経由で自動的にトリガーされる
+  // （ui.js の setupResizeHandler → onResize → debouncedResizeHandler）
   document.addEventListener('fullscreenchange', () => {
     updateFullscreenButtonLabel();
-    debouncedResizeHandler();
   });
 
   // プログレスバー矢印

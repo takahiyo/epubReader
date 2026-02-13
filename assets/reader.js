@@ -437,10 +437,17 @@ export class ReaderController {
         }
       }
 
+      // 全画面切替後にブラウザの再描画を確定させる
+      void document.body.offsetHeight;
+
       console.log(
         `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${repaginationRequestId})`
       );
     } catch (error) {
+      if (error?.name === "PaginationCancelledError") {
+        console.debug("handleResize: リペジネーションがキャンセルされました");
+        return;
+      }
       console.error("handleResize: リペジネーション失敗", error);
     }
   }
@@ -2726,9 +2733,10 @@ export class ReaderController {
       event.preventDefault();
       event.stopPropagation();
 
-      // 手前に回す(deltaY > 0) = ズームイン、奥に回す(deltaY < 0) = ズームアウト
-      const direction = event.deltaY > 0 ? 1 : -1;
-      const nextScale = this.zoomScale + direction * step;
+      // 手前に回す(deltaY > 0) = ズームアウト、奥に回す(deltaY < 0) = ズームイン
+      const direction = event.deltaY > 0 ? -1 : 1;
+      const wheelStep = step * 2;
+      const nextScale = this.zoomScale + direction * wheelStep;
 
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
     }, { passive: false });
