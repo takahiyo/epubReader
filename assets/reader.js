@@ -176,6 +176,8 @@ export class ReaderController {
     onLoadingUpdate,
     onReady,
     onImageZoom,
+    onRepaginationStart,
+    onRepaginationEnd,
   }) {
     this.viewer = document.getElementById(viewerId);
     this.imageViewer = document.getElementById(imageViewerId);
@@ -185,6 +187,8 @@ export class ReaderController {
     this.onLoadingUpdate = onLoadingUpdate;
     this.onReady = onReady;
     this.onImageZoom = onImageZoom;
+    this.onRepaginationStart = onRepaginationStart;
+    this.onRepaginationEnd = onRepaginationEnd;
     this.rendition = null;
     this.book = null;
     this.type = null; // "epub" | "image"
@@ -1318,11 +1322,15 @@ export class ReaderController {
       return null;
     }
     if (this.pagination) {
+      console.log('[buildPagination] キャッシュ済みpaginationを返却 (pages:', this.pagination.pages?.length, ')');
       return this.pagination;
     }
     if (this.paginationPromise) {
+      console.log('[buildPagination] 既存のpaginationPromiseを待機');
       return this.paginationPromise;
     }
+    console.time('[buildPagination] total');
+    console.log('[buildPagination] 開始 (spine items:', this.book.spine.length, ')');
 
     const paginationMetrics = this.getPaginationViewportMetrics();
     const viewportWidth = paginationMetrics.viewportWidth;
@@ -1559,6 +1567,8 @@ export class ReaderController {
       await this.addCoverPageIfNeeded(this.pagination);
       this.pageController.setTotalPages(this.pagination.pages.length);
       this.paginationComplete = true;
+      console.timeEnd('[buildPagination] total');
+      console.log('[buildPagination] 完了 (pages:', this.pagination.pages.length, ')');
       return this.pagination;
     })();
 
