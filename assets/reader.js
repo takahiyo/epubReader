@@ -813,16 +813,8 @@ export class ReaderController {
         });
       }
 
-      // locations生成（検索の補助用）- 描画完了後にバックグラウンドで実行
-      // メインスレッドのブロックを避けるため遅延させる
-      setTimeout(() => {
-        console.log("Generating locations for search support...");
-        this.book.locations.generate(1600).then(() => {
-          console.log("Locations generated successfully:", this.book.locations.total);
-        }).catch((err) => {
-          console.warn("目次の生成に失敗しました:", err);
-        });
-      }, 1000);
+      // locations生成は重い処理のため、ユーザー操作(検索)時にオンデマンドで実行する
+      // （初期ロード時のメインスレッドブロックを回避）
 
       console.log("EPUB opened successfully");
     } catch (err) {

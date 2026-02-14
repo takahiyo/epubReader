@@ -1062,7 +1062,9 @@ async function openFromLibrary(bookId, options = {}) {
 
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
+      console.time('[libraryLoad] openEpub');
       await reader.openEpub(file, { location: start, percentage: startProgress });
+      console.timeEnd('[libraryLoad] openEpub');
     } else {
       // ... (既存のUI制御コード)
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -1313,24 +1315,9 @@ function handleBookReady(payload) {
   };
   scheduleEpubScrollModeUpdate();
 
-  // locations生成完了時に進捗バーを更新
+  // locations生成は初期ロード時のメインスレッドブロックを避けるため無効化
+  // 進捗表示はページベースの計算にフォールバックする
   if (currentBookInfo.type === BOOK_TYPES.EPUB) {
-    console.log('[handleBookReady] Setting up locations listener for progress updates');
-    // locations生成完了を監視
-    const checkLocations = setInterval(() => {
-      const locations = reader.book?.locations;
-      if (locations?.total > 0) {
-        console.log('[handleBookReady] Locations available, updating progress bar');
-        clearInterval(checkLocations);
-        renderers.updateProgressBarDisplay();
-      }
-    }, TIMING_CONFIG.LOCATIONS_CHECK_INTERVAL_MS);
-
-    // ロケーション確認タイムアウト
-    setTimeout(() => {
-      clearInterval(checkLocations);
-      console.log('[handleBookReady] Locations check timeout');
-    }, TIMING_CONFIG.LOCATIONS_CHECK_TIMEOUT_MS);
 
   }
 }
