@@ -421,6 +421,12 @@ const reader = new ReaderController({
     // 将来的にUIに表示する場合はここで処理
     console.log('[ReaderController] Loading update:', loadingInfo);
   },
+  onRepaginationStart: () => {
+    showLoading();
+  },
+  onRepaginationEnd: () => {
+    hideLoading();
+  },
   onReady: (data) => {
     // 起動時の初期化関連
     if (data.metadata) {
@@ -858,6 +864,7 @@ async function handleFile(file) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
       showLoading();
+      console.time('[handleFile] openEpub');
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
@@ -866,7 +873,9 @@ async function handleFile(file) {
           location: startLocation,
           percentage: startProgress,
         });
+        console.timeEnd('[handleFile] openEpub');
       } catch (epubError) {
+        console.timeEnd('[handleFile] openEpub');
         // openEpub失敗時のみローディングを解除（成功時はapplyReadingState完了後に解除）
         hideLoading();
         throw epubError;
@@ -887,7 +896,9 @@ async function handleFile(file) {
     }
 
     // 2. 状態の適用（オープン後に実行することで初期化による上書きを防ぐ）
+    console.time('[handleFile] applyReadingState');
     await applyReadingState(syncedProgress);
+    console.timeEnd('[handleFile] applyReadingState');
 
     // 同期されたしおりをUIに反映
     renderers.renderBookmarks(bookmarkMenuMode);
@@ -1104,9 +1115,9 @@ function resetLocalSaveTracking() {
 }
 
 async function applyReadingState(progress) {
-  // 書籍ごとの記録がない場合はデフォルト設定を使用
-  const targetWritingMode = progress?.writingMode || defaultWritingMode;
-  const targetPageDirection = progress?.pageDirection || defaultPageDirection;
+  // 書籍ごとの記録がない場合はリーダーの自動検出値を優先し、検出もなければデフォルト設定を使用
+  const targetWritingMode = progress?.writingMode || reader.writingMode || defaultWritingMode;
+  const targetPageDirection = progress?.pageDirection || reader.pageDirection || defaultPageDirection;
   const targetImageViewMode = progress?.imageViewMode || defaultImageViewMode;
 
   // 1. 書字方向・開き方向の復元

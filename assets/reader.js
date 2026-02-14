@@ -394,9 +394,12 @@ export class ReaderController {
     }
 
     this.repaginationRequestId += 1;
-    const repaginationRequestId = this.repaginationRequestId;
+    const myRequestId = this.repaginationRequestId;
 
-    console.log(`handleResize: リペジネーション開始 (requestId=${repaginationRequestId})`);
+    console.log(`handleResize: リペジネーション開始 (requestId=${myRequestId})`);
+
+    // ローディング表示（最新のリクエストのみ管理）
+    this.onRepaginationStart?.();
 
     // 現在のページ位置を保存
     const currentLocator = this.getPageLocator(this.currentPageIndex);
@@ -417,10 +420,11 @@ export class ReaderController {
 
     try {
       await this.paginator.repaginate(newSettings);
-      if (repaginationRequestId !== this.repaginationRequestId) {
+      if (myRequestId !== this.repaginationRequestId) {
         console.debug(
-          `handleResize: 古いリペジネーション結果を無視 (requestId=${repaginationRequestId}, currentId=${this.repaginationRequestId})`
+          `handleResize: 古いリペジネーション結果を無視 (requestId=${myRequestId}, currentId=${this.repaginationRequestId})`
         );
+        // 新しいリクエストがローディングを管理するので、ここでは解除しない
         return;
       }
       this.pagination = { pages: this.paginator.pages };
@@ -437,18 +441,24 @@ export class ReaderController {
         }
       }
 
-      // 全画面切替後にブラウザの再描画を確定させる
+      // ブラウザの再描画を確定させる
       void document.body.offsetHeight;
 
       console.log(
-        `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${repaginationRequestId})`
+        `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${myRequestId})`
       );
     } catch (error) {
       if (error?.name === "PaginationCancelledError") {
         console.debug("handleResize: リペジネーションがキャンセルされました");
+        // 新しいリクエストがローディングを管理するので、ここでは解除しない
         return;
       }
       console.error("handleResize: リペジネーション失敗", error);
+    }
+
+    // 最新のリクエストの場合のみローディングを解除
+    if (myRequestId === this.repaginationRequestId) {
+      this.onRepaginationEnd?.();
     }
   }
 
@@ -799,13 +809,16 @@ export class ReaderController {
         });
       }
 
-      // locations生成（検索の補助用）- バックグラウンドで実行
-      console.log("Generating locations for search support...");
-      this.book.locations.generate(1600).then(() => {
-        console.log("Locations generated successfully:", this.book.locations.total);
-      }).catch((err) => {
-        console.warn("目次の生成に失敗しました:", err);
-      });
+      // locations生成（検索の補助用）- 描画完了後にバックグラウンドで実行
+      // メインスレッドのブロックを避けるため遅延させる
+      setTimeout(() => {
+        console.log("Generating locations for search support...");
+        this.book.locations.generate(1600).then(() => {
+          console.log("Locations generated successfully:", this.book.locations.total);
+        }).catch((err) => {
+          console.warn("目次の生成に失敗しました:", err);
+        });
+      }, 1000);
 
       console.log("EPUB opened successfully");
     } catch (err) {
@@ -2355,9 +2368,13 @@ export class ReaderController {
   async applyReadingDirection(writingMode, pageDirection) {
     // もし既に設定が同じなら何もしない（無限ループ防止）
     if (this.writingMode === writingMode && this.pageDirection === pageDirection) {
-      console.log("[Reader] applyReadingDirection: No change detected, skipping repagination");
+      console.log("[Reader] applyReadingDirection: No change detected, skipping repagination",
+        { current: { wm: this.writingMode, pd: this.pageDirection }, requested: { wm: writingMode, pd: pageDirection } });
       return;
     }
+    console.log("[Reader] applyReadingDirection: 設定変更あり → 再パジネーション実行",
+      { current: { wm: this.writingMode, pd: this.pageDirection }, requested: { wm: writingMode, pd: pageDirection } });
+    console.time('[applyReadingDirection] buildPagination');
 
     if (pageDirection) {
       this.pageDirection = pageDirection;
@@ -2383,10 +2400,12 @@ export class ReaderController {
 
       // 再計算を開始（非同期に待つ必要はないが、完了を待つことで確実に表示を更新する）
       const pagination = await this.buildPagination();
+      console.timeEnd('[applyReadingDirection] buildPagination');
       if (pagination) {
         this.pageController.goTo(this.currentPageIndex);
       }
     } catch (error) {
+      console.timeEnd('[applyReadingDirection] buildPagination');
       console.error("[Reader] Failed to apply reading direction:", error);
     }
   }
