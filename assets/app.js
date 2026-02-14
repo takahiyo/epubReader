@@ -1130,7 +1130,8 @@ async function applyReadingState(progress) {
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
 
   // 1.5. 両方を適用（リーダー本体への反映）
-  await applyReadingSettings(writingMode, pageDirection);
+  // 呼び出し元(handleFile/openFromLibrary)がloadingを管理するためスキップ
+  await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
 
   // 2. 表示モード（単ページ/見開き）の復元
   if (reader) {
@@ -1274,7 +1275,7 @@ function handleBookReady(payload) {
       if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
 
-      applyReadingSettings(writingMode, pageDirection);
+      applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
@@ -1836,7 +1837,7 @@ function applyUiLanguage(nextLanguage) {
 
 // 移行済み: updateWritingModeToggleLabel
 
-async function applyReadingSettings(nextWritingMode, nextPageDirection) {
+async function applyReadingSettings(nextWritingMode, nextPageDirection, options = {}) {
   if (nextWritingMode) {
     writingMode = nextWritingMode;
   }
@@ -1852,9 +1853,12 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   renderers.updateReadingDirectionEpubButtonLabel();
   renderers.updateFloatingUIButtons();
 
-  // [修正] ローディング表示を追加し、レンダリングを待機
+  // ローディング表示を追加し、レンダリングを待機
+  // skipLoadingOverlay: 初回ブック読込中（handleBookReady経由）では
+  // 呼び出し元がloadingを管理するためスキップする
   const isEpubOpen = currentBookInfo?.type === BOOK_TYPES.EPUB;
-  if (isEpubOpen) {
+  const manageLoading = isEpubOpen && !options.skipLoadingOverlay;
+  if (manageLoading) {
     showLoading();
     // スピナーが表示されるよう、ブラウザの描画サイクルを1回回す
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, TIMING_CONFIG.ANIMATION_FRAME_DELAY_MS)));
@@ -1870,7 +1874,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {
-    if (isEpubOpen) {
+    if (manageLoading) {
       hideLoading();
     }
   }
