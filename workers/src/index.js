@@ -13,6 +13,15 @@ const D1_TABLES = Object.freeze({
   archiveDiagnostics: "archive_diagnostics",
 });
 
+const ROUTES = Object.freeze({
+  diagnostics: "/api/diagnostics",
+  syncStatePull: "/sync/state/pull",
+  syncStatePush: "/sync/state/push",
+  syncIndexPull: "/sync/index/pull",
+  syncIndexPush: "/sync/index/push",
+  syncArchiveDiagnosticPush: "/sync/archive-diagnostic/push",
+});
+
 // テーブル存在チェックはリクエスト毎に繰り返さないようキャッシュ
 let tableCheckPromise = null;
 
@@ -36,9 +45,9 @@ export default {
       await ensureTables(env.DB);
 
       const url = new URL(request.url);
-      const body = await request.json();
 
-      if (url.pathname === "/api/diagnostics") {
+      if (url.pathname === ROUTES.diagnostics) {
+        const body = await request.json();
         const userAgent = request.headers.get("user-agent") || "";
         const result = await pushArchiveDiagnosticD1(env.DB, {
           fileName: body?.fileName,
@@ -54,6 +63,19 @@ export default {
       }
 
       const pathParam = url.searchParams.get("path");
+      const syncPaths = new Set([
+        ROUTES.syncStatePull,
+        ROUTES.syncStatePush,
+        ROUTES.syncIndexPull,
+        ROUTES.syncIndexPush,
+        ROUTES.syncArchiveDiagnosticPush,
+      ]);
+
+      if (!syncPaths.has(pathParam)) {
+        return errorResponse("Unknown Path", 404, corsHeaders);
+      }
+
+      const body = await request.json();
       const { idToken, ...data } = body;
 
       // 簡易認証チェック (UIDの抽出)
@@ -64,23 +86,24 @@ export default {
       let result;
       try {
         switch (pathParam) {
-          case "/sync/state/pull":
+          case ROUTES.syncStatePull:
             result = await pullStateD1(env.DB, uid, data.cloudBookId);
             break;
-          case "/sync/state/push":
+          case ROUTES.syncStatePush:
             result = await pushStateD1(env.DB, uid, data.cloudBookId, data.state, data.updatedAt);
             break;
-          case "/sync/index/pull":
+          case ROUTES.syncIndexPull:
             result = await pullIndexD1(env.DB, uid, data.since ?? null);
             break;
-          case "/sync/index/push":
+          case ROUTES.syncIndexPush:
             result = await pushIndexD1(env.DB, uid, data.indexDelta, data.updatedAt);
             break;
-          case "/sync/archive-diagnostic/push":
-            result = await pushArchiveDiagnosticD1(env.DB, uid, data);
+          case ROUTES.syncArchiveDiagnosticPush:
+            result = await pushArchiveDiagnosticD1(env.DB, {
+              ...data,
+              uid,
+            });
             break;
-          default:
-            return errorResponse("Unknown Path", 404, corsHeaders);
         }
       } catch (dbError) {
         console.error("Database Error:", dbError.message);
