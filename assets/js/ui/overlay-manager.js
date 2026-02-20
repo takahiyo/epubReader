@@ -82,6 +82,7 @@ export function showLoading() {
  */
 export function hideLoading() {
     if (elements.loadingOverlay) {
+        console.trace('[hideLoading] called');
         elements.loadingOverlay.classList.remove(UI_CLASSES.VISIBLE);
         lottieInstance?.stop(); // 非表示時は停止してリソース節約
     }

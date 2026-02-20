@@ -176,6 +176,8 @@ export class ReaderController {
     onLoadingUpdate,
     onReady,
     onImageZoom,
+    onRepaginationStart,
+    onRepaginationEnd,
   }) {
     this.viewer = document.getElementById(viewerId);
     this.imageViewer = document.getElementById(imageViewerId);
@@ -185,6 +187,8 @@ export class ReaderController {
     this.onLoadingUpdate = onLoadingUpdate;
     this.onReady = onReady;
     this.onImageZoom = onImageZoom;
+    this.onRepaginationStart = onRepaginationStart;
+    this.onRepaginationEnd = onRepaginationEnd;
     this.rendition = null;
     this.book = null;
     this.type = null; // "epub" | "image"
@@ -394,9 +398,12 @@ export class ReaderController {
     }
 
     this.repaginationRequestId += 1;
-    const repaginationRequestId = this.repaginationRequestId;
+    const myRequestId = this.repaginationRequestId;
 
-    console.log(`handleResize: リペジネーション開始 (requestId=${repaginationRequestId})`);
+    console.log(`handleResize: リペジネーション開始 (requestId=${myRequestId})`);
+
+    // ローディング表示（最新のリクエストのみ管理）
+    this.onRepaginationStart?.();
 
     // 現在のページ位置を保存
     const currentLocator = this.getPageLocator(this.currentPageIndex);
@@ -417,10 +424,11 @@ export class ReaderController {
 
     try {
       await this.paginator.repaginate(newSettings);
-      if (repaginationRequestId !== this.repaginationRequestId) {
+      if (myRequestId !== this.repaginationRequestId) {
         console.debug(
-          `handleResize: 古いリペジネーション結果を無視 (requestId=${repaginationRequestId}, currentId=${this.repaginationRequestId})`
+          `handleResize: 古いリペジネーション結果を無視 (requestId=${myRequestId}, currentId=${this.repaginationRequestId})`
         );
+        // 新しいリクエストがローディングを管理するので、ここでは解除しない
         return;
       }
       this.pagination = { pages: this.paginator.pages };
@@ -437,11 +445,24 @@ export class ReaderController {
         }
       }
 
+      // ブラウザの再描画を確定させる
+      void document.body.offsetHeight;
+
       console.log(
-        `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${repaginationRequestId})`
+        `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${myRequestId})`
       );
     } catch (error) {
+      if (error?.name === "PaginationCancelledError") {
+        console.debug("handleResize: リペジネーションがキャンセルされました");
+        // 新しいリクエストがローディングを管理するので、ここでは解除しない
+        return;
+      }
       console.error("handleResize: リペジネーション失敗", error);
+    }
+
+    // 最新のリクエストの場合のみローディングを解除
+    if (myRequestId === this.repaginationRequestId) {
+      this.onRepaginationEnd?.();
     }
   }
 
@@ -792,13 +813,8 @@ export class ReaderController {
         });
       }
 
-      // locations生成（検索の補助用）- バックグラウンドで実行
-      console.log("Generating locations for search support...");
-      this.book.locations.generate(1600).then(() => {
-        console.log("Locations generated successfully:", this.book.locations.total);
-      }).catch((err) => {
-        console.warn("目次の生成に失敗しました:", err);
-      });
+      // locations生成は重い処理のため、ユーザー操作(検索)時にオンデマンドで実行する
+      // （初期ロード時のメインスレッドブロックを回避）
 
       console.log("EPUB opened successfully");
     } catch (err) {
@@ -1298,11 +1314,15 @@ export class ReaderController {
       return null;
     }
     if (this.pagination) {
+      console.log('[buildPagination] キャッシュ済みpaginationを返却 (pages:', this.pagination.pages?.length, ')');
       return this.pagination;
     }
     if (this.paginationPromise) {
+      console.log('[buildPagination] 既存のpaginationPromiseを待機');
       return this.paginationPromise;
     }
+    console.time('[buildPagination] total');
+    console.log('[buildPagination] 開始 (spine items:', this.book.spine.length, ')');
 
     const paginationMetrics = this.getPaginationViewportMetrics();
     const viewportWidth = paginationMetrics.viewportWidth;
@@ -1539,6 +1559,8 @@ export class ReaderController {
       await this.addCoverPageIfNeeded(this.pagination);
       this.pageController.setTotalPages(this.pagination.pages.length);
       this.paginationComplete = true;
+      console.timeEnd('[buildPagination] total');
+      console.log('[buildPagination] 完了 (pages:', this.pagination.pages.length, ')');
       return this.pagination;
     })();
 
@@ -1587,13 +1609,21 @@ export class ReaderController {
 
       if (imageEntries.length === 0) {
         console.error("No image files found in archive.");
-        throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
+        const noImageError = new Error("画像が見つかりませんでした。アーカイブ内に画像ファイルが含まれているか確認してください。");
+        if (typeof handler.reportArchiveError === "function") {
+          await handler.reportArchiveError(file?.name ?? "", noImageError);
+        }
+        throw noImageError;
       }
 
       images = imageEntries.map(({ path, entry }) => ({ path, entry }));
 
       if (!images.length) {
-        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
+        const noImageError = new Error("画像が見つかりませんでした。対応フォーマットの画像が含まれているか確認してください。");
+        if (typeof handler.reportArchiveError === "function") {
+          await handler.reportArchiveError(file?.name ?? "", noImageError);
+        }
+        throw noImageError;
       }
 
       // 階層対応 + ファイル名順に統一してソート
@@ -2348,9 +2378,13 @@ export class ReaderController {
   async applyReadingDirection(writingMode, pageDirection) {
     // もし既に設定が同じなら何もしない（無限ループ防止）
     if (this.writingMode === writingMode && this.pageDirection === pageDirection) {
-      console.log("[Reader] applyReadingDirection: No change detected, skipping repagination");
+      console.log("[Reader] applyReadingDirection: No change detected, skipping repagination",
+        { current: { wm: this.writingMode, pd: this.pageDirection }, requested: { wm: writingMode, pd: pageDirection } });
       return;
     }
+    console.log("[Reader] applyReadingDirection: 設定変更あり → 再パジネーション実行",
+      { current: { wm: this.writingMode, pd: this.pageDirection }, requested: { wm: writingMode, pd: pageDirection } });
+    console.time('[applyReadingDirection] buildPagination');
 
     if (pageDirection) {
       this.pageDirection = pageDirection;
@@ -2376,10 +2410,12 @@ export class ReaderController {
 
       // 再計算を開始（非同期に待つ必要はないが、完了を待つことで確実に表示を更新する）
       const pagination = await this.buildPagination();
+      console.timeEnd('[applyReadingDirection] buildPagination');
       if (pagination) {
         this.pageController.goTo(this.currentPageIndex);
       }
     } catch (error) {
+      console.timeEnd('[applyReadingDirection] buildPagination');
       console.error("[Reader] Failed to apply reading direction:", error);
     }
   }
@@ -2726,9 +2762,10 @@ export class ReaderController {
       event.preventDefault();
       event.stopPropagation();
 
-      // 手前に回す(deltaY > 0) = ズームイン、奥に回す(deltaY < 0) = ズームアウト
-      const direction = event.deltaY > 0 ? 1 : -1;
-      const nextScale = this.zoomScale + direction * step;
+      // 手前に回す(deltaY > 0) = ズームアウト、奥に回す(deltaY < 0) = ズームイン
+      const direction = event.deltaY > 0 ? -1 : 1;
+      const wheelStep = step * 2;
+      const nextScale = this.zoomScale + direction * wheelStep;
 
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
     }, { passive: false });

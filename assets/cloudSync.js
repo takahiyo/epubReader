@@ -6,6 +6,7 @@
 
 import {
   SYNC_CONFIG,
+  SYNC_PATHS,
   SYNC_RETRY_BASE_MS,
   SYNC_RETRY_MAX,
   SYNC_RETRY_MAX_MS,
@@ -104,6 +105,11 @@ export class CloudSync {
       try {
         const response = await fetch(url, options);
         if (!response.ok && this.isRetryableStatus(response.status)) {
+          // サーバーが返した詳細エラーをコンソールに出力（デバッグ用）
+          try {
+            const errorDetails = await response.clone().text();
+            console.error(`[CloudSync Error Details] HTTP ${response.status} from ${url}:`, errorDetails);
+          } catch (_) { /* レスポンス読み取り失敗は無視 */ }
           if (attempt < SYNC_RETRY_MAX) {
             await this.sleep(this.getRetryDelayMs(attempt));
             continue;
@@ -163,6 +169,11 @@ export class CloudSync {
     });
 
     if (!response.ok) {
+      // fetchWithRetry でリトライ済みの最終レスポンス: 詳細を出力してからスロー
+      try {
+        const errorDetails = await response.text();
+        console.error(`[CloudSync Error Details] HTTP ${response.status} (final):`, errorDetails);
+      } catch (_) { /* 読み取り失敗は無視 */ }
       throw new Error(tReplace("cloudSyncWorkersFailed", { status: response.status }));
     }
     const json = await response.json();
@@ -212,7 +223,7 @@ export class CloudSync {
     }
     // 差分同期: 最後の同期時刻以降の更新のみ取得
     const since = this.storage.data.cloudIndexUpdatedAt ?? null;
-    return this.postWorkerSync("/sync/index/pull", { since }, settings);
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, { since }, settings);
   }
 
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
@@ -220,7 +231,7 @@ export class CloudSync {
     if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.postWorkerSync("/sync/index/push", { indexDelta, updatedAt }, settings);
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PUSH, { indexDelta, updatedAt }, settings);
   }
 
   async pullState(cloudBookId, settings = this.storage.getSettings()) {
@@ -228,7 +239,7 @@ export class CloudSync {
     if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.postWorkerSync("/sync/state/pull", { cloudBookId }, settings);
+    return this.postWorkerSync(SYNC_PATHS.STATE_PULL, { cloudBookId }, settings);
   }
 
   async pushState(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
@@ -238,7 +249,7 @@ export class CloudSync {
     }
     const normalizedState = this.normalizeCloudState(state, updatedAt);
     const payload = { state: normalizedState, updatedAt: normalizedState.updatedAt };
-    return this.postWorkerSync("/sync/state/push", { cloudBookId, ...payload }, settings);
+    return this.postWorkerSync(SYNC_PATHS.STATE_PUSH, { cloudBookId, ...payload }, settings);
   }
 
   // ===============================
