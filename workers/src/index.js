@@ -21,12 +21,21 @@ export default {
     }
 
     try {
+      // 共通処理: POSTリクエストのBodyを1回だけ安全に読み取る
+      let body = {};
+      if (method === 'POST') {
+        try {
+          body = await request.json();
+        } catch (e) {
+          console.warn('Empty or invalid JSON body');
+        }
+      }
+
       // --- ルーティング ---
 
-      // 1. 診断ログ保存エンドポイント (前回追加分)
+      // 1. 診断ログ保存エンドポイント
       if (path === '/api/diagnostics' && method === 'POST') {
-        const data = await request.json(); // ここでBodyを読み取る
-        const { fileName, errorMessage, stackTrace } = data;
+        const { fileName, errorMessage, stackTrace } = body;
         const userAgent = request.headers.get('user-agent');
 
         await env.DB.prepare(
@@ -38,34 +47,37 @@ export default {
         });
       }
 
-      // 2. 既存の同期処理 (Bodyの読み取りを各if文の中で行うように修正)
-      if (path === '/sync/index/pull') {
-        // GET/POSTに関わらず処理
-        const userId = url.searchParams.get('userId');
-        const result = await env.DB.prepare('SELECT index_data FROM book_indices WHERE user_id = ?')
+      // 2. 同期処理: インデックスの取得 (Pull)
+      if (path === '/sync/index/pull' && method === 'POST') {
+        const { userId } = body;
+        const result = await env.DB.prepare('SELECT index_data FROM user_indexes WHERE user_id = ?')
           .bind(userId).first();
         return new Response(result ? result.index_data : '[]', { headers: corsHeaders });
       }
 
+      // 3. 同期処理: インデックスの保存 (Push)
       if (path === '/sync/index/push' && method === 'POST') {
-        const { userId, indexData } = await request.json(); // ここで個別に読み取る
-        await env.DB.prepare('INSERT OR REPLACE INTO book_indices (user_id, index_data, updated_at) VALUES (?, ?, ?)')
-          .bind(userId, JSON.stringify(indexData), Date.now()).run();
+        const { userId, indexData } = body;
+        const dataStr = typeof indexData === 'string' ? indexData : JSON.stringify(indexData);
+        await env.DB.prepare('INSERT OR REPLACE INTO user_indexes (user_id, index_data, updated_at) VALUES (?, ?, ?)')
+          .bind(userId, dataStr, Date.now()).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      if (path === '/sync/state/pull') {
-        const userId = url.searchParams.get('userId');
-        const bookId = url.searchParams.get('bookId');
+      // 4. 同期処理: 読書状態の取得 (Pull)
+      if (path === '/sync/state/pull' && method === 'POST') {
+        const { userId, bookId } = body;
         const result = await env.DB.prepare('SELECT state_data FROM book_states WHERE user_id = ? AND book_id = ?')
           .bind(userId, bookId).first();
         return new Response(result ? result.state_data : '{}', { headers: corsHeaders });
       }
 
+      // 5. 同期処理: 読書状態の保存 (Push)
       if (path === '/sync/state/push' && method === 'POST') {
-        const { userId, bookId, stateData } = await request.json(); // ここで個別に読み取る
+        const { userId, bookId, stateData } = body;
+        const dataStr = typeof stateData === 'string' ? stateData : JSON.stringify(stateData);
         await env.DB.prepare('INSERT OR REPLACE INTO book_states (user_id, book_id, state_data, updated_at) VALUES (?, ?, ?, ?)')
-          .bind(userId, bookId, JSON.stringify(stateData), Date.now()).run();
+          .bind(userId, bookId, dataStr, Date.now()).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -73,34 +85,10 @@ export default {
 
     } catch (error) {
       console.error('Worker Error:', error);
-      return new Response(JSON.stringify({ error: error.message }), {
+      return new Response(JSON.stringify({ error: error.message, stack: error.stack }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
 };
-```
-eof
-
----
-
-### 2. メイン業務：GitHub連携ツール（Codex等）への最終指示書
-
-これをコピーして、実際にGit操作を行うAIに渡してください。
-
-```markdown
-# 目的
-Cloudflare Workerの500エラーを解消し、画像アーカイブの読み取りエラー調査機能を完成させる。
-
-# 修正内容
-1. **Worker側 (`workers/src/index.js`)**
-   - リクエストBody (`request.json()`) の読み取り処理を、各ルーティングの `if` ブロック内部に移動し、`TypeError: Body has already been read` を防止する。
-   - `/api/diagnostics` エンドポイントが既存の同期リクエストを妨げないよう独立させる。
-2. **クライアント側 (`assets/js/core/archive-handler.js`)**
-   - `analyzeImagePath` 関数が重複定義されているため、1つに統合してSyntaxErrorを解消する。
-   - `reportArchiveError` 関数でエラーを報告する際、`await` を使わず非同期で実行し、メインの読み込み処理を止めないようにする。
-
-# 技術的背景
-- Cloudflare Workersでは `request.json()` は1回しか呼べない制約があります。
-- `Identifier 'analyzeImagePath' has already been declared` は、AIによる重複コード生成が原因です。これらを整理してください。
