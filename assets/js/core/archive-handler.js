@@ -56,35 +56,6 @@ function isIgnoredFileName(fileName) {
 }
 
 /**
- * @param {string} path
- * @returns {{ matched: boolean, normalizedPath: string, fileName: string, reason: string }}
- */
-function analyzeImagePath(path) {
-  const normalizedPath = sanitizeArchivePath(path);
-  const fileName = extractFileName(normalizedPath);
-  if (!fileName) {
-    return { matched: false, normalizedPath, fileName: "", reason: "empty_filename" };
-  }
-  if (isIgnoredFileName(fileName)) {
-    return { matched: false, normalizedPath, fileName, reason: "ignored_system_file" };
-  }
-
-  const lowerName = fileName.toLowerCase();
-  const extMatch = /\.([^.\/\s]+)\s*$/.exec(lowerName);
-  const ext = extMatch ? `.${extMatch[1]}` : "";
-  if (!ext) {
-    return { matched: false, normalizedPath, fileName, reason: "missing_extension" };
-  }
-
-  return {
-    matched: SUPPORTED_FORMATS.IMAGES.includes(ext),
-    normalizedPath,
-    fileName,
-    reason: SUPPORTED_FORMATS.IMAGES.includes(ext) ? "" : "unsupported_extension",
-  };
-}
-
-/**
  * 画像ファイルかどうかを判定します。
  * パス区切り（/ と \）に対応し、末尾空白を除去したファイル名で評価します。
  * @param {string} path
