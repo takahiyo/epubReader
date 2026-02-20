@@ -36,8 +36,24 @@ export default {
       await ensureTables(env.DB);
 
       const url = new URL(request.url);
-      const pathParam = url.searchParams.get("path");
       const body = await request.json();
+
+      if (url.pathname === "/api/diagnostics") {
+        const userAgent = request.headers.get("user-agent") || "";
+        const result = await pushArchiveDiagnosticD1(env.DB, {
+          fileName: body?.fileName,
+          errorMessage: body?.errorMessage,
+          stackTrace: body?.stackTrace,
+          userAgent,
+          archiveName: body?.archiveName,
+          archiveType: body?.archiveType,
+          createdAt: body?.createdAt,
+          uid: body?.idToken ? (getUidFromToken(body.idToken) || "") : "",
+        });
+        return jsonResponse({ data: result }, corsHeaders);
+      }
+
+      const pathParam = url.searchParams.get("path");
       const { idToken, ...data } = body;
 
       // 簡易認証チェック (UIDの抽出)
@@ -224,48 +240,32 @@ async function pushIndexD1(db, uid, indexDelta, updatedAt) {
 }
 
 
+
 /**
- * アーカイブ診断情報をD1に保存します。
+ * アーカイブ診断ログをD1に保存します。
  * @param {D1Database} db
- * @param {string} uid
- * @param {{archiveName?: string, archiveType?: string, records?: Array<{fileName?: string, reason?: string, error?: string}>, errorMessage?: string, createdAt?: number}} payload
+ * @param {{fileName?: string, errorMessage?: string, stackTrace?: string, userAgent?: string, archiveName?: string, archiveType?: string, createdAt?: number, uid?: string}} payload
  * @returns {Promise<{status: string, source: string, changes: number}>}
  */
-async function pushArchiveDiagnosticD1(db, uid, payload = {}) {
+async function pushArchiveDiagnosticD1(db, payload = {}) {
+  const fileName = payload.fileName ?? "";
+  const errorMessage = payload.errorMessage ?? "";
+  const stackTrace = payload.stackTrace ?? "";
+  const userAgent = payload.userAgent ?? "";
   const archiveName = payload.archiveName ?? "";
   const archiveType = payload.archiveType ?? "";
-  const errorMessage = payload.errorMessage ?? "";
+  const uid = payload.uid ?? "";
   const createdAt = Number.isFinite(payload.createdAt) ? payload.createdAt : Date.now();
-  const records = Array.isArray(payload.records) ? payload.records : [];
 
-  if (records.length === 0 && !errorMessage) {
-    return { status: "skipped", source: "d1", changes: 0 };
-  }
+  const result = await db.prepare(`
+    INSERT INTO ${D1_TABLES.archiveDiagnostics}
+      (user_id, archive_name, archive_type, file_name, error_message, stack_trace, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+    .bind(uid, archiveName, archiveType, fileName, errorMessage, stackTrace, userAgent, createdAt)
+    .run();
 
-  const rows = records.length > 0 ? records : [{ fileName: "", reason: "archive_error", error: errorMessage }];
-  let totalChanges = 0;
-
-  for (const row of rows) {
-    const result = await db.prepare(`
-      INSERT INTO ${D1_TABLES.archiveDiagnostics}
-        (user_id, archive_name, archive_type, file_name, reason, error_message, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
-      .bind(
-        uid,
-        archiveName,
-        archiveType,
-        row?.fileName ?? "",
-        row?.reason ?? "unknown",
-        row?.error ?? errorMessage,
-        createdAt,
-      )
-      .run();
-
-    totalChanges += result?.changes ?? 0;
-  }
-
-  return { status: "success", source: "d1", changes: totalChanges };
+  return { status: "success", source: "d1", changes: result?.changes ?? 0 };
 }
 
 // ==========================================

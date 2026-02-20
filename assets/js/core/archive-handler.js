@@ -18,7 +18,6 @@ import {
   MIME_TYPES,
   SUPPORTED_FORMATS,
   SYNC_PATHS,
-  WORKERS_CONFIG,
 } from "../../constants.js";
 import { getIdTokenInfo } from "../../auth.js";
 
@@ -54,6 +53,35 @@ function isIgnoredFileName(fileName) {
     fileName.startsWith("__") ||
     lowerName === "thumbs.db"
   );
+}
+
+/**
+ * @param {string} path
+ * @returns {{ matched: boolean, normalizedPath: string, fileName: string, reason: string }}
+ */
+function analyzeImagePath(path) {
+  const normalizedPath = sanitizeArchivePath(path);
+  const fileName = extractFileName(normalizedPath);
+  if (!fileName) {
+    return { matched: false, normalizedPath, fileName: "", reason: "empty_filename" };
+  }
+  if (isIgnoredFileName(fileName)) {
+    return { matched: false, normalizedPath, fileName, reason: "ignored_system_file" };
+  }
+
+  const lowerName = fileName.toLowerCase();
+  const extMatch = /\.([^.\/\s]+)\s*$/.exec(lowerName);
+  const ext = extMatch ? `.${extMatch[1]}` : "";
+  if (!ext) {
+    return { matched: false, normalizedPath, fileName, reason: "missing_extension" };
+  }
+
+  return {
+    matched: SUPPORTED_FORMATS.IMAGES.includes(ext),
+    normalizedPath,
+    fileName,
+    reason: SUPPORTED_FORMATS.IMAGES.includes(ext) ? "" : "unsupported_extension",
+  };
 }
 
 /**
@@ -102,50 +130,32 @@ function isImagePath(path) {
 }
 
 /**
- * @param {string} endpoint
- * @param {string} path
- * @returns {string|null}
- */
-function buildWorkerSyncUrl(endpoint, path) {
-  if (!endpoint) return null;
-  if (endpoint.includes("{path}")) {
-    return endpoint.replace("{path}", encodeURIComponent(path));
-  }
-  const separator = endpoint.includes("?") ? "&" : "?";
-  return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
-}
-
-/**
- * @returns {string}
- */
-function resolveWorkerSyncEndpoint() {
-  return (
-    (typeof window !== "undefined" && window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT) ||
-    WORKERS_CONFIG.SYNC_ENDPOINT ||
-    ""
-  );
-}
-
-/**
- * @param {{ archiveName: string, archiveType: string, records: Array<{fileName: string, reason: string, error?: string}>, errorMessage?: string }} payload
+ * 読み込みエラーをWorker(API)経由でD1に送信します。
+ * @param {string} fileName
+ * @param {Error} error
+ * @param {{ archiveName?: string, archiveType?: string }} [context]
  * @returns {Promise<void>}
  */
-async function reportArchiveDiagnosticsToD1(payload) {
-  const endpoint = resolveWorkerSyncEndpoint();
-  if (!endpoint) return;
+async function reportArchiveError(fileName, error, context = {}) {
+  try {
+    const appConfig = (typeof window !== "undefined" && window.APP_CONFIG) ? window.APP_CONFIG : {};
+    const apiBaseUrl = appConfig.API_BASE_URL || appConfig.FIREBASE_SYNC_ENDPOINT || "";
+    if (!apiBaseUrl) return;
 
-  const tokenInfo = await getIdTokenInfo();
-  const idToken = tokenInfo?.idToken;
-  if (!idToken) return;
-
-  const url = buildWorkerSyncUrl(endpoint, SYNC_PATHS.ARCHIVE_DIAGNOSTIC_PUSH);
-  if (!url) return;
-
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, ...payload, createdAt: Date.now() }),
-  });
+    await fetch(`${apiBaseUrl}${SYNC_PATHS.API_DIAGNOSTICS}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName,
+        errorMessage: error?.message || "Archive image detection failed",
+        stackTrace: error?.stack || "",
+        archiveName: context.archiveName || "",
+        archiveType: context.archiveType || "",
+      }),
+    });
+  } catch (reportError) {
+    console.warn("Failed to report archive error:", reportError);
+  }
 }
 
 /**
@@ -435,24 +445,15 @@ export class ArchiveHandler {
   }
 
   /**
-   * @param {Array<{fileName: string, reason: string, error?: string}>} diagnostics
-   * @param {string} [errorMessage]
+   * @param {string} fileName
+   * @param {Error} error
    * @returns {Promise<void>}
    */
-  async recordDiagnostics(diagnostics = [], errorMessage = "") {
-    this.lastDiagnostics = diagnostics;
-    if (!diagnostics.length && !errorMessage) return;
-
-    try {
-      await reportArchiveDiagnosticsToD1({
-        archiveName: this.file?.name ?? "",
-        archiveType: this.getArchiveLabel(),
-        records: diagnostics,
-        errorMessage,
-      });
-    } catch (error) {
-      console.warn("Failed to store archive diagnostics on D1:", error);
-    }
+  async reportArchiveError(fileName, error) {
+    await reportArchiveError(fileName, error, {
+      archiveName: this.file?.name ?? "",
+      archiveType: this.getArchiveLabel(),
+    });
   }
 
   /**
@@ -513,21 +514,22 @@ export class ZipHandler extends ArchiveHandler {
    */
   async listImageEntries() {
     const imageEntries = [];
-    const diagnostics = [];
+    const rejectedNames = [];
 
     for (const { path, entry } of this.entries) {
       const analyzed = analyzeImagePath(path);
       if (analyzed.matched) {
         imageEntries.push({ path: analyzed.normalizedPath, entry });
-        continue;
-      }
-      if (analyzed.fileName) {
-        diagnostics.push({ fileName: analyzed.normalizedPath, reason: analyzed.reason });
+      } else if (analyzed.fileName) {
+        rejectedNames.push(`${analyzed.normalizedPath} (${analyzed.reason})`);
       }
     }
 
-    if (imageEntries.length === 0 && diagnostics.length > 0) {
-      await this.recordDiagnostics(diagnostics, "ZIP内に画像として扱えるエントリが見つかりませんでした。");
+    if (imageEntries.length === 0 && rejectedNames.length > 0) {
+      await this.reportArchiveError(
+        this.file?.name ?? "",
+        new Error(`No supported images in ZIP. rejected: ${rejectedNames.slice(0, 10).join(", ")}`),
+      );
     }
 
     return imageEntries;
@@ -599,6 +601,14 @@ export class RarHandler extends ArchiveHandler {
       const headers = [...(list?.fileHeaders ?? [])];
       this.extractor = extractor;
       this.headers = headers;
+
+      if (headers.length === 0) {
+        const rarListError = new Error("RAR file list is empty. RAR5/Password protected archive may be unsupported.");
+        console.warn("[RarHandler] unrar.js returned empty file list. Possible RAR5 incompatibility.", {
+          archive: this.file?.name,
+        });
+        await this.reportArchiveError(this.file?.name ?? "", rarListError);
+      }
     }
 
     console.debug("[RarHandler] Raw archive entry names:", this.headers.map((header) => (
@@ -625,7 +635,7 @@ export class RarHandler extends ArchiveHandler {
    */
   async listImageEntries() {
     const imageEntries = [];
-    const diagnostics = [];
+    const rejectedNames = [];
 
     for (const header of this.headers) {
       const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
@@ -636,22 +646,15 @@ export class RarHandler extends ArchiveHandler {
       if (analyzed.matched) {
         imageEntries.push({ path: analyzed.normalizedPath, entry: header });
       } else if (analyzed.fileName) {
-        diagnostics.push({ fileName: analyzed.normalizedPath, reason: analyzed.reason });
+        rejectedNames.push(`${analyzed.normalizedPath} (${analyzed.reason})`);
       }
     }
 
-    if (imageEntries.length === 0) {
-      if (this.isRar5Signature) {
-        diagnostics.push({
-          fileName: this.file?.name ?? "",
-          reason: "rar5_possible_incompatibility",
-          error: "RAR5の可能性があります。ライブラリ互換性の確認が必要です。",
-        });
-      }
-      const errorMessage = this.isRar5Signature
-        ? "RAR5形式の可能性により画像抽出に失敗した可能性があります。"
-        : "RAR内に画像として扱えるエントリが見つかりませんでした。";
-      await this.recordDiagnostics(diagnostics, errorMessage);
+    if (imageEntries.length === 0 && rejectedNames.length > 0) {
+      await this.reportArchiveError(
+        this.file?.name ?? "",
+        new Error(`No supported images in RAR. rejected: ${rejectedNames.slice(0, 10).join(", ")}`),
+      );
     }
 
     return imageEntries;
@@ -669,8 +672,9 @@ export class RarHandler extends ArchiveHandler {
       const payload = await this.workerClient.request(ARCHIVE_WORKER_MESSAGES.EXTRACT, { path });
       const buffer = payload?.buffer;
       if (!buffer) {
-        await this.recordDiagnostics([{ fileName: path, reason: "extract_failed", error: ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED }]);
-        throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
+        const error = new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
+        await this.reportArchiveError(path, error);
+        throw error;
       }
       const mimeType = resolveImageMimeType(path);
       return new Blob([buffer], { type: mimeType });
@@ -686,8 +690,9 @@ export class RarHandler extends ArchiveHandler {
 
     const data = item?.extraction?.data ?? item?.extraction ?? item?.data ?? null;
     if (!data || data.length === 0) {
-      await this.recordDiagnostics([{ fileName: path, reason: "extract_failed", error: ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED }]);
-      throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
+      const error = new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
+      await this.reportArchiveError(path, error);
+      throw error;
     }
 
     const mimeType = resolveImageMimeType(path);
