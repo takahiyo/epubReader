@@ -10,6 +10,7 @@
  * 生成物: assets/sw-cache-config.json
  */
 
+const SERVICE_WORKER_VERSION = "2026-02-20.1";
 const CONFIG_URL = "./assets/sw-cache-config.json";
 let configPromise;
 let assetUrlsPromise;
@@ -38,6 +39,7 @@ const loadAssetUrls = () => {
 };
 
 self.addEventListener("install", (event) => {
+  console.log(`[ServiceWorker] install version=${SERVICE_WORKER_VERSION}`);
   event.waitUntil(
     loadConfig()
       .then((config) => caches.open(config.cacheName).then((cache) => cache.addAll(config.assets)))
@@ -46,6 +48,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
+  console.log(`[ServiceWorker] activate version=${SERVICE_WORKER_VERSION}`);
   event.waitUntil(
     loadConfig()
       .then((config) =>
