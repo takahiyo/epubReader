@@ -421,6 +421,12 @@ const reader = new ReaderController({
     // 将来的にUIに表示する場合はここで処理
     console.log('[ReaderController] Loading update:', loadingInfo);
   },
+  onRepaginationStart: () => {
+    showLoading();
+  },
+  onRepaginationEnd: () => {
+    hideLoading();
+  },
   onReady: (data) => {
     // 起動時の初期化関連
     if (data.metadata) {
@@ -520,7 +526,9 @@ const ui = new UIController({
   },
   onResize: () => {
     // リサイズ時のリペジネーション (EPUBのみ)
-    debouncedResizeHandler();
+    // ui.js側で既に250msデバウンス済みなので直接呼び出す
+    if (!reader.handleResize) return;
+    reader.handleResize();
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -856,6 +864,7 @@ async function handleFile(file) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
       }
       showLoading();
+      console.time('[handleFile] openEpub');
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
@@ -864,8 +873,12 @@ async function handleFile(file) {
           location: startLocation,
           percentage: startProgress,
         });
-      } finally {
+        console.timeEnd('[handleFile] openEpub');
+      } catch (epubError) {
+        console.timeEnd('[handleFile] openEpub');
+        // openEpub失敗時のみローディングを解除（成功時はapplyReadingState完了後に解除）
         hideLoading();
+        throw epubError;
       }
     } else {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -883,7 +896,9 @@ async function handleFile(file) {
     }
 
     // 2. 状態の適用（オープン後に実行することで初期化による上書きを防ぐ）
+    console.time('[handleFile] applyReadingState');
     await applyReadingState(syncedProgress);
+    console.timeEnd('[handleFile] applyReadingState');
 
     // 同期されたしおりをUIに反映
     renderers.renderBookmarks(bookmarkMenuMode);
@@ -1047,7 +1062,9 @@ async function openFromLibrary(bookId, options = {}) {
 
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
+      console.time('[libraryLoad] openEpub');
       await reader.openEpub(file, { location: start, percentage: startProgress });
+      console.timeEnd('[libraryLoad] openEpub');
     } else {
       // ... (既存のUI制御コード)
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -1100,9 +1117,9 @@ function resetLocalSaveTracking() {
 }
 
 async function applyReadingState(progress) {
-  // 書籍ごとの記録がない場合はデフォルト設定を使用
-  const targetWritingMode = progress?.writingMode || defaultWritingMode;
-  const targetPageDirection = progress?.pageDirection || defaultPageDirection;
+  // 書籍ごとの記録がない場合はリーダーの自動検出値を優先し、検出もなければデフォルト設定を使用
+  const targetWritingMode = progress?.writingMode || reader.writingMode || defaultWritingMode;
+  const targetPageDirection = progress?.pageDirection || reader.pageDirection || defaultPageDirection;
   const targetImageViewMode = progress?.imageViewMode || defaultImageViewMode;
 
   // 1. 書字方向・開き方向の復元
@@ -1113,7 +1130,8 @@ async function applyReadingState(progress) {
   if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
 
   // 1.5. 両方を適用（リーダー本体への反映）
-  await applyReadingSettings(writingMode, pageDirection);
+  // 呼び出し元(handleFile/openFromLibrary)がloadingを管理するためスキップ
+  await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
 
   // 2. 表示モード（単ページ/見開き）の復元
   if (reader) {
@@ -1257,7 +1275,7 @@ function handleBookReady(payload) {
       if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
 
-      applyReadingSettings(writingMode, pageDirection);
+      applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
@@ -1298,24 +1316,9 @@ function handleBookReady(payload) {
   };
   scheduleEpubScrollModeUpdate();
 
-  // locations生成完了時に進捗バーを更新
+  // locations生成は初期ロード時のメインスレッドブロックを避けるため無効化
+  // 進捗表示はページベースの計算にフォールバックする
   if (currentBookInfo.type === BOOK_TYPES.EPUB) {
-    console.log('[handleBookReady] Setting up locations listener for progress updates');
-    // locations生成完了を監視
-    const checkLocations = setInterval(() => {
-      const locations = reader.book?.locations;
-      if (locations?.total > 0) {
-        console.log('[handleBookReady] Locations available, updating progress bar');
-        clearInterval(checkLocations);
-        renderers.updateProgressBarDisplay();
-      }
-    }, TIMING_CONFIG.LOCATIONS_CHECK_INTERVAL_MS);
-
-    // ロケーション確認タイムアウト
-    setTimeout(() => {
-      clearInterval(checkLocations);
-      console.log('[handleBookReady] Locations check timeout');
-    }, TIMING_CONFIG.LOCATIONS_CHECK_TIMEOUT_MS);
 
   }
 }
@@ -1834,7 +1837,7 @@ function applyUiLanguage(nextLanguage) {
 
 // 移行済み: updateWritingModeToggleLabel
 
-async function applyReadingSettings(nextWritingMode, nextPageDirection) {
+async function applyReadingSettings(nextWritingMode, nextPageDirection, options = {}) {
   if (nextWritingMode) {
     writingMode = nextWritingMode;
   }
@@ -1850,9 +1853,12 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   renderers.updateReadingDirectionEpubButtonLabel();
   renderers.updateFloatingUIButtons();
 
-  // [修正] ローディング表示を追加し、レンダリングを待機
+  // ローディング表示を追加し、レンダリングを待機
+  // skipLoadingOverlay: 初回ブック読込中（handleBookReady経由）では
+  // 呼び出し元がloadingを管理するためスキップする
   const isEpubOpen = currentBookInfo?.type === BOOK_TYPES.EPUB;
-  if (isEpubOpen) {
+  const manageLoading = isEpubOpen && !options.skipLoadingOverlay;
+  if (manageLoading) {
     showLoading();
     // スピナーが表示されるよう、ブラウザの描画サイクルを1回回す
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, TIMING_CONFIG.ANIMATION_FRAME_DELAY_MS)));
@@ -1868,7 +1874,7 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection) {
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {
-    if (isEpubOpen) {
+    if (manageLoading) {
       hideLoading();
     }
   }
@@ -2729,26 +2735,9 @@ function setupEvents() {
 
   // 全画面状態が変わった時にボタンラベルを更新
   // リペジネーションは window.resize イベント経由で自動的にトリガーされる
-  // ただし resize が発火しない環境へのフォールバックとして、
-  // ビューポート変更完了後にのみ補助的にトリガーする
-  let prevInnerWidth = window.innerWidth;
-  let prevInnerHeight = window.innerHeight;
+  // （ui.js の setupResizeHandler → onResize → reader.handleResize）
   document.addEventListener('fullscreenchange', () => {
     updateFullscreenButtonLabel();
-    // ビューポートサイズが確定してから確認
-    requestAnimationFrame(() => {
-      const widthChanged = window.innerWidth !== prevInnerWidth;
-      const heightChanged = window.innerHeight !== prevInnerHeight;
-      prevInnerWidth = window.innerWidth;
-      prevInnerHeight = window.innerHeight;
-      if (widthChanged || heightChanged) {
-        // resize イベントが発火するはずなので、そちらに任せる
-        // （ui.js の setupResizeHandler → onResize → debouncedResizeHandler）
-        return;
-      }
-      // resize が発火しなかった場合のフォールバック
-      debouncedResizeHandler();
-    });
   });
 
   // プログレスバー矢印
