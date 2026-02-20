@@ -57,6 +57,8 @@ function isIgnoredFileName(fileName) {
 }
 
 /**
+ * 画像ファイルかどうかを判定します。
+ * パス区切り（/ と \）に対応し、末尾空白を除去したファイル名で評価します。
  * @param {string} path
  * @returns {{
  *  matched: boolean,
