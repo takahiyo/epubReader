@@ -19,6 +19,7 @@ import {
   SUPPORTED_FORMATS,
   SYNC_PATHS,
 } from "../../constants.js";
+import { getIdTokenInfo } from "../../auth.js";
 
 const FILE_NAME_CONTROL_CHARS_REGEX = /[\x00-\x1F\x7F-\x9F]/g;
 
@@ -84,6 +85,43 @@ function analyzeImagePath(path) {
 }
 
 /**
+ * 画像ファイルかどうかを判定します。
+ * パス区切り（/ と \）に対応し、末尾空白を除去したファイル名で評価します。
+ * @param {string} path
+ * @returns {{
+ *  matched: boolean,
+ *  normalizedPath: string,
+ *  fileName: string,
+ *  reason: string,
+ *  ext: string
+ * }}
+ */
+function analyzeImagePath(path) {
+  const normalizedPath = sanitizeArchivePath(path);
+  const fileName = extractFileName(normalizedPath);
+  if (!fileName) {
+    return { matched: false, normalizedPath, fileName: "", reason: "empty_filename", ext: "" };
+  }
+  if (isIgnoredFileName(fileName)) {
+    return { matched: false, normalizedPath, fileName, reason: "ignored_system_file", ext: "" };
+  }
+
+  const lowerName = fileName.toLowerCase();
+  const extMatch = /\.([^.\/\s]+)\s*$/.exec(lowerName);
+  const ext = extMatch ? `.${extMatch[1]}` : "";
+  const matched = Boolean(ext && SUPPORTED_FORMATS.IMAGES.includes(ext));
+  return {
+    matched,
+    normalizedPath,
+    fileName,
+    reason: matched ? "" : ext ? "unsupported_extension" : "missing_extension",
+    ext,
+  };
+}
+
+/**
+ * 画像ファイルかどうかを判定します。
+ * ファイル名は制御文字除去 + trim のうえ、`/` と `\` の両区切りに対応します。
  * @param {string} path
  * @returns {boolean}
  */
@@ -382,6 +420,7 @@ export class ArchiveHandler {
   constructor(file) {
     this.file = file;
     this.type = null;
+    this.lastDiagnostics = [];
   }
 
   /**
@@ -529,6 +568,7 @@ export class RarHandler extends ArchiveHandler {
     this.extractor = null;
     this.headers = [];
     this.workerClient = null;
+    this.isRar5Signature = false;
   }
 
   /**
@@ -537,6 +577,9 @@ export class RarHandler extends ArchiveHandler {
    */
   async init() {
     const buffer = await this.file.arrayBuffer();
+    const signature = new Uint8Array(buffer.slice(0, 8));
+    this.isRar5Signature = signature[6] === 0x01 && signature[7] === 0x00;
+
     const worker = createRarWorker();
     if (worker) {
       const client = new ArchiveWorkerClient(worker);
@@ -567,6 +610,11 @@ export class RarHandler extends ArchiveHandler {
         await this.reportArchiveError(this.file?.name ?? "", rarListError);
       }
     }
+
+    console.debug("[RarHandler] Raw archive entry names:", this.headers.map((header) => (
+      header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? ""
+    )));
+
     emitArchiveWarnings([
       ARCHIVE_WARNING_TYPES.RAR_NO_STREAM,
       ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT,
