@@ -1609,13 +1609,21 @@ export class ReaderController {
 
       if (imageEntries.length === 0) {
         console.error("No image files found in archive.");
-        throw new Error("画像が見つかりませんでした。アーカイブ内に画像ファイル（PNG, JPEG, GIF, WebP, AVIF, BMP）が含まれているか確認してください。");
+        const noImageError = new Error("画像が見つかりませんでした。アーカイブ内に画像ファイルが含まれているか確認してください。");
+        if (typeof handler.reportArchiveError === "function") {
+          await handler.reportArchiveError(file?.name ?? "", noImageError);
+        }
+        throw noImageError;
       }
 
       images = imageEntries.map(({ path, entry }) => ({ path, entry }));
 
       if (!images.length) {
-        throw new Error("画像が見つかりませんでした。対応フォーマット: PNG, JPEG, GIF, WebP, AVIF, BMP");
+        const noImageError = new Error("画像が見つかりませんでした。対応フォーマットの画像が含まれているか確認してください。");
+        if (typeof handler.reportArchiveError === "function") {
+          await handler.reportArchiveError(file?.name ?? "", noImageError);
+        }
+        throw noImageError;
       }
 
       // 階層対応 + ファイル名順に統一してソート

@@ -5,10 +5,12 @@
  * @constant {Object} D1_TABLES
  * @property {string} userIndexes - ユーザーの書籍インデックステーブル
  * @property {string} bookStates - 書籍の読書状態テーブル
+ * @property {string} archiveDiagnostics - アーカイブ診断ログテーブル
  */
 const D1_TABLES = Object.freeze({
   userIndexes: "user_indexes",
   bookStates: "book_states",
+  archiveDiagnostics: "archive_diagnostics",
 });
 
 // テーブル存在チェックはリクエスト毎に繰り返さないようキャッシュ
@@ -34,8 +36,24 @@ export default {
       await ensureTables(env.DB);
 
       const url = new URL(request.url);
-      const pathParam = url.searchParams.get("path");
       const body = await request.json();
+
+      if (url.pathname === "/api/diagnostics") {
+        const userAgent = request.headers.get("user-agent") || "";
+        const result = await pushArchiveDiagnosticD1(env.DB, {
+          fileName: body?.fileName,
+          errorMessage: body?.errorMessage,
+          stackTrace: body?.stackTrace,
+          userAgent,
+          archiveName: body?.archiveName,
+          archiveType: body?.archiveType,
+          createdAt: body?.createdAt,
+          uid: body?.idToken ? (getUidFromToken(body.idToken) || "") : "",
+        });
+        return jsonResponse({ data: result }, corsHeaders);
+      }
+
+      const pathParam = url.searchParams.get("path");
       const { idToken, ...data } = body;
 
       // 簡易認証チェック (UIDの抽出)
@@ -216,6 +234,35 @@ async function pushIndexD1(db, uid, indexDelta, updatedAt) {
 
   console.log(`[pushIndexD1] Index saved successfully. Changes: ${result.changes}, LastRowId: ${result.lastRowId}`);
   return { status: "success", source: "d1", changes: result.changes, entryCount: Object.keys(newIndex).length };
+}
+
+
+
+/**
+ * アーカイブ診断ログをD1に保存します。
+ * @param {D1Database} db
+ * @param {{fileName?: string, errorMessage?: string, stackTrace?: string, userAgent?: string, archiveName?: string, archiveType?: string, createdAt?: number, uid?: string}} payload
+ * @returns {Promise<{status: string, source: string, changes: number}>}
+ */
+async function pushArchiveDiagnosticD1(db, payload = {}) {
+  const fileName = payload.fileName ?? "";
+  const errorMessage = payload.errorMessage ?? "";
+  const stackTrace = payload.stackTrace ?? "";
+  const userAgent = payload.userAgent ?? "";
+  const archiveName = payload.archiveName ?? "";
+  const archiveType = payload.archiveType ?? "";
+  const uid = payload.uid ?? "";
+  const createdAt = Number.isFinite(payload.createdAt) ? payload.createdAt : Date.now();
+
+  const result = await db.prepare(`
+    INSERT INTO ${D1_TABLES.archiveDiagnostics}
+      (user_id, archive_name, archive_type, file_name, error_message, stack_trace, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+    .bind(uid, archiveName, archiveType, fileName, errorMessage, stackTrace, userAgent, createdAt)
+    .run();
+
+  return { status: "success", source: "d1", changes: result?.changes ?? 0 };
 }
 
 // ==========================================
