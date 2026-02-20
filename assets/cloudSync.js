@@ -105,6 +105,11 @@ export class CloudSync {
       try {
         const response = await fetch(url, options);
         if (!response.ok && this.isRetryableStatus(response.status)) {
+          // サーバーが返した詳細エラーをコンソールに出力（デバッグ用）
+          try {
+            const errorDetails = await response.clone().text();
+            console.error(`[CloudSync Error Details] HTTP ${response.status} from ${url}:`, errorDetails);
+          } catch (_) { /* レスポンス読み取り失敗は無視 */ }
           if (attempt < SYNC_RETRY_MAX) {
             await this.sleep(this.getRetryDelayMs(attempt));
             continue;
@@ -164,6 +169,11 @@ export class CloudSync {
     });
 
     if (!response.ok) {
+      // fetchWithRetry でリトライ済みの最終レスポンス: 詳細を出力してからスロー
+      try {
+        const errorDetails = await response.text();
+        console.error(`[CloudSync Error Details] HTTP ${response.status} (final):`, errorDetails);
+      } catch (_) { /* 読み取り失敗は無視 */ }
       throw new Error(tReplace("cloudSyncWorkersFailed", { status: response.status }));
     }
     const json = await response.json();
