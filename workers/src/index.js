@@ -5,10 +5,12 @@
  * @constant {Object} D1_TABLES
  * @property {string} userIndexes - ユーザーの書籍インデックステーブル
  * @property {string} bookStates - 書籍の読書状態テーブル
+ * @property {string} archiveDiagnostics - アーカイブ診断ログテーブル
  */
 const D1_TABLES = Object.freeze({
   userIndexes: "user_indexes",
   bookStates: "book_states",
+  archiveDiagnostics: "archive_diagnostics",
 });
 
 // テーブル存在チェックはリクエスト毎に繰り返さないようキャッシュ
@@ -57,6 +59,9 @@ export default {
             break;
           case "/sync/index/push":
             result = await pushIndexD1(env.DB, uid, data.indexDelta, data.updatedAt);
+            break;
+          case "/sync/archive-diagnostic/push":
+            result = await pushArchiveDiagnosticD1(env.DB, uid, data);
             break;
           default:
             return errorResponse("Unknown Path", 404, corsHeaders);
@@ -216,6 +221,51 @@ async function pushIndexD1(db, uid, indexDelta, updatedAt) {
 
   console.log(`[pushIndexD1] Index saved successfully. Changes: ${result.changes}, LastRowId: ${result.lastRowId}`);
   return { status: "success", source: "d1", changes: result.changes, entryCount: Object.keys(newIndex).length };
+}
+
+
+/**
+ * アーカイブ診断情報をD1に保存します。
+ * @param {D1Database} db
+ * @param {string} uid
+ * @param {{archiveName?: string, archiveType?: string, records?: Array<{fileName?: string, reason?: string, error?: string}>, errorMessage?: string, createdAt?: number}} payload
+ * @returns {Promise<{status: string, source: string, changes: number}>}
+ */
+async function pushArchiveDiagnosticD1(db, uid, payload = {}) {
+  const archiveName = payload.archiveName ?? "";
+  const archiveType = payload.archiveType ?? "";
+  const errorMessage = payload.errorMessage ?? "";
+  const createdAt = Number.isFinite(payload.createdAt) ? payload.createdAt : Date.now();
+  const records = Array.isArray(payload.records) ? payload.records : [];
+
+  if (records.length === 0 && !errorMessage) {
+    return { status: "skipped", source: "d1", changes: 0 };
+  }
+
+  const rows = records.length > 0 ? records : [{ fileName: "", reason: "archive_error", error: errorMessage }];
+  let totalChanges = 0;
+
+  for (const row of rows) {
+    const result = await db.prepare(`
+      INSERT INTO ${D1_TABLES.archiveDiagnostics}
+        (user_id, archive_name, archive_type, file_name, reason, error_message, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+      .bind(
+        uid,
+        archiveName,
+        archiveType,
+        row?.fileName ?? "",
+        row?.reason ?? "unknown",
+        row?.error ?? errorMessage,
+        createdAt,
+      )
+      .run();
+
+    totalChanges += result?.changes ?? 0;
+  }
+
+  return { status: "success", source: "d1", changes: totalChanges };
 }
 
 // ==========================================

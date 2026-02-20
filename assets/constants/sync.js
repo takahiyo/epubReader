@@ -8,6 +8,15 @@ export const SYNC_SOURCES = Object.freeze({
   PCLOUD: "pcloud",
 });
 
+
+export const SYNC_PATHS = Object.freeze({
+  STATE_PULL: "/sync/state/pull",
+  STATE_PUSH: "/sync/state/push",
+  INDEX_PULL: "/sync/index/pull",
+  INDEX_PUSH: "/sync/index/push",
+  ARCHIVE_DIAGNOSTIC_PUSH: "/sync/archive-diagnostic/push",
+});
+
 // ============================================
 // 同期リトライ設定
 // ============================================

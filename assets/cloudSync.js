@@ -6,6 +6,7 @@
 
 import {
   SYNC_CONFIG,
+  SYNC_PATHS,
   SYNC_RETRY_BASE_MS,
   SYNC_RETRY_MAX,
   SYNC_RETRY_MAX_MS,
@@ -212,7 +213,7 @@ export class CloudSync {
     }
     // 差分同期: 最後の同期時刻以降の更新のみ取得
     const since = this.storage.data.cloudIndexUpdatedAt ?? null;
-    return this.postWorkerSync("/sync/index/pull", { since }, settings);
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, { since }, settings);
   }
 
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
@@ -220,7 +221,7 @@ export class CloudSync {
     if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.postWorkerSync("/sync/index/push", { indexDelta, updatedAt }, settings);
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PUSH, { indexDelta, updatedAt }, settings);
   }
 
   async pullState(cloudBookId, settings = this.storage.getSettings()) {
@@ -228,7 +229,7 @@ export class CloudSync {
     if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.postWorkerSync("/sync/state/pull", { cloudBookId }, settings);
+    return this.postWorkerSync(SYNC_PATHS.STATE_PULL, { cloudBookId }, settings);
   }
 
   async pushState(cloudBookId, state, updatedAt, settings = this.storage.getSettings()) {
@@ -238,7 +239,7 @@ export class CloudSync {
     }
     const normalizedState = this.normalizeCloudState(state, updatedAt);
     const payload = { state: normalizedState, updatedAt: normalizedState.updatedAt };
-    return this.postWorkerSync("/sync/state/push", { cloudBookId, ...payload }, settings);
+    return this.postWorkerSync(SYNC_PATHS.STATE_PUSH, { cloudBookId, ...payload }, settings);
   }
 
   // ===============================

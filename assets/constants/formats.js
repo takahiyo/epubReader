@@ -10,6 +10,10 @@ export const SUPPORTED_IMAGE_EXTENSIONS = Object.freeze([
   ".bmp",
   ".avif",
   ".jfif",
+  ".heic",
+  ".heif",
+  ".tiff",
+  ".tif",
 ]);
 
 export const SUPPORTED_FORMATS = Object.freeze({
@@ -34,4 +38,7 @@ export const MIME_TYPES = Object.freeze({
   WEBP: "image/webp",
   AVIF: "image/avif",
   BMP: "image/bmp",
+  HEIC: "image/heic",
+  HEIF: "image/heif",
+  TIFF: "image/tiff",
 });

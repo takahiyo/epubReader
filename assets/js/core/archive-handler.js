@@ -17,14 +17,27 @@ import {
   FILE_EXTENSIONS,
   MIME_TYPES,
   SUPPORTED_FORMATS,
+  SYNC_PATHS,
+  WORKERS_CONFIG,
 } from "../../constants.js";
+import { getIdTokenInfo } from "../../auth.js";
+
+const FILE_NAME_CONTROL_CHARS_REGEX = /[\x00-\x1F\x7F-\x9F]/g;
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function sanitizeArchivePath(value) {
+  return String(value ?? "").replace(FILE_NAME_CONTROL_CHARS_REGEX, "").trim();
+}
 
 /**
  * @param {string} filePath
  * @returns {string}
  */
 function extractFileName(filePath) {
-  const normalizedPath = filePath.trim();
+  const normalizedPath = sanitizeArchivePath(filePath);
   const segments = normalizedPath.split(/[\\/]/);
   return segments.pop() ?? normalizedPath;
 }
@@ -47,14 +60,92 @@ function isIgnoredFileName(fileName) {
  * 画像ファイルかどうかを判定します。
  * パス区切り（/ と \）に対応し、末尾空白を除去したファイル名で評価します。
  * @param {string} path
+ * @returns {{
+ *  matched: boolean,
+ *  normalizedPath: string,
+ *  fileName: string,
+ *  reason: string,
+ *  ext: string
+ * }}
+ */
+function analyzeImagePath(path) {
+  const normalizedPath = sanitizeArchivePath(path);
+  const fileName = extractFileName(normalizedPath);
+  if (!fileName) {
+    return { matched: false, normalizedPath, fileName: "", reason: "empty_filename", ext: "" };
+  }
+  if (isIgnoredFileName(fileName)) {
+    return { matched: false, normalizedPath, fileName, reason: "ignored_system_file", ext: "" };
+  }
+
+  const lowerName = fileName.toLowerCase();
+  const extMatch = /\.([^.\/\s]+)\s*$/.exec(lowerName);
+  const ext = extMatch ? `.${extMatch[1]}` : "";
+  const matched = Boolean(ext && SUPPORTED_FORMATS.IMAGES.includes(ext));
+  return {
+    matched,
+    normalizedPath,
+    fileName,
+    reason: matched ? "" : ext ? "unsupported_extension" : "missing_extension",
+    ext,
+  };
+}
+
+/**
+ * 画像ファイルかどうかを判定します。
+ * ファイル名は制御文字除去 + trim のうえ、`/` と `\` の両区切りに対応します。
+ * @param {string} path
  * @returns {boolean}
  */
 function isImagePath(path) {
-  const fileName = extractFileName(path);
-  if (!fileName || isIgnoredFileName(fileName)) return false;
+  return analyzeImagePath(path).matched;
+}
 
-  const lowerName = fileName.toLowerCase();
-  return SUPPORTED_FORMATS.IMAGES.some((ext) => lowerName.endsWith(ext));
+/**
+ * @param {string} endpoint
+ * @param {string} path
+ * @returns {string|null}
+ */
+function buildWorkerSyncUrl(endpoint, path) {
+  if (!endpoint) return null;
+  if (endpoint.includes("{path}")) {
+    return endpoint.replace("{path}", encodeURIComponent(path));
+  }
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}path=${encodeURIComponent(path)}`;
+}
+
+/**
+ * @returns {string}
+ */
+function resolveWorkerSyncEndpoint() {
+  return (
+    (typeof window !== "undefined" && window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT) ||
+    WORKERS_CONFIG.SYNC_ENDPOINT ||
+    ""
+  );
+}
+
+/**
+ * @param {{ archiveName: string, archiveType: string, records: Array<{fileName: string, reason: string, error?: string}>, errorMessage?: string }} payload
+ * @returns {Promise<void>}
+ */
+async function reportArchiveDiagnosticsToD1(payload) {
+  const endpoint = resolveWorkerSyncEndpoint();
+  if (!endpoint) return;
+
+  const tokenInfo = await getIdTokenInfo();
+  const idToken = tokenInfo?.idToken;
+  if (!idToken) return;
+
+  const url = buildWorkerSyncUrl(endpoint, SYNC_PATHS.ARCHIVE_DIAGNOSTIC_PUSH);
+  if (!url) return;
+
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, ...payload, createdAt: Date.now() }),
+  });
 }
 
 /**
@@ -68,7 +159,10 @@ function resolveImageMimeType(path) {
   if (ext === "webp") return MIME_TYPES.WEBP;
   if (ext === "avif") return MIME_TYPES.AVIF;
   if (ext === "bmp") return MIME_TYPES.BMP;
-  if (ext === "jpg" || ext === "jpeg") return MIME_TYPES.JPEG;
+  if (ext === "jpg" || ext === "jpeg" || ext === "jfif") return MIME_TYPES.JPEG;
+  if (ext === "heic") return MIME_TYPES.HEIC;
+  if (ext === "heif") return MIME_TYPES.HEIF;
+  if (ext === "tif" || ext === "tiff") return MIME_TYPES.TIFF;
   return MIME_TYPES.JPEG;
 }
 
@@ -316,6 +410,7 @@ export class ArchiveHandler {
   constructor(file) {
     this.file = file;
     this.type = null;
+    this.lastDiagnostics = [];
   }
 
   /**
@@ -337,6 +432,27 @@ export class ArchiveHandler {
    */
   async listImageEntries() {
     return [];
+  }
+
+  /**
+   * @param {Array<{fileName: string, reason: string, error?: string}>} diagnostics
+   * @param {string} [errorMessage]
+   * @returns {Promise<void>}
+   */
+  async recordDiagnostics(diagnostics = [], errorMessage = "") {
+    this.lastDiagnostics = diagnostics;
+    if (!diagnostics.length && !errorMessage) return;
+
+    try {
+      await reportArchiveDiagnosticsToD1({
+        archiveName: this.file?.name ?? "",
+        archiveType: this.getArchiveLabel(),
+        records: diagnostics,
+        errorMessage,
+      });
+    } catch (error) {
+      console.warn("Failed to store archive diagnostics on D1:", error);
+    }
   }
 
   /**
@@ -396,7 +512,25 @@ export class ZipHandler extends ArchiveHandler {
    * @returns {Promise<Array<{ path: string, entry: any }>>}
    */
   async listImageEntries() {
-    return this.entries.filter(({ path }) => isImagePath(path));
+    const imageEntries = [];
+    const diagnostics = [];
+
+    for (const { path, entry } of this.entries) {
+      const analyzed = analyzeImagePath(path);
+      if (analyzed.matched) {
+        imageEntries.push({ path: analyzed.normalizedPath, entry });
+        continue;
+      }
+      if (analyzed.fileName) {
+        diagnostics.push({ fileName: analyzed.normalizedPath, reason: analyzed.reason });
+      }
+    }
+
+    if (imageEntries.length === 0 && diagnostics.length > 0) {
+      await this.recordDiagnostics(diagnostics, "ZIP内に画像として扱えるエントリが見つかりませんでした。");
+    }
+
+    return imageEntries;
   }
 
   /**
@@ -432,6 +566,7 @@ export class RarHandler extends ArchiveHandler {
     this.extractor = null;
     this.headers = [];
     this.workerClient = null;
+    this.isRar5Signature = false;
   }
 
   /**
@@ -440,6 +575,9 @@ export class RarHandler extends ArchiveHandler {
    */
   async init() {
     const buffer = await this.file.arrayBuffer();
+    const signature = new Uint8Array(buffer.slice(0, 8));
+    this.isRar5Signature = signature[6] === 0x01 && signature[7] === 0x00;
+
     const worker = createRarWorker();
     if (worker) {
       const client = new ArchiveWorkerClient(worker);
@@ -462,6 +600,11 @@ export class RarHandler extends ArchiveHandler {
       this.extractor = extractor;
       this.headers = headers;
     }
+
+    console.debug("[RarHandler] Raw archive entry names:", this.headers.map((header) => (
+      header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? ""
+    )));
+
     emitArchiveWarnings([
       ARCHIVE_WARNING_TYPES.RAR_NO_STREAM,
       ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT,
@@ -481,16 +624,37 @@ export class RarHandler extends ArchiveHandler {
    * @returns {Promise<Array<{ path: string, entry: any }>>}
    */
   async listImageEntries() {
-    return this.headers
-      .map((header) => {
-        const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
-        const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
-        if (!name || isDir || !isImagePath(name)) {
-          return null;
-        }
-        return { path: name, entry: header };
-      })
-      .filter(Boolean);
+    const imageEntries = [];
+    const diagnostics = [];
+
+    for (const header of this.headers) {
+      const name = header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? "";
+      const isDir = header?.flags?.directory ?? header?.isDirectory ?? header?.directory ?? false;
+      if (isDir) continue;
+
+      const analyzed = analyzeImagePath(name);
+      if (analyzed.matched) {
+        imageEntries.push({ path: analyzed.normalizedPath, entry: header });
+      } else if (analyzed.fileName) {
+        diagnostics.push({ fileName: analyzed.normalizedPath, reason: analyzed.reason });
+      }
+    }
+
+    if (imageEntries.length === 0) {
+      if (this.isRar5Signature) {
+        diagnostics.push({
+          fileName: this.file?.name ?? "",
+          reason: "rar5_possible_incompatibility",
+          error: "RAR5の可能性があります。ライブラリ互換性の確認が必要です。",
+        });
+      }
+      const errorMessage = this.isRar5Signature
+        ? "RAR5形式の可能性により画像抽出に失敗した可能性があります。"
+        : "RAR内に画像として扱えるエントリが見つかりませんでした。";
+      await this.recordDiagnostics(diagnostics, errorMessage);
+    }
+
+    return imageEntries;
   }
 
   /**
@@ -505,6 +669,7 @@ export class RarHandler extends ArchiveHandler {
       const payload = await this.workerClient.request(ARCHIVE_WORKER_MESSAGES.EXTRACT, { path });
       const buffer = payload?.buffer;
       if (!buffer) {
+        await this.recordDiagnostics([{ fileName: path, reason: "extract_failed", error: ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED }]);
         throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
       }
       const mimeType = resolveImageMimeType(path);
@@ -521,6 +686,7 @@ export class RarHandler extends ArchiveHandler {
 
     const data = item?.extraction?.data ?? item?.extraction ?? item?.data ?? null;
     if (!data || data.length === 0) {
+      await this.recordDiagnostics([{ fileName: path, reason: "extract_failed", error: ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED }]);
       throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
     }
 
