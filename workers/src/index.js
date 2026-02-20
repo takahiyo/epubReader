@@ -76,6 +76,9 @@ export default {
           case "/sync/index/push":
             result = await pushIndexD1(env.DB, uid, data.indexDelta, data.updatedAt);
             break;
+          case "/sync/archive-diagnostic/push":
+            result = await pushArchiveDiagnosticD1(env.DB, uid, data);
+            break;
           default:
             return errorResponse("Unknown Path", 404, corsHeaders);
         }
