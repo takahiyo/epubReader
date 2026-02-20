@@ -19,16 +19,14 @@ import {
   SUPPORTED_FORMATS,
 } from "../../constants.js";
 
-const IMAGE_EXTENSIONS = new Set(
-  SUPPORTED_FORMATS.IMAGES.map((ext) => ext.replace(".", "").toLowerCase())
-);
-
 /**
- * @param {string} path
+ * @param {string} filePath
  * @returns {string}
  */
-function normalizePath(path) {
-  return path.replace(/\\/g, "/");
+function extractFileName(filePath) {
+  const normalizedPath = filePath.trim();
+  const segments = normalizedPath.split(/[\\/]/);
+  return segments.pop() ?? normalizedPath;
 }
 
 /**
@@ -36,20 +34,27 @@ function normalizePath(path) {
  * @returns {boolean}
  */
 function isIgnoredFileName(fileName) {
-  const lower = fileName.toLowerCase();
-  return fileName.startsWith(".") || fileName.startsWith("__") || lower === "thumbs.db";
+  const lowerName = fileName.toLowerCase();
+  return (
+    fileName.startsWith(".") ||
+    fileName.startsWith("._") ||
+    fileName.startsWith("__") ||
+    lowerName === "thumbs.db"
+  );
 }
 
 /**
+ * 画像ファイルかどうかを判定します。
+ * パス区切り（/ と \）に対応し、末尾空白を除去したファイル名で評価します。
  * @param {string} path
  * @returns {boolean}
  */
 function isImagePath(path) {
-  const normalized = normalizePath(path);
-  const fileName = normalized.split("/").pop() ?? normalized;
+  const fileName = extractFileName(path);
   if (!fileName || isIgnoredFileName(fileName)) return false;
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  return Boolean(ext && IMAGE_EXTENSIONS.has(ext));
+
+  const lowerName = fileName.toLowerCase();
+  return SUPPORTED_FORMATS.IMAGES.some((ext) => lowerName.endsWith(ext));
 }
 
 /**

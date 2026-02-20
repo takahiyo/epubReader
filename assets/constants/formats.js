@@ -1,10 +1,21 @@
 // ============================================
 // サポートファイル形式
 // ============================================
+export const SUPPORTED_IMAGE_EXTENSIONS = Object.freeze([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".avif",
+  ".jfif",
+]);
+
 export const SUPPORTED_FORMATS = Object.freeze({
   EPUB: [".epub"],
   IMAGE_ARCHIVE: [".cbz", ".zip", ".rar", ".cbr"],
-  IMAGES: [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"],
+  IMAGES: SUPPORTED_IMAGE_EXTENSIONS,
 });
 
 // ============================================
