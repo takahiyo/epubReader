@@ -282,6 +282,31 @@ async function measureFits(pageElement, htmlFragment, settings) {
   return overflowHeight <= FIT_TOLERANCE_PX && overflowWidth <= FIT_TOLERANCE_PX;
 }
 
+function makeHtmlSafe(html) {
+  if (!html) return "";
+  let safe = html;
+
+  // DOMParserの段階でブラウザが画像を先読みしないよう、属性名を一時退避する。
+  safe = safe.replace(
+    /(<(?:img|image)\s+[^>]*?)\bsrc\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-src=$2$3$2"
+  );
+  safe = safe.replace(
+    /(<(?:img|image)\s+[^>]*?)\bsrcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-srcset=$2$3$2"
+  );
+  safe = safe.replace(
+    /(<image\s+[^>]*?)\bhref\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-href=$2$3$2"
+  );
+  safe = safe.replace(
+    /(<image\s+[^>]*?)\bxlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-xlink-href=$2$3$2"
+  );
+
+  return safe;
+}
+
 async function resolveResources(body, resourceLoader, spineItem) {
   if (!resourceLoader) return;
   const images = Array.from(body.querySelectorAll("img, image"));
@@ -289,13 +314,29 @@ async function resolveResources(body, resourceLoader, spineItem) {
   for (const img of images) {
     const tagName = img.tagName.toLowerCase();
     const isSvgImage = tagName === "image";
-    const attrName = isSvgImage
-      ? (img.hasAttribute("href") ? "href" : "xlink:href")
-      : "src";
+    let attrName = isSvgImage ? "href" : "src";
+    let src = "";
 
-    const src = img.getAttribute(attrName);
+    if (isSvgImage) {
+      if (img.hasAttribute("data-epub-href")) {
+        src = img.getAttribute("data-epub-href");
+        attrName = "href";
+      } else if (img.hasAttribute("data-epub-xlink-href")) {
+        src = img.getAttribute("data-epub-xlink-href");
+        attrName = "xlink:href";
+      } else {
+        attrName = img.hasAttribute("href") ? "href" : "xlink:href";
+        src = img.getAttribute(attrName);
+      }
+    } else {
+      src = img.getAttribute("data-epub-src") || img.getAttribute("src");
+      attrName = "src";
+    }
+
     if (!src || src.startsWith("blob:") || src.startsWith("data:")) {
-      if (isSvgImage || !img.hasAttribute("srcset")) continue;
+      if (isSvgImage || (!img.hasAttribute("srcset") && !img.hasAttribute("data-epub-srcset"))) {
+        continue;
+      }
     }
 
     try {
@@ -303,22 +344,27 @@ async function resolveResources(body, resourceLoader, spineItem) {
         const resolved = await resourceLoader(src, spineItem);
         if (resolved) {
           img.setAttribute(attrName, resolved);
+          img.removeAttribute("data-epub-src");
+          img.removeAttribute("data-epub-href");
+          img.removeAttribute("data-epub-xlink-href");
         }
       }
 
-      // [追加] imgタグかつsrcsetがある場合も解決する
-      if (!isSvgImage && img.hasAttribute("srcset")) {
-        const srcset = img.getAttribute("srcset");
-        const parts = await Promise.all(
-          srcset.split(",").map(async (part) => {
-            const trimmed = part.trim();
-            if (!trimmed) return "";
-            const [url, descriptor] = trimmed.split(/\s+/, 2);
-            const resolvedUrl = await resourceLoader(url, spineItem);
-            return descriptor ? `${resolvedUrl} ${descriptor}` : resolvedUrl;
-          })
-        );
-        img.setAttribute("srcset", parts.filter(Boolean).join(", "));
+      if (!isSvgImage) {
+        const srcset = img.getAttribute("data-epub-srcset") || img.getAttribute("srcset");
+        if (srcset) {
+          const parts = await Promise.all(
+            srcset.split(",").map(async (part) => {
+              const trimmed = part.trim();
+              if (!trimmed) return "";
+              const [url, descriptor] = trimmed.split(/\s+/, 2);
+              const resolvedUrl = await resourceLoader(url, spineItem);
+              return descriptor ? `${resolvedUrl} ${descriptor}` : resolvedUrl;
+            })
+          );
+          img.setAttribute("srcset", parts.filter(Boolean).join(", "));
+          img.removeAttribute("data-epub-srcset");
+        }
       }
     } catch (error) {
       // Ignore resource errors
@@ -362,7 +408,8 @@ export class EpubPaginator {
     for (let spineIndex = 0; spineIndex < this.spineItems.length; spineIndex += 1) {
       this.ensureNotCancelled(run);
       const spineItem = this.spineItems[spineIndex];
-      const parsed = new DOMParser().parseFromString(spineItem.htmlString || "", "text/html");
+      const safeHtmlString = makeHtmlSafe(spineItem.htmlString || "");
+      const parsed = new DOMParser().parseFromString(safeHtmlString, "text/html");
       const body = parsed.body;
 
       await resolveResources(body, this.resourceLoader, spineItem);
@@ -472,7 +519,8 @@ export class EpubPaginator {
     for (let spineIndex = 0; spineIndex < this.spineItems.length; spineIndex += 1) {
       this.ensureNotCancelled(run);
       const spineItem = this.spineItems[spineIndex];
-      const parsed = new DOMParser().parseFromString(spineItem.htmlString || "", "text/html");
+      const safeHtmlString = makeHtmlSafe(spineItem.htmlString || "");
+      const parsed = new DOMParser().parseFromString(safeHtmlString, "text/html");
       const body = parsed.body;
 
       await resolveResources(body, this.resourceLoader, spineItem);
