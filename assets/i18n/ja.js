@@ -141,8 +141,8 @@ export const UI_STRINGS_JA = Object.freeze({
   searchResultFallback: "結果",
 
   // トグルボタン
-  writingModeToggleVertical: "縦",
-  writingModeToggleHorizontal: "横",
+  writingModeToggleVertical: "縦書き",
+  writingModeToggleHorizontal: "横書き",
 
   // 同期プロンプト
   syncPromptTitle: "同期の確認",

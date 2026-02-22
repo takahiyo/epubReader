@@ -59,6 +59,12 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* 縦書きモード用の調整 */
+.viewer[style*="writing-mode: vertical-rl"] {
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+
 /* =====================================
 [REF]
 - HTML: .epub-page（EPUBページ）
