@@ -73,7 +73,8 @@ let pendingCloudBookId = null;
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
-let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
+let bookmarkMenuMode = settings.bookmarkMenuMode ?? UI_DEFAULTS.bookmarkMenuMode;
+let epubViewMode = settings.epubViewMode ?? UI_DEFAULTS.epubViewMode;
 let progressDisplayMode = settings.progressDisplayMode ?? UI_DEFAULTS.progressDisplayMode;
 let fontSize = Number.isFinite(settings.fontSize) ? settings.fontSize : null;
 let archiveWarningTimeoutId = null;
@@ -94,7 +95,6 @@ let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
 let lastSavedPercentage = null;
-let bookmarkMenuMode = UI_DEFAULTS.bookmarkMenuMode;
 let currentToc = [];
 let uiInitialized = false;
 let floatVisible = false;
@@ -341,6 +341,7 @@ function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
       // 読書環境も保存（EPUB用）
       writingMode,
       pageDirection,
+      epubViewMode,
       updatedAt: Date.now()
     };
   } else {
@@ -449,6 +450,7 @@ const reader = new ReaderController({
 
 reader.applyTheme(theme);
 reader.applyReadingDirection(writingMode, pageDirection);
+reader.applyEpubViewMode(epubViewMode);
 
 // ========================================
 // CSS変数の注入 (SSOT)
@@ -571,6 +573,7 @@ renderers.init({
     get currentCloudBookId() { return currentCloudBookId; },
     get pendingCloudBookId() { return pendingCloudBookId; },
     get uiLanguage() { return uiLanguage; },
+    get epubViewMode() { return epubViewMode; },
     get progressDisplayMode() { return progressDisplayMode; },
     get floatVisible() { return floatVisible; },
     get pageDirection() { return pageDirection; },
@@ -1121,6 +1124,7 @@ async function applyReadingState(progress) {
   const targetWritingMode = progress?.writingMode || reader.writingMode || defaultWritingMode;
   const targetPageDirection = progress?.pageDirection || reader.pageDirection || defaultPageDirection;
   const targetImageViewMode = progress?.imageViewMode || defaultImageViewMode;
+  const targetEpubViewMode = progress?.epubViewMode || reader.epubViewMode || epubViewMode;
 
   // 1. 書字方向・開き方向の復元
   writingMode = targetWritingMode;
@@ -1145,6 +1149,11 @@ async function applyReadingState(progress) {
     reader.setImageReadingDirection(targetPageDirection);
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
+  }
+
+  // 2.6. EPUB表示モードの復元
+  if (reader && reader.type === BOOK_TYPES.EPUB) {
+    await applyEpubViewMode(targetEpubViewMode);
   }
 
   if (!progress) {
@@ -1185,6 +1194,7 @@ function handleProgress(progress) {
       theme,
       uiLanguage,
       pageDirection,
+      epubViewMode,
       imageViewMode: reader?.imageViewMode,
     });
     lastSavedPercentage = roundedPercentage;
@@ -1250,6 +1260,7 @@ function handleBookReady(payload) {
     // 優先順位: 1. 個別保存設定 > 2. メタデータ > 3. ユーザーデフォルト
     let targetPageDirection = progress?.pageDirection;
     let targetWritingMode = progress?.writingMode;
+    let targetEpubViewMode = progress?.epubViewMode;
 
     // 1. 個別設定がない場合、メタデータをチェック
     if (!targetPageDirection && metadata.direction) {
@@ -1263,6 +1274,9 @@ function handleBookReady(payload) {
     if (!targetWritingMode) {
       targetWritingMode = settings.defaultWritingMode;
     }
+    if (!targetEpubViewMode) {
+      targetEpubViewMode = settings.epubViewMode;
+    }
 
     // 適用（ユーザーによる一時的な変更フラグがある場合は無視...しないほうが良いかも？
     // ユーザーが「今」変更したならそれが最優先だが、userOverrodeDirection はどういうスコープ？
@@ -1271,11 +1285,14 @@ function handleBookReady(payload) {
     if (!userOverrodeDirection) {
       pageDirection = targetPageDirection;
       writingMode = targetWritingMode || writingMode;
+      epubViewMode = targetEpubViewMode || epubViewMode;
 
       if (elements.pageDirectionSelect) elements.pageDirectionSelect.value = pageDirection;
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
+      if (elements.settingsEpubViewMode) elements.settingsEpubViewMode.value = epubViewMode;
 
       applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
+      applyEpubViewMode(epubViewMode);
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
@@ -1706,10 +1723,9 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsDefaultPageDirectionLabel) {
     elements.settingsDefaultPageDirectionLabel.textContent = strings.settingsDefaultPageDirectionLabel;
   }
-  if (elements.settingsDefaultImageViewModeLabel) {
-    elements.settingsDefaultImageViewModeLabel.textContent = strings.settingsDefaultImageViewModeLabel;
-  }
-  if (elements.themeLabel) elements.themeLabel.textContent = strings.themeLabel;
+  if (elements.settingsDefaultImageViewModeLabel) elements.settingsDefaultImageViewModeLabel.textContent = strings.settingsDefaultImageViewModeLabel;
+  if (elements.settingsEpubViewModeLabel) elements.settingsEpubViewModeLabel.textContent = strings.settingsEpubViewModeLabel;
+  if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
   if (elements.writingModeLabel) elements.writingModeLabel.textContent = strings.writingModeLabel;
   if (elements.pageDirectionLabel) elements.pageDirectionLabel.textContent = strings.pageDirectionLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
@@ -1794,11 +1810,6 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.pageDirectionLtr;
     if (options[1]) options[1].textContent = strings.pageDirectionRtl;
   }
-  if (elements.progressDisplayModeSelect) {
-    const options = elements.progressDisplayModeSelect.options;
-    if (options[0]) options[0].textContent = strings.progressDisplayPage;
-    if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
-  }
   if (elements.settingsDefaultWritingMode) {
     const options = elements.settingsDefaultWritingMode.options;
     if (options[0]) options[0].textContent = strings.writingModeHorizontal; // "横書き"
@@ -1813,16 +1824,31 @@ function applyUiLanguage(nextLanguage) {
   }
   if (elements.settingsDefaultImageViewMode) {
     const options = elements.settingsDefaultImageViewMode.options;
-    if (options[0]) options[0].textContent = strings.spreadModeSingle; // "単ページ"
-    if (options[1]) options[1].textContent = strings.spreadModeDouble; // "見開き"
-    elements.settingsDefaultImageViewMode.value = defaultImageViewMode;
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].value === "single") options[i].text = strings.spreadModeSingle;
+      if (options[i].value === "spread") options[i].text = strings.spreadModeDouble;
+    }
+  }
+
+  if (elements.settingsEpubViewMode) {
+    const options = elements.settingsEpubViewMode.options;
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].value === "paginated") options[i].text = strings.epubViewModePaginated;
+      if (options[i].value === "scroll") options[i].text = strings.epubViewModeScroll;
+    }
+    elements.settingsEpubViewMode.value = epubViewMode;
+  }
+
+  if (elements.progressDisplayModeSelect) {
+    const options = elements.progressDisplayModeSelect.options;
+    if (options[0]) options[0].textContent = strings.progressDisplayPage;
+    if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
   }
   if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
   if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
 
   renderers.updateWritingModeToggleLabel();
   renderers.updateReadingDirectionEpubButtonLabel();
-  renderers.updateReadingDirectionButtonLabel();
   renderers.updateSpreadModeButtonLabel();
   if (uiInitialized) {
     renderers.renderLibrary();
@@ -1897,6 +1923,32 @@ function applyProgressDisplayMode(mode) {
   renderers.renderBookmarkMarkers();
 }
 
+/**
+ * EPUB表示モードの適用と保存
+ */
+async function applyEpubViewMode(mode) {
+  if (epubViewMode === mode) return;
+  epubViewMode = mode;
+  storage.setSettings({ epubViewMode: mode });
+
+  if (reader && reader.type === BOOK_TYPES.EPUB) {
+    // スクロールモード・ページめくりモードの切替時には再度パジネーションが必要になるため、
+    // 現在位置を保存してからリパジネーションを実行する。
+    showLoading();
+    try {
+      if (reader.handleResize) {
+        // 設定変更扱いとして再描画
+        await reader.handleResize();
+      }
+    } finally {
+      hideLoading();
+    }
+  }
+}
+
+/**
+ * テーマ適用
+ */
 
 
 async function pushCurrentBookSync() {
@@ -2275,6 +2327,7 @@ function setupEvents() {
     showSettings();
   });
 
+
   elements.menuSettings?.addEventListener('click', () => {
     showSettings();
   });
@@ -2454,7 +2507,9 @@ function setupEvents() {
     applyProgressDisplayMode(e.target.value);
   });
 
-
+  elements.settingsEpubViewMode?.addEventListener('change', (e) => {
+    applyEpubViewMode(e.target.value);
+  });
 
   elements.googleLoginButton?.addEventListener('click', () => {
     const authStatus = checkAuthStatus();
@@ -2611,6 +2666,24 @@ function setupEvents() {
     });
   });
 
+  // epub-scroll-mode 時の画面中央タップイベントの受け取り
+  window.addEventListener('epubScrollCenterClick', () => {
+    const isMenuOpen = elements.leftMenu?.classList.contains(UI_CLASSES.VISIBLE) ||
+      elements.progressBarPanel?.classList.contains(UI_CLASSES.VISIBLE);
+    if (isMenuOpen) {
+      if (typeof renderers !== 'undefined' && renderers.ui) {
+        renderers.ui.closeAllMenus();
+      } else {
+        elements.leftMenu?.classList.remove(UI_CLASSES.VISIBLE);
+        elements.progressBarPanel?.classList.remove(UI_CLASSES.VISIBLE);
+      }
+    } else {
+      // open menu (leftMenu and progressBarPanel)
+      // 既存のトグル処理を利用（ボタンの代行クリックなど）
+      elements.menuOpen?.click();
+    }
+  });
+
   // しおりメニューのバックドロップクリック
   elements.bookmarkMenu?.addEventListener('click', (e) => {
     // bookmarkMenuの直接クリック（背景部分）の場合は閉じる
@@ -2637,6 +2710,11 @@ function setupEvents() {
   wheelTarget?.addEventListener('wheel', (event) => {
     // ズーム中はページ送りをスキップ（documentレベルのズームハンドラに任せる）
     if (reader.isZoomMode()) {
+      return;
+    }
+
+    // EPUBのスクロールモード時はネイティブのスクロールを優先するため、ページめくりはしない
+    if (epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB) {
       return;
     }
 
@@ -2686,8 +2764,11 @@ function setupEvents() {
 
 
 
+    const isEpubScroll = epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB;
+
     switch (e.key) {
       case 'ArrowLeft':
+        if (isEpubScroll) return;
         if (pageDirection === READING_DIRECTIONS.RTL) {
           reader.next(); // 右開きの場合、左キーで次ページ
         } else {
@@ -2695,6 +2776,7 @@ function setupEvents() {
         }
         break;
       case 'ArrowRight':
+        if (isEpubScroll) return;
         if (pageDirection === READING_DIRECTIONS.RTL) {
           reader.prev(); // 右開きの場合、右キーで前ページ
         } else {
@@ -2702,9 +2784,11 @@ function setupEvents() {
         }
         break;
       case 'ArrowUp':
+        if (isEpubScroll) return;
         reader.prev();
         break;
       case 'ArrowDown':
+        if (isEpubScroll) return;
         reader.next();
         break;
       case 'Enter':

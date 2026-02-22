@@ -420,35 +420,48 @@ export class EpubPaginator {
       }
 
       const totalUnits = segments.length;
-      let startIndex = 0;
-      let pageCount = 0;
-      let safetyCounter = 0;
 
-      while (startIndex < totalUnits) {
-        this.ensureNotCancelled(run);
-        if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
-          break;
-        }
-        const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits, run);
-        const safeEndIndex = Math.max(endIndex, startIndex + 1);
-        const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
+      if (this.settings.epubViewMode === "scroll") {
+        const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
         const htmlFragment = serializeRange(range);
-
         this.pages.push({
           spineIndex,
-          withinSpineOffset: `s:${startIndex}`,
+          withinSpineOffset: `s:0`,
           htmlFragment,
           estimatedCharCount: htmlFragment.length
         });
-        this.pageStartIndexMap.push({ spineIndex, startIndex });
+        this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
+      } else {
+        let startIndex = 0;
+        let pageCount = 0;
+        let safetyCounter = 0;
 
-        if (safeEndIndex <= startIndex) {
-          startIndex += 1;
-        } else {
-          startIndex = safeEndIndex;
+        while (startIndex < totalUnits) {
+          this.ensureNotCancelled(run);
+          if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
+            break;
+          }
+          const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits, run);
+          const safeEndIndex = Math.max(endIndex, startIndex + 1);
+          const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
+          const htmlFragment = serializeRange(range);
+
+          this.pages.push({
+            spineIndex,
+            withinSpineOffset: `s:${startIndex}`,
+            htmlFragment,
+            estimatedCharCount: htmlFragment.length
+          });
+          this.pageStartIndexMap.push({ spineIndex, startIndex });
+
+          if (safeEndIndex <= startIndex) {
+            startIndex += 1;
+          } else {
+            startIndex = safeEndIndex;
+          }
+          pageCount += 1;
+          safetyCounter += 1;
         }
-        pageCount += 1;
-        safetyCounter += 1;
       }
       // チャプター1つ分が終わるたびに現在の状態を yield
       yield {
@@ -531,35 +544,48 @@ export class EpubPaginator {
       }
 
       const totalUnits = segments.length;
-      let startIndex = 0;
-      let pageCount = 0;
-      let safetyCounter = 0;
 
-      while (startIndex < totalUnits) {
-        this.ensureNotCancelled(run);
-        if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
-          break;
-        }
-        const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits, run);
-        const safeEndIndex = Math.max(endIndex, startIndex + 1);
-        const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
+      if (this.settings.epubViewMode === "scroll") {
+        const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
         const htmlFragment = serializeRange(range);
-
         this.pages.push({
           spineIndex,
-          withinSpineOffset: `s:${startIndex}`,
+          withinSpineOffset: `s:0`,
           htmlFragment,
           estimatedCharCount: htmlFragment.length
         });
-        this.pageStartIndexMap.push({ spineIndex, startIndex });
+        this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
+      } else {
+        let startIndex = 0;
+        let pageCount = 0;
+        let safetyCounter = 0;
 
-        if (safeEndIndex <= startIndex) {
-          startIndex += 1;
-        } else {
-          startIndex = safeEndIndex;
+        while (startIndex < totalUnits) {
+          this.ensureNotCancelled(run);
+          if (pageCount >= MAX_PAGES_PER_SPINE || safetyCounter > totalUnits + 5) {
+            break;
+          }
+          const endIndex = await this.findFittingEndIndex(segments, startIndex, totalUnits, run);
+          const safeEndIndex = Math.max(endIndex, startIndex + 1);
+          const range = createRangeFromSegmentIndices(segments, startIndex, safeEndIndex);
+          const htmlFragment = serializeRange(range);
+
+          this.pages.push({
+            spineIndex,
+            withinSpineOffset: `s:${startIndex}`,
+            htmlFragment,
+            estimatedCharCount: htmlFragment.length
+          });
+          this.pageStartIndexMap.push({ spineIndex, startIndex });
+
+          if (safeEndIndex <= startIndex) {
+            startIndex += 1;
+          } else {
+            startIndex = safeEndIndex;
+          }
+          pageCount += 1;
+          safetyCounter += 1;
         }
-        pageCount += 1;
-        safetyCounter += 1;
       }
     }
 

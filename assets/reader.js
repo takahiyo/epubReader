@@ -206,6 +206,7 @@ export class ReaderController {
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
     this.pageDirection = READING_DIRECTIONS.LTR;
+    this.epubViewMode = "paginated";
     this.preferredWritingMode = null;
     this.paginator = null;
     this.pagination = null;
@@ -243,6 +244,7 @@ export class ReaderController {
     // Bind global pan events
     this.bindPanEvents();
     this.bindZoomEvents();
+    this.bindEpubScrollEvents();
     this.setupZoomSlider();
   }
 
@@ -1239,6 +1241,54 @@ export class ReaderController {
     this.updateEpubTheme();
     this.injectImageZoom();
     this.updateProgressFromPagination(pagination.pages.length);
+
+    if (this.epubViewMode === "scroll" && this.pageContainer) {
+      this.injectScrollNavigationButtons(this.pageContainer, clampedIndex, pagination.pages.length);
+    }
+  }
+
+  injectScrollNavigationButtons(container, currentIndex, totalPages) {
+    const createButton = (textKey, defaultText, onClick) => {
+      const btn = document.createElement('button');
+      // window.t が存在すれば利用。なければ翻訳不可としてデフォルト文字列
+      btn.textContent = (typeof window.t === 'function') ? window.t(textKey) : defaultText;
+      btn.className = "epub-scroll-nav-btn";
+      btn.style.padding = "16px 32px";
+      btn.style.margin = "40px auto";
+      btn.style.display = "block";
+      btn.style.fontSize = "1rem";
+      btn.style.borderRadius = "24px";
+      btn.style.backgroundColor = "var(--theme-surface-2, rgba(128, 128, 128, 0.2))";
+      btn.style.color = "var(--theme-text-1, inherit)";
+      btn.style.border = "1px solid var(--theme-border, rgba(128, 128, 128, 0.5))";
+      btn.style.cursor = "pointer";
+      // 縦書き時は改行を防ぐ
+      btn.style.whiteSpace = "nowrap";
+
+      // 縦書きに対応するためのマージン調整
+      if (this.writingMode === WRITING_MODES.VERTICAL) {
+        btn.style.margin = "auto 40px";
+      }
+
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+
+    // 前の章へ
+    if (currentIndex > 0) {
+      const prevBtn = createButton('areaPagePrev', '前のページ', () => {
+        this.pageController.prev();
+      });
+      container.prepend(prevBtn);
+    }
+
+    // 次の章へ
+    if (currentIndex < totalPages - 1) {
+      const nextBtn = createButton('areaPageNext', '次のページ', () => {
+        this.pageController.next();
+      });
+      container.appendChild(nextBtn);
+    }
   }
 
   updateProgressFromPagination(totalPages) {
@@ -1473,6 +1523,7 @@ export class ReaderController {
         lineHeight: paginationMetrics.lineHeight,
         writingMode,
         padding: edgePadding,
+        epubViewMode: this.epubViewMode, // パジネーターにモードを渡す
       });
 
       // 以前のパジネーション実行があれば中断
@@ -2437,6 +2488,53 @@ export class ReaderController {
     } catch (error) {
       console.timeEnd('[applyReadingDirection] buildPagination');
       console.error("[Reader] Failed to apply reading direction:", error);
+    }
+  }
+
+  async applyEpubViewMode(mode) {
+    if (this.epubViewMode === mode) {
+      return;
+    }
+    this.epubViewMode = mode;
+    console.log(`[Reader] applyEpubViewMode: ${mode}`);
+
+    // UI クラスの切り替え
+    const container = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+    if (container) {
+      if (mode === "scroll") {
+        container.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
+      } else {
+        container.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+      }
+    }
+
+    if (this.type !== BOOK_TYPES.EPUB) {
+      return;
+    }
+
+    try {
+      // 現在の位置（ロケータ）を保存
+      const locator = this.getPageLocator(this.currentPageIndex);
+
+      // 実行中のパジネーションを中断
+      if (this.currentPaginationRun) {
+        this.currentPaginationRun.cancelled = true;
+      }
+      this.paginationPromise = null;
+      this.pagination = null;
+
+      // 再計算を実行
+      const pagination = await this.buildPagination();
+      if (pagination) {
+        // 位置の復元
+        if (locator) {
+          this.goToSegment(locator.spineIndex, locator.segmentIndex);
+        } else {
+          this.pageController.goTo(this.currentPageIndex);
+        }
+      }
+    } catch (error) {
+      console.error("[Reader] Failed to apply epub view mode:", error);
     }
   }
 

@@ -115,10 +115,15 @@
 - LAYER: なし
 - SPLIT: GROUP
 ===================================== */
-/* EPUBスクロールモード（縦書き・横書きともに縦スクロール） */
-.fullscreen-reader.epub-scroll .viewer {
-  overflow-y: auto;
-  overflow-x: hidden;
+/* EPUBスクロールモード */
+.fullscreen-reader.epub-scroll-mode .viewer {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.fullscreen-reader.epub-scroll-mode .viewer[style*="writing-mode: vertical-rl"] {
+  overflow-y: hidden !important;
+  overflow-x: auto !important;
 }
 
 
@@ -154,13 +159,13 @@
 
 /* =====================================
 [REF]
-- HTML: .fullscreen-reader.epub-scroll .click-overlay（スクロール時無効）
-- JS: .epub-scroll
-- STATE: .epub-scroll
+- HTML: .fullscreen-reader.epub-scroll-mode .click-overlay（スクロール時無効）
+- JS: .epub-scroll-mode
+- STATE: .epub-scroll-mode
 - LAYER: なし
 - SPLIT: GROUP
 ===================================== */
-.fullscreen-reader.epub-scroll .click-overlay {
-  display: none;
-  pointer-events: none;
+.fullscreen-reader.epub-scroll-mode .click-overlay {
+  display: none !important;
+  pointer-events: none !important;
 }

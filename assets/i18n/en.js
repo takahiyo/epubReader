@@ -70,6 +70,9 @@ export const UI_STRINGS_EN = Object.freeze({
   progressDisplayModeLabel: "Progress format",
   progressDisplayPage: "Pages",
   progressDisplayPercentage: "Percentage",
+  settingsEpubViewModeLabel: "EPUB View Mode",
+  epubViewModePaginated: "Paginated",
+  epubViewModeScroll: "Scroll (Seamless)",
   settingsLayoutDirectionRtl: "Right to Left (Vertical)",
   settingsLayoutDirectionLtr: "Left to Right (Horizontal)",
 
