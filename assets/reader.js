@@ -2370,9 +2370,21 @@ export class ReaderController {
     if (this.type !== BOOK_TYPES.EPUB) {
       return;
     }
+    // パジネーションをリセットして再計算
+    this.paginationPromise = null;
     this.pagination = null;
+
+    // 現在の位置（ロケータ）を保存
+    const locator = this.getPageLocator(this.currentPageIndex);
+
     await this.buildPagination();
-    this.pageController.goTo(this.currentPageIndex);
+
+    // 位置の復元
+    if (locator) {
+      this.goToSegment(locator.spineIndex, locator.segmentIndex);
+    } else {
+      this.pageController.goTo(this.currentPageIndex);
+    }
   }
 
   async applyReadingDirection(writingMode, pageDirection) {
@@ -2401,6 +2413,9 @@ export class ReaderController {
     try {
       console.log("[Reader] applyReadingDirection:", { writingMode, pageDirection });
 
+      // 現在の位置（ロケータ）を保存
+      const locator = this.getPageLocator(this.currentPageIndex);
+
       // 実行中のパジネーションを中断
       if (this.currentPaginationRun) {
         this.currentPaginationRun.cancelled = true;
@@ -2412,7 +2427,12 @@ export class ReaderController {
       const pagination = await this.buildPagination();
       console.timeEnd('[applyReadingDirection] buildPagination');
       if (pagination) {
-        this.pageController.goTo(this.currentPageIndex);
+        // 位置の復元
+        if (locator) {
+          this.goToSegment(locator.spineIndex, locator.segmentIndex);
+        } else {
+          this.pageController.goTo(this.currentPageIndex);
+        }
       }
     } catch (error) {
       console.timeEnd('[applyReadingDirection] buildPagination');
