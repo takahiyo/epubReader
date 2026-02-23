@@ -1244,11 +1244,21 @@ export class ReaderController {
       /(<img\s+[^>]*?)\bsrcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
       '$1data-srcset=$2$3$2'
     );
+    // SVGのimageタグのhref="..."を退避
+    safeHtml = safeHtml.replace(
+      /(<image\s+[^>]*?)\bhref\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      '$1data-href=$2$3$2'
+    );
+    // SVGのimageタグのxlink:href="..."を退避
+    safeHtml = safeHtml.replace(
+      /(<image\s+[^>]*?)\bxlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      '$1data-xlink-href=$2$3$2'
+    );
 
     this.pageContainer.innerHTML = safeHtml;
     // --- [修正終了] ---
 
-    this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
+    this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG).forEach((img) => {
       // 画面環境の95%を利用し、小さい画像は拡大する設定
       img.style.width = "95%";       // 横95%強制
       img.style.height = "95vh";     // 縦95%強制
@@ -1350,26 +1360,44 @@ export class ReaderController {
       images.map(async (img) => {
         const tagName = img.tagName.toLowerCase();
         const isSvgImage = tagName === BOOK_TYPES.IMAGE;
+
+        // SVG imageタグのフォールバック属性を取得
+        const svgFallbackHref = isSvgImage ? img.getAttribute("data-href") : null;
+        const svgFallbackXlinkHref = isSvgImage ? img.getAttribute("data-xlink-href") : null;
+
         const attrName = isSvgImage
-          ? (img.getAttribute("href") ? "href" : "xlink:href")
+          ? (img.getAttribute("href") || svgFallbackHref ? "href" : "xlink:href")
           : "src";
 
         // data-src もフォールバックとして取得
         const fallbackSrc = !isSvgImage
           ? (img.getAttribute("data-src") || img.getAttribute("data-original") || img.getAttribute("data-lazy-src"))
-          : null;
+          : (svgFallbackHref || svgFallbackXlinkHref);
+
         const src = img.getAttribute(attrName) || fallbackSrc;
 
         if (!src || src.startsWith("blob:")) return;
         try {
           const resolved = await this.resourceLoader(src, spineItem);
           if (resolved) {
-            img.setAttribute(attrName, resolved);
-            if (!isSvgImage && attrName !== "src") {
-              img.setAttribute("src", resolved);
+            if (isSvgImage) {
+              if (attrName === "xlink:href" || svgFallbackXlinkHref) {
+                img.setAttributeNS("http://www.w3.org/1999/xlink", "href", resolved);
+                img.setAttribute("xlink:href", resolved);
+              } else {
+                img.setAttribute("href", resolved);
+              }
+            } else {
+              img.setAttribute(attrName, resolved);
+              if (attrName !== "src") {
+                img.setAttribute("src", resolved);
+              }
             }
+
             // [追加] 解決できたら一時退避用の属性を削除
-            if (fallbackSrc) img.removeAttribute("data-src");
+            if (!isSvgImage && fallbackSrc) img.removeAttribute("data-src");
+            if (isSvgImage && svgFallbackHref) img.removeAttribute("data-href");
+            if (isSvgImage && svgFallbackXlinkHref) img.removeAttribute("data-xlink-href");
           }
           if (!isSvgImage) {
             // [修正] data-srcset にも対応
