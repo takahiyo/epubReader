@@ -314,7 +314,7 @@ export const DOM_SELECTORS = Object.freeze({
   FLOAT_PROGRESS: "#floatProgress",
   CLICK_EXCLUDE_MENU: ".left-menu, .progress-bar-panel, .bookmark-menu",
   CLICK_EXCLUDE_ALL:
-    ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgress",
+    ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgress, .epub-scroll-nav-btn",
   ZOOM_ALLOWED_TARGETS: "#toggleZoom, .zoom-slider-container",
   EPUB_PAGE: ".epub-page",
   SPREAD_CONTAINER: ".spread-container",

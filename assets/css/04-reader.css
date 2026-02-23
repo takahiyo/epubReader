@@ -176,3 +176,41 @@
   display: none !important;
   pointer-events: none !important;
 }
+
+/* =====================================
+[REF]
+- HTML: .epub-scroll-nav-group / .epub-scroll-nav-btn
+- JS: reader.js (injectScrollNavigationButtons)
+- STATE: epub-scroll-mode
+- LAYER: なし
+- SPLIT: COMPONENT
+===================================== */
+.epub-scroll-nav-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 32px auto;
+}
+
+.viewer[style*="writing-mode: vertical-rl"] .epub-scroll-nav-group {
+  flex-direction: row;
+  margin: auto 32px;
+}
+
+.epub-scroll-nav-btn {
+  padding: 12px 24px;
+  margin: 8px;
+  font-size: 1rem;
+  border-radius: 24px;
+  background-color: var(--theme-surface-2, rgba(128, 128, 128, 0.2));
+  color: var(--theme-text-1, inherit);
+  border: 1px solid var(--theme-border, rgba(128, 128, 128, 0.5));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.epub-scroll-nav-btn:hover {
+  opacity: 0.8;
+  background-color: var(--theme-surface-3, rgba(128, 128, 128, 0.3));
+}

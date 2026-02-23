@@ -853,13 +853,25 @@ export class ReaderController {
     }
     if (startLocation && typeof startLocation === "object") {
       const directLocator = startLocation.location;
-      const locator =
+      let locator = startLocation;
+
+      if (
         directLocator &&
-          typeof directLocator === "object" &&
-          typeof directLocator.spineIndex === "number" &&
-          typeof directLocator.segmentIndex === "number"
-          ? directLocator
-          : startLocation;
+        typeof directLocator === "object" &&
+        typeof directLocator.spineIndex === "number" &&
+        typeof directLocator.segmentIndex === "number"
+      ) {
+        locator = directLocator;
+      } else if (typeof directLocator === "string" && directLocator.includes(":")) {
+        // 文字列形式のCFI ("spineIndex:segmentIndex") をパース
+        const parts = directLocator.split(":");
+        const sp = parseInt(parts[0], 10);
+        const sg = parseInt(parts[1], 10);
+        if (!Number.isNaN(sp) && !Number.isNaN(sg)) {
+          locator = { spineIndex: sp, segmentIndex: sg };
+        }
+      }
+
       if (
         typeof locator.spineIndex === "number" &&
         typeof locator.segmentIndex === "number"
@@ -898,13 +910,22 @@ export class ReaderController {
         : null;
     }
     const directLocator = startLocation.location;
-    const locator =
+    let locator =
       directLocator &&
         typeof directLocator === "object" &&
         typeof directLocator.spineIndex === "number" &&
         typeof directLocator.segmentIndex === "number"
         ? directLocator
         : null;
+
+    if (!locator && typeof directLocator === "string" && directLocator.includes(":")) {
+      const parts = directLocator.split(":");
+      const sp = parseInt(parts[0], 10);
+      const sg = parseInt(parts[1], 10);
+      if (!Number.isNaN(sp) && !Number.isNaN(sg)) {
+        locator = { spineIndex: sp, segmentIndex: sg };
+      }
+    }
     if (locator) {
       const pageIndex = this.findPageContaining(
         locator.spineIndex,
@@ -1494,35 +1515,19 @@ export class ReaderController {
 
     const createButton = (textKey, defaultText, onClick) => {
       const btn = document.createElement('button');
-      // window.t が存在すれば利用。なければ翻訳不可としてデフォルト文字列
       btn.textContent = (typeof window.t === 'function') ? window.t(textKey) : defaultText;
       btn.className = "epub-scroll-nav-btn";
-      btn.style.padding = "12px 24px";
-      btn.style.margin = "8px"; // 横並びにするため個別のマージンを小さく
-      btn.style.fontSize = "1rem";
-      btn.style.borderRadius = "24px";
-      btn.style.backgroundColor = "var(--theme-surface-2, rgba(128, 128, 128, 0.2))";
-      btn.style.color = "var(--theme-text-1, inherit)";
-      btn.style.border = "1px solid var(--theme-border, rgba(128, 128, 128, 0.5))";
-      btn.style.cursor = "pointer";
-      btn.style.whiteSpace = "nowrap";
 
-      btn.addEventListener('click', onClick);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick(e);
+      });
       return btn;
     };
 
     const createButtonGroup = () => {
       const group = document.createElement('div');
       group.className = "epub-scroll-nav-group";
-      group.style.display = "flex";
-      group.style.justifyContent = "center";
-      group.style.alignItems = "center";
-      group.style.margin = "32px auto";
-      if (this.writingMode === WRITING_MODES.VERTICAL) {
-        // vertical-rl 環境では 'row' がインライン方向（上下方向）の配置となる
-        group.style.flexDirection = "row";
-        group.style.margin = "auto 32px";
-      }
       return group;
     };
 
