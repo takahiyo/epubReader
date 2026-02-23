@@ -1388,7 +1388,9 @@ function addBookmark() {
 // ========================================
 
 async function performSearch(query) {
+  console.log(`[Search] performSearch called target: "${query}"`);
   if (!query || !currentBookId || currentBookInfo?.type !== BOOK_TYPES.EPUB || !reader.book) {
+    console.warn("[Search] Aborting: Missing query, book ID, EPUB type, or reader.book");
     return [];
   }
 
@@ -1401,19 +1403,26 @@ async function performSearch(query) {
     const spine = reader.book.spine;
     const locations = reader.book.locations;
 
+    console.log(`[Search] Starting search across ${spine?.length || 0} spine items.`);
+
     // 各セクションを検索
     for (let i = 0; i < spine.length; i++) {
       const item = spine.get(i);
 
       try {
+        console.log(`[Search] Loading section ${i}: ${item.href}`);
         // セクションを読み込む
         await item.load(reader.book.load.bind(reader.book));
 
         const doc = item.document || item.contents?.document;
-        if (!doc) continue;
+        if (!doc) {
+          console.warn(`[Search] Skipping section ${i}: No document available.`);
+          continue;
+        }
 
         // テキストコンテンツを取得
         const textContent = doc.body?.textContent || '';
+        console.log(`[Search] Section ${i} text length: ${textContent.length}`);
 
         // 検索クエリが含まれているか確認（大文字小文字を区別しない）
         const lowerQuery = query.toLowerCase();
@@ -1481,13 +1490,14 @@ async function performSearch(query) {
         item.unload();
 
       } catch (error) {
-        console.warn(`Failed to search in section ${item.href}:`, error);
+        console.warn(`[Search] Failed to search in section ${item.href}:`, error);
       }
     }
 
+    console.log(`[Search] Search complete. Found ${searchResults.length} results.`);
     return searchResults;
   } catch (error) {
-    console.error('Search failed:', error);
+    console.error('[Search] Search processing failed entirely:', error);
     return [];
   }
 }
@@ -2637,7 +2647,7 @@ function setupEvents() {
     }
 
     const results = await performSearch(query);
-    renderSearchResults(results, query);
+    renderers.renderSearchResults(results, query);
   };
 
   elements.searchBtn?.addEventListener('click', executeSearch);

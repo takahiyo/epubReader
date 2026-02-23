@@ -957,7 +957,7 @@ export function renderSearchResults(results, query) {
     elements.searchResults.innerHTML = "";
 
     if (!results.length) {
-        elements.searchResults.textContent = tReplace("searchNoResults", { query });
+        elements.searchResults.textContent = tReplace("searchNoResults", { query }, _state.uiLanguage);
         return;
     }
 

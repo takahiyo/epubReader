@@ -1268,6 +1268,19 @@ export class ReaderController {
 
     if (this.epubViewMode === "scroll" && this.pageContainer) {
       this.injectScrollNavigationButtons(this.pageContainer, clampedIndex, pagination.pages.length);
+
+      // スクロール位置の初期化（前章のスクロール位置を引き継がないようにするため）
+      // DOMレンダリング直後のため、requestAnimationFrame で確実に行う
+      requestAnimationFrame(() => {
+        if (!this.viewer) return;
+        if (this.writingMode === WRITING_MODES.VERTICAL) {
+          // 縦書き（右から左）の場合、初期位置は「一番右」
+          this.viewer.scrollLeft = this.viewer.scrollWidth;
+        } else {
+          // 横書き（上から下）の場合、初期位置は「一番上」
+          this.viewer.scrollTop = 0;
+        }
+      });
     }
   }
 
