@@ -1947,9 +1947,9 @@ async function applyEpubViewMode(mode) {
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
     try {
-      if (reader.handleResize) {
+      if (reader.applyEpubViewMode) {
         // 設定変更扱いとして再描画
-        await reader.handleResize();
+        await reader.applyEpubViewMode(mode);
       }
     } finally {
       hideLoading();
@@ -2751,11 +2751,52 @@ function setupEvents() {
       return;
     }
 
-    if (event.deltaY > 0) {
+    // EPUBでスクロールモードの場合は、コンテナの端に到達しているか判定する
+    if (epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB && reader.viewer) {
+      const viewer = reader.viewer;
+      const isVertical = reader.writingMode === WRITING_MODES.VERTICAL;
+      const isRtl = pageDirection === READING_DIRECTIONS.RTL;
 
+      let isAtStart = false;
+      let isAtEnd = false;
+
+      // scrollLeft / scrollTop 等は小数点を含む場合があるため、余裕を持たせた判定(1px)を行う
+      if (isVertical) {
+        // 縦書き (通常右から左へスクロール)
+        if (isRtl) {
+          // scrollWidth - clientWidth が最大のスクロール量。初期位置は右端（scrollLeft === scrollWidth - clientWidth）
+          isAtStart = Math.ceil(viewer.scrollLeft) >= viewer.scrollWidth - viewer.clientWidth - 1;
+          isAtEnd = Math.floor(viewer.scrollLeft) <= 1;
+        } else {
+          isAtStart = Math.floor(viewer.scrollLeft) <= 1;
+          isAtEnd = Math.ceil(viewer.scrollLeft) >= viewer.scrollWidth - viewer.clientWidth - 1;
+        }
+      } else {
+        // 横書き (上から下へスクロール)
+        isAtStart = Math.floor(viewer.scrollTop) <= 1;
+        isAtEnd = Math.ceil(viewer.scrollTop) >= viewer.scrollHeight - viewer.clientHeight - 1;
+      }
+
+      const wheelDir = event.deltaY > 0 ? 1 : (event.deltaY < 0 ? -1 : 0);
+      if (wheelDir !== 0) {
+        // スロール開始位置で上（前）に戻ろうとした場合
+        if (wheelDir < 0 && isAtStart) {
+          reader.prev();
+          lastWheelTime = now;
+        }
+        // スクロール終端で下（次）に進もうとした場合
+        else if (wheelDir > 0 && isAtEnd) {
+          reader.next();
+          lastWheelTime = now;
+        }
+      }
+      return; // コンテナ端でなければネイティブスクロールに任せる
+    }
+
+    // 通常のページめくりモード
+    if (event.deltaY > 0) {
       reader.next();
     } else if (event.deltaY < 0) {
-
       reader.prev();
     }
 
@@ -2776,10 +2817,17 @@ function setupEvents() {
 
 
     const isEpubScroll = epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB;
+    const isVertical = reader && reader.writingMode === WRITING_MODES.VERTICAL;
+    const isRtl = pageDirection === READING_DIRECTIONS.RTL;
 
     switch (e.key) {
       case 'ArrowLeft':
-        if (isEpubScroll) return;
+        if (isEpubScroll && !isVertical) return; // 横書きのスクロールでは左右キーは無視
+        if (isEpubScroll && isVertical) {
+          // 縦書きスクロール時の左キー（通常は下のテキストへ＝次のページ方向）
+          // （ネイティブスクロールに任せるためデフォルトアクションを妨げない）
+          return;
+        }
         if (pageDirection === READING_DIRECTIONS.RTL) {
           reader.next(); // 右開きの場合、左キーで次ページ
         } else {
@@ -2787,7 +2835,10 @@ function setupEvents() {
         }
         break;
       case 'ArrowRight':
-        if (isEpubScroll) return;
+        if (isEpubScroll && !isVertical) return;
+        if (isEpubScroll && isVertical) {
+          return;
+        }
         if (pageDirection === READING_DIRECTIONS.RTL) {
           reader.prev(); // 右開きの場合、右キーで前ページ
         } else {
@@ -2795,11 +2846,13 @@ function setupEvents() {
         }
         break;
       case 'ArrowUp':
-        if (isEpubScroll) return;
+        if (isEpubScroll && isVertical) return; // 縦書きスクロール時は無視
+        if (isEpubScroll && !isVertical) return;
         reader.prev();
         break;
       case 'ArrowDown':
-        if (isEpubScroll) return;
+        if (isEpubScroll && isVertical) return;
+        if (isEpubScroll && !isVertical) return;
         reader.next();
         break;
       case 'Enter':

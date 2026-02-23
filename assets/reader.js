@@ -1279,16 +1279,30 @@ export class ReaderController {
     if (this.epubViewMode === "scroll" && this.pageContainer) {
       this.injectScrollNavigationButtons(this.pageContainer, clampedIndex, pagination.pages.length);
 
-      // スクロール位置の初期化（前章のスクロール位置を引き継がないようにするため）
+      // スクロール位置の初期化（前章からの遷移方向にしたがって位置を決定）
       // DOMレンダリング直後のため、requestAnimationFrame で確実に行う
       requestAnimationFrame(() => {
         if (!this.viewer) return;
+
+        const alignToEnd = this._scrollPositionOnNextRender === 'end';
+        this._scrollPositionOnNextRender = null; // リセット
+
         if (this.writingMode === WRITING_MODES.VERTICAL) {
-          // 縦書き（右から左）の場合、初期位置は「一番右」
-          this.viewer.scrollLeft = this.viewer.scrollWidth;
+          if (alignToEnd) {
+            // 前の章へ戻った場合、下（終了位置）に合わせる -> 左端
+            this.viewer.scrollLeft = 0;
+          } else {
+            // 右端（開始位置）
+            this.viewer.scrollLeft = this.viewer.scrollWidth;
+          }
         } else {
-          // 横書き（上から下）の場合、初期位置は「一番上」
-          this.viewer.scrollTop = 0;
+          if (alignToEnd) {
+            // 前の章へ戻った場合、下（終了位置）に合わせる
+            this.viewer.scrollTop = this.viewer.scrollHeight;
+          } else {
+            // 上端（開始位置）
+            this.viewer.scrollTop = 0;
+          }
         }
       });
     }
@@ -1309,10 +1323,8 @@ export class ReaderController {
       btn.style.color = "var(--theme-text-1, inherit)";
       btn.style.border = "1px solid var(--theme-border, rgba(128, 128, 128, 0.5))";
       btn.style.cursor = "pointer";
-      // 縦書き時は改行を防ぐ
       btn.style.whiteSpace = "nowrap";
 
-      // 縦書きに対応するためのマージン調整
       if (this.writingMode === WRITING_MODES.VERTICAL) {
         btn.style.margin = "auto 40px";
       }
@@ -1321,17 +1333,23 @@ export class ReaderController {
       return btn;
     };
 
-    // 前の章へ
+    // --- 上部（前のページ）のボタン ---
+    // 先頭ページでなければ常に表示
     if (currentIndex > 0) {
       const prevBtn = createButton('areaPagePrev', '前のページ', () => {
+        // 次のページの描画後にスクロール位置を最後尾にするフラグを立てて遷移
+        this._scrollPositionOnNextRender = 'end';
         this.pageController.prev();
       });
       container.prepend(prevBtn);
     }
 
-    // 次の章へ
+    // --- 下部（次のページ）のボタン ---
+    // 最終ページでなければ常に表示
     if (currentIndex < totalPages - 1) {
       const nextBtn = createButton('areaPageNext', '次のページ', () => {
+        // 通常の遷移は先頭から
+        this._scrollPositionOnNextRender = 'start';
         this.pageController.next();
       });
       container.appendChild(nextBtn);
@@ -2648,9 +2666,16 @@ export class ReaderController {
     if (!pagination?.pages?.length || !this.book) return;
     const coverUrl = await this.resolveCoverUrl();
     if (!coverUrl) return;
+    // imgタグのsrc属性を、renderEpubPageで使っている置換処理（とresolveImagesInRenderedPage）に
+    // 拾ってもらえるように data-src にする、もしくは isSvgImageの様に一時退避させます。
+    // 今回は他のページと同様のフローに乗せるため data-src を付与して初期化します。
+    // （すでにBlob URLの場合はそのまま src に入れた方が手堅いため判定します）
+    const isBlob = coverUrl.startsWith('blob:') || coverUrl.startsWith('data:');
+    const srcAttr = isBlob ? `src="${coverUrl}"` : `data-src="${coverUrl}" src="about:blank"`;
+
     const htmlFragment = `
       <div class="epub-cover">
-        <img src="${coverUrl}" alt="Cover" />
+        <img ${srcAttr} alt="Cover" />
       </div>
     `;
     pagination.pages.unshift({
