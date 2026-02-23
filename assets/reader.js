@@ -1411,24 +1411,25 @@ export class ReaderController {
     // HTML内の src/srcset を data-src/data-srcset に一時退避させて 404 を防ぐ
     let safeHtml = page.htmlFragment || "";
 
-    // src="..." を data-src="..." に置換 (blob: や data: で始まる解決済みパスは除外)
+    // src="..." を data-src="..." に置換 (blob: や data: で始まるもの、またはすでに data-src のものは除外)
+    // (?<=[\s"']) によって、直前が空白文字または引用符の場合のみに限定し data-src= の誤判定を防ぐ
     safeHtml = safeHtml.replace(
-      /(<img\s+[^>]*?)\bsrc\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      /(<img\s+[^>]*?)(?<=[\s"'])src\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
       '$1data-src=$2$3$2'
     );
     // srcset="..." を data-srcset="..." に置換
     safeHtml = safeHtml.replace(
-      /(<img\s+[^>]*?)\bsrcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      /(<img\s+[^>]*?)(?<=[\s"'])srcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
       '$1data-srcset=$2$3$2'
     );
-    // SVGのimageタグのhref="..."を退避
+    // SVGのimageタグのhref="..."を退避 (xlink:hrefなどに誤爆しないよう厳格化)
     safeHtml = safeHtml.replace(
-      /(<image\s+[^>]*?)\bhref\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      /(<image\s+[^>]*?)(?<=[\s"'])href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
       '$1data-href=$2$3$2'
     );
     // SVGのimageタグのxlink:href="..."を退避
     safeHtml = safeHtml.replace(
-      /(<image\s+[^>]*?)\bxlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+      /(<image\s+[^>]*?)(?<=[\s"'])xlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
       '$1data-xlink-href=$2$3$2'
     );
 
@@ -1687,6 +1688,11 @@ export class ReaderController {
     const { hPad, vPad } = this.getPaddings();
     const edgePadding = `${vPad}px ${hPad}px`; // CSS形式 (上下 左右)
 
+    let firstPageResolver;
+    this.firstPagePromise = new Promise(resolve => {
+      firstPageResolver = resolve;
+    });
+
     this.paginationPromise = (async () => {
       this.paginationComplete = false;
       const { hPad, vPad } = this.getPaddings();
@@ -1882,6 +1888,8 @@ export class ReaderController {
                       toc: this.toc,
                     });
                   }
+
+                  firstPageResolver(this.pagination);
                 } else {
                   // 2回目以降は現在のページがずれないように調整が必要な場合があるが、
                   // 基本的には pages が増えるだけなので、progress 表示などの更新を行う
@@ -1902,20 +1910,23 @@ export class ReaderController {
       // 中断チェック
       if (run.cancelled) return null;
 
+      if (!isFirstChapterDone) {
+        firstPageResolver(this.pagination);
+      }
+
       // 最終的な後処理（カバーページ追加など）
       await this.addCoverPageIfNeeded(this.pagination);
       this.pageController.setTotalPages(this.pagination.pages.length);
       this.paginationComplete = true;
       console.timeEnd('[buildPagination] total');
       console.log('[buildPagination] 完了 (pages:', this.pagination.pages.length, ')');
+
+      this.paginationPromise = null;
+      this.firstPagePromise = null;
       return this.pagination;
     })();
 
-    try {
-      return await this.paginationPromise;
-    } finally {
-      this.paginationPromise = null;
-    }
+    return this.firstPagePromise;
   }
 
   async openImageBook(file, startPage = 0, bookType = null) {
@@ -2718,6 +2729,7 @@ export class ReaderController {
       return;
     }
     // パジネーションをリセットして再計算
+    this.firstPagePromise = null;
     this.paginationPromise = null;
     this.pagination = null;
 
@@ -2767,6 +2779,7 @@ export class ReaderController {
       if (this.currentPaginationRun) {
         this.currentPaginationRun.cancelled = true;
       }
+      this.firstPagePromise = null;
       this.paginationPromise = null;
       this.pagination = null;
 
@@ -2816,6 +2829,7 @@ export class ReaderController {
       if (this.currentPaginationRun) {
         this.currentPaginationRun.cancelled = true;
       }
+      this.firstPagePromise = null;
       this.paginationPromise = null;
       this.pagination = null;
 
