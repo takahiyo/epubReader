@@ -252,6 +252,20 @@ export class ReaderController {
     if (!this.viewer) return;
 
     // epubScrollCenterClick の発火処理は ui.js 側と重複して二重トグルの原因となるため削除
+
+    // スクロールモード時の現在位置の保存（進捗更新）
+    let scrollTimeout;
+    this.viewer.addEventListener('scroll', () => {
+      // type が EPUB で、スクロールモードの場合のみ処理する
+      if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== "scroll" || !this.pagination) return;
+
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        if (!this.pagination || !this.pagination.pages) return;
+        // スクロール停止後500msで進捗・現在位置を計算し、onProgressコールバックを発火
+        this.updateProgressFromPagination(this.pagination.pages.length);
+      }, 500);
+    }, { passive: true });
   }
 
   getReaderMaxWidthValue() {
@@ -1149,6 +1163,15 @@ export class ReaderController {
     const pages = this.pagination?.pages ?? [];
     const page = pages[pageIndex];
     if (!page || page.spineIndex == null || page.spineIndex < 0) return null;
+
+    if (this.epubViewMode === "scroll" && this.pageContainer && this.currentPageIndex === pageIndex) {
+      // スクロールモードの場合、表示中のスクロール位置から現在見ているセグメントを逆算する
+      const segmentIndex = this._getCurrentScrollSegment(this.pageContainer);
+      if (segmentIndex !== null) {
+        return { spineIndex: page.spineIndex, segmentIndex };
+      }
+    }
+
     const segmentIndex = Number(String(page.withinSpineOffset).replace("s:", ""));
     if (Number.isNaN(segmentIndex)) return null;
     return { spineIndex: page.spineIndex, segmentIndex };
@@ -1185,17 +1208,18 @@ export class ReaderController {
   _scrollToPositionInDOM(container, segmentIndex, searchQuery) {
     if (!container) return;
 
+    let targetElement = null;
+
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {
       const found = this._findTextInDOM(container, searchQuery);
       if (found) {
-        found.scrollIntoView({ block: "center", behavior: "instant" });
-        return;
+        targetElement = found;
       }
     }
 
     // 方法2: セグメントインデックスで近似位置へスクロール（しおり等）
-    if (segmentIndex > 0) {
+    if (!targetElement && segmentIndex > 0) {
       const walker = document.createTreeWalker(
         container,
         NodeFilter.SHOW_TEXT,
@@ -1208,7 +1232,6 @@ export class ReaderController {
       );
 
       let currentSegment = 0;
-      let targetNode = null;
       let node = walker.nextNode();
 
       while (node) {
@@ -1216,19 +1239,84 @@ export class ReaderController {
         const length = text.length;
         const segmentsInNode = Math.ceil(length / TEXT_SEGMENT_STEP);
         if (currentSegment + segmentsInNode > segmentIndex) {
-          targetNode = node;
+          targetElement = node.parentElement || node;
           break;
         }
         currentSegment += segmentsInNode;
         node = walker.nextNode();
       }
+    }
 
-      if (targetNode) {
-        const scrollTarget = targetNode.parentElement || targetNode;
-        scrollTarget.scrollIntoView({ block: "center", behavior: "instant" });
-        return;
+    if (targetElement && targetElement.scrollIntoView) {
+      // ジャンプ先が画面の先頭行（右端 または 上端）に来るように調整
+      targetElement.scrollIntoView({ block: "start", inline: "start", behavior: "instant" });
+      this._scrollTargetNode = targetElement; // リサイズ時の位置維持用
+    } else {
+      this._scrollTargetNode = null;
+      // フォールバック：先頭へ
+      if (this.viewer) {
+        if (this.writingMode === WRITING_MODES.VERTICAL) {
+          this.viewer.scrollLeft = 0;
+        } else {
+          this.viewer.scrollTop = 0;
+        }
       }
     }
+  }
+
+  /**
+   * 現在のスクロール位置（viewport）に見えている先頭のセグメントインデックスを計算する
+   */
+  _getCurrentScrollSegment(container) {
+    if (!this.viewer || !container) return null;
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    let currentSegment = 0;
+    let node = walker.nextNode();
+    const viewerRect = this.viewer.getBoundingClientRect();
+    const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+
+    while (node) {
+      const parent = node.parentElement;
+      if (parent) {
+        const rect = parent.getBoundingClientRect();
+        let isVisible = false;
+
+        if (isVertical) {
+          // vertical-rl: 進行方向は右から左
+          // 要素がviewportの右端より左側にあり、左端より右側にある場合に表示中とみなす
+          if (rect.right >= viewerRect.left && rect.left <= viewerRect.right) {
+            isVisible = true;
+          }
+        } else {
+          // horizontal-tb: 進行方向は上から下
+          if (rect.bottom >= viewerRect.top && rect.top <= viewerRect.bottom) {
+            isVisible = true;
+          }
+        }
+
+        if (isVisible) {
+          return currentSegment;
+        }
+      }
+
+      const text = node.textContent || "";
+      const length = text.length;
+      currentSegment += Math.ceil(length / TEXT_SEGMENT_STEP);
+      node = walker.nextNode();
+    }
+
+    // 見つからなかった場合は0か最後のセグメントを返す
+    return currentSegment > 0 ? currentSegment - 1 : 0;
   }
 
   /**
@@ -1360,25 +1448,41 @@ export class ReaderController {
 
         if (pendingSegment != null && this.pageContainer) {
           this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery);
-          return;
-        }
-
-        const alignToEnd = this._scrollPositionOnNextRender === 'end';
-        this._scrollPositionOnNextRender = null; // リセット
-
-        if (this.writingMode === WRITING_MODES.VERTICAL) {
-          if (alignToEnd) {
-            this.viewer.scrollLeft = 0;
-          } else {
-            this.viewer.scrollLeft = this.viewer.scrollWidth;
-          }
         } else {
-          if (alignToEnd) {
-            this.viewer.scrollTop = this.viewer.scrollHeight;
+          this._scrollTargetNode = null;
+          const alignToEnd = this._scrollPositionOnNextRender === 'end';
+          this._scrollPositionOnNextRender = null; // リセット
+
+          if (this.writingMode === WRITING_MODES.VERTICAL) {
+            if (alignToEnd) {
+              // 縦書き（vertical-rl）の末尾は左端（モダンブラウザでは負の値）
+              this.viewer.scrollLeft = -this.viewer.scrollWidth;
+            } else {
+              // 縦書きの先頭は右端
+              this.viewer.scrollLeft = 0;
+            }
           } else {
-            this.viewer.scrollTop = 0;
+            if (alignToEnd) {
+              this.viewer.scrollTop = this.viewer.scrollHeight;
+            } else {
+              this.viewer.scrollTop = 0;
+            }
           }
         }
+
+        // 画像の遅延ロードなどでDOMサイズが変わったときにスクロール位置を維持する
+        if (this._resizeObserver) {
+          this._resizeObserver.disconnect();
+        }
+        this._resizeObserver = new ResizeObserver(() => {
+          if (!this.viewer) return;
+          if (this._scrollTargetNode) {
+            // ジャンプ先のノードがある場合はそのノードの位置を維持
+            this._scrollTargetNode.scrollIntoView({ block: "start", inline: "start", behavior: "instant" });
+          }
+          // alignToEnd/Startに基づく単純なリサイズ追従は、ユーザーが既にスクロールしている可能性があるためここでは行わない
+        });
+        this._resizeObserver.observe(this.pageContainer);
       });
     }
   }
