@@ -976,7 +976,8 @@ export function renderSearchResults(results, query) {
                     spineIndex: result.spineIndex,
                     segmentIndex: result.segmentIndex
                 },
-                cfi: result.cfi
+                cfi: result.cfi,
+                searchQuery: query
             });
         };
 

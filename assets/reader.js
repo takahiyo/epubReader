@@ -856,6 +856,11 @@ export class ReaderController {
           this.pagination?.pages ?? []
         );
         if (pageIndex >= 0) {
+          // スクロールモードではセグメント位置を保持してDOM内スクロールに使用
+          if (this.epubViewMode === "scroll" && locator.segmentIndex > 0) {
+            this._pendingScrollToSegment = locator.segmentIndex;
+            this._pendingScrollSearchQuery = startLocation.searchQuery || null;
+          }
           return pageIndex;
         }
       }
@@ -1158,85 +1163,93 @@ export class ReaderController {
     return { spineIndex: first.spineIndex, segmentIndex };
   }
 
-  goToSegment(spineIndex, segmentIndex) {
+  goToSegment(spineIndex, segmentIndex, searchQuery) {
     if (!this.pagination?.pages?.length) return;
     const pageIndex = this.findPageContaining(spineIndex, segmentIndex);
     if (pageIndex >= 0) {
-      // スクロールモードの場合、ページ遷移後にセグメント位置までDOMスクロールする
-      if (this.epubViewMode === "scroll" && segmentIndex > 0) {
+      // スクロールモードの場合、ページ遷移後に該当位置までDOMスクロールする
+      if (this.epubViewMode === "scroll") {
+        // 検索テキストがあればテキストベース、なければセグメントベースでスクロール
         this._pendingScrollToSegment = segmentIndex;
+        this._pendingScrollSearchQuery = searchQuery || null;
       }
       this.pageController.goTo(pageIndex);
     }
   }
 
   /**
-   * スクロールモード用: DOM内でセグメントインデックスに対応するテキスト位置を探し、
-   * そこまでビューアをスクロールする。
-   * セグメントは TEXT_SEGMENT_STEP（5文字）単位で区切られたテキストの単位。
+   * スクロールモード用: DOM内の指定位置までスクロールする。
+   * searchQueryがある場合は実際のテキストをDOM内で検索してピンポイントでスクロール。
+   * searchQueryがない場合はセグメントインデックスで近似位置へスクロール。
    */
-  _scrollToSegmentInDOM(container, segmentIndex) {
-    if (!container || segmentIndex <= 0) return;
+  _scrollToPositionInDOM(container, segmentIndex, searchQuery) {
+    if (!container) return;
 
-    // DOM内のテキストノードを走査してセグメントを再構築し、
-    // 目的のセグメントに対応するノードを見つける
-    const walker = document.createTreeWalker(
-      container,
-      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-      {
-        acceptNode: (node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
+    // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
+    if (searchQuery) {
+      const found = this._findTextInDOM(container, searchQuery);
+      if (found) {
+        found.scrollIntoView({ block: "center", behavior: "instant" });
+        return;
+      }
+    }
+
+    // 方法2: セグメントインデックスで近似位置へスクロール（しおり等）
+    if (segmentIndex > 0) {
+      const walker = document.createTreeWalker(
+        container,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node) => {
             if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
             return NodeFilter.FILTER_ACCEPT;
           }
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const tag = node.tagName?.toLowerCase();
-            if (tag === "img" || tag === "svg" || tag === "video" || tag === "iframe") {
-              return NodeFilter.FILTER_ACCEPT;
-            }
-          }
-          return NodeFilter.FILTER_SKIP;
         }
-      }
-    );
+      );
 
-    let currentSegment = 0;
-    let targetNode = null;
-    let node = walker.nextNode();
+      let currentSegment = 0;
+      let targetNode = null;
+      let node = walker.nextNode();
 
-    while (node) {
-      if (node.nodeType === Node.TEXT_NODE) {
+      while (node) {
         const text = node.textContent || "";
         const length = text.length;
-        let start = 0;
-        while (start < length) {
-          if (currentSegment === segmentIndex) {
-            targetNode = node;
-            break;
-          }
-          start = Math.min(length, start + TEXT_SEGMENT_STEP);
-          currentSegment++;
-        }
-        if (targetNode) break;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        if (currentSegment === segmentIndex) {
+        const segmentsInNode = Math.ceil(length / TEXT_SEGMENT_STEP);
+        if (currentSegment + segmentsInNode > segmentIndex) {
           targetNode = node;
           break;
         }
-        currentSegment++;
+        currentSegment += segmentsInNode;
+        node = walker.nextNode();
+      }
+
+      if (targetNode) {
+        const scrollTarget = targetNode.parentElement || targetNode;
+        scrollTarget.scrollIntoView({ block: "center", behavior: "instant" });
+        return;
+      }
+    }
+  }
+
+  /**
+   * DOM内で検索テキストを含む要素を見つける
+   */
+  _findTextInDOM(container, searchText) {
+    if (!container || !searchText) return null;
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+
+    let node = walker.nextNode();
+    while (node) {
+      if (node.textContent && node.textContent.includes(searchText)) {
+        return node.parentElement || node;
       }
       node = walker.nextNode();
     }
-
-    // 見つかったノードの親要素までスクロール
-    if (targetNode) {
-      const scrollTarget = targetNode.nodeType === Node.TEXT_NODE
-        ? targetNode.parentElement
-        : targetNode;
-      if (scrollTarget) {
-        scrollTarget.scrollIntoView({ block: "start", behavior: "instant" });
-      }
-    }
+    return null;
   }
 
   navigateToHref(href, fallbackSpineIndex = 0) {
@@ -1341,10 +1354,12 @@ export class ReaderController {
 
         // セグメント指定がある場合（検索・しおりジャンプ）、該当テキスト位置までスクロール
         const pendingSegment = this._pendingScrollToSegment;
+        const pendingSearchQuery = this._pendingScrollSearchQuery;
         this._pendingScrollToSegment = null;
+        this._pendingScrollSearchQuery = null;
 
-        if (pendingSegment != null && pendingSegment > 0 && this.pageContainer) {
-          this._scrollToSegmentInDOM(this.pageContainer, pendingSegment);
+        if (pendingSegment != null && this.pageContainer) {
+          this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery);
           return;
         }
 

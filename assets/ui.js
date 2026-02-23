@@ -524,10 +524,16 @@ export class UIController {
     }
     if (bookmarkMenu) bookmarkMenu.classList.remove(UI_CLASSES.VISIBLE);
 
-    // オーバーレイを再度有効化
+    // オーバーレイを再度有効化（スクロールモード時はCSSで無効化されているため除外）
     if (overlay) {
-      overlay.style.pointerEvents = 'all';
-      console.log('Re-enabled overlay pointer events');
+      const isScrollMode = document.querySelector('.fullscreen-reader.epub-scroll-mode');
+      if (!isScrollMode) {
+        overlay.style.pointerEvents = 'all';
+        console.log('Re-enabled overlay pointer events');
+      } else {
+        // スクロールモード時はインラインスタイルをクリアしてCSSに委任
+        overlay.style.pointerEvents = '';
+      }
     }
 
     this.onLeftMenu?.('hide');
