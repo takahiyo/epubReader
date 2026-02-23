@@ -971,7 +971,13 @@ export function renderSearchResults(results, query) {
 
         item.onclick = () => {
             if (_actions.closeAllMenus) _actions.closeAllMenus();
-            if (_reader) _reader.goTo(result.cfi);
+            if (_reader) _reader.goTo({
+                location: {
+                    spineIndex: result.spineIndex,
+                    segmentIndex: result.segmentIndex
+                },
+                cfi: result.cfi
+            });
         };
 
         item.appendChild(text);

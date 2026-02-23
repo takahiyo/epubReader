@@ -1314,17 +1314,20 @@ export class ReaderController {
       return btn;
     };
 
-    const createButtonGroup = () => {
+    const createButtonGroup = (isTop) => {
       const group = document.createElement('div');
       group.className = "epub-scroll-nav-group";
       group.style.display = "flex";
       group.style.justifyContent = "center";
       group.style.alignItems = "center";
-      group.style.margin = "32px auto";
+
+      // 上下（または左右）のボタングループに適切なマージンを設けてUI被りを防ぐ
       if (this.writingMode === WRITING_MODES.VERTICAL) {
         // vertical-rl 環境では 'row' がインライン方向（上下方向）の配置となる
         group.style.flexDirection = "row";
-        group.style.margin = "auto 32px";
+        group.style.margin = isTop ? "auto 80px auto 32px" : "auto 32px auto 80px";
+      } else {
+        group.style.margin = isTop ? "80px auto 32px auto" : "32px auto 80px auto";
       }
       return group;
     };
@@ -1347,7 +1350,7 @@ export class ReaderController {
     };
 
     // --- 上部（または右端）のボタングループ ---
-    const topGroup = createButtonGroup();
+    const topGroup = createButtonGroup(true);
     const topPrev = createPrevBtn();
     const topNext = createNextBtn();
     if (topPrev) topGroup.appendChild(topPrev);
@@ -1357,7 +1360,7 @@ export class ReaderController {
     }
 
     // --- 下部（または左端）のボタングループ ---
-    const bottomGroup = createButtonGroup();
+    const bottomGroup = createButtonGroup(false);
     const bottomPrev = createPrevBtn();
     const bottomNext = createNextBtn();
     if (bottomPrev) bottomGroup.appendChild(bottomPrev);
