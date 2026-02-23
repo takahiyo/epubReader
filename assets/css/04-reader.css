@@ -126,6 +126,13 @@
   overflow-x: auto !important;
 }
 
+/* スクロールモードでは click-overlay のイベント検知を無効化し、
+   ビューア内のナビゲーションボタンへクリックが透過するようにする。
+   M3（中央クリックでメニュー開閉）は document レベルの click リスナーで
+   検知しているため、引き続き動作する。 */
+.fullscreen-reader.epub-scroll-mode .click-overlay {
+  pointer-events: none;
+}
 
 /* =====================================
 [REF]

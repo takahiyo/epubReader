@@ -1162,7 +1162,80 @@ export class ReaderController {
     if (!this.pagination?.pages?.length) return;
     const pageIndex = this.findPageContaining(spineIndex, segmentIndex);
     if (pageIndex >= 0) {
+      // スクロールモードの場合、ページ遷移後にセグメント位置までDOMスクロールする
+      if (this.epubViewMode === "scroll" && segmentIndex > 0) {
+        this._pendingScrollToSegment = segmentIndex;
+      }
       this.pageController.goTo(pageIndex);
+    }
+  }
+
+  /**
+   * スクロールモード用: DOM内でセグメントインデックスに対応するテキスト位置を探し、
+   * そこまでビューアをスクロールする。
+   * セグメントは TEXT_SEGMENT_STEP（5文字）単位で区切られたテキストの単位。
+   */
+  _scrollToSegmentInDOM(container, segmentIndex) {
+    if (!container || segmentIndex <= 0) return;
+
+    // DOM内のテキストノードを走査してセグメントを再構築し、
+    // 目的のセグメントに対応するノードを見つける
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName?.toLowerCase();
+            if (tag === "img" || tag === "svg" || tag === "video" || tag === "iframe") {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+          return NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+
+    let currentSegment = 0;
+    let targetNode = null;
+    let node = walker.nextNode();
+
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || "";
+        const length = text.length;
+        let start = 0;
+        while (start < length) {
+          if (currentSegment === segmentIndex) {
+            targetNode = node;
+            break;
+          }
+          start = Math.min(length, start + TEXT_SEGMENT_STEP);
+          currentSegment++;
+        }
+        if (targetNode) break;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (currentSegment === segmentIndex) {
+          targetNode = node;
+          break;
+        }
+        currentSegment++;
+      }
+      node = walker.nextNode();
+    }
+
+    // 見つかったノードの親要素までスクロール
+    if (targetNode) {
+      const scrollTarget = targetNode.nodeType === Node.TEXT_NODE
+        ? targetNode.parentElement
+        : targetNode;
+      if (scrollTarget) {
+        scrollTarget.scrollIntoView({ block: "start", behavior: "instant" });
+      }
     }
   }
 
@@ -1266,23 +1339,28 @@ export class ReaderController {
       requestAnimationFrame(() => {
         if (!this.viewer) return;
 
+        // セグメント指定がある場合（検索・しおりジャンプ）、該当テキスト位置までスクロール
+        const pendingSegment = this._pendingScrollToSegment;
+        this._pendingScrollToSegment = null;
+
+        if (pendingSegment != null && pendingSegment > 0 && this.pageContainer) {
+          this._scrollToSegmentInDOM(this.pageContainer, pendingSegment);
+          return;
+        }
+
         const alignToEnd = this._scrollPositionOnNextRender === 'end';
         this._scrollPositionOnNextRender = null; // リセット
 
         if (this.writingMode === WRITING_MODES.VERTICAL) {
           if (alignToEnd) {
-            // 前の章へ戻った場合、下（終了位置）に合わせる -> 左端
             this.viewer.scrollLeft = 0;
           } else {
-            // 右端（開始位置）
             this.viewer.scrollLeft = this.viewer.scrollWidth;
           }
         } else {
           if (alignToEnd) {
-            // 前の章へ戻った場合、下（終了位置）に合わせる
             this.viewer.scrollTop = this.viewer.scrollHeight;
           } else {
-            // 上端（開始位置）
             this.viewer.scrollTop = 0;
           }
         }
@@ -1314,20 +1392,17 @@ export class ReaderController {
       return btn;
     };
 
-    const createButtonGroup = (isTop) => {
+    const createButtonGroup = () => {
       const group = document.createElement('div');
       group.className = "epub-scroll-nav-group";
       group.style.display = "flex";
       group.style.justifyContent = "center";
       group.style.alignItems = "center";
-
-      // 上下（または左右）のボタングループに適切なマージンを設けてUI被りを防ぐ
+      group.style.margin = "32px auto";
       if (this.writingMode === WRITING_MODES.VERTICAL) {
         // vertical-rl 環境では 'row' がインライン方向（上下方向）の配置となる
         group.style.flexDirection = "row";
-        group.style.margin = isTop ? "auto 80px auto 32px" : "auto 32px auto 80px";
-      } else {
-        group.style.margin = isTop ? "80px auto 32px auto" : "32px auto 80px auto";
+        group.style.margin = "auto 32px";
       }
       return group;
     };
@@ -1350,7 +1425,7 @@ export class ReaderController {
     };
 
     // --- 上部（または右端）のボタングループ ---
-    const topGroup = createButtonGroup(true);
+    const topGroup = createButtonGroup();
     const topPrev = createPrevBtn();
     const topNext = createNextBtn();
     if (topPrev) topGroup.appendChild(topPrev);
@@ -1360,7 +1435,7 @@ export class ReaderController {
     }
 
     // --- 下部（または左端）のボタングループ ---
-    const bottomGroup = createButtonGroup(false);
+    const bottomGroup = createButtonGroup();
     const bottomPrev = createPrevBtn();
     const bottomNext = createNextBtn();
     if (bottomPrev) bottomGroup.appendChild(bottomPrev);
