@@ -1007,14 +1007,51 @@ export class ReaderController {
       target.style.padding = `${edgePadding}px`;
     }
     target.style.lineHeight = `${lineHeight}`;
-    if (maxWidthValue) {
-      target.style.maxWidth = maxWidthValue;
-    } else {
+
+    const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+    const isScroll = this.epubViewMode === "scroll";
+
+    if (isVertical) {
+      target.style.margin = "auto 0";
+      if (maxWidthValue) {
+        target.style.maxHeight = maxWidthValue; // 縦書き時の1行の長さ制約はheight
+      } else {
+        target.style.removeProperty("max-height");
+      }
       target.style.removeProperty("max-width");
+
+      if (isScroll) {
+        target.style.height = "100%";
+        target.style.width = "max-content"; // 横スクロールするため無限に伸びる
+        target.style.minWidth = "100%";     // 最低でも画面幅は確保
+        target.style.minHeight = "0";
+      } else {
+        target.style.height = "100%";
+        target.style.width = "100%";
+        target.style.minWidth = "0";
+        target.style.minHeight = "0";
+      }
+    } else {
+      target.style.margin = "0 auto";
+      if (maxWidthValue) {
+        target.style.maxWidth = maxWidthValue;
+      } else {
+        target.style.removeProperty("max-width");
+      }
+      target.style.removeProperty("max-height");
+
+      if (isScroll) {
+        target.style.width = "100%";
+        target.style.height = "max-content"; // 縦スクロールするため無限に伸びる
+        target.style.minHeight = "100%";     // 最低でも画面高さは確保
+        target.style.minWidth = "0";
+      } else {
+        target.style.width = "100%";
+        target.style.height = "100%";
+        target.style.minHeight = "0";
+        target.style.minWidth = "0";
+      }
     }
-    target.style.margin = "0 auto";
-    target.style.width = "100%";
-    target.style.minHeight = "100%";
     target.style.boxSizing = "border-box";
   }
 
@@ -2854,13 +2891,19 @@ export class ReaderController {
     const writingMode = isVertical ? CSS_WRITING_MODES.VERTICAL : CSS_WRITING_MODES.HORIZONTAL;
     const textOrientation = isVertical ? "mixed" : "initial";
     const contentDirection = READING_DIRECTIONS.LTR;
-    const target = this.pageContainer || this.viewer;
-    if (!target) return;
-    target.style.setProperty("writing-mode", writingMode);
-    target.style.setProperty("text-orientation", textOrientation);
-    target.style.setProperty("direction", contentDirection);
-    target.style.setProperty("text-align", "start");
-    target.style.setProperty("text-align-last", "start");
+
+    // 両方に指定する（ビューアのスクロール方向CSSハックや全体レイアウト正常化用）
+    [this.viewer, this.pageContainer].forEach((target) => {
+      if (!target) return;
+      target.style.setProperty("writing-mode", writingMode);
+      // DOMの中身に影響する設定は pageContainer のみに限定
+      if (target === this.pageContainer) {
+        target.style.setProperty("text-orientation", textOrientation);
+        target.style.setProperty("direction", contentDirection);
+        target.style.setProperty("text-align", "start");
+        target.style.setProperty("text-align-last", "start");
+      }
+    });
   }
 
   updateEpubTheme() {
