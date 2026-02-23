@@ -11,6 +11,7 @@ import {
   DOM_SELECTORS,
   WRITING_MODES,
   READING_DIRECTIONS,
+  EPUB_VIEW_MODES,
 } from "./constants.js";
 
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等

@@ -19,6 +19,11 @@ export const DEVICE_COLOR_PALETTE = Object.freeze([
   "#fa8231",
 ]);
 
+export const EPUB_VIEW_MODES = Object.freeze({
+  PAGINATED: "paginated",
+  SCROLL: "scroll"
+});
+
 // ============================================
 // UI 初期設定
 // ============================================

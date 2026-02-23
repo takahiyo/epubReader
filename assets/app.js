@@ -71,6 +71,7 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let pendingCloudBookId = null;
 let theme = settings.theme ?? UI_DEFAULTS.theme;
+let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let writingMode = settings.writingMode;
 let pageDirection = settings.pageDirection;
 let bookmarkMenuMode = settings.bookmarkMenuMode ?? UI_DEFAULTS.bookmarkMenuMode;

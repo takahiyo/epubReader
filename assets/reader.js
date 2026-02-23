@@ -248,6 +248,30 @@ export class ReaderController {
     this.setupZoomSlider();
   }
 
+  bindEpubScrollEvents() {
+    if (!this.viewer) return;
+
+    this.viewer.addEventListener('click', (e) => {
+      if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== "scroll") return;
+
+      if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'button') {
+        return;
+      }
+
+      const rect = this.viewer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const isCenter = x > rect.width * 0.35 && x < rect.width * 0.65 &&
+        y > rect.height * 0.35 && y < rect.height * 0.65;
+
+      if (isCenter) {
+        const event = new CustomEvent('epubScrollCenterClick');
+        window.dispatchEvent(event);
+      }
+    });
+  }
+
   getReaderMaxWidthValue() {
     const root = document.documentElement;
     const cssValue = root
