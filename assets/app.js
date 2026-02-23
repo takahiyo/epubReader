@@ -1947,6 +1947,15 @@ async function applyEpubViewMode(mode) {
   storage.setSettings({ epubViewMode: mode });
 
   if (reader && reader.type === BOOK_TYPES.EPUB) {
+    // スクロールモード選択時は強制的に「横書き」にする
+    if (mode === 'scroll' && writingMode !== WRITING_MODES.HORIZONTAL) {
+      writingMode = WRITING_MODES.HORIZONTAL;
+      storage.setSettings({ writingMode });
+      if (elements.writingModeSelect) {
+        elements.writingModeSelect.value = writingMode;
+      }
+    }
+
     // スクロールモード・ページめくりモードの切替時には再度パジネーションが必要になるため、
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
@@ -1957,6 +1966,19 @@ async function applyEpubViewMode(mode) {
       }
     } finally {
       hideLoading();
+    }
+  }
+
+  // スクロールモード時は縦横切替ボタンを無効化
+  if (elements.toggleWritingMode) {
+    if (mode === 'scroll') {
+      elements.toggleWritingMode.classList.add('disabled');
+      elements.toggleWritingMode.style.opacity = '0.5';
+      elements.toggleWritingMode.style.cursor = 'not-allowed';
+    } else {
+      elements.toggleWritingMode.classList.remove('disabled');
+      elements.toggleWritingMode.style.opacity = '';
+      elements.toggleWritingMode.style.cursor = '';
     }
   }
 }
@@ -2363,6 +2385,12 @@ function setupEvents() {
   elements.langEn?.addEventListener('click', () => applyUiLanguage("en"));
 
   elements.toggleWritingMode?.addEventListener('click', async () => {
+    // スクロールモード中は「縦書き」への切り替えを禁止
+    if (epubViewMode === 'scroll') {
+      alert(t("verticalScrollDisabled") || "シームレススクロール中は横書き固定となります");
+      return;
+    }
+
     const nextMode =
       writingMode === WRITING_MODES.VERTICAL ? WRITING_MODES.HORIZONTAL : WRITING_MODES.VERTICAL;
     await applyReadingSettings(nextMode, null);
@@ -2506,6 +2534,11 @@ function setupEvents() {
   });
 
   elements.writingModeSelect?.addEventListener('change', async (e) => {
+    if (epubViewMode === 'scroll' && e.target.value === WRITING_MODES.VERTICAL) {
+      alert(t("verticalScrollDisabled") || "シームレススクロール中は横書き固定となります");
+      e.target.value = WRITING_MODES.HORIZONTAL;
+      return;
+    }
     await applyReadingSettings(e.target.value, null);
   });
 

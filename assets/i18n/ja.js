@@ -146,6 +146,7 @@ export const UI_STRINGS_JA = Object.freeze({
   // トグルボタン
   writingModeToggleVertical: "縦書き",
   writingModeToggleHorizontal: "横書き",
+  verticalScrollDisabled: "シームレススクロール中は横書き固定となります",
 
   // 同期プロンプト
   syncPromptTitle: "同期の確認",

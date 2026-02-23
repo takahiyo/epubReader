@@ -146,6 +146,7 @@ export const UI_STRINGS_EN = Object.freeze({
   // Toggle buttons
   writingModeToggleVertical: "V",
   writingModeToggleHorizontal: "H",
+  verticalScrollDisabled: "Writing mode is locked to horizontal during seamless scroll.",
 
   // Sync prompts
   syncPromptTitle: "Sync available",
