@@ -251,25 +251,7 @@ export class ReaderController {
   bindEpubScrollEvents() {
     if (!this.viewer) return;
 
-    this.viewer.addEventListener('click', (e) => {
-      if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== "scroll") return;
-
-      if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'button') {
-        return;
-      }
-
-      const rect = this.viewer.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      const isCenter = x > rect.width * 0.35 && x < rect.width * 0.65 &&
-        y > rect.height * 0.35 && y < rect.height * 0.65;
-
-      if (isCenter) {
-        const event = new CustomEvent('epubScrollCenterClick');
-        window.dispatchEvent(event);
-      }
-    });
+    // epubScrollCenterClick の発火処理は ui.js 側と重複して二重トグルの原因となるため削除
   }
 
   getReaderMaxWidthValue() {
@@ -1309,6 +1291,10 @@ export class ReaderController {
   }
 
   injectScrollNavigationButtons(container, currentIndex, totalPages) {
+    // 既存のボタンを削除（重複生成・二重発火を防止）
+    const existingGroups = container.querySelectorAll('.epub-scroll-nav-group, .epub-scroll-nav-btn');
+    existingGroups.forEach(el => el.remove());
+
     const createButton = (textKey, defaultText, onClick) => {
       const btn = document.createElement('button');
       // window.t が存在すれば利用。なければ翻訳不可としてデフォルト文字列

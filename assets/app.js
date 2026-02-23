@@ -512,21 +512,23 @@ const ui = new UIController({
   isFloatVisible: () => elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE),
 
   // 追加: 画像/見開き判定用
-  isImageBook: () => reader.type !== BOOK_TYPES.EPUB,
-  isSpreadMode: () => reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD,
+  isImageBook: () => Boolean(reader?.type === BOOK_TYPES.IMAGE_DIR || reader?.type === BOOK_TYPES.IMAGE_ARCHIVE),
+  isSpreadMode: () => Boolean(reader?.imageViewMode === IMAGE_VIEW_MODES.DOUBLE),
 
   getReadingDirection: () => {
     // EPUBの場合は pageDirection (ltr/rtl)
-    if (reader.type === BOOK_TYPES.EPUB) {
+    if (reader?.type === BOOK_TYPES.EPUB) {
       return pageDirection;
     }
     // 画像書庫の場合は reader.imageReadingDirection
-    return reader.imageReadingDirection;
+    return reader?.imageReadingDirection;
   },
 
   getWritingMode: () => {
     return writingMode;
   },
+
+  getEpubViewMode: () => epubViewMode,
 
   onFloatToggle: () => {
     renderers.toggleFloatOverlay();
@@ -1948,18 +1950,24 @@ async function applyEpubViewMode(mode) {
 
   if (reader && reader.type === BOOK_TYPES.EPUB) {
     // スクロールモード選択時は強制的に「横書き」にする
+    let needsWritingModeUpdate = false;
     if (mode === 'scroll' && writingMode !== WRITING_MODES.HORIZONTAL) {
       writingMode = WRITING_MODES.HORIZONTAL;
       storage.setSettings({ writingMode });
       if (elements.writingModeSelect) {
         elements.writingModeSelect.value = writingMode;
       }
+      needsWritingModeUpdate = true;
     }
 
     // スクロールモード・ページめくりモードの切替時には再度パジネーションが必要になるため、
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
     try {
+      if (needsWritingModeUpdate) {
+        // 設定変更扱いとして再描画し、クラス等も正常に更新
+        await applyReadingSettings(writingMode, null);
+      }
       if (reader.applyEpubViewMode) {
         // 設定変更扱いとして再描画
         await reader.applyEpubViewMode(mode);
@@ -2725,13 +2733,7 @@ function setupEvents() {
     });
   });
 
-  // epub-scroll-mode 時の画面中央タップイベントの受け取り
-  window.addEventListener('epubScrollCenterClick', () => {
-    // 中央クリック時はフローティングメニューをトグル表示する
-    if (typeof renderers !== 'undefined' && renderers.toggleFloatOverlay) {
-      renderers.toggleFloatOverlay();
-    }
-  });
+  // (※ epubScrollCenterClick のリスナーは二重トグルの原因となり削除済)
 
   // しおりメニューのバックドロップクリック
   elements.bookmarkMenu?.addEventListener('click', (e) => {

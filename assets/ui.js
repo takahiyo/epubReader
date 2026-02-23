@@ -55,6 +55,7 @@ export class UIController {
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
     this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
+    this.getEpubViewMode = options.getEpubViewMode || (() => 'paginated');
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -377,6 +378,12 @@ export class UIController {
     }
 
     // 横書き
+    if (this.epubViewMode === 'scroll') {
+      // シームレススクロール時はU3, B3等による全体タップページ送りを無効化
+      // (スクロール操作、または専用ボタンを使うため)
+      return;
+    }
+
     if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
       this.onPagePrev?.();
     } else if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
