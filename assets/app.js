@@ -524,6 +524,10 @@ const ui = new UIController({
     return reader.imageReadingDirection;
   },
 
+  getWritingMode: () => {
+    return writingMode;
+  },
+
   onFloatToggle: () => {
     renderers.toggleFloatOverlay();
   },
@@ -2274,8 +2278,10 @@ function setupEvents() {
 
   // メニューアクション
   if (elements.menuOpen) {
-    elements.menuOpen.addEventListener('click', () => {
+    elements.menuOpen.addEventListener('click', (e) => {
       console.log('[menuOpen] Clicked!');
+      e.stopPropagation();
+      e.preventDefault();
       openFileDialog();
     });
     console.log('[setupEvents] menuOpen listener attached');
@@ -2301,8 +2307,11 @@ function setupEvents() {
   }
 
   if (elements.menuBookmarks) {
-    elements.menuBookmarks.addEventListener('click', () => {
+    elements.menuBookmarks.addEventListener('click', (e) => {
       console.log('[menuBookmarks] Clicked!');
+      // イベントの伝播を防ぎ、背後の要素が誤認されるゴーストクリックを防止
+      e.stopPropagation();
+      e.preventDefault();
       showBookmarks();
     });
   }
@@ -2314,15 +2323,21 @@ function setupEvents() {
     });
   }
 
-  elements.floatOpen?.addEventListener('click', () => {
+  elements.floatOpen?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
     openFileDialog();
   });
 
-  elements.floatLibrary?.addEventListener('click', () => {
+  elements.floatLibrary?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
     showLibrary();
   });
 
-  elements.floatSearch?.addEventListener('click', () => {
+  elements.floatSearch?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
     showSearch();
   });
 
@@ -2679,19 +2694,9 @@ function setupEvents() {
 
   // epub-scroll-mode 時の画面中央タップイベントの受け取り
   window.addEventListener('epubScrollCenterClick', () => {
-    const isMenuOpen = elements.leftMenu?.classList.contains(UI_CLASSES.VISIBLE) ||
-      elements.progressBarPanel?.classList.contains(UI_CLASSES.VISIBLE);
-    if (isMenuOpen) {
-      if (typeof renderers !== 'undefined' && renderers.ui) {
-        renderers.ui.closeAllMenus();
-      } else {
-        elements.leftMenu?.classList.remove(UI_CLASSES.VISIBLE);
-        elements.progressBarPanel?.classList.remove(UI_CLASSES.VISIBLE);
-      }
-    } else {
-      // open menu (leftMenu and progressBarPanel)
-      // 既存のトグル処理を利用（ボタンの代行クリックなど）
-      elements.menuOpen?.click();
+    // 中央クリック時はフローティングメニューをトグル表示する
+    if (typeof renderers !== 'undefined' && renderers.toggleFloatOverlay) {
+      renderers.toggleFloatOverlay();
     }
   });
 
@@ -2759,38 +2764,69 @@ function setupEvents() {
 
       let isAtStart = false;
       let isAtEnd = false;
+      // scrollLeft / scrollTop 等は小数点を含む場合があるため、余裕を持たせた判定(5px)を行う
+      const threshold = 5;
 
-      // scrollLeft / scrollTop 等は小数点を含む場合があるため、余裕を持たせた判定(1px)を行う
       if (isVertical) {
-        // 縦書き (通常右から左へスクロール)
-        if (isRtl) {
-          // scrollWidth - clientWidth が最大のスクロール量。初期位置は右端（scrollLeft === scrollWidth - clientWidth）
-          isAtStart = Math.ceil(viewer.scrollLeft) >= viewer.scrollWidth - viewer.clientWidth - 1;
-          isAtEnd = Math.floor(viewer.scrollLeft) <= 1;
-        } else {
-          isAtStart = Math.floor(viewer.scrollLeft) <= 1;
-          isAtEnd = Math.ceil(viewer.scrollLeft) >= viewer.scrollWidth - viewer.clientWidth - 1;
+        // 縦書き
+        const scrollAbs = Math.abs(viewer.scrollLeft);
+        const maxScroll = Math.max(0, viewer.scrollWidth - viewer.clientWidth);
+
+        // writing-mode: vertical-rl の実装では scrollLeft が 0 の時が右端（開始）、そこから負に広がる
+        if (viewer.scrollLeft === 0 || scrollAbs <= threshold) {
+          isAtStart = true;
+        } else if (scrollAbs >= maxScroll - threshold) {
+          isAtEnd = true;
+        }
+
+        const wheelDir = event.deltaY > 0 ? 1 : (event.deltaY < 0 ? -1 : 0);
+
+        // コンテナ端でなければネイティブスクロール（横）に変換
+        if (wheelDir !== 0 && !isAtStart && !isAtEnd) {
+          event.preventDefault();
+          viewer.scrollBy({ left: -wheelDir * 60, behavior: 'auto' });
+          return;
+        } else if (wheelDir !== 0) {
+          // 端にいる場合でも、さらにその方向へスクロールしようとした時だけページ遷移、逆ならスクロール
+          if (wheelDir < 0) { // 上へ（前へ）
+            if (isAtStart) {
+              reader.prev();
+              lastWheelTime = now;
+            } else {
+              event.preventDefault();
+              viewer.scrollBy({ left: -wheelDir * 60, behavior: 'auto' });
+            }
+          } else if (wheelDir > 0) { // 下へ（次へ）
+            if (isAtEnd) {
+              reader.next();
+              lastWheelTime = now;
+            } else {
+              event.preventDefault();
+              viewer.scrollBy({ left: -wheelDir * 60, behavior: 'auto' });
+            }
+          }
+          return;
         }
       } else {
         // 横書き (上から下へスクロール)
-        isAtStart = Math.floor(viewer.scrollTop) <= 1;
-        isAtEnd = Math.ceil(viewer.scrollTop) >= viewer.scrollHeight - viewer.clientHeight - 1;
-      }
+        isAtStart = Math.floor(viewer.scrollTop) <= threshold;
+        isAtEnd = Math.ceil(viewer.scrollTop) >= viewer.scrollHeight - viewer.clientHeight - threshold;
 
-      const wheelDir = event.deltaY > 0 ? 1 : (event.deltaY < 0 ? -1 : 0);
-      if (wheelDir !== 0) {
-        // スロール開始位置で上（前）に戻ろうとした場合
-        if (wheelDir < 0 && isAtStart) {
-          reader.prev();
-          lastWheelTime = now;
+        const wheelDir = event.deltaY > 0 ? 1 : (event.deltaY < 0 ? -1 : 0);
+        if (wheelDir !== 0) {
+          // スロール開始位置で上（前）に戻ろうとした場合
+          if (wheelDir < 0 && isAtStart) {
+            reader.prev();
+            lastWheelTime = now;
+          }
+          // スクロール終端で下（次）に進もうとした場合
+          else if (wheelDir > 0 && isAtEnd) {
+            reader.next();
+            lastWheelTime = now;
+          }
         }
-        // スクロール終端で下（次）に進もうとした場合
-        else if (wheelDir > 0 && isAtEnd) {
-          reader.next();
-          lastWheelTime = now;
-        }
+        return; // コンテナ端でなければネイティブスクロールに任せる
       }
-      return; // コンテナ端でなければネイティブスクロールに任せる
     }
 
     // 通常のページめくりモード

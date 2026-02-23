@@ -1314,9 +1314,8 @@ export class ReaderController {
       // window.t が存在すれば利用。なければ翻訳不可としてデフォルト文字列
       btn.textContent = (typeof window.t === 'function') ? window.t(textKey) : defaultText;
       btn.className = "epub-scroll-nav-btn";
-      btn.style.padding = "16px 32px";
-      btn.style.margin = "40px auto";
-      btn.style.display = "block";
+      btn.style.padding = "12px 24px";
+      btn.style.margin = "8px"; // 横並びにするため個別のマージンを小さく
       btn.style.fontSize = "1rem";
       btn.style.borderRadius = "24px";
       btn.style.backgroundColor = "var(--theme-surface-2, rgba(128, 128, 128, 0.2))";
@@ -1325,34 +1324,60 @@ export class ReaderController {
       btn.style.cursor = "pointer";
       btn.style.whiteSpace = "nowrap";
 
-      if (this.writingMode === WRITING_MODES.VERTICAL) {
-        btn.style.margin = "auto 40px";
-      }
-
       btn.addEventListener('click', onClick);
       return btn;
     };
 
-    // --- 上部（前のページ）のボタン ---
-    // 先頭ページでなければ常に表示
-    if (currentIndex > 0) {
-      const prevBtn = createButton('areaPagePrev', '前のページ', () => {
-        // 次のページの描画後にスクロール位置を最後尾にするフラグを立てて遷移
+    const createButtonGroup = () => {
+      const group = document.createElement('div');
+      group.className = "epub-scroll-nav-group";
+      group.style.display = "flex";
+      group.style.justifyContent = "center";
+      group.style.alignItems = "center";
+      group.style.margin = "32px auto";
+      if (this.writingMode === WRITING_MODES.VERTICAL) {
+        // vertical-rl 環境では 'row' がインライン方向（上下方向）の配置となる
+        group.style.flexDirection = "row";
+        group.style.margin = "auto 32px";
+      }
+      return group;
+    };
+
+    // ボタンのインスタンス生成
+    const createPrevBtn = () => {
+      if (currentIndex <= 0) return null;
+      return createButton('areaPagePrev', '前のページ', () => {
         this._scrollPositionOnNextRender = 'end';
         this.pageController.prev();
       });
-      container.prepend(prevBtn);
-    }
+    };
 
-    // --- 下部（次のページ）のボタン ---
-    // 最終ページでなければ常に表示
-    if (currentIndex < totalPages - 1) {
-      const nextBtn = createButton('areaPageNext', '次のページ', () => {
-        // 通常の遷移は先頭から
+    const createNextBtn = () => {
+      if (currentIndex >= totalPages - 1) return null;
+      return createButton('areaPageNext', '次のページ', () => {
         this._scrollPositionOnNextRender = 'start';
         this.pageController.next();
       });
-      container.appendChild(nextBtn);
+    };
+
+    // --- 上部（または右端）のボタングループ ---
+    const topGroup = createButtonGroup();
+    const topPrev = createPrevBtn();
+    const topNext = createNextBtn();
+    if (topPrev) topGroup.appendChild(topPrev);
+    if (topNext) topGroup.appendChild(topNext);
+    if (topGroup.childNodes.length > 0) {
+      container.prepend(topGroup);
+    }
+
+    // --- 下部（または左端）のボタングループ ---
+    const bottomGroup = createButtonGroup();
+    const bottomPrev = createPrevBtn();
+    const bottomNext = createNextBtn();
+    if (bottomPrev) bottomGroup.appendChild(bottomPrev);
+    if (bottomNext) bottomGroup.appendChild(bottomNext);
+    if (bottomGroup.childNodes.length > 0) {
+      container.appendChild(bottomGroup);
     }
   }
 
