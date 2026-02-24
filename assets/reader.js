@@ -1193,18 +1193,21 @@ export class ReaderController {
       node = walker.nextNode();
     }
 
-    const lowerQuery = query.toLowerCase();
-    const lowerText = fullText.toLowerCase();
+    // 空白の差異を吸収するあいまい検索（正規表現を使用）
+    // getCurrentVisibleText は空白を正規化して返すため、
+    // 生テキスト内の改行や連続スペースとの差異を吸収する必要がある
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regexQuery = escapedQuery.replace(/\s+/g, '\\s+');
+    const searchRegex = new RegExp(regexQuery, 'gi');
     const matches = [];
-    let index = 0;
 
-    while (index < lowerText.length && matches.length < 5) {
-      const matchIndex = lowerText.indexOf(lowerQuery, index);
-      if (matchIndex === -1) break;
+    let regexMatch;
+    while ((regexMatch = searchRegex.exec(fullText)) !== null && matches.length < 5) {
+      const matchIndex = regexMatch.index;
 
       // 前後のコンテキストを取得（50文字ずつ）
       const start = Math.max(0, matchIndex - 50);
-      const end = Math.min(fullText.length, matchIndex + query.length + 50);
+      const end = Math.min(fullText.length, matchIndex + regexMatch[0].length + 50);
       let excerpt = fullText.substring(start, end);
       excerpt = excerpt.replace(/\s+/g, ' ').trim();
 
@@ -1222,8 +1225,6 @@ export class ReaderController {
         matchIndex,
         segmentIndex
       });
-
-      index = matchIndex + query.length;
     }
 
     return matches;
@@ -1447,7 +1448,12 @@ export class ReaderController {
    * 現在の画面上に表示されている先頭付近のテキストを取得する
    * （モード切替時などに一時保存し、再描画後にテキスト検索で元の位置へ復帰させるため）
    */
-  _getCurrentVisibleText() {
+  /**
+   * 現在画面内に表示されているテキストを取得する
+   * @param {number} maxLength 取得する最大文字数 (デフォルト50)
+   * @returns {string|null} 抽出されたテキスト
+   */
+  getCurrentVisibleText(maxLength = 50) {
     if (!this.viewer || !this.pageContainer) return null;
 
     const walker = document.createTreeWalker(
@@ -1455,6 +1461,11 @@ export class ReaderController {
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
       {
         acceptNode: (node) => {
+          // ナビボタンや UI 要素のテキストを除外する
+          const parent = node.parentElement || node;
+          if (parent?.closest?.('.epub-scroll-nav-btn, .epub-scroll-nav-group, .scroll-nav-area')) {
+            return NodeFilter.FILTER_REJECT;
+          }
           if (node.nodeType === Node.TEXT_NODE) {
             if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
             return NodeFilter.FILTER_ACCEPT;
@@ -1483,24 +1494,25 @@ export class ReaderController {
         const rect = parent.getBoundingClientRect();
         let isVisible = false;
 
-        if (isScrollMode) {
-          if (isVertical) {
-            if (rect.right >= viewerRect.left && rect.left <= viewerRect.right) {
-              isVisible = true;
-            }
-          } else {
-            if (rect.bottom >= viewerRect.top && rect.top <= viewerRect.bottom) {
-              isVisible = true;
-            }
+        // 共通の可視判定ロジック
+        if (isVertical) {
+          // 縦書き: 進行方向は右から左
+          if (rect.right >= viewerRect.left && rect.left <= viewerRect.right) {
+            isVisible = true;
           }
         } else {
-          isVisible = true;
+          // 横書き: 進行方向は上から下
+          if (rect.bottom >= viewerRect.top && rect.top <= viewerRect.bottom) {
+            isVisible = true;
+          }
         }
 
         if (isVisible && node.nodeType === Node.TEXT_NODE) {
-          textToFind += node.textContent;
-          // 記号や空白などを取り除いた文字数で十分にユニークな長さを確保
-          if (textToFind.replace(/\s+/g, '').length >= 30) {
+          // テキストを連結し、連続する空白を1つにまとめる
+          const cleanText = node.textContent.replace(/\s+/g, ' ');
+          textToFind += cleanText;
+
+          if (textToFind.length >= maxLength + 20) {
             break;
           }
         }
@@ -1508,7 +1520,10 @@ export class ReaderController {
       node = walker.nextNode();
     }
 
-    return textToFind ? textToFind.trim().substring(0, 50) : null;
+    if (!textToFind) return null;
+
+    // 最終的なクリーンアップ
+    return textToFind.trim().substring(0, maxLength);
   }
 
   /**
@@ -3072,7 +3087,7 @@ export class ReaderController {
 
     // 現在の位置情報をテキストとして事前に退避
     const currentSpineIndex = this.type === BOOK_TYPES.EPUB ? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex : null;
-    const visibleText = this.type === BOOK_TYPES.EPUB ? this._getCurrentVisibleText() : null;
+    const visibleText = this.type === BOOK_TYPES.EPUB ? this.getCurrentVisibleText(50) : null;
 
     if (pageDirection) {
       this.pageDirection = pageDirection;
@@ -3103,19 +3118,47 @@ export class ReaderController {
         this.pageContainer.innerHTML = "";
       }
 
-      // 再計算を開始
-      const pagination = await this.buildPagination();
+      // 再計算を開始（firstPagePromise = 最初のチャプター完了時に解決）
+      await this.buildPagination();
       if (typeof timerName !== 'undefined') console.timeEnd(timerName);
+
+      // 全チャプターのパジネーション完了を待ってから位置復元を行う
+      if (this.paginationPromise) {
+        console.log(`[位置復元デバッグ][applyReadingDirection] 全チャプター完了を待機中...`);
+        await this.paginationPromise;
+      }
+
+      const pagination = this.pagination;
       if (pagination) {
         // 退避したテキストでの位置復元
         let restored = false;
+        console.log(`[位置復元デバッグ][applyReadingDirection] ステップ1: 復元開始`, {
+          currentSpineIndex,
+          visibleText,
+          spineItemsLength: this.spineItems.length,
+          paginationPagesLength: pagination.pages?.length,
+        });
         if (currentSpineIndex != null) {
           if (visibleText) {
             const spineItem = this.spineItems[currentSpineIndex];
+            console.log(`[位置復元デバッグ][applyReadingDirection] ステップ2: 検索対象`, {
+              hasSpineItem: !!spineItem,
+              hasHtmlString: !!spineItem?.htmlString,
+              htmlStringLength: spineItem?.htmlString?.length,
+            });
             if (spineItem) {
               const query = visibleText.substring(0, 30);
               const matches = this.findSearchMatchesInSpine(spineItem, query);
+              console.log(`[位置復元デバッグ][applyReadingDirection] ステップ3: 検索結果`, {
+                query,
+                matchCount: matches?.length ?? 0,
+                firstMatch: matches?.[0] ?? null,
+              });
               if (matches && matches.length > 0) {
+                console.log(`[位置復元デバッグ][applyReadingDirection] ステップ4: ジャンプ実行`, {
+                  spineIndex: currentSpineIndex,
+                  segmentIndex: matches[0].segmentIndex,
+                });
                 this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
                 restored = true;
               }
@@ -3125,12 +3168,14 @@ export class ReaderController {
           // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
           // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
           if (!restored) {
+            console.log(`[位置復元デバッグ][applyReadingDirection] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
             this.goToSegment(currentSpineIndex, 0);
             restored = true;
           }
         }
 
         if (!restored) {
+          console.log(`[位置復元デバッグ][applyReadingDirection] 最終フォールバック: ページ0に移動`);
           this.pageController.goTo(this.currentPageIndex >= 0 ? this.currentPageIndex : 0);
         }
       }
@@ -3149,7 +3194,14 @@ export class ReaderController {
 
     // 現在の位置情報をテキストとして事前に退避
     const currentSpineIndex = this.type === BOOK_TYPES.EPUB ? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex : null;
-    const visibleText = this.type === BOOK_TYPES.EPUB ? this._getCurrentVisibleText() : null;
+    const visibleText = this.type === BOOK_TYPES.EPUB ? this.getCurrentVisibleText(50) : null;
+    console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ0: テキスト取得`, {
+      currentPageIndex: this.currentPageIndex,
+      currentSpineIndex,
+      visibleText,
+      hasPageContainer: !!this.pageContainer,
+      hasViewer: !!this.viewer,
+    });
 
     this.epubViewMode = mode;
 
@@ -3187,18 +3239,49 @@ export class ReaderController {
         this.pageContainer.innerHTML = "";
       }
 
-      // 再計算を実行
-      const pagination = await this.buildPagination();
+      // 再計算を実行（firstPagePromise = 最初のチャプター完了時に解決）
+      await this.buildPagination();
+
+      // 全チャプターのパジネーション完了を待ってから位置復元を行う
+      // buildPagination は firstPagePromise（最初のチャプター完了）を返すため、
+      // spineItems にはまだ全データが揃っていない。
+      // paginationPromise は全チャプター完了で解決される。
+      if (this.paginationPromise) {
+        console.log(`[位置復元デバッグ][applyEpubViewMode] 全チャプター完了を待機中...`);
+        await this.paginationPromise;
+      }
+
+      const pagination = this.pagination;
       if (pagination) {
         // 退避したテキストでの位置復元
         let restored = false;
+        console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ1: 復元開始`, {
+          currentSpineIndex,
+          visibleText,
+          spineItemsLength: this.spineItems.length,
+          paginationPagesLength: pagination.pages?.length,
+        });
         if (currentSpineIndex != null) {
           if (visibleText) {
             const spineItem = this.spineItems[currentSpineIndex];
+            console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ2: 検索対象`, {
+              hasSpineItem: !!spineItem,
+              hasHtmlString: !!spineItem?.htmlString,
+              htmlStringLength: spineItem?.htmlString?.length,
+            });
             if (spineItem) {
               const query = visibleText.substring(0, 30);
               const matches = this.findSearchMatchesInSpine(spineItem, query);
+              console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ3: 検索結果`, {
+                query,
+                matchCount: matches?.length ?? 0,
+                firstMatch: matches?.[0] ?? null,
+              });
               if (matches && matches.length > 0) {
+                console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ4: ジャンプ実行`, {
+                  spineIndex: currentSpineIndex,
+                  segmentIndex: matches[0].segmentIndex,
+                });
                 this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
                 restored = true;
               }
@@ -3208,12 +3291,14 @@ export class ReaderController {
           // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
           // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
           if (!restored) {
+            console.log(`[位置復元デバッグ][applyEpubViewMode] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
             this.goToSegment(currentSpineIndex, 0);
             restored = true;
           }
         }
 
         if (!restored) {
+          console.log(`[位置復元デバッグ][applyEpubViewMode] 最終フォールバック: ページ0に移動`);
           this.pageController.goTo(this.currentPageIndex >= 0 ? this.currentPageIndex : 0);
         }
       }
