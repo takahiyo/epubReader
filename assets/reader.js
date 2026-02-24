@@ -1140,14 +1140,12 @@ export class ReaderController {
     return index >= 0 ? index : 0;
   }
 
-  computeSegmentIndexForTextOffset(htmlString, targetOffset) {
-    if (!htmlString || typeof targetOffset !== "number" || targetOffset < 0) return 0;
+  findSearchMatchesInSpine(spineItem, query) {
+    if (!spineItem || !spineItem.htmlString || !query) return [];
 
-    const doc = new DOMParser().parseFromString(htmlString, "text/html");
-    const body = doc.body;
-    const segments = [];
+    const doc = new DOMParser().parseFromString(spineItem.htmlString, "text/html");
     const walker = doc.createTreeWalker(
-      body,
+      doc.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
       {
         acceptNode: (node) => {
@@ -1166,43 +1164,69 @@ export class ReaderController {
       }
     );
 
-    let textOffset = 0;
+    let currentSegment = 0;
     let node = walker.nextNode();
+    const segments = [];
+
+    // ツリーを走査し、テキスト全体をつなぎ合わせた文字列を構築するとともに、
+    // セグメント位置情報をマッピングする
+    let fullText = "";
+
     while (node) {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || "";
         const length = text.length;
-        let start = 0;
-        while (start < length) {
-          const end = Math.min(length, start + TEXT_SEGMENT_STEP);
-          segments.push({
-            type: "text",
-            node,
-            start,
-            end,
-            globalStart: textOffset + start,
-            globalEnd: textOffset + end
-          });
-          start = end;
-        }
-        textOffset += length;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        segments.push({ type: "element", node });
+
+        segments.push({
+          type: "text",
+          startCharOffset: fullText.length,
+          endCharOffset: fullText.length + length,
+          segmentIndexStart: currentSegment
+        });
+
+        fullText += text;
+        currentSegment += Math.ceil(length / TEXT_SEGMENT_STEP);
+      } else {
+        // 画像等はテキストには追加されないが、セグメントを1つ消費する
+        currentSegment += 1;
       }
       node = walker.nextNode();
     }
 
-    if (!segments.length) return 0;
+    const lowerQuery = query.toLowerCase();
+    const lowerText = fullText.toLowerCase();
+    const matches = [];
+    let index = 0;
 
-    const index = segments.findIndex(
-      (segment) =>
-        segment.type === "text" &&
-        targetOffset >= segment.globalStart &&
-        targetOffset < segment.globalEnd
-    );
-    if (index >= 0) return index;
-    if (targetOffset >= textOffset) return segments.length - 1;
-    return 0;
+    while (index < lowerText.length && matches.length < 5) {
+      const matchIndex = lowerText.indexOf(lowerQuery, index);
+      if (matchIndex === -1) break;
+
+      // 前後のコンテキストを取得（50文字ずつ）
+      const start = Math.max(0, matchIndex - 50);
+      const end = Math.min(fullText.length, matchIndex + query.length + 50);
+      let excerpt = fullText.substring(start, end);
+      excerpt = excerpt.replace(/\s+/g, ' ').trim();
+
+      // matchIndex が属する segments を探す
+      const segment = segments.find(seg => matchIndex >= seg.startCharOffset && matchIndex < seg.endCharOffset);
+      let segmentIndex = 0;
+      if (segment) {
+        // セグメント内の文字オフセット
+        const offsetInTextNode = matchIndex - segment.startCharOffset;
+        segmentIndex = segment.segmentIndexStart + Math.floor(offsetInTextNode / TEXT_SEGMENT_STEP);
+      }
+
+      matches.push({
+        excerpt,
+        matchIndex,
+        segmentIndex
+      });
+
+      index = matchIndex + query.length;
+    }
+
+    return matches;
   }
 
   findPageContaining(spineIndex, segmentIndex, pages = this.pagination?.pages ?? []) {
@@ -1357,11 +1381,20 @@ export class ReaderController {
     if (!this.viewer || !container) return null;
     const walker = document.createTreeWalker(
       container,
-      NodeFilter.SHOW_TEXT,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
       {
         acceptNode: (node) => {
-          if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName?.toLowerCase();
+            if (tag === "img" || tag === "svg" || tag === "video" || tag === "iframe") {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+          return NodeFilter.FILTER_SKIP;
         }
       }
     );
@@ -1372,7 +1405,7 @@ export class ReaderController {
     const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
 
     while (node) {
-      const parent = node.parentElement;
+      const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
       if (parent) {
         const rect = parent.getBoundingClientRect();
         let isVisible = false;
@@ -1395,9 +1428,13 @@ export class ReaderController {
         }
       }
 
-      const text = node.textContent || "";
-      const length = text.length;
-      currentSegment += Math.ceil(length / TEXT_SEGMENT_STEP);
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || "";
+        const length = text.length;
+        currentSegment += Math.ceil(length / TEXT_SEGMENT_STEP);
+      } else {
+        currentSegment += 1;
+      }
       node = walker.nextNode();
     }
 
@@ -2965,6 +3002,10 @@ export class ReaderController {
       { current: { wm: this.writingMode, pd: this.pageDirection }, requested: { wm: writingMode, pd: pageDirection } });
     console.time('[applyReadingDirection] buildPagination');
 
+    // 現在の位置（ロケータ）を事前に保存
+    // 注意: writingModeやepubViewModeを変更する前に保存する必要がある。
+    const locator = this.type === BOOK_TYPES.EPUB ? this.getPageLocator(this.currentPageIndex) : null;
+
     if (pageDirection) {
       this.pageDirection = pageDirection;
     }
@@ -2979,9 +3020,6 @@ export class ReaderController {
 
     try {
       console.log("[Reader] applyReadingDirection:", { writingMode, pageDirection });
-
-      // 現在の位置（ロケータ）を保存
-      const locator = this.getPageLocator(this.currentPageIndex);
 
       // 実行中のパジネーションを中断
       if (this.currentPaginationRun) {
@@ -3016,6 +3054,15 @@ export class ReaderController {
 
   async applyEpubViewMode(mode, force = false) {
     const prevMode = this.epubViewMode;
+
+    if (!force && prevMode === mode && (this.pagination || this.type !== BOOK_TYPES.EPUB)) {
+      return;
+    }
+
+    // 現在の位置（ロケータ）を事前に保存
+    // 注意: epubViewModeを変更する前に保存する必要がある。
+    const locator = this.type === BOOK_TYPES.EPUB ? this.getPageLocator(this.currentPageIndex) : null;
+
     this.epubViewMode = mode;
 
     // UI クラスの切り替えは常に実行（クラスが外れている可能性を考慮）
@@ -3031,9 +3078,6 @@ export class ReaderController {
       }
     }
 
-    if (!force && prevMode === mode && (this.pagination || this.type !== BOOK_TYPES.EPUB)) {
-      return;
-    }
     console.log(`[Reader] applyEpubViewMode: ${mode} (force=${force})`);
 
     if (this.type !== BOOK_TYPES.EPUB) {
@@ -3041,9 +3085,6 @@ export class ReaderController {
     }
 
     try {
-      // 現在の位置（ロケータ）を保存
-      const locator = this.getPageLocator(this.currentPageIndex);
-
       // 実行中のパジネーションを中断
       if (this.currentPaginationRun) {
         this.currentPaginationRun.cancelled = true;

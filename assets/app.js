@@ -1447,70 +1447,40 @@ async function performSearch(query) {
           continue;
         }
 
-        // テキストコンテンツを取得
-        const textContent = doc.body?.textContent || '';
-        console.log(`[Search] Section ${i} text length: ${textContent.length}`);
+        // リーダー側のテキスト全抽出・セグメント計算機能を使用
+        const spineItem = reader.spineItems?.[i];
+        if (!spineItem) {
+          item.unload();
+          continue;
+        }
 
-        // 検索クエリが含まれているか確認（大文字小文字を区別しない）
-        const lowerQuery = query.toLowerCase();
-        const lowerText = textContent.toLowerCase();
+        const matches = reader.findSearchMatchesInSpine(spineItem, query);
 
-        if (lowerText.includes(lowerQuery)) {
-          // マッチした位置を全て取得
-          let index = 0;
-          const matches = [];
+        // 結果を追加
+        for (const match of matches) {
+          // CFIを生成（セクションの開始位置を使用）
+          const cfi = item.cfiBase;
 
-          while (index < lowerText.length && matches.length < 5) { // 各セクションで最大5件
-            const matchIndex = lowerText.indexOf(lowerQuery, index);
-            if (matchIndex === -1) break;
-
-            // 前後のコンテキストを取得（50文字ずつ）
-            const start = Math.max(0, matchIndex - 50);
-            const end = Math.min(textContent.length, matchIndex + query.length + 50);
-            let excerpt = textContent.substring(start, end);
-
-            // 改行を削除して整形
-            excerpt = excerpt.replace(/\s+/g, ' ').trim();
-
-            matches.push({
-              excerpt,
-              matchIndex,
-            });
-
-            index = matchIndex + query.length;
+          // パーセンテージを計算
+          let percentage = 0;
+          if (locations && locations.length > 0) {
+            const sectionPercentage = locations.percentageFromCfi(cfi);
+            percentage = Math.round(sectionPercentage * 100);
+          } else {
+            // locationsが利用できない場合は、spine内の位置で概算
+            percentage = Math.round((i / spine.length) * 100);
           }
 
-          // 結果を追加
-          for (const match of matches) {
-            // CFIを生成（セクションの開始位置を使用）
-            const cfi = item.cfiBase;
-            const spineItem = reader.spineItems?.[i];
-            const segmentIndex = reader.computeSegmentIndexForTextOffset(
-              spineItem?.htmlString,
-              match.matchIndex
-            );
-
-            // パーセンテージを計算
-            let percentage = 0;
-            if (locations && locations.length > 0) {
-              const sectionPercentage = locations.percentageFromCfi(cfi);
-              percentage = Math.round(sectionPercentage * 100);
-            } else {
-              // locationsが利用できない場合は、spine内の位置で概算
-              percentage = Math.round((i / spine.length) * 100);
-            }
-
-            searchResults.push({
-              cfi,
-              excerpt: match.excerpt,
-              query,
-              sectionLabel: item.href,
-              percentage,
-              sectionIndex: i,
-              spineIndex: i,
-              segmentIndex,
-            });
-          }
+          searchResults.push({
+            cfi,
+            excerpt: match.excerpt,
+            query,
+            sectionLabel: item.href,
+            percentage,
+            sectionIndex: i,
+            spineIndex: i,
+            segmentIndex: match.segmentIndex,
+          });
         }
 
         // メモリリークを防ぐためにセクションをアンロード
