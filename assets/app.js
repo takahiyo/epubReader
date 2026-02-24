@@ -1329,9 +1329,9 @@ async function handleBookReady(payload) {
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
       if (elements.settingsEpubViewMode) elements.settingsEpubViewMode.value = epubViewMode;
 
-      // 初期化時の状態適用
+      // 初期化時の状態適用 (リーダー側ではパジネーションはすでに走っているため ignoreReaderUpdate = true)
       await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
-      await applyEpubViewMode(epubViewMode, true);
+      await applyEpubViewMode(epubViewMode, false, true);
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新

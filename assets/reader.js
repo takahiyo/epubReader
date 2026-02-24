@@ -837,7 +837,9 @@ export class ReaderController {
         throw new Error("EPUBのページ分割に失敗しました。");
       }
 
-      const startPage = this.resolveStartPageIndex(startLocation, pagination.pages.length);
+      // テキストベースの位置解決を優先するため、resolveStartPageIndexIfReady を使用する
+      const resolvedPage = this.resolveStartPageIndexIfReady(startLocation, pagination.pages.length);
+      const startPage = resolvedPage !== null ? resolvedPage : this.resolveStartPageIndex(startLocation, pagination.pages.length);
       this.pageController.setTotalPages(pagination.pages.length);
       this.pageController.goTo(startPage);
 
@@ -3284,6 +3286,20 @@ export class ReaderController {
 
   async applyEpubViewMode(mode, force = false) {
     const prevMode = this.epubViewMode;
+    this.epubViewMode = mode;
+
+    // UI クラスの切り替えは初期化時(早期リターン時)にも確実に効かせるため先に行う
+    const container = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+    if (container) {
+      if (mode === "scroll") {
+        container.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
+        // スクロールモードインジケーター用
+        container.classList.add('show-mode-indicator');
+      } else {
+        container.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        container.classList.remove('show-mode-indicator');
+      }
+    }
 
     if (!force && prevMode === mode && (this.pagination || this.type !== BOOK_TYPES.EPUB)) {
       return;
@@ -3299,21 +3315,6 @@ export class ReaderController {
       hasPageContainer: !!this.pageContainer,
       hasViewer: !!this.viewer,
     });
-
-    this.epubViewMode = mode;
-
-    // UI クラスの切り替えは常に実行（クラスが外れている可能性を考慮）
-    const container = document.getElementById(DOM_IDS.FULLSCREEN_READER);
-    if (container) {
-      if (mode === "scroll") {
-        container.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
-        // スクロールモードインジケーター用
-        container.classList.add('show-mode-indicator');
-      } else {
-        container.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
-        container.classList.remove('show-mode-indicator');
-      }
-    }
 
     console.log(`[Reader] applyEpubViewMode: ${mode} (force=${force})`);
 
