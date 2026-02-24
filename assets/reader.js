@@ -254,18 +254,23 @@ export class ReaderController {
     // epubScrollCenterClick の発火処理は ui.js 側と重複して二重トグルの原因となるため削除
 
     // スクロールモード時の現在位置の保存（進捗更新）
-    let scrollTimeout;
-    this.viewer.addEventListener('scroll', () => {
-      // type が EPUB で、スクロールモードの場合のみ処理する
-      if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== "scroll" || !this.pagination) return;
+    // 既存のリスナーが蓄積されないよう、イベントを再登録するのではなく一度だけバインドするなどの工夫は ui.js 側で行うか、ここで管理
+    if (!this._hasBoundScrollEvent) {
+      this._hasBoundScrollEvent = true;
+      let scrollTimeout;
 
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        if (!this.pagination || !this.pagination.pages) return;
-        // スクロール停止後500msで進捗・現在位置を計算し、onProgressコールバックを発火
-        this.updateProgressFromPagination(this.pagination.pages.length);
-      }, 500);
-    }, { passive: true });
+      this.viewer.addEventListener('scroll', () => {
+        // type が EPUB で、スクロールモードの場合のみ処理する
+        if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== "scroll" || !this.pagination) return;
+
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          if (!this.pagination || !this.pagination.pages) return;
+          // スクロール停止後500msで進捗・現在位置を計算し、onProgressコールバックを発火
+          this.updateProgressFromPagination(this.pagination.pages.length);
+        }, 500);
+      }, { passive: true });
+    }
   }
 
   getReaderMaxWidthValue() {
@@ -1277,15 +1282,15 @@ export class ReaderController {
   _scrollToPositionInDOM(container, segmentIndex, searchQuery) {
     if (!container) return;
 
-    let targetTextNode = null;
     let targetElement = null;
+    let matchDataArray = null;
 
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {
-      const found = this._findTextInDOM(container, searchQuery);
-      if (found) {
-        targetTextNode = found.nodeType === Node.TEXT_NODE ? found : null;
-        targetElement = found.nodeType === Node.TEXT_NODE ? found.parentElement : found;
+      matchDataArray = this._findTextInDOM(container, searchQuery);
+      if (matchDataArray && matchDataArray.length > 0) {
+        // 最初に見つかった親要素をスクロールターゲットとする
+        targetElement = matchDataArray[0].node.parentElement;
       }
     }
 
@@ -1318,16 +1323,21 @@ export class ReaderController {
       }
     }
 
-    if (targetElement && targetElement.scrollIntoView) {
+    // ページめくりモードではスクロールしない。ハイライトのみ。
+    // スクロールするとページレイアウトが崩れるため。
+    if (targetElement && targetElement.scrollIntoView && this.epubViewMode === "scroll") {
       // ジャンプ先が画面の中央に来るように調整（視認性向上）
       targetElement.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
       this._scrollTargetNode = targetElement; // リサイズ時の位置維持用
+    }
 
-      // 検索テキストがある場合は一時的に強調表示
-      if (searchQuery && targetTextNode) {
-        this._applyTemporaryHighlight(targetTextNode, searchQuery);
-      }
-    } else {
+    // 検索テキストがある場合は一時的に強調表示（モード問わず実行）
+    if (searchQuery && matchDataArray) {
+      this._applyTemporaryHighlight(matchDataArray, searchQuery);
+    }
+
+    // スクロールモードで対象が見つからなかった場合のフォールバック
+    if (!targetElement && this.epubViewMode === "scroll") {
       this._scrollTargetNode = null;
       // フォールバック：先頭へ
       if (this.viewer) {
@@ -1398,72 +1408,131 @@ export class ReaderController {
 
   /**
    * DOM内で検索テキストを含む要素を見つける
+   * タグを跨いだテキスト探索に対応
    */
   _findTextInDOM(container, searchText) {
     if (!container || !searchText) return null;
+
+    // 1. テキストノードをすべて収集
     const walker = document.createTreeWalker(
       container,
       NodeFilter.SHOW_TEXT,
       null
     );
 
+    const textNodes = [];
     let node = walker.nextNode();
     while (node) {
-      if (node.textContent && node.textContent.includes(searchText)) {
-        return node;
-      }
+      textNodes.push(node);
       node = walker.nextNode();
     }
-    return null;
+
+    if (textNodes.length === 0) return null;
+
+    // 2. 全テキストノードの文字列を結合し、各ノードの開始位置を記録
+    let fullText = "";
+    const nodePositions = [];
+
+    for (let index = 0; index < textNodes.length; index++) {
+      const textNode = textNodes[index];
+      const startPos = fullText.length;
+      fullText += textNode.textContent;
+      nodePositions.push({
+        node: textNode,
+        start: startPos,
+        end: fullText.length
+      });
+    }
+
+    // 空白文字（改行やスペース）の違いを吸収するため正規表現を組み立てる
+    const escapedQuery = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regexQuery = escapedQuery.replace(/\s+/g, '\\s+');
+    const regex = new RegExp(regexQuery, "i");
+
+    // fullTextから対象文字列を正規表現検索
+    const match = fullText.match(regex);
+
+    if (!match) return null;
+
+    // 3. 一致した位置に該当するノード群を返す
+    const matchIndex = match.index;
+    const matchEndIndex = matchIndex + match[0].length;
+    const matchingNodes = [];
+
+    for (let index = 0; index < nodePositions.length; index++) {
+      const pos = nodePositions[index];
+      // マッチ範囲とノード範囲が重なっているか判定
+      if (pos.end > matchIndex && pos.start < matchEndIndex) {
+        matchingNodes.push({
+          node: pos.node,
+          // ノード内でのマッチ開始位置と終了位置
+          matchStart: Math.max(0, matchIndex - pos.start),
+          matchEnd: Math.min(pos.node.textContent.length, matchEndIndex - pos.start)
+        });
+      }
+    }
+
+    return matchingNodes.length > 0 ? matchingNodes : null;
   }
 
   /**
-   * 指定したテキストノード内の該当箇所を一時的にハイライトする
+   * 指定したテキストノード（配列）内の該当箇所を一時的にハイライトする
    */
-  _applyTemporaryHighlight(textNode, query) {
-    const parent = textNode.parentElement;
-    if (!parent) return;
+  _applyTemporaryHighlight(matchDataArray, query) {
+    if (!Array.isArray(matchDataArray) || matchDataArray.length === 0) return;
 
-    const fullText = textNode.textContent;
-    const index = fullText.indexOf(query);
-    if (index === -1) return;
+    const marksAndParents = [];
 
-    const before = fullText.substring(0, index);
-    const match = fullText.substring(index, index + query.length);
-    const after = fullText.substring(index + query.length);
+    // 各テキストノードの該当部分を <mark> タグで包む
+    matchDataArray.forEach((matchData) => {
+      const { node, matchStart, matchEnd } = matchData;
+      const parent = node.parentElement;
+      if (!parent) return;
 
-    const mark = document.createElement('mark');
-    mark.className = 'search-jump-highlight';
-    mark.textContent = match;
+      const fullText = node.textContent;
+      const before = fullText.substring(0, matchStart);
+      const matchText = fullText.substring(matchStart, matchEnd);
+      const after = fullText.substring(matchEnd);
 
-    const fragment = document.createDocumentFragment();
-    if (before) fragment.appendChild(document.createTextNode(before));
-    fragment.appendChild(mark);
-    if (after) fragment.appendChild(document.createTextNode(after));
+      const mark = document.createElement('mark');
+      mark.className = 'search-jump-highlight';
+      mark.textContent = matchText;
+      // iframe内で外部CSSが効かない場合への備えとしてインラインスタイルも付与
+      mark.style.backgroundColor = '#fef08a';
+      mark.style.color = '#1f2937';
+      mark.style.padding = '0 4px';
+      mark.style.borderRadius = '4px';
+      mark.style.boxShadow = '0 0 10px rgba(254, 240, 138, 0.8)';
+      mark.style.transition = 'background 1s ease, box-shadow 1s ease';
 
-    // 元のノードがあった位置にフラグメントを挿入
-    parent.replaceChild(fragment, textNode);
+      const fragment = document.createDocumentFragment();
+      if (before) fragment.appendChild(document.createTextNode(before));
+      fragment.appendChild(mark);
+      if (after) fragment.appendChild(document.createTextNode(after));
 
-    // 2秒後にハイライトを解除（マーク要素を削除してテキストに戻す）
+      parent.replaceChild(fragment, node);
+      marksAndParents.push({ mark, parent, before, matchText, after });
+    });
+
+    // 5秒後にハイライトを解除（マーク要素を削除してテキストに戻す）
     setTimeout(() => {
-      if (!mark.parentNode) return;
-      // シンプルにテキストを再結合して元の状態に近づける
-      // (厳密には再パジネーションなどでDOMが消える可能性もあるため安全策をとる)
-      const combined = (before || "") + match + (after || "");
-      const restoredNode = document.createTextNode(combined);
+      marksAndParents.forEach(({ mark, parent, before, matchText, after }) => {
+        if (!mark.parentNode) return;
 
-      // markの親がまだ生きていれば、markをテキストに戻す
-      setTimeout(() => {
-        if (mark.parentNode) {
-          const parent = mark.parentNode;
-          const text = mark.textContent;
-          const textNode = document.createTextNode(text);
-          parent.replaceChild(textNode, mark);
-          // 前後のテキストノードと結合(normalize)
-          parent.normalize();
-        }
-      }, 1000);
-    }, 2000);
+        // トランジションで色を消す
+        mark.style.backgroundColor = 'transparent';
+        mark.style.boxShadow = 'none';
+
+        setTimeout(() => {
+          const combined = (before || "") + matchText + (after || "");
+          const textNode = document.createTextNode(combined);
+          if (mark.parentNode) {
+            parent.replaceChild(textNode, mark);
+            parent.normalize();
+          }
+        }, 1000); // 1秒かけて色を消した後にDOMから削除
+      });
+    }, 5000);
   }
 
   navigateToHref(href, fallbackSpineIndex = 0) {
@@ -1679,7 +1748,29 @@ export class ReaderController {
 
   updateProgressFromPagination(totalPages) {
     if (!totalPages) return;
-    const percentage = calculateProgressPercentage(this.currentPageIndex, totalPages);
+
+    let percentage;
+    if (this.epubViewMode === "scroll" && this.viewer) {
+      // スクロールモード: ページに依存せず、全体のスクロール位置を加味した計算
+      const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+      let scrollRatio = 0;
+      if (isVertical) {
+        // vertical-rl: scrollLeftは 0 (右端/初期位置) からマイナス方向 (左端) へ変化する
+        const maxScroll = Math.abs(this.viewer.scrollWidth - this.viewer.clientWidth);
+        scrollRatio = maxScroll > 0 ? (Math.abs(this.viewer.scrollLeft) / maxScroll) : 0;
+      } else {
+        const maxScroll = Math.abs(this.viewer.scrollHeight - this.viewer.clientHeight);
+        scrollRatio = maxScroll > 0 ? (Math.abs(this.viewer.scrollTop) / maxScroll) : 0;
+      }
+
+      // 第n章の範囲内でスクロール割合を加算。ただし上限を超えないよう min をとる
+      const exactContinuousIndex = Math.min(this.currentPageIndex + scrollRatio, totalPages - 1);
+      percentage = calculateProgressPercentage(exactContinuousIndex, totalPages);
+    } else {
+      // 通常モード
+      percentage = calculateProgressPercentage(this.currentPageIndex, totalPages);
+    }
+
     const locator = this.getPageLocator(this.currentPageIndex);
     const fallbackLocator = locator ? null : this.getFallbackLocator();
     this.onProgress?.({
@@ -2900,6 +2991,12 @@ export class ReaderController {
       this.paginationPromise = null;
       this.pagination = null;
 
+      // ページめくりモードとスクロールモードの切り替え時等に、確実に再描画させるためのリセット
+      this.currentPageIndex = -1;
+      if (this.pageContainer) {
+        this.pageContainer.innerHTML = "";
+      }
+
       // 再計算を開始
       const pagination = await this.buildPagination();
       if (typeof timerName !== 'undefined') console.timeEnd(timerName);
@@ -2954,6 +3051,12 @@ export class ReaderController {
       this.firstPagePromise = null;
       this.paginationPromise = null;
       this.pagination = null;
+
+      // モード切り替え時に、確実に画面全体を再構築させるためのリセット
+      this.currentPageIndex = -1;
+      if (this.pageContainer) {
+        this.pageContainer.innerHTML = "";
+      }
 
       // 再計算を実行
       const pagination = await this.buildPagination();
