@@ -172,6 +172,43 @@
 
 /* =====================================
 [REF]
+- HTML: .search-jump-highlight
+- JS: assets/reader.js（ジャンプ時の一時ハイライト）
+- STATE: なし
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.search-jump-highlight {
+  background: #fef08a !important;
+  /* 明るい黄色 */
+  color: #1f2937 !important;
+  /* 濃いグレー */
+  padding: 0 4px;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(254, 240, 138, 0.8);
+  transition: background 1s ease, box-shadow 1s ease;
+  animation: searchHighlightPulse 1s ease-out;
+}
+
+@keyframes searchHighlightPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(254, 240, 138, 0);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(254, 240, 138, 0.8);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(254, 240, 138, 0.8);
+  }
+}
+
+/* =====================================
+[REF]
 - HTML: #searchResults .search-result-meta
 - JS: assets/js/ui/renderers.js（検索結果描画）
 - STATE: なし

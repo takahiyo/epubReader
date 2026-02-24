@@ -1270,13 +1270,14 @@ export class ReaderController {
   _scrollToPositionInDOM(container, segmentIndex, searchQuery) {
     if (!container) return;
 
-    let targetElement = null;
+    let targetTextNode = null;
 
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {
       const found = this._findTextInDOM(container, searchQuery);
       if (found) {
-        targetElement = found;
+        targetTextNode = found.nodeType === Node.TEXT_NODE ? found : null;
+        targetElement = found.nodeType === Node.TEXT_NODE ? found.parentElement : found;
       }
     }
 
@@ -1310,9 +1311,14 @@ export class ReaderController {
     }
 
     if (targetElement && targetElement.scrollIntoView) {
-      // ジャンプ先が画面の先頭行（右端 または 上端）に来るように調整
-      targetElement.scrollIntoView({ block: "start", inline: "start", behavior: "instant" });
+      // ジャンプ先が画面の中央に来るように調整（視認性向上）
+      targetElement.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
       this._scrollTargetNode = targetElement; // リサイズ時の位置維持用
+
+      // 検索テキストがある場合は一時的に強調表示
+      if (searchQuery && targetTextNode) {
+        this._applyTemporaryHighlight(targetTextNode, searchQuery);
+      }
     } else {
       this._scrollTargetNode = null;
       // フォールバック：先頭へ
@@ -1395,11 +1401,60 @@ export class ReaderController {
     let node = walker.nextNode();
     while (node) {
       if (node.textContent && node.textContent.includes(searchText)) {
-        return node.parentElement || node;
+        return node;
       }
       node = walker.nextNode();
     }
     return null;
+  }
+
+  /**
+   * 指定したテキストノード内の該当箇所を一時的にハイライトする
+   */
+  _applyTemporaryHighlight(textNode, query) {
+    const parent = textNode.parentElement;
+    if (!parent) return;
+
+    const fullText = textNode.textContent;
+    const index = fullText.indexOf(query);
+    if (index === -1) return;
+
+    const before = fullText.substring(0, index);
+    const match = fullText.substring(index, index + query.length);
+    const after = fullText.substring(index + query.length);
+
+    const mark = document.createElement('mark');
+    mark.className = 'search-jump-highlight';
+    mark.textContent = match;
+
+    const fragment = document.createDocumentFragment();
+    if (before) fragment.appendChild(document.createTextNode(before));
+    fragment.appendChild(mark);
+    if (after) fragment.appendChild(document.createTextNode(after));
+
+    // 元のノードがあった位置にフラグメントを挿入
+    parent.replaceChild(fragment, textNode);
+
+    // 2秒後にハイライトを解除（マーク要素を削除してテキストに戻す）
+    setTimeout(() => {
+      if (!mark.parentNode) return;
+      // シンプルにテキストを再結合して元の状態に近づける
+      // (厳密には再パジネーションなどでDOMが消える可能性もあるため安全策をとる)
+      const combined = (before || "") + match + (after || "");
+      const restoredNode = document.createTextNode(combined);
+
+      // markの親がまだ生きていれば、markをテキストに戻す
+      setTimeout(() => {
+        if (mark.parentNode) {
+          const parent = mark.parentNode;
+          const text = mark.textContent;
+          const textNode = document.createTextNode(text);
+          parent.replaceChild(textNode, mark);
+          // 前後のテキストノードと結合(normalize)
+          parent.normalize();
+        }
+      }, 1000);
+    }, 2000);
   }
 
   navigateToHref(href, fallbackSpineIndex = 0) {
@@ -2735,7 +2790,7 @@ export class ReaderController {
         typeof bookmark.location.spineIndex === "number" &&
         typeof bookmark.location.segmentIndex === "number"
       ) {
-        this.goToSegment(bookmark.location.spineIndex, bookmark.location.segmentIndex);
+        this.goToSegment(bookmark.location.spineIndex, bookmark.location.segmentIndex, bookmark.searchQuery);
         return;
       }
       if (typeof bookmark.location === "number" && this.pagination?.pages?.length) {
