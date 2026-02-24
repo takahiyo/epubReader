@@ -3109,15 +3109,24 @@ export class ReaderController {
       if (pagination) {
         // 退避したテキストでの位置復元
         let restored = false;
-        if (visibleText && currentSpineIndex != null) {
-          const spineItem = this.spineItems[currentSpineIndex];
-          if (spineItem) {
-            const query = visibleText.substring(0, 30);
-            const matches = this.findSearchMatchesInSpine(spineItem, query);
-            if (matches && matches.length > 0) {
-              this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
-              restored = true;
+        if (currentSpineIndex != null) {
+          if (visibleText) {
+            const spineItem = this.spineItems[currentSpineIndex];
+            if (spineItem) {
+              const query = visibleText.substring(0, 30);
+              const matches = this.findSearchMatchesInSpine(spineItem, query);
+              if (matches && matches.length > 0) {
+                this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
+                restored = true;
+              }
             }
+          }
+
+          // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
+          // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
+          if (!restored) {
+            this.goToSegment(currentSpineIndex, 0);
+            restored = true;
           }
         }
 
@@ -3183,15 +3192,24 @@ export class ReaderController {
       if (pagination) {
         // 退避したテキストでの位置復元
         let restored = false;
-        if (visibleText && currentSpineIndex != null) {
-          const spineItem = this.spineItems[currentSpineIndex];
-          if (spineItem) {
-            const query = visibleText.substring(0, 30);
-            const matches = this.findSearchMatchesInSpine(spineItem, query);
-            if (matches && matches.length > 0) {
-              this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
-              restored = true;
+        if (currentSpineIndex != null) {
+          if (visibleText) {
+            const spineItem = this.spineItems[currentSpineIndex];
+            if (spineItem) {
+              const query = visibleText.substring(0, 30);
+              const matches = this.findSearchMatchesInSpine(spineItem, query);
+              if (matches && matches.length > 0) {
+                this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
+                restored = true;
+              }
             }
+          }
+
+          // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
+          // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
+          if (!restored) {
+            this.goToSegment(currentSpineIndex, 0);
+            restored = true;
           }
         }
 
