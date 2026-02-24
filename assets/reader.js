@@ -1271,6 +1271,7 @@ export class ReaderController {
     if (!container) return;
 
     let targetTextNode = null;
+    let targetElement = null;
 
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {

@@ -10,9 +10,12 @@
 3. Lack of highlighting makes it hard to confirm the jump destination.
 
 ## Steps
-1. [ ] Fix `goTo` to pass `searchQuery`.
-2. [ ] Change `scrollIntoView` to `block: "center"`.
-3. [ ] Implement temporary highlighting for search results.
+1. [x] Fix `goTo` to pass `searchQuery`.
+2. [x] Change `scrollIntoView` to `block: "center"`.
+3. [x] Implement temporary highlighting for search results.
+4. [x] Fix `ReferenceError: targetElement is not defined` introduced in initial implementation.
 
 ## Test Results
-(To be filled)
+- [x] Initial implementation: Failed due to `ReferenceError` at `reader.js:1280`. Search results were jumping to chapter start instead of correct position.
+- [x] Fix applied: Declared `targetElement` in `_scrollToPositionInDOM`.
+- [x] Result: Correctly jumps to centered text and applies highlight.
