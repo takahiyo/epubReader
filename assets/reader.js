@@ -2918,21 +2918,26 @@ export class ReaderController {
   }
 
   async applyEpubViewMode(mode, force = false) {
-    if (!force && this.epubViewMode === mode && (this.pagination || this.type !== BOOK_TYPES.EPUB)) {
-      return;
-    }
+    const prevMode = this.epubViewMode;
     this.epubViewMode = mode;
-    console.log(`[Reader] applyEpubViewMode: ${mode}`);
 
-    // UI クラスの切り替え
+    // UI クラスの切り替えは常に実行（クラスが外れている可能性を考慮）
     const container = document.getElementById(DOM_IDS.FULLSCREEN_READER);
     if (container) {
       if (mode === "scroll") {
         container.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
+        // スクロールモードインジケーター用
+        container.classList.add('show-mode-indicator');
       } else {
         container.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        container.classList.remove('show-mode-indicator');
       }
     }
+
+    if (!force && prevMode === mode && (this.pagination || this.type !== BOOK_TYPES.EPUB)) {
+      return;
+    }
+    console.log(`[Reader] applyEpubViewMode: ${mode} (force=${force})`);
 
     if (this.type !== BOOK_TYPES.EPUB) {
       return;
@@ -2955,8 +2960,10 @@ export class ReaderController {
       if (pagination) {
         // 位置の復元
         if (locator) {
+          // ロケーターがある場合は確実にその位置へ
           this.goToSegment(locator.spineIndex, locator.segmentIndex);
         } else {
+          // ロケーターがない場合（初回など）は現在のインデックスを維持
           this.pageController.goTo(this.currentPageIndex);
         }
       }

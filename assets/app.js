@@ -1318,16 +1318,9 @@ async function handleBookReady(payload) {
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
       if (elements.settingsEpubViewMode) elements.settingsEpubViewMode.value = epubViewMode;
 
-      // [最適化] applyReadingSettings を呼ぶ前に reader 側のモードを同期しておくことで、
-      // 内部で行われるパジネーションが正しいモードで行われるようにし、二重パジネーションを防ぐ。
-      if (reader && reader.epubViewMode !== epubViewMode) {
-        reader.epubViewMode = epubViewMode;
-      }
-
-      // 初期化時の状態適用ではストレージ・クラウドへの再保存を抑制する
+      // 初期化時の状態適用
       await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
-      // すでに reader のプロパティが同期されていれば、内部で早期リターンされる
-      await applyEpubViewMode(epubViewMode, false);
+      await applyEpubViewMode(epubViewMode, true);
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
@@ -2005,19 +1998,16 @@ async function applyEpubViewMode(mode, force = false) {
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
     try {
-      // Note: リーダー側のプロパティをここで同期すると、後の reader.applyEpubViewMode(mode) が
-      // 内部の this.epubViewMode === mode チェックで早期リターンしてしまうのを防ぐため、
-      // 必要な場合のみ（applyReadingSettings を呼ぶ前のみ）に限定する。
       if (needsWritingModeUpdate) {
-        if (reader && reader.epubViewMode !== mode) {
-          reader.epubViewMode = mode;
-        }
         // applyReadingSettingsの中でreader.applyReadingDirectionが呼ばれ、
         // そこで新しい epubViewMode に基づいたパジネーションが1回だけ実行される。
         await applyReadingSettings(writingMode, null);
-      } else if (reader && reader.applyEpubViewMode) {
-        // 設定変更扱いとして再描画
-        await reader.applyEpubViewMode(mode);
+      }
+
+      // 設定変更扱いとして再描画・UIクラス適用・位置復元
+      // reader.applyEpubViewMode内部で二重パジネーションのガードが行われる
+      if (reader && reader.applyEpubViewMode) {
+        await reader.applyEpubViewMode(mode, force);
       }
 
       // 個別書籍の状態としても保存
@@ -2882,16 +2872,16 @@ function setupEvents() {
           // 端にいる場合でも、さらにその方向へスクロールしようとした時だけページ遷移、逆ならスクロール
           if (wheelDir < 0) { // 上へ（前へ）
             if (isAtStart) {
-              reader.prev();
-              lastWheelTime = now;
+              // スクロール端での自動遷移を廃止
+              console.log('[Wheel] At start, ignoring scroll-up transition');
             } else {
               event.preventDefault();
               viewer.scrollBy({ left: -wheelDir * 60, behavior: 'auto' });
             }
           } else if (wheelDir > 0) { // 下へ（次へ）
             if (isAtEnd) {
-              reader.next();
-              lastWheelTime = now;
+              // スクロール端での自動遷移を廃止
+              console.log('[Wheel] At end, ignoring scroll-down transition');
             } else {
               event.preventDefault();
               viewer.scrollBy({ left: -wheelDir * 60, behavior: 'auto' });
@@ -2908,13 +2898,13 @@ function setupEvents() {
         if (wheelDir !== 0) {
           // スロール開始位置で上（前）に戻ろうとした場合
           if (wheelDir < 0 && isAtStart) {
-            reader.prev();
-            lastWheelTime = now;
+            // スクロール端での自動遷移を廃止
+            console.log('[Wheel] At top, ignoring scroll-up transition');
           }
           // スクロール終端で下（次）に進もうとした場合
           else if (wheelDir > 0 && isAtEnd) {
-            reader.next();
-            lastWheelTime = now;
+            // スクロール端での自動遷移を廃止
+            console.log('[Wheel] At bottom, ignoring scroll-down transition');
           }
         }
         return; // コンテナ端でなければネイティブスクロールに任せる
@@ -2957,8 +2947,10 @@ function setupEvents() {
           return;
         }
         if (pageDirection === READING_DIRECTIONS.RTL) {
+          if (isEpubScroll && isVertical) return;
           reader.next(); // 右開きの場合、左キーで次ページ
         } else {
+          if (isEpubScroll && isVertical) return;
           reader.prev();
         }
         break;
@@ -2968,19 +2960,19 @@ function setupEvents() {
           return;
         }
         if (pageDirection === READING_DIRECTIONS.RTL) {
+          if (isEpubScroll && isVertical) return;
           reader.prev(); // 右開きの場合、右キーで前ページ
         } else {
+          if (isEpubScroll && isVertical) return;
           reader.next();
         }
         break;
       case 'ArrowUp':
-        if (isEpubScroll && isVertical) return; // 縦書きスクロール時は無視
-        if (isEpubScroll && !isVertical) return;
+        if (isEpubScroll) return;
         reader.prev();
         break;
       case 'ArrowDown':
-        if (isEpubScroll && isVertical) return;
-        if (isEpubScroll && !isVertical) return;
+        if (isEpubScroll) return;
         reader.next();
         break;
       case 'Enter':

@@ -378,7 +378,7 @@ export class UIController {
     }
 
     // 横書き
-    if (this.epubViewMode === 'scroll') {
+    if (this.getEpubViewMode?.() === 'scroll') {
       // シームレススクロール時はU3, B3等による全体タップページ送りを無効化
       // (スクロール操作、または専用ボタンを使うため)
       return;
