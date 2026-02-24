@@ -69,6 +69,7 @@ const initialAuthStatus = checkAuthStatus();
 let currentBookId = null;
 let currentBookInfo = null;
 let currentCloudBookId = null;
+let isBookLoading = false;
 let pendingCloudBookId = null;
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
@@ -324,7 +325,7 @@ function shouldPersistLocalProgress(percentage) {
 
 function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
-  if (!currentBookId) return;
+  if (!currentBookId || isBookLoading) return;
 
   // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
   if (getCurrentTotalPages() <= 0) return;
@@ -1020,6 +1021,7 @@ async function openFromLibrary(bookId, options = {}) {
     if (!info) return;
 
     currentBookId = bookId;
+    isBookLoading = true;
     currentBookInfo = info;
     resetLocalSaveTracking();
     currentCloudBookId = storage.getCloudBookId(bookId);
@@ -1111,6 +1113,7 @@ async function openFromLibrary(bookId, options = {}) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
   } finally {
+    isBookLoading = false;
     hideLoading();
   }
 }
@@ -1297,6 +1300,16 @@ function handleBookReady(payload) {
 
     // 適用
     if (!userOverrodeDirection) {
+      // 本来の仕様では保存された progress が最優先だが、
+      // ページ分割完了前に保存された default 値 (ltr) などのノイズを回避するため、
+      // 保存値が default かつ リーダーが rtl を検出した場合は、検出値を優先する
+      if (!progress?.pageDirection && payload.direction) {
+        targetPageDirection = payload.direction;
+      }
+      if (!progress?.writingMode && payload.writingMode) {
+        targetWritingMode = payload.writingMode;
+      }
+
       pageDirection = targetPageDirection;
       writingMode = targetWritingMode || writingMode;
       epubViewMode = targetEpubViewMode || epubViewMode;
@@ -1307,7 +1320,7 @@ function handleBookReady(payload) {
 
       // 初期化時の状態適用ではストレージ・クラウドへの再保存を抑制する
       applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
-      applyEpubViewMode(epubViewMode);
+      applyEpubViewMode(targetEpubViewMode);
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
@@ -2012,6 +2025,7 @@ async function applyEpubViewMode(mode) {
 
 async function pushCurrentBookSync(options = {}) {
   const { force = false } = options;
+  if (isBookLoading && !force) return false;
   // 送信前に現在の状態を強制保存
   saveCurrentProgress({ force: true });
   const didSync = await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);

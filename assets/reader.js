@@ -816,8 +816,12 @@ export class ReaderController {
     try {
       // 開始位置を一時保存（逐次パジネーションの初回完了時に使用）
       this._pendingStartLocation = startLocation;
-      const pagination = await this.buildPagination();
-      // buildPagination 内で既に初回表示されるが、完了時の念押し
+      let pagination = await this.buildPagination();
+      // 中断・再パジネーションが発生した場合は最新の完了を待つ
+      while (this.paginationPromise) {
+        console.log("[openEpub] Waiting for re-pagination to complete...");
+        pagination = await this.paginationPromise;
+      }
       if (!pagination?.pages?.length) {
         throw new Error("EPUBのページ分割に失敗しました。");
       }
@@ -1705,7 +1709,8 @@ export class ReaderController {
       console.log('[buildPagination] 既存のpaginationPromiseを待機');
       return this.paginationPromise;
     }
-    console.time('[buildPagination] total');
+    const timerName = `[buildPagination] total-${Date.now()}`;
+    console.time(timerName);
     console.log('[buildPagination] 開始 (spine items:', this.book.spine.length, ')');
 
     const paginationMetrics = this.getPaginationViewportMetrics();
@@ -1957,7 +1962,7 @@ export class ReaderController {
       await this.addCoverPageIfNeeded(this.pagination);
       this.pageController.setTotalPages(this.pagination.pages.length);
       this.paginationComplete = true;
-      console.timeEnd('[buildPagination] total');
+      console.timeEnd(timerName);
       console.log('[buildPagination] 完了 (pages:', this.pagination.pages.length, ')');
 
       this.paginationPromise = null;
@@ -2822,9 +2827,9 @@ export class ReaderController {
       this.paginationPromise = null;
       this.pagination = null;
 
-      // 再計算を開始（非同期に待つ必要はないが、完了を待つことで確実に表示を更新する）
+      // 再計算を開始
       const pagination = await this.buildPagination();
-      console.timeEnd('[applyReadingDirection] buildPagination');
+      if (typeof timerName !== 'undefined') console.timeEnd(timerName);
       if (pagination) {
         // 位置の復元
         if (locator) {
