@@ -1444,6 +1444,74 @@ export class ReaderController {
   }
 
   /**
+   * 現在の画面上に表示されている先頭付近のテキストを取得する
+   * （モード切替時などに一時保存し、再描画後にテキスト検索で元の位置へ復帰させるため）
+   */
+  _getCurrentVisibleText() {
+    if (!this.viewer || !this.pageContainer) return null;
+
+    const walker = document.createTreeWalker(
+      this.pageContainer,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName?.toLowerCase();
+            if (tag === "img" || tag === "svg" || tag === "video" || tag === "iframe") {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+          return NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+
+    const viewerRect = this.viewer.getBoundingClientRect();
+    const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+    const isScrollMode = this.epubViewMode === "scroll";
+
+    let node = walker.nextNode();
+    let textToFind = "";
+
+    while (node) {
+      const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+      if (parent) {
+        const rect = parent.getBoundingClientRect();
+        let isVisible = false;
+
+        if (isScrollMode) {
+          if (isVertical) {
+            if (rect.right >= viewerRect.left && rect.left <= viewerRect.right) {
+              isVisible = true;
+            }
+          } else {
+            if (rect.bottom >= viewerRect.top && rect.top <= viewerRect.bottom) {
+              isVisible = true;
+            }
+          }
+        } else {
+          isVisible = true;
+        }
+
+        if (isVisible && node.nodeType === Node.TEXT_NODE) {
+          textToFind += node.textContent;
+          // 記号や空白などを取り除いた文字数で十分にユニークな長さを確保
+          if (textToFind.replace(/\s+/g, '').length >= 30) {
+            break;
+          }
+        }
+      }
+      node = walker.nextNode();
+    }
+
+    return textToFind ? textToFind.trim().substring(0, 50) : null;
+  }
+
+  /**
    * DOM内で検索テキストを含む要素を見つける
    * タグを跨いだテキスト探索に対応
    */
@@ -3002,9 +3070,9 @@ export class ReaderController {
       { current: { wm: this.writingMode, pd: this.pageDirection }, requested: { wm: writingMode, pd: pageDirection } });
     console.time('[applyReadingDirection] buildPagination');
 
-    // 現在の位置（ロケータ）を事前に保存
-    // 注意: writingModeやepubViewModeを変更する前に保存する必要がある。
-    const locator = this.type === BOOK_TYPES.EPUB ? this.getPageLocator(this.currentPageIndex) : null;
+    // 現在の位置情報をテキストとして事前に退避
+    const currentSpineIndex = this.type === BOOK_TYPES.EPUB ? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex : null;
+    const visibleText = this.type === BOOK_TYPES.EPUB ? this._getCurrentVisibleText() : null;
 
     if (pageDirection) {
       this.pageDirection = pageDirection;
@@ -3039,11 +3107,22 @@ export class ReaderController {
       const pagination = await this.buildPagination();
       if (typeof timerName !== 'undefined') console.timeEnd(timerName);
       if (pagination) {
-        // 位置の復元
-        if (locator) {
-          this.goToSegment(locator.spineIndex, locator.segmentIndex);
-        } else {
-          this.pageController.goTo(this.currentPageIndex);
+        // 退避したテキストでの位置復元
+        let restored = false;
+        if (visibleText && currentSpineIndex != null) {
+          const spineItem = this.spineItems[currentSpineIndex];
+          if (spineItem) {
+            const query = visibleText.substring(0, 30);
+            const matches = this.findSearchMatchesInSpine(spineItem, query);
+            if (matches && matches.length > 0) {
+              this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
+              restored = true;
+            }
+          }
+        }
+
+        if (!restored) {
+          this.pageController.goTo(this.currentPageIndex >= 0 ? this.currentPageIndex : 0);
         }
       }
     } catch (error) {
@@ -3059,9 +3138,9 @@ export class ReaderController {
       return;
     }
 
-    // 現在の位置（ロケータ）を事前に保存
-    // 注意: epubViewModeを変更する前に保存する必要がある。
-    const locator = this.type === BOOK_TYPES.EPUB ? this.getPageLocator(this.currentPageIndex) : null;
+    // 現在の位置情報をテキストとして事前に退避
+    const currentSpineIndex = this.type === BOOK_TYPES.EPUB ? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex : null;
+    const visibleText = this.type === BOOK_TYPES.EPUB ? this._getCurrentVisibleText() : null;
 
     this.epubViewMode = mode;
 
@@ -3102,13 +3181,22 @@ export class ReaderController {
       // 再計算を実行
       const pagination = await this.buildPagination();
       if (pagination) {
-        // 位置の復元
-        if (locator) {
-          // ロケーターがある場合は確実にその位置へ
-          this.goToSegment(locator.spineIndex, locator.segmentIndex);
-        } else {
-          // ロケーターがない場合（初回など）は現在のインデックスを維持
-          this.pageController.goTo(this.currentPageIndex);
+        // 退避したテキストでの位置復元
+        let restored = false;
+        if (visibleText && currentSpineIndex != null) {
+          const spineItem = this.spineItems[currentSpineIndex];
+          if (spineItem) {
+            const query = visibleText.substring(0, 30);
+            const matches = this.findSearchMatchesInSpine(spineItem, query);
+            if (matches && matches.length > 0) {
+              this.goToSegment(currentSpineIndex, matches[0].segmentIndex);
+              restored = true;
+            }
+          }
+        }
+
+        if (!restored) {
+          this.pageController.goTo(this.currentPageIndex >= 0 ? this.currentPageIndex : 0);
         }
       }
     } catch (error) {
