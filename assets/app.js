@@ -1261,7 +1261,7 @@ async function seekToPercentage(percentage) {
   }
 }
 
-function handleBookReady(payload) {
+async function handleBookReady(payload) {
   if (!currentBookInfo || !payload) return;
 
   const metadata = payload.metadata ?? payload;
@@ -1319,8 +1319,8 @@ function handleBookReady(payload) {
       if (elements.settingsEpubViewMode) elements.settingsEpubViewMode.value = epubViewMode;
 
       // 初期化時の状態適用ではストレージ・クラウドへの再保存を抑制する
-      applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
-      applyEpubViewMode(targetEpubViewMode);
+      await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
+      await applyEpubViewMode(targetEpubViewMode, true);
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
@@ -1970,10 +1970,14 @@ function applyProgressDisplayMode(mode) {
 /**
  * EPUB表示モードの適用と保存
  */
-async function applyEpubViewMode(mode) {
-  if (epubViewMode === mode) return;
-  epubViewMode = mode;
-  storage.setSettings({ epubViewMode: mode });
+async function applyEpubViewMode(mode, force = false) {
+  const modeChanged = epubViewMode !== mode;
+  if (!modeChanged && !force && (!reader || reader.epubViewMode === mode)) return;
+
+  if (modeChanged) {
+    epubViewMode = mode;
+    storage.setSettings({ epubViewMode: mode });
+  }
 
   if (reader && reader.type === BOOK_TYPES.EPUB) {
     // スクロールモード選択時は強制的に「横書き」にする
@@ -1994,12 +1998,13 @@ async function applyEpubViewMode(mode) {
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
     try {
-      // リーダー側のプロパティも事前に同期しておく（applyReadingSettings内での二重計算を防ぐ）
-      if (reader && reader.epubViewMode !== mode) {
-        reader.epubViewMode = mode;
-      }
-
+      // Note: リーダー側のプロパティをここで同期すると、後の reader.applyEpubViewMode(mode) が
+      // 内部の this.epubViewMode === mode チェックで早期リターンしてしまうのを防ぐため、
+      // 必要な場合のみ（applyReadingSettings を呼ぶ前のみ）に限定する。
       if (needsWritingModeUpdate) {
+        if (reader && reader.epubViewMode !== mode) {
+          reader.epubViewMode = mode;
+        }
         // applyReadingSettingsの中でreader.applyReadingDirectionが呼ばれ、
         // そこで新しい epubViewMode に基づいたパジネーションが1回だけ実行される。
         await applyReadingSettings(writingMode, null);

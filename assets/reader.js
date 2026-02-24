@@ -2914,12 +2914,8 @@ export class ReaderController {
     }
   }
 
-  async applyEpubViewMode(mode) {
-    if (this.epubViewMode === mode) {
-      return;
-    }
-    if (isBookLoading) {
-      console.log("[Reader] applyEpubViewMode ignored during book loading");
+  async applyEpubViewMode(mode, force = false) {
+    if (!force && this.epubViewMode === mode && (this.pagination || this.type !== BOOK_TYPES.EPUB)) {
       return;
     }
     this.epubViewMode = mode;
