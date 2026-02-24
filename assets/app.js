@@ -927,7 +927,7 @@ async function handleFile(file) {
     renderers.updateProgressBarDisplay();
     renderers.updateSearchButtonState();
     renderers.updateFloatingUIButtons();
-    closeModal(elements.openFileModal);
+    closeExclusiveMenus();
     if (floatVisible) {
       toggleFloatOverlay(false);
     }
@@ -987,7 +987,7 @@ function openCloudOnlyBook(cloudBookId) {
   });
   renderers.updateProgressBarDisplay();
   renderers.updateSearchButtonState();
-  closeModal(elements.openFileModal);
+  closeExclusiveMenus();
   if (floatVisible) {
     toggleFloatOverlay(false);
   }
@@ -1105,7 +1105,7 @@ async function openFromLibrary(bookId, options = {}) {
     renderers.updateProgressBarDisplay();
     renderers.updateSearchButtonState();
     renderers.updateFloatingUIButtons();
-    closeModal(elements.openFileModal);
+    closeExclusiveMenus();
     if (floatVisible) {
       toggleFloatOverlay(false);
     }
@@ -1987,6 +1987,9 @@ async function applyEpubViewMode(mode) {
       needsWritingModeUpdate = true;
     }
 
+    // 設定変更扱いとしてメニューを閉じる
+    closeExclusiveMenus();
+
     // スクロールモード・ページめくりモードの切替時には再度パジネーションが必要になるため、
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
@@ -1995,6 +1998,10 @@ async function applyEpubViewMode(mode) {
         // 設定変更扱いとして再描画し、クラス等も正常に更新
         await applyReadingSettings(writingMode, null);
       }
+
+      // 個別書籍の状態としても保存
+      persistReadingState({ epubViewMode: mode });
+
       if (reader.applyEpubViewMode) {
         // 設定変更扱いとして再描画
         await reader.applyEpubViewMode(mode);

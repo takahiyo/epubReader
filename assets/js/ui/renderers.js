@@ -251,12 +251,14 @@ export function updateThemeToggleIcon() {
 }
 
 export function updateEpubScrollMode() {
-    if (!elements.epubContainer) return;
-    const isVerticalGroup = _state.writingMode === WRITING_MODES.VERTICAL;
-    if (isVerticalGroup) {
-        elements.epubContainer.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+    if (!elements.fullscreenReader) return; // Note: app.js uses elements.fullscreenReader for this class
+    const isScroll = _state.epubViewMode === 'scroll';
+    const isHorizontal = _state.writingMode === WRITING_MODES.HORIZONTAL;
+
+    if (isScroll && isHorizontal) {
+        elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
     } else {
-        elements.epubContainer.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
     }
 }
 
