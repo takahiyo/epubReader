@@ -889,6 +889,9 @@ async function handleFile(file) {
         await reader.openEpub(fileToOpen, {
           location: startLocation,
           percentage: startProgress,
+          epubViewMode: syncedProgress?.epubViewMode || epubViewMode,
+          writingMode: syncedProgress?.writingMode || writingMode,
+          pageDirection: syncedProgress?.pageDirection || pageDirection,
         });
         console.timeEnd('[handleFile] openEpub');
       } catch (epubError) {
@@ -1081,7 +1084,13 @@ async function openFromLibrary(bookId, options = {}) {
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
       console.time('[libraryLoad] openEpub');
-      await reader.openEpub(file, { location: start, percentage: startProgress });
+      await reader.openEpub(file, {
+        location: start,
+        percentage: startProgress,
+        epubViewMode: normalizedProgress?.epubViewMode || epubViewMode,
+        writingMode: normalizedProgress?.writingMode || writingMode,
+        pageDirection: normalizedProgress?.pageDirection || pageDirection,
+      });
       console.timeEnd('[libraryLoad] openEpub');
     } else {
       // ... (既存のUI制御コード)
@@ -1170,7 +1179,9 @@ async function applyReadingState(progress) {
 
   // 2.6. EPUB表示モードの復元
   if (reader && reader.type === BOOK_TYPES.EPUB) {
-    await applyEpubViewMode(targetEpubViewMode);
+    // 初回ロード時は reader 側にすでに正しい値を渡して初期化しているため、強制上書き(force=true)でのパジネーション再構築を防ぐ。
+    // UIの更新だけ行うため ignoreReaderUpdate を true にする。
+    await applyEpubViewMode(targetEpubViewMode, false, true);
   }
 
   if (!progress) {
@@ -1940,7 +1951,7 @@ function applyProgressDisplayMode(mode) {
 /**
  * EPUB表示モードの適用と保存
  */
-async function applyEpubViewMode(mode, force = false) {
+async function applyEpubViewMode(mode, force = false, ignoreReaderUpdate = false) {
   const modeChanged = epubViewMode !== mode;
   if (!modeChanged && !force && (!reader || reader.epubViewMode === mode)) return;
 
@@ -1964,26 +1975,31 @@ async function applyEpubViewMode(mode, force = false) {
     // 設定変更扱いとしてメニューを閉じる
     closeExclusiveMenus();
 
-    // スクロールモード・ページめくりモードの切替時には再度パジネーションが必要になるため、
-    // 現在位置を保存してからリパジネーションを実行する。
-    showLoading();
-    try {
-      if (needsWritingModeUpdate) {
-        // applyReadingSettingsの中でreader.applyReadingDirectionが呼ばれ、
-        // そこで新しい epubViewMode に基づいたパジネーションが1回だけ実行される。
-        await applyReadingSettings(writingMode, null);
-      }
+    if (ignoreReaderUpdate) {
+      // 初期化時等、UIのみ更新しリーダーの再パジネーションは実行しない
+      if (reader) reader.epubViewMode = mode;
+    } else {
+      // スクロールモード・ページめくりモードの切替時には再度パジネーションが必要になるため、
+      // 現在位置を保存してからリパジネーションを実行する。
+      showLoading();
+      try {
+        if (needsWritingModeUpdate) {
+          // applyReadingSettingsの中でreader.applyReadingDirectionが呼ばれ、
+          // そこで新しい epubViewMode に基づいたパジネーションが1回だけ実行される。
+          await applyReadingSettings(writingMode, null);
+        }
 
-      // 設定変更扱いとして再描画・UIクラス適用・位置復元
-      // reader.applyEpubViewMode内部で二重パジネーションのガードが行われる
-      if (reader && reader.applyEpubViewMode) {
-        await reader.applyEpubViewMode(mode, force);
-      }
+        // 設定変更扱いとして再描画・UIクラス適用・位置復元
+        // reader.applyEpubViewMode内部で二重パジネーションのガードが行われる
+        if (reader && reader.applyEpubViewMode) {
+          await reader.applyEpubViewMode(mode, force);
+        }
 
-      // 個別書籍の状態としても保存
-      persistReadingState({ epubViewMode: mode });
-    } finally {
-      hideLoading();
+        // 個別書籍の状態としても保存
+        persistReadingState({ epubViewMode: mode });
+      } finally {
+        hideLoading();
+      }
     }
   }
 

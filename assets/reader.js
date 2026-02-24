@@ -664,10 +664,20 @@ export class ReaderController {
     });
   }
 
-  async openEpub(file, startLocation) {
+  async openEpub(file, options = {}) {
     this.resetReaderState();
     this.type = BOOK_TYPES.EPUB;
     this.usingPaginator = true;
+
+    // 後方互換性とoptions展開
+    const isObject = options !== null && typeof options === 'object' && !Array.isArray(options);
+    const startLocation = isObject && ('location' in options || 'percentage' in options) ? options : options;
+
+    if (isObject) {
+      if (options.epubViewMode) this.epubViewMode = options.epubViewMode;
+      if (options.writingMode) this.writingMode = options.writingMode;
+      if (options.pageDirection) this.pageDirection = options.pageDirection;
+    }
 
     // JSZipを先にロード
     const JSZipLib = await this.ensureJSZip();
