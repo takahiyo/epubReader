@@ -1923,6 +1923,8 @@ export class ReaderController {
                     this.onReady?.({
                       metadata: this.book.package?.metadata,
                       toc: this.toc,
+                      direction: this.pageDirection,
+                      writingMode: this.writingMode,
                     });
                   }
 

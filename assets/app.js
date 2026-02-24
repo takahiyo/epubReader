@@ -326,6 +326,9 @@ function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
   if (!currentBookId) return;
 
+  // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
+  if (getCurrentTotalPages() <= 0) return;
+
   let progressData = null;
 
   if (reader.type === BOOK_TYPES.EPUB) {
@@ -1145,7 +1148,8 @@ async function applyReadingState(progress) {
 
   // 1.5. 両方を適用（リーダー本体への反映）
   // 呼び出し元(handleFile/openFromLibrary)がloadingを管理するためスキップ
-  await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
+  // 初期化時の状態適用ではストレージ・クラウドへの再保存を抑制する（位置の上書きを防止）
+  await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
 
   // 2. 表示モード（単ページ/見開き）の復元
   if (reader) {
@@ -1267,14 +1271,17 @@ function handleBookReady(payload) {
     const settings = storage.getSettings();
     const progress = storage.getProgress(currentBookId);
 
-    // 優先順位: 1. 個別保存設定 > 2. メタデータ > 3. ユーザーデフォルト
+    // 優先順位: 1. 個別保存設定 > 2. メタデータ/自動判別 > 3. ユーザーデフォルト
     let targetPageDirection = progress?.pageDirection;
     let targetWritingMode = progress?.writingMode;
     let targetEpubViewMode = progress?.epubViewMode;
 
-    // 1. 個別設定がない場合、メタデータをチェック
-    if (!targetPageDirection && metadata.direction) {
-      targetPageDirection = metadata.direction;
+    // 1. 個別設定がない場合、メタデータまたはリーダーの自動判別値をチェック
+    if (!targetPageDirection) {
+      targetPageDirection = payload.direction || metadata.direction;
+    }
+    if (!targetWritingMode) {
+      targetWritingMode = payload.writingMode;
     }
 
     // 2. まだ決まっていない場合、デフォルト設定を使用
@@ -1288,10 +1295,7 @@ function handleBookReady(payload) {
       targetEpubViewMode = settings.epubViewMode;
     }
 
-    // 適用（ユーザーによる一時的な変更フラグがある場合は無視...しないほうが良いかも？
-    // ユーザーが「今」変更したならそれが最優先だが、userOverrodeDirection はどういうスコープ？
-    // handleBookReady は本を開いた直後に来るはず。
-
+    // 適用
     if (!userOverrodeDirection) {
       pageDirection = targetPageDirection;
       writingMode = targetWritingMode || writingMode;
@@ -1301,7 +1305,8 @@ function handleBookReady(payload) {
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
       if (elements.settingsEpubViewMode) elements.settingsEpubViewMode.value = epubViewMode;
 
-      applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true });
+      // 初期化時の状態適用ではストレージ・クラウドへの再保存を抑制する
+      applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
       applyEpubViewMode(epubViewMode);
     }
 
@@ -1886,6 +1891,7 @@ function applyUiLanguage(nextLanguage) {
 // 移行済み: updateWritingModeToggleLabel
 
 async function applyReadingSettings(nextWritingMode, nextPageDirection, options = {}) {
+  const { skipLoadingOverlay = false, ignoreForce = false } = options;
   if (nextWritingMode) {
     writingMode = nextWritingMode;
   }
@@ -1918,8 +1924,10 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection, options 
     renderers.updateEpubScrollMode();
     storage.setSettings({ writingMode, pageDirection });
     persistReadingState({ writingMode, pageDirection });
-    saveCurrentProgress({ force: true });
-    requestCloudSyncIfNeeded({ force: true });
+    if (!ignoreForce) {
+      saveCurrentProgress({ force: true });
+      requestCloudSyncIfNeeded({ force: true });
+    }
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {
