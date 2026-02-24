@@ -322,7 +322,8 @@ function shouldPersistLocalProgress(percentage) {
   return Math.abs(percentage - lastSavedPercentage) >= TIMING_CONFIG.LOCAL_SAVE_THRESHOLD_PERCENT;
 }
 
-function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
+function saveCurrentProgress(options = {}) {
+  const { progressSnapshot = getProgressSnapshot(), force = false } = options;
   if (!currentBookId) return;
 
   let progressData = null;
@@ -360,7 +361,8 @@ function saveCurrentProgress(progressSnapshot = getProgressSnapshot()) {
     };
   }
 
-  if (!progressData || !shouldPersistLocalProgress(progressData.percentage)) return progressSnapshot;
+  if (!progressData) return progressSnapshot;
+  if (!force && !shouldPersistLocalProgress(progressData.percentage)) return progressSnapshot;
 
   storage.setProgress(currentBookId, progressData);
   lastSavedPercentage = progressData.percentage;
@@ -391,8 +393,9 @@ function updateCloudSyncSnapshot(progressSnapshot) {
   });
 }
 
-async function requestCloudSyncIfNeeded(progressSnapshot) {
-  if (!shouldSyncCloudProgress(progressSnapshot)) return;
+async function requestCloudSyncIfNeeded(options = {}) {
+  const { progressSnapshot = getProgressSnapshot(), force = false } = options;
+  if (!force && !shouldSyncCloudProgress(progressSnapshot)) return;
   const authStatus = checkAuthStatus();
   if (!authStatus.authenticated) {
     syncAutoSyncPolicy(authStatus);
@@ -415,8 +418,8 @@ const reader = new ReaderController({
     const progressSnapshot = getProgressSnapshot({ location, percentage });
 
     ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages);
-    const savedSnapshot = saveCurrentProgress(progressSnapshot);
-    requestCloudSyncIfNeeded(savedSnapshot);
+    const savedSnapshot = saveCurrentProgress({ progressSnapshot });
+    requestCloudSyncIfNeeded({ progressSnapshot: savedSnapshot });
   },
   onLoadingUpdate: (loadingInfo) => {
     // ローディング状態の更新をコンソールに記録
@@ -1591,7 +1594,8 @@ function applyTheme(newTheme) {
   storage.setSettings({ theme });
   persistReadingState({ theme });
   renderers.updateThemeToggleIcon();
-  requestCloudSyncIfNeeded(getProgressSnapshot());
+  saveCurrentProgress({ force: true });
+  requestCloudSyncIfNeeded({ force: true });
 }
 
 // 移行済み: updateThemeToggleIcon
@@ -1603,7 +1607,8 @@ function applyFontSize(nextSize) {
   reader.applyFontSize(fontSize);
   storage.setSettings({ fontSize });
   persistReadingState({ fontSize });
-  requestCloudSyncIfNeeded(getProgressSnapshot());
+  saveCurrentProgress({ force: true });
+  requestCloudSyncIfNeeded({ force: true });
 }
 
 function applyUiLanguage(nextLanguage) {
@@ -1913,7 +1918,8 @@ async function applyReadingSettings(nextWritingMode, nextPageDirection, options 
     renderers.updateEpubScrollMode();
     storage.setSettings({ writingMode, pageDirection });
     persistReadingState({ writingMode, pageDirection });
-    requestCloudSyncIfNeeded(getProgressSnapshot());
+    saveCurrentProgress({ force: true });
+    requestCloudSyncIfNeeded({ force: true });
   } catch (error) {
     console.error("Failed to apply reading settings:", error);
   } finally {
@@ -1996,7 +2002,10 @@ async function applyEpubViewMode(mode) {
  */
 
 
-async function pushCurrentBookSync() {
+async function pushCurrentBookSync(options = {}) {
+  const { force = false } = options;
+  // 送信前に現在の状態を強制保存
+  saveCurrentProgress({ force: true });
   const didSync = await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
   if (didSync) {
     updateCloudSyncSnapshot(getProgressSnapshot());
@@ -2027,9 +2036,12 @@ async function pushCurrentBookSyncIfReady() {
   }
 }
 
-async function pushCurrentBookSyncOnAction() {
+async function pushCurrentBookSyncOnAction(options = {}) {
+  const { force = false } = options;
   try {
-    await requestCloudSyncIfNeeded(getProgressSnapshot());
+    const progressSnapshot = getProgressSnapshot();
+    saveCurrentProgress({ progressSnapshot, force });
+    await requestCloudSyncIfNeeded({ progressSnapshot, force });
   } catch (error) {
     console.error("Auto-sync failed:", error);
   }
@@ -2077,7 +2089,7 @@ function syncAutoSyncPolicy(authStatus = checkAuthStatus()) {
 }
 
 function scheduleAutoSyncPush() {
-  void pushCurrentBookSyncOnAction();
+  void pushCurrentBookSyncOnAction({ force: true });
 }
 
 function exportData() {
@@ -2633,7 +2645,7 @@ function setupEvents() {
 
       // If a book is open, sync its state
       if (currentBookId && currentCloudBookId) {
-        await pushCurrentBookSync();
+        await pushCurrentBookSync({ force: true });
       }
 
       // SSOT: 同期完了後の最終的な永続化
@@ -2937,7 +2949,7 @@ function setupEvents() {
   });
 
   window.addEventListener('pagehide', () => {
-    void pushCurrentBookSyncOnAction();
+    void pushCurrentBookSyncOnAction({ force: true });
   });
 
   document.addEventListener('visibilitychange', () => {
