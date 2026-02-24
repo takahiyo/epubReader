@@ -1395,8 +1395,9 @@ export class ReaderController {
       node = walker.nextNode();
     }
 
-    // 見つからなかった場合は0か最後のセグメントを返す
-    return currentSegment > 0 ? currentSegment - 1 : 0;
+    // 見つからなかった場合(DOM未生成時など)は安易に 0 を返さず null を返すことで、
+    // 現在位置が誤って先頭に上書きされるのを防ぐ。
+    return null;
   }
 
   /**
@@ -2915,6 +2916,10 @@ export class ReaderController {
 
   async applyEpubViewMode(mode) {
     if (this.epubViewMode === mode) {
+      return;
+    }
+    if (isBookLoading) {
+      console.log("[Reader] applyEpubViewMode ignored during book loading");
       return;
     }
     this.epubViewMode = mode;

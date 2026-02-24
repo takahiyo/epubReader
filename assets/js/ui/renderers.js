@@ -251,9 +251,17 @@ export function updateThemeToggleIcon() {
 }
 
 export function updateEpubScrollMode() {
-    if (!elements.fullscreenReader) return; // Note: app.js uses elements.fullscreenReader for this class
+    if (!elements.fullscreenReader) return;
+    const isEpub = _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
     const isScroll = _state.epubViewMode === 'scroll';
     const isHorizontal = _state.writingMode === WRITING_MODES.HORIZONTAL;
+
+    // EPUB購読中のみインジケーターを表示するためのクラス
+    if (isEpub) {
+        elements.fullscreenReader.classList.add('show-mode-indicator');
+    } else {
+        elements.fullscreenReader.classList.remove('show-mode-indicator');
+    }
 
     if (isScroll && isHorizontal) {
         elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);

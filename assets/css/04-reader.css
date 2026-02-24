@@ -17,6 +17,31 @@
   color: var(--reader-text);
 }
 
+/* モードインジケーター (Paginated / Scroll) */
+.fullscreen-reader.show-mode-indicator::after {
+  content: "PAGINATED";
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: var(--font-family-mono, monospace);
+  letter-spacing: 0.5px;
+  background: rgba(128, 128, 128, 0.2);
+  color: var(--reader-text);
+  border-radius: 4px;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: var(--z-float-ui, 2000);
+  transition: opacity 0.3s ease;
+}
+
+.fullscreen-reader.show-mode-indicator.epub-scroll-mode::after {
+  content: "SCROLL";
+  background: rgba(128, 128, 128, 0.4);
+  opacity: 0.6;
+}
+
 /* =====================================
 [REF]
 - HTML: #fullscreenReader（リーダーコンテナ）

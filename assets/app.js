@@ -1994,18 +1994,22 @@ async function applyEpubViewMode(mode) {
     // 現在位置を保存してからリパジネーションを実行する。
     showLoading();
     try {
+      // リーダー側のプロパティも事前に同期しておく（applyReadingSettings内での二重計算を防ぐ）
+      if (reader && reader.epubViewMode !== mode) {
+        reader.epubViewMode = mode;
+      }
+
       if (needsWritingModeUpdate) {
-        // 設定変更扱いとして再描画し、クラス等も正常に更新
+        // applyReadingSettingsの中でreader.applyReadingDirectionが呼ばれ、
+        // そこで新しい epubViewMode に基づいたパジネーションが1回だけ実行される。
         await applyReadingSettings(writingMode, null);
+      } else if (reader && reader.applyEpubViewMode) {
+        // 設定変更扱いとして再描画
+        await reader.applyEpubViewMode(mode);
       }
 
       // 個別書籍の状態としても保存
       persistReadingState({ epubViewMode: mode });
-
-      if (reader.applyEpubViewMode) {
-        // 設定変更扱いとして再描画
-        await reader.applyEpubViewMode(mode);
-      }
     } finally {
       hideLoading();
     }
