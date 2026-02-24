@@ -1318,9 +1318,16 @@ async function handleBookReady(payload) {
       if (elements.writingModeSelect) elements.writingModeSelect.value = writingMode;
       if (elements.settingsEpubViewMode) elements.settingsEpubViewMode.value = epubViewMode;
 
+      // [最適化] applyReadingSettings を呼ぶ前に reader 側のモードを同期しておくことで、
+      // 内部で行われるパジネーションが正しいモードで行われるようにし、二重パジネーションを防ぐ。
+      if (reader && reader.epubViewMode !== epubViewMode) {
+        reader.epubViewMode = epubViewMode;
+      }
+
       // 初期化時の状態適用ではストレージ・クラウドへの再保存を抑制する
       await applyReadingSettings(writingMode, pageDirection, { skipLoadingOverlay: true, ignoreForce: true });
-      await applyEpubViewMode(targetEpubViewMode, true);
+      // すでに reader のプロパティが同期されていれば、内部で早期リターンされる
+      await applyEpubViewMode(epubViewMode, false);
     }
 
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新

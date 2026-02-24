@@ -806,10 +806,6 @@ export class ReaderController {
       console.log("Detected writing mode:", this.writingMode);
     }
 
-    if (this.viewer) {
-      this.viewer.style.overflow = "hidden";
-    }
-
     // テーマを事前適用
     this.updateEpubTheme();
 
@@ -2029,7 +2025,14 @@ export class ReaderController {
       }
 
       // 最終的な後処理（カバーページ追加など）
-      await this.addCoverPageIfNeeded(this.pagination);
+      const coverAdded = await this.addCoverPageIfNeeded(this.pagination);
+      if (coverAdded) {
+        // 表紙が追加されたことでインデックスが1つずれるため、現在の位置を維持するように調整
+        this.currentPageIndex += 1;
+        if (this.pageController) {
+          this.pageController.currentIndex += 1;
+        }
+      }
       this.pageController.setTotalPages(this.pagination.pages.length);
       this.paginationComplete = true;
       console.timeEnd(timerName);
@@ -3010,9 +3013,11 @@ export class ReaderController {
   }
 
   async addCoverPageIfNeeded(pagination) {
-    if (!pagination?.pages?.length || !this.book) return;
+    if (!pagination?.pages?.length || !this.book) return false;
+    // 重複追加を防ぐため、既に表紙が存在するかチェック
+    if (pagination.pages[0]?.withinSpineOffset === "cover") return false;
     const coverUrl = await this.resolveCoverUrl();
-    if (!coverUrl) return;
+    if (!coverUrl) return false;
     // imgタグのsrc属性を、renderEpubPageで使っている置換処理（とresolveImagesInRenderedPage）に
     // 拾ってもらえるように data-src にする、もしくは isSvgImageの様に一時退避させます。
     // 今回は他のページと同様のフローに乗せるため data-src を付与して初期化します。
@@ -3031,6 +3036,7 @@ export class ReaderController {
       htmlFragment,
       estimatedCharCount: htmlFragment.length,
     });
+    return true;
   }
 
   async resolveCoverUrl() {

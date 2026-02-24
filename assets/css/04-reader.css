@@ -142,13 +142,17 @@
 ===================================== */
 /* EPUBスクロールモード */
 .fullscreen-reader.epub-scroll-mode .viewer {
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
+  /* スクロールバー用のガターを常に確保し、レイアウトシフトを防ぐ */
   overflow-x: hidden !important;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .fullscreen-reader.epub-scroll-mode .viewer[style*="writing-mode: vertical-rl"] {
   overflow-y: hidden !important;
-  overflow-x: auto !important;
+  overflow-x: scroll !important;
+  /* 横方向のスクロールバーを強制 */
 }
 
 /* スクロールモードでは click-overlay のイベント検知を無効化し、

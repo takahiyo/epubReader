@@ -1,26 +1,18 @@
-# Debug Log: EPUB Position Reset & Mode Switch Failure
-
-## Reported Issue
-- Switching from "Paginated" to "Seamless (Scroll)" mode fails.
-- Screen doesn't change, scroll doesn't work.
-- Navigation buttons (prev/next) appear but don't work.
-- After page refresh (F5), it still behaves like paginated mode even if settings say "Seamless".
+## Reported Issue (New Symptoms)
+- **Paginated -> Scroll**:
+  - Scrollbar doesn't appear immediately.
+  - Clicking navigation (U3/B3) resets to cover, then it starts scrolling.
+  - Page count is significantly lower in scroll mode (e.g., 3 pages instead of 20).
+- **Scroll -> Paginated**:
+  - Moves to paginated mode, but turning pages resets to cover.
 
 ## Analysis (Console Logs)
-```
-reader.js:2921 Uncaught (in promise) ReferenceError: isBookLoading is not defined
-    at ReaderController.applyEpubViewMode (reader.js:2921:5)
-    at app.js:461:8
-```
-- **Cause**: I added `if (isBookLoading) return;` inside `reader.js`, but `isBookLoading` is a global variable in `app.js`, not defined in `reader.js`.
+- `buildPagination` in scroll mode is extremely fast and returns a very small number of pages.
+- This indicates that the `rendition` flow is likely stuck in the previous mode's configuration or not correctly calculating the scroll height.
+- `rendition.display()` might be needed with updated flow/manager settings when switching modes.
 
 ## Steps Taken
-1. [x] Fix `ReferenceError` in `reader.js` (removed invalid `isBookLoading` check).
-2. [x] Sequential initialization in `app.js`: `handleBookReady` now `await`s `applyReadingSettings` and `applyEpubViewMode` to prevent race conditions.
-3. [x] Fix premature return in `reader.applyEpubViewMode`: It now proceeds if `pagination` is missing, ensuring mode is applied even if property was set early.
-4. [x] Added `force` flag to `applyEpubViewMode` to ensure correct state application on first load.
-
-## Verification Required
-- [ ] Switching between Paginated and Seamless modes should now work without JS errors.
-- [ ] On F5 refresh, the saved mode (Seamless) should be correctly applied to the book.
-- [ ] Position (chapter/segment) should be maintained during the switch.
+...
+5. [ ] Investigate `ReaderController` rendition initialization.
+6. [ ] Check if `rendition.settings` needs manual update during `applyEpubViewMode`.
+7. [ ] Ensure `rendition.display()` is called with correct options on mode switch.
