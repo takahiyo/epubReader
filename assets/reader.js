@@ -3700,13 +3700,15 @@ export class ReaderController {
     if (typeof document === 'undefined') return;
     const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
     if (slider) {
-      // 既存のリスナーを削除できないため、クローンして置換（簡易的な方法）
-      // またはそのまま追加（重複に注意）
-      // ここでは初回のみ実行されると想定
-      slider.addEventListener('input', (e) => {
+      // 既存のリスナーを確実にクリアするため、要素をクローンして置換
+      const newSlider = slider.cloneNode(true);
+      slider.parentNode.replaceChild(newSlider, slider);
+
+      newSlider.addEventListener('input', (e) => {
         const val = parseFloat(e.target.value);
         this.setZoomLevel(val);
       });
+      console.log('[ReaderController] Zoom slider initialized');
     }
   }
 
