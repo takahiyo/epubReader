@@ -804,7 +804,7 @@ async function handleFile(file) {
     const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
-    const source = storage.getSettings().source || 'local';
+    const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
     await saveFile(id, buffer, { fileName: file.name, mime }, source);
@@ -1013,7 +1013,7 @@ async function openFromLibrary(bookId, options = {}) {
   try {
 
     userOverrodeDirection = false;
-    const source = storage.getSettings().source || 'local';
+    const source = deviceSettings.source || SYNC_SOURCES.LOCAL;
     const record = await loadFile(bookId, source);
 
     if (!record) {

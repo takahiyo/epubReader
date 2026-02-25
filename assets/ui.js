@@ -55,7 +55,7 @@ export class UIController {
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
     this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
-    this.getEpubViewMode = options.getEpubViewMode || (() => 'paginated');
+    this.getEpubViewMode = options.getEpubViewMode || (() => EPUB_VIEW_MODES.PAGINATED);
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;

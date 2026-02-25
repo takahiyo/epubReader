@@ -191,7 +191,7 @@ export class ReaderController {
     this.onRepaginationEnd = onRepaginationEnd;
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "image"
+    this.type = null; // BOOK_TYPES.EPUB | BOOK_TYPES.IMAGE
     this.archiveHandler = null;
     this.imagePages = [];
     this.imageIndex = 0;
@@ -200,13 +200,13 @@ export class ReaderController {
     this.imageLoadToken = 0;
     this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
-    this.imageReadingDirection = READING_DIRECTIONS.LTR; // "ltr" = 左開き, "rtl" = 右開き
+    this.imageReadingDirection = READING_DIRECTIONS.LTR; // READING_DIRECTIONS.LTR = 左開き, READING_DIRECTIONS.RTL = 右開き
     this.imageZoomed = false;
     this.repaginationRequestId = 0;
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
     this.pageDirection = READING_DIRECTIONS.LTR;
-    this.epubViewMode = "paginated";
+    this.epubViewMode = EPUB_VIEW_MODES.PAGINATED;
     this.preferredWritingMode = null;
     this.paginator = null;
     this.pagination = null;
@@ -226,7 +226,7 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
-    this.resizeTimer = null; // [追加] リサイズ用のタイマー
+    this.resizeTimer = null;
 
     // [New] Zoom State
     this.zoomScale = 1.0;
@@ -265,7 +265,7 @@ export class ReaderController {
 
       this.viewer.addEventListener('scroll', () => {
         // type が EPUB で、スクロールモードの場合のみ処理する
-        if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== "scroll" || !this.pagination) return;
+        if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== EPUB_VIEW_MODES.SCROLL || !this.pagination) return;
 
         clearTimeout(scrollTimeout);
         scrollTimeout = setTimeout(() => {
@@ -434,8 +434,6 @@ export class ReaderController {
     this.repaginationRequestId += 1;
     const myRequestId = this.repaginationRequestId;
 
-    console.log(`handleResize: リペジネーション開始 (requestId=${myRequestId})`);
-
     // ローディング表示（最新のリクエストのみ管理）
     this.onRepaginationStart?.();
 
@@ -481,10 +479,6 @@ export class ReaderController {
 
       // ブラウザの再描画を確定させる
       void document.body.offsetHeight;
-
-      console.log(
-        `handleResize: リペジネーション完了 (${this.pagination.pages.length}ページ, requestId=${myRequestId})`
-      );
     } catch (error) {
       if (error?.name === "PaginationCancelledError") {
         console.debug("handleResize: リペジネーションがキャンセルされました");
@@ -509,18 +503,14 @@ export class ReaderController {
         window.JSZip = JSZip;
       }
       if (isPlaceholder(JSZip)) {
-        console.warn("JSZip vendor file is a placeholder. Loading JSZip from CDN...");
         return this.loadJSZipFromCdn(isPlaceholder);
       }
-      console.log("JSZip is already loaded");
       return JSZip;
     }
     if (typeof window !== "undefined" && window.JSZip) {
       if (isPlaceholder(window.JSZip)) {
-        console.warn("JSZip vendor file is a placeholder. Loading JSZip from CDN...");
         return this.loadJSZipFromCdn(isPlaceholder);
       }
-      console.log("JSZip is already loaded (window.JSZip)");
       return window.JSZip;
     }
     console.log("Loading JSZip from local vendor...");
@@ -907,7 +897,7 @@ export class ReaderController {
         );
         if (pageIndex >= 0) {
           // スクロールモードではセグメント位置を保持してDOM内スクロールに使用
-          if (this.epubViewMode === "scroll" && locator.segmentIndex > 0) {
+          if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && locator.segmentIndex > 0) {
             this._pendingScrollToSegment = locator.segmentIndex;
             this._pendingScrollSearchQuery = startLocation.searchQuery || null;
           }
@@ -954,7 +944,7 @@ export class ReaderController {
           const pageIndex = this.findPageContaining(spineIndex, segmentIndex, this.pagination?.pages ?? []);
           if (pageIndex >= 0) {
             console.log(`[位置復元デバッグ][resolveStartPageIndexIfReady] テキスト解決により pageIndex=${pageIndex}, segmentIndex=${segmentIndex} を特定`);
-            if (this.epubViewMode === "scroll") {
+            if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
               // スクロールモード: 検索結果ジャンプと同じ仕組み（即時ジャンプ）を使い、ピンポイントで位置を復元
               this._pendingScrollToSegment = segmentIndex;
             }
@@ -992,7 +982,7 @@ export class ReaderController {
       );
       if (pageIndex >= 0) {
         // スクリム解除後の初期位置合わせ
-        if (this.epubViewMode === "scroll" && locator.segmentIndex > 0) {
+        if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && locator.segmentIndex > 0) {
           this._pendingScrollToSegment = locator.segmentIndex;
         }
         // セグメントインデックス解決でも visibleText があれば優先
@@ -1076,7 +1066,7 @@ export class ReaderController {
     target.style.lineHeight = `${lineHeight}`;
 
     const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
-    const isScroll = this.epubViewMode === "scroll";
+    const isScroll = this.epubViewMode === EPUB_VIEW_MODES.SCROLL;
 
     if (isVertical) {
       target.style.margin = "auto 0";
@@ -1405,8 +1395,7 @@ export class ReaderController {
       this._pendingScrollToSegment = segmentIndex;
       this._pendingScrollSearchQuery = searchQuery || null;
       this._pendingScrollHighlight = shouldHighlight;
-
-      if (this.epubViewMode !== "scroll") {
+      if (this.epubViewMode !== EPUB_VIEW_MODES.SCROLL) {
         // ページめくりモード: そのままページ遷移
         this.pageController.goTo(pageIndex);
       } else {
@@ -1509,7 +1498,7 @@ export class ReaderController {
 
     // ページめくりモードではスクロールしない。ハイライトのみ。
     // スクロールするとページレイアウトが崩れるため。
-    if (targetElement && targetElement.scrollIntoView && this.epubViewMode === "scroll") {
+    if (targetElement && targetElement.scrollIntoView && this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
       console.log("[ジャンプデバッグ] scrollIntoView を実行します (instant, center)");
       // ジャンプ先が画面の中央に来るように調整（視認性向上）
       targetElement.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
