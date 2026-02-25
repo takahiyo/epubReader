@@ -946,7 +946,13 @@ export class ReaderController {
         if (segmentIndex !== null) {
           const pageIndex = this.findPageContaining(spineIndex, segmentIndex, this.pagination?.pages ?? []);
           if (pageIndex >= 0) {
-            console.log(`[位置復元デバッグ][resolveStartPageIndexIfReady] テキスト解決により pageIndex=${pageIndex} を特定`);
+            console.log(`[位置復元デバッグ][resolveStartPageIndexIfReady] テキスト解決により pageIndex=${pageIndex}, segmentIndex=${segmentIndex} を特定`);
+            if (this.epubViewMode === "scroll") {
+              // スクロールモード: 検索結果ジャンプと同じ仕組み（即時ジャンプ）を使い、ピンポイントで位置を復元
+              this._pendingScrollToSegment = segmentIndex;
+            }
+            // 検索キーワード（SSOT）として visibleText を共有し、レンダリング後に即時ジャンプを発火させる
+            this._pendingScrollSearchQuery = visibleText;
             return pageIndex;
           }
         }
@@ -976,6 +982,16 @@ export class ReaderController {
         this.pagination?.pages ?? []
       );
       if (pageIndex >= 0) {
+        // スクリム解除後の初期位置合わせ
+        if (this.epubViewMode === "scroll" && locator.segmentIndex > 0) {
+          this._pendingScrollToSegment = locator.segmentIndex;
+        }
+        // セグメントインデックス解決でも visibleText があれば優先
+        if (visibleText) {
+          this._pendingScrollSearchQuery = visibleText;
+        } else {
+          this._pendingScrollSearchQuery = startLocation.searchQuery || null;
+        }
         return pageIndex;
       }
       return null;
@@ -1230,21 +1246,8 @@ export class ReaderController {
       node = walker.nextNode();
     }
 
-    // 空白の差異を吸収するあいまい検索（正規表現を使用）
-    // getCurrentVisibleText は空白を正規化して返すため、
-    // 生テキスト内の改行や連続スペースとの差異を吸収する必要がある
-
-    // クエリ内の連続する空白を1つのスペースに変換後、トリム
-    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
-    // エスケープ処理し、各文字間に任意の空白（改行含む）を許容するパターンを生成
-    // ただし、すでに ' ' (スペース) として正規化された部分は、元のテキスト側で1文字以上の空白を要求する
-    const escapedChars = Array.from(normalizedQuery).map(char => {
-      if (char === ' ') return '\\s+'; // スペースだった部分は1文字以上の空白
-      return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    });
-    const regexQuery = escapedChars.join('\\s*'); // リテラル文字間は0文字以上の任意の空白(改行含む)を許容
-
-    const searchRegex = new RegExp(regexQuery, 'gi');
+    // 空白の差異を吸収するあいまい検索（正規表現を使用） (SSOT)
+    const searchRegex = this._getFlexibleSearchRegex(query);
     const matches = [];
 
     let regexMatch;
@@ -1284,7 +1287,10 @@ export class ReaderController {
    * @returns {number|null} 解決されたセグメントインデックス。見つからない場合は null
    */
   resolveLocationByText(spineIndex, visibleText, debugTag = "General") {
-    if (spineIndex == null || !visibleText) return null;
+    if (spineIndex == null || !visibleText) {
+      console.warn(`[位置復元デバッグ][${debugTag}] 解決中止: spineIndex または visibleText がありません`, { spineIndex, visibleText });
+      return null;
+    }
 
     const spineItem = this.spineItems[spineIndex];
     console.log(`[位置復元デバッグ][${debugTag}] ステップ2: 検索対象`, {
@@ -1294,10 +1300,14 @@ export class ReaderController {
       htmlStringLength: spineItem?.htmlString?.length,
     });
 
-    if (!spineItem) return null;
+    if (!spineItem || !spineItem.htmlString) {
+      console.error(`[位置復元デバッグ][${debugTag}] 解決失敗:spineItem または htmlString が取得できませんでした`);
+      return null;
+    }
 
     // クエリを短くして精度を調整 (30文字)
     const query = visibleText.substring(0, 30);
+    console.log(`[位置復元デバッグ][${debugTag}] 文字列検索開始: "${query}"`);
     const matches = this.findSearchMatchesInSpine(spineItem, query);
 
     console.log(`[位置復元デバッグ][${debugTag}] ステップ3: 検索結果`, {
@@ -1307,9 +1317,11 @@ export class ReaderController {
     });
 
     if (matches && matches.length > 0) {
+      console.log(`[位置復元デバッグ][${debugTag}] 解決成功: segmentIndex=${matches[0].segmentIndex}`);
       return matches[0].segmentIndex;
     }
 
+    console.warn(`[位置復元デバッグ][${debugTag}] 解決失敗: 指定されたテキストが本文内に見つかりませんでした`);
     return null;
   }
 
@@ -1402,27 +1414,56 @@ export class ReaderController {
   }
 
   /**
+   * 空白や改行の差異を吸収する「あいまい検索」用の正規表現を生成する (SSOT)
+   * @param {string} query 
+   * @param {string} flags 正規表現フラグ (デフォルト 'gi')
+   * @returns {RegExp}
+   */
+  _getFlexibleSearchRegex(query, flags = 'gi') {
+    if (!query) return /$./;
+    // クエリ内の連続する空白を1つのスペースに変換後、トリム
+    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
+    // 各文字をエスケープし、文字間に任意の空白（改行含む）を許容
+    const escapedChars = Array.from(normalizedQuery).map(char => {
+      if (char === ' ') return '\\s+'; // スペース箇所は1文字以上の空白を要求
+      return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    });
+    const pattern = escapedChars.join('\\s*');
+    return new RegExp(pattern, flags);
+  }
+
+  /**
    * スクロールモード用: DOM内の指定位置までスクロールする。
    * searchQueryがある場合は実際のテキストをDOM内で検索してピンポイントでスクロール。
    * searchQueryがない場合はセグメントインデックスで近似位置へスクロール。
    */
   _scrollToPositionInDOM(container, segmentIndex, searchQuery) {
-    if (!container) return;
+    if (!container) {
+      console.warn("[ジャンプデバッグ] container がありません");
+      return;
+    }
 
     let targetElement = null;
     let matchDataArray = null;
 
+    console.log(`[ジャンプデバッグ] 実行開始: segmentIndex=${segmentIndex}, hasSearchQuery=${!!searchQuery}`);
+
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {
+      console.log(`[ジャンプデバッグ] テキスト検索による位置特定を試行中: "${searchQuery.substring(0, 20)}..."`);
       matchDataArray = this._findTextInDOM(container, searchQuery);
       if (matchDataArray && matchDataArray.length > 0) {
         // 最初に見つかった親要素をスクロールターゲットとする
         targetElement = matchDataArray[0].node.parentElement;
+        console.log("[ジャンプデバッグ] テキスト検索に成功しました", { targetElement });
+      } else {
+        console.warn("[ジャンプデバッグ] テキスト検索に失敗しました");
       }
     }
 
     // 方法2: セグメントインデックスで近似位置へスクロール（しおり等）
     if (!targetElement && segmentIndex > 0) {
+      console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
         container,
         NodeFilter.SHOW_TEXT,
@@ -1448,11 +1489,18 @@ export class ReaderController {
         currentSegment += segmentsInNode;
         node = walker.nextNode();
       }
+
+      if (targetElement) {
+        console.log("[ジャンプデバッグ] インデックスによる位置特定に成功しました", { targetElement });
+      } else {
+        console.warn("[ジャンプデバッグ] インデックスによる位置特定に失敗しました (章の末尾を超えた可能性があります)");
+      }
     }
 
     // ページめくりモードではスクロールしない。ハイライトのみ。
     // スクロールするとページレイアウトが崩れるため。
     if (targetElement && targetElement.scrollIntoView && this.epubViewMode === "scroll") {
+      console.log("[ジャンプデバッグ] scrollIntoView を実行します (instant, center)");
       // ジャンプ先が画面の中央に来るように調整（視認性向上）
       targetElement.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
       this._scrollTargetNode = targetElement; // リサイズ時の位置維持用
@@ -1465,6 +1513,7 @@ export class ReaderController {
 
     // スクロールモードで対象が見つからなかった場合のフォールバック
     if (!targetElement && this.epubViewMode === "scroll") {
+      console.warn("[ジャンプデバッグ] 最終的なターゲットが見つからなかったため、章の先頭へフォールバックします");
       this._scrollTargetNode = null;
       // フォールバック：先頭へ
       if (this.viewer) {
@@ -1666,10 +1715,8 @@ export class ReaderController {
       });
     }
 
-    // 空白文字（改行やスペース）の違いを吸収するため正規表現を組み立てる
-    const escapedQuery = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regexQuery = escapedQuery.replace(/\s+/g, '\\s+');
-    const regex = new RegExp(regexQuery, "i");
+    // 空白文字（改行やスペース）の違いを吸収するため正規表現を組み立てる (共通ロジックを使用)
+    const regex = this._getFlexibleSearchRegex(searchText, "i");
 
     // fullTextから対象文字列を正規表現検索
     const match = fullText.match(regex);
