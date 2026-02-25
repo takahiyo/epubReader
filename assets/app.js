@@ -153,9 +153,12 @@ function normalizeEpubLocation(location) {
     return {
       spineIndex: location.spineIndex,
       segmentIndex: location.segmentIndex,
+      cfi: location.cfi || undefined,
+      visibleText: location.visibleText || undefined,
     };
   }
   if (typeof location === "string") {
+    // 既存の "spineIndex:segmentIndex" 形式の文字列復元
     const match = location.match(/^(\d+):(\d+)$/);
     if (match) {
       return {
