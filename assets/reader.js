@@ -241,6 +241,10 @@ export class ReaderController {
     this.transformFrame = null;
     this.pendingTransform = false;
 
+    this._pendingScrollToSegment = null;
+    this._pendingScrollSearchQuery = null;
+    this._pendingScrollHighlight = true;
+
     // Bind global pan events
     this.bindPanEvents();
     this.bindZoomEvents();
@@ -348,6 +352,9 @@ export class ReaderController {
       this.currentPaginationRun.cancelled = true;
       this.currentPaginationRun = null;
     }
+    this._pendingScrollToSegment = null;
+    this._pendingScrollSearchQuery = null;
+    this._pendingScrollHighlight = true;
     this._isInitialReadyCalled = false;
     this.toc = [];
     if (this.paginator?.destroy) {
@@ -953,6 +960,8 @@ export class ReaderController {
             }
             // 検索キーワード（SSOT）として visibleText を共有し、レンダリング後に即時ジャンプを発火させる
             this._pendingScrollSearchQuery = visibleText;
+            // 位置復元時はハイライトを表示させない
+            this._pendingScrollHighlight = false;
             return pageIndex;
           }
         }
@@ -1388,13 +1397,14 @@ export class ReaderController {
     return { spineIndex: first.spineIndex, segmentIndex };
   }
 
-  goToSegment(spineIndex, segmentIndex, searchQuery) {
+  goToSegment(spineIndex, segmentIndex, searchQuery, shouldHighlight = true) {
     if (!this.pagination?.pages?.length) return;
     const pageIndex = this.findPageContaining(spineIndex, segmentIndex);
     if (pageIndex >= 0) {
       // 指定位置までDOMスクロール/ハイライトするための情報を保持
       this._pendingScrollToSegment = segmentIndex;
       this._pendingScrollSearchQuery = searchQuery || null;
+      this._pendingScrollHighlight = shouldHighlight;
 
       if (this.epubViewMode !== "scroll") {
         // ページめくりモード: そのままページ遷移
@@ -1435,9 +1445,9 @@ export class ReaderController {
   /**
    * スクロールモード用: DOM内の指定位置までスクロールする。
    * searchQueryがある場合は実際のテキストをDOM内で検索してピンポイントでスクロール。
-   * searchQueryがない場合はセグメントインデックスで近似位置へスクロール。
+   * @param {boolean} shouldHighlight 
    */
-  _scrollToPositionInDOM(container, segmentIndex, searchQuery) {
+  _scrollToPositionInDOM(container, segmentIndex, searchQuery, shouldHighlight = true) {
     if (!container) {
       console.warn("[ジャンプデバッグ] container がありません");
       return;
@@ -1506,8 +1516,8 @@ export class ReaderController {
       this._scrollTargetNode = targetElement; // リサイズ時の位置維持用
     }
 
-    // 検索テキストがある場合は一時的に強調表示（モード問わず実行）
-    if (searchQuery && matchDataArray) {
+    // 検索テキストがある場合は一時的に強調表示（モード問わず実行。フラグが有効な場合のみ）
+    if (searchQuery && matchDataArray && shouldHighlight) {
       this._applyTemporaryHighlight(matchDataArray, searchQuery);
     }
 
@@ -1908,9 +1918,11 @@ export class ReaderController {
         if (!this.viewer || !this.pageContainer) return;
 
         if (pendingSegment != null || pendingSearchQuery) {
-          this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery);
+          const shouldHighlight = this._pendingScrollHighlight;
+          this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery, shouldHighlight);
           this._pendingScrollToSegment = null;
           this._pendingScrollSearchQuery = null;
+          this._pendingScrollHighlight = true; // デフォルトに戻す
         } else {
           this._scrollTargetNode = null;
 
@@ -3187,7 +3199,8 @@ export class ReaderController {
         const segmentIndex = this.resolveLocationByText(spineIndex, visibleText, "goToBookmark");
         if (segmentIndex !== null) {
           console.log(`[位置復元デバッグ][goTo] テキスト解決成功: spineIndex=${spineIndex}, segmentIndex=${segmentIndex}`);
-          this.goToSegment(spineIndex, segmentIndex, bookmark.searchQuery);
+          const shouldHighlight = bookmark.shouldHighlight !== undefined ? bookmark.shouldHighlight : !!bookmark.searchQuery;
+          this.goToSegment(spineIndex, segmentIndex, bookmark.searchQuery, shouldHighlight);
           return;
         }
       }
@@ -3199,7 +3212,8 @@ export class ReaderController {
         typeof bookmark.location.spineIndex === "number" &&
         typeof bookmark.location.segmentIndex === "number"
       ) {
-        this.goToSegment(bookmark.location.spineIndex, bookmark.location.segmentIndex, bookmark.searchQuery);
+        const shouldHighlight = bookmark.shouldHighlight !== undefined ? bookmark.shouldHighlight : !!bookmark.searchQuery;
+        this.goToSegment(bookmark.location.spineIndex, bookmark.location.segmentIndex, bookmark.searchQuery, shouldHighlight);
         return;
       }
       if (typeof bookmark.location === "number" && this.pagination?.pages?.length) {
@@ -3248,7 +3262,7 @@ export class ReaderController {
 
     // 位置の復元
     if (locator) {
-      this.goToSegment(locator.spineIndex, locator.segmentIndex);
+      this.goToSegment(locator.spineIndex, locator.segmentIndex, null, false);
     } else {
       this.pageController.goTo(this.currentPageIndex);
     }
@@ -3326,24 +3340,24 @@ export class ReaderController {
                 spineIndex: currentSpineIndex,
                 segmentIndex: segmentIndex,
               });
-              this.goToSegment(currentSpineIndex, segmentIndex);
+              this.goToSegment(currentSpineIndex, segmentIndex, null, false);
               restored = true;
             }
           }
-
-          // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
-          // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
-          if (!restored) {
-            console.log(`[位置復元デバッグ][applyReadingDirection] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
-            this.goToSegment(currentSpineIndex, 0);
-            restored = true;
-          }
         }
 
+        // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
+        // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
         if (!restored) {
-          console.log(`[位置復元デバッグ][applyReadingDirection] 最終フォールバック: ページ0に移動`);
-          this.pageController.goTo(this.currentPageIndex >= 0 ? this.currentPageIndex : 0);
+          console.log(`[位置復元デバッグ][applyReadingDirection] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
+          this.goToSegment(currentSpineIndex, 0, null, false);
+          restored = true;
         }
+      }
+
+      if (!restored) {
+        console.log(`[位置復元デバッグ][applyReadingDirection] 最終フォールバック: ページ0に移動`);
+        this.pageController.goTo(this.currentPageIndex >= 0 ? this.currentPageIndex : 0);
       }
     } catch (error) {
       console.timeEnd('[applyReadingDirection] buildPagination');
@@ -3434,7 +3448,7 @@ export class ReaderController {
                 spineIndex: currentSpineIndex,
                 segmentIndex: segmentIndex,
               });
-              this.goToSegment(currentSpineIndex, segmentIndex);
+              this.goToSegment(currentSpineIndex, segmentIndex, null, false);
               restored = true;
             }
           }
@@ -3443,7 +3457,7 @@ export class ReaderController {
           // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
           if (!restored) {
             console.log(`[位置復元デバッグ][applyEpubViewMode] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
-            this.goToSegment(currentSpineIndex, 0);
+            this.goToSegment(currentSpineIndex, 0, null, false);
             restored = true;
           }
         }
