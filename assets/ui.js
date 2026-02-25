@@ -275,6 +275,14 @@ export class UIController {
       const absDeltaY = Math.abs(deltaY);
 
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
+        // [START] EPUBスクロールモード時はスワイプでのページ移動を無効化 (SSOT)
+        if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+          this.touchStartX = null;
+          this.touchStartY = null;
+          return;
+        }
+        // [END]
+
         const mode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
         // 画像書庫または縦書きモードなら横スワイプ
         if (mode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
@@ -377,10 +385,8 @@ export class UIController {
       return;
     }
 
-    // 横書き
-    if (this.getEpubViewMode?.() === 'scroll') {
-      // シームレススクロール時はU3, B3等による全体タップページ送りを無効化
-      // (スクロール操作、または専用ボタンを使うため)
+    // 全モード共通: シームレススクロール時はエリアタップによるページ送りを無効化 (SSOT)
+    if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
       return;
     }
 
@@ -544,7 +550,7 @@ export class UIController {
   /**
    * 進捗表示を更新
    */
-  updateProgress(current, total) {
+  updateProgress(current, total, percentageOverride = null) {
     // 数値型に強制変換（オブジェクトが渡された場合の対策）
     const currentIndex = (typeof current === 'object' && current !== null) ? (current.index ?? current.pageIndex ?? 0) : Number(current || 0);
     const totalCount = (typeof total === 'object' && total !== null) ? (total.length ?? total.totalPages ?? 0) : Number(total || 0);
@@ -553,7 +559,8 @@ export class UIController {
     const currentInput = getById(DOM_IDS.CURRENT_PAGE_INPUT);
     const totalSpan = getById(DOM_IDS.TOTAL_PAGES);
 
-    if (currentInput) currentInput.value = (isNaN(currentIndex) ? 0 : currentIndex) + 1; // 1-based
+    // ページ番号は章の番号なので、小数点以下は切り捨てる
+    if (currentInput) currentInput.value = Math.floor(currentIndex) + 1; // 1-based
 
     // totalPages が undefined の場合や 0 の場合のガード
     const validTotal = (typeof totalCount === 'number' && totalCount > 0) ? totalCount : 0;
@@ -561,7 +568,9 @@ export class UIController {
 
     // 2. プログレスバー更新
     let percentage = 0;
-    if (validTotal > 1) {
+    if (Number.isFinite(percentageOverride)) {
+      percentage = percentageOverride;
+    } else if (validTotal > 1) {
       percentage = (Math.min(currentIndex, validTotal - 1) / (validTotal - 1)) * 100;
     } else if (validTotal === 1) {
       percentage = 100;
@@ -571,10 +580,6 @@ export class UIController {
 
     const fill = getById(DOM_IDS.PROGRESS_FILL);
     const thumb = getById(DOM_IDS.PROGRESS_THUMB);
-
-    // RTL時は、CSS側（transform: scaleX(-1)）で反転させるため、
-    // ここで反転させると二重反転になる可能性がある。
-    // しかし、数値表示（floatPercent）などは反転させない。
 
     if (fill) fill.style.width = `${percentage}%`;
     if (thumb) thumb.style.left = `${percentage}%`;

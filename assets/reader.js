@@ -2032,30 +2032,32 @@ export class ReaderController {
     }
   }
 
-  updateProgressFromPagination(totalPages) {
-    if (!totalPages) return;
+  _calculateCurrentPercentage(totalPages) {
+    if (!totalPages || totalPages <= 0) return 0;
 
-    let percentage;
+    let currentIndex = this.currentPageIndex;
+
     if (this.epubViewMode === "scroll" && this.viewer) {
-      // スクロールモード: ページに依存せず、全体のスクロール位置を加味した計算
+      // スクロールモード: 章内スクロール位置を加味
       const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
       let scrollRatio = 0;
       if (isVertical) {
-        // vertical-rl: scrollLeftは 0 (右端/初期位置) からマイナス方向 (左端) へ変化する
         const maxScroll = Math.abs(this.viewer.scrollWidth - this.viewer.clientWidth);
         scrollRatio = maxScroll > 0 ? (Math.abs(this.viewer.scrollLeft) / maxScroll) : 0;
       } else {
         const maxScroll = Math.abs(this.viewer.scrollHeight - this.viewer.clientHeight);
         scrollRatio = maxScroll > 0 ? (Math.abs(this.viewer.scrollTop) / maxScroll) : 0;
       }
-
-      // 第n章の範囲内でスクロール割合を加算。ただし上限を超えないよう min をとる
-      const exactContinuousIndex = Math.min(this.currentPageIndex + scrollRatio, totalPages - 1);
-      percentage = calculateProgressPercentage(exactContinuousIndex, totalPages);
-    } else {
-      // 通常モード
-      percentage = calculateProgressPercentage(this.currentPageIndex, totalPages);
+      currentIndex = Math.min(this.currentPageIndex + scrollRatio, totalPages - 1);
     }
+
+    return calculateProgressPercentage(currentIndex, totalPages);
+  }
+
+  updateProgressFromPagination(totalPages) {
+    if (!totalPages) return;
+
+    const percentage = this._calculateCurrentPercentage(totalPages);
 
     const locator = this.getPageLocator(this.currentPageIndex);
     const fallbackLocator = locator ? null : this.getFallbackLocator();
@@ -3119,7 +3121,9 @@ export class ReaderController {
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
     if (this.type === BOOK_TYPES.EPUB) {
       if (!this.pagination?.pages?.length) return null;
-      const percentage = calculateProgressPercentage(this.currentPageIndex, this.pagination.pages.length);
+      // [BEFORE] const percentage = calculateProgressPercentage(this.currentPageIndex, this.pagination.pages.length);
+      // [AFTER] スクロール位置を加味した共通の計算ロジックを使用
+      const percentage = this._calculateCurrentPercentage(this.pagination.pages.length);
       const locator = this.getPageLocator(this.currentPageIndex) || this.getFallbackLocator();
       const visibleText = locator?.visibleText || this.getCurrentVisibleText(50);
 
@@ -3218,8 +3222,21 @@ export class ReaderController {
         return;
       }
       if (typeof bookmark.percentage === "number" && this.pagination?.pages?.length) {
-        const index = Math.round((bookmark.percentage / 100) * this.pagination.pages.length) - 1;
-        this.pageController.goTo(index);
+        const total = this.pagination.pages.length;
+        // PERCENTAGE_BASE = 100
+        // (currentIndex / (totalPages > 1 ? totalPages - 1 : 1)) * 100 = percentage
+        // currentIndex = percentage / 100 * (total - 1)
+        const exactIndex = (bookmark.percentage / 100) * (total > 1 ? total - 1 : 1);
+
+        if (this.epubViewMode === "scroll") {
+          // スクロールモードなら、整数部分のページに移動し、小数部分をスクロール位置として考慮できるようにする
+          // (goToSegment内でも最終的な補正が行われるが、ここでpageIndexを特定する)
+          const pageIndex = Math.max(0, Math.min(Math.floor(exactIndex), total - 1));
+          this.pageController.goTo(pageIndex);
+        } else {
+          const index = Math.round(exactIndex);
+          this.pageController.goTo(Math.max(0, Math.min(index, total - 1)));
+        }
       }
     } else if (bookType !== BOOK_TYPES.EPUB) {
       // 画像書庫: location は imageIndex
