@@ -275,6 +275,14 @@ export class UIController {
       const absDeltaY = Math.abs(deltaY);
 
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
+        // [START] EPUBスクロールモード時はスワイプでのページ移動を無効化 (SSOT)
+        if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+          this.touchStartX = null;
+          this.touchStartY = null;
+          return;
+        }
+        // [END]
+
         const mode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
         // 画像書庫または縦書きモードなら横スワイプ
         if (mode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
@@ -377,10 +385,8 @@ export class UIController {
       return;
     }
 
-    // 横書き
-    if (this.getEpubViewMode?.() === 'scroll') {
-      // シームレススクロール時はU3, B3等による全体タップページ送りを無効化
-      // (スクロール操作、または専用ボタンを使うため)
+    // 全モード共通: シームレススクロール時はエリアタップによるページ送りを無効化 (SSOT)
+    if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
       return;
     }
 
