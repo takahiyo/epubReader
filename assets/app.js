@@ -428,7 +428,7 @@ const reader = new ReaderController({
     // reader.js は { location, percentage } を渡す。readerから現在値を取得して更新
     const progressSnapshot = getProgressSnapshot({ location, percentage });
 
-    ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages);
+    ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages, progressSnapshot.percentage);
     const savedSnapshot = saveCurrentProgress({ progressSnapshot });
     requestCloudSyncIfNeeded({ progressSnapshot: savedSnapshot });
   },

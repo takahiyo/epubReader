@@ -11,10 +11,11 @@ export function roundProgressPercentage(value, precision = PROGRESS_PRECISION) {
 
 export function calculateProgressPercentage(currentIndex, totalPages, precision = PROGRESS_PRECISION) {
   if (!Number.isFinite(currentIndex) || !Number.isFinite(totalPages) || totalPages <= 0) {
-    return null;
+    return 0;
   }
-  const rawPercentage = ((currentIndex + 1) / totalPages) * PERCENTAGE_BASE;
-  return roundProgressPercentage(rawPercentage, precision);
+  // currentIndex が float (0.5 など) の場合も考慮
+  const rawPercentage = (currentIndex / (totalPages > 1 ? totalPages - 1 : 1)) * PERCENTAGE_BASE;
+  return roundProgressPercentage(Math.min(PERCENTAGE_BASE, Math.max(0, rawPercentage)), precision);
 }
 
 export function normalizePageIndex(value) {
