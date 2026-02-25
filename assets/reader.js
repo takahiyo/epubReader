@@ -1233,8 +1233,17 @@ export class ReaderController {
     // 空白の差異を吸収するあいまい検索（正規表現を使用）
     // getCurrentVisibleText は空白を正規化して返すため、
     // 生テキスト内の改行や連続スペースとの差異を吸収する必要がある
-    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regexQuery = escapedQuery.replace(/\s+/g, '\\s+');
+
+    // クエリ内の連続する空白を1つのスペースに変換後、トリム
+    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
+    // エスケープ処理し、各文字間に任意の空白（改行含む）を許容するパターンを生成
+    // ただし、すでに ' ' (スペース) として正規化された部分は、元のテキスト側で1文字以上の空白を要求する
+    const escapedChars = Array.from(normalizedQuery).map(char => {
+      if (char === ' ') return '\\s+'; // スペースだった部分は1文字以上の空白
+      return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    });
+    const regexQuery = escapedChars.join('\\s*'); // リテラル文字間は0文字以上の任意の空白(改行含む)を許容
+
     const searchRegex = new RegExp(regexQuery, 'gi');
     const matches = [];
 
