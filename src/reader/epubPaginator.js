@@ -123,13 +123,9 @@ function createMeasurementContainer(settings) {
   const style = document.createElement("style");
   style.textContent = `
     [data-epub-paginator="page"] img:not([class*="gaiji"]) {
-      width: 95%;       /* reader.js に合わせる */
-      height: 95vh;     /* コンテナ(vh)に対する95% */
+      max-width: 100%;
+      max-height: 100%;
       object-fit: contain;
-      display: block;
-      margin: 0 auto;
-      max-width: none;
-      max-height: none;
     }
     [data-epub-paginator="page"] img[class*="gaiji"] {
       width: 1em;
