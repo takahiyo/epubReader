@@ -122,7 +122,7 @@ function createMeasurementContainer(settings) {
 
   const style = document.createElement("style");
   style.textContent = `
-    [data-epub-paginator="page"] img {
+    [data-epub-paginator="page"] img:not([class*="gaiji"]) {
       width: 95%;       /* reader.js に合わせる */
       height: 95vh;     /* コンテナ(vh)に対する95% */
       object-fit: contain;
@@ -130,6 +130,14 @@ function createMeasurementContainer(settings) {
       margin: 0 auto;
       max-width: none;
       max-height: none;
+    }
+    [data-epub-paginator="page"] img[class*="gaiji"] {
+      width: 1em;
+      height: 1em;
+      object-fit: contain;
+      display: inline-block;
+      margin: 0;
+      padding: 0;
     }
     [data-epub-paginator="page"] svg {
       max-width: 100%;

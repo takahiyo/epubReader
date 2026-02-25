@@ -1890,16 +1890,13 @@ export class ReaderController {
     // --- [修正終了] ---
 
     this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG).forEach((img) => {
-      // 画面環境の95%を利用し、小さい画像は拡大する設定
-      img.style.width = "95%";       // 横95%強制
-      img.style.height = "95vh";     // 縦95%強制
-      img.style.objectFit = "contain"; // アスペクト比維持で枠内に収める
-      img.style.margin = "0 auto";   // 中央寄せ
-      img.style.display = "block";
-
-      // 以前のmax設定は干渉するため解除
-      img.style.maxWidth = "none";
-      img.style.maxHeight = "none";
+      const className = img.getAttribute("class") || "";
+      const isGaiji = className.toLowerCase().includes("gaiji");
+      if (isGaiji) {
+        img.classList.add(UI_CLASSES.GAIJI_IMAGE || "reader-gaiji-img");
+      } else {
+        img.classList.add(UI_CLASSES.FULLSCREEN_IMAGE || "reader-fullscreen-img");
+      }
     });
     this.resolveImagesInRenderedPage(page);
     this.interceptInternalLinks(this.pageContainer, page);

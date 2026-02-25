@@ -113,6 +113,8 @@ export const UI_CLASSES = Object.freeze({
   GOOGLE_AUTH_ACTIVE: "google-auth-active",
   ZOOMED: "zoomed",
   IS_DRAGGING: "is-dragging",
+  GAIJI_IMAGE: "reader-gaiji-img",
+  FULLSCREEN_IMAGE: "reader-fullscreen-img",
 });
 
 // ============================================

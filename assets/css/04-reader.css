@@ -134,6 +134,34 @@
 
 /* =====================================
 [REF]
+- HTML: .reader-fullscreen-img / .reader-gaiji-img
+- JS: reader.js (画像サイズ調整)
+- STATE: なし
+- LAYER: なし
+- SPLIT: COMPONENT
+===================================== */
+.reader-fullscreen-img {
+  width: var(--img-fullscreen-width, 95%);
+  height: var(--img-fullscreen-height, 95vh);
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+  max-height: none;
+}
+
+.reader-gaiji-img {
+  width: var(--img-gaiji-size, 1em);
+  height: var(--img-gaiji-size, 1em);
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: text-bottom;
+  margin: 0;
+  padding: 0;
+}
+
+/* =====================================
+[REF]
 - HTML: .fullscreen-reader.epub-scroll .viewer（スクロールモード）
 - JS: .epub-scroll を付与
 - STATE: .epub-scroll
