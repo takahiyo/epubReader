@@ -123,13 +123,9 @@ function createMeasurementContainer(settings) {
   const style = document.createElement("style");
   style.textContent = `
     [data-epub-paginator="page"] img:not([class*="gaiji"]) {
-      width: 95%;       /* reader.js に合わせる */
-      height: 95vh;     /* コンテナ(vh)に対する95% */
+      max-width: 100%;
+      max-height: 100%;
       object-fit: contain;
-      display: block;
-      margin: 0 auto;
-      max-width: none;
-      max-height: none;
     }
     [data-epub-paginator="page"] img[class*="gaiji"] {
       width: 1em;
@@ -296,20 +292,20 @@ function makeHtmlSafe(html) {
 
   // DOMParserの段階でブラウザが画像を先読みしないよう、属性名を一時退避する。
   safe = safe.replace(
-    /(<(?:img|image)\s+[^>]*?)\bsrc\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    /(<(?:img|image)\s+[^>]*?)(?<=[\s"'])src\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
     "$1data-epub-src=$2$3$2"
   );
   safe = safe.replace(
-    /(<(?:img|image)\s+[^>]*?)\bsrcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    /(<(?:img|image)\s+[^>]*?)(?<=[\s"'])srcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
     "$1data-epub-srcset=$2$3$2"
   );
   safe = safe.replace(
-    /(<image\s+[^>]*?)\bhref\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
-    "$1data-epub-href=$2$3$2"
+    /(<image\s+[^>]*?)(?<=[\s"'])xlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-xlink-href=$2$3$2"
   );
   safe = safe.replace(
-    /(<image\s+[^>]*?)\bxlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
-    "$1data-epub-xlink-href=$2$3$2"
+    /(<image\s+[^>]*?)(?<=[\s"'])href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-href=$2$3$2"
   );
 
   return safe;
