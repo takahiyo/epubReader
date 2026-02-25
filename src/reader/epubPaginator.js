@@ -292,20 +292,20 @@ function makeHtmlSafe(html) {
 
   // DOMParserの段階でブラウザが画像を先読みしないよう、属性名を一時退避する。
   safe = safe.replace(
-    /(<(?:img|image)\s+[^>]*?)\bsrc\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    /(<(?:img|image)\s+[^>]*?)(?<=[\s"'])src\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
     "$1data-epub-src=$2$3$2"
   );
   safe = safe.replace(
-    /(<(?:img|image)\s+[^>]*?)\bsrcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    /(<(?:img|image)\s+[^>]*?)(?<=[\s"'])srcset\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
     "$1data-epub-srcset=$2$3$2"
   );
   safe = safe.replace(
-    /(<image\s+[^>]*?)\bhref\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
-    "$1data-epub-href=$2$3$2"
+    /(<image\s+[^>]*?)(?<=[\s"'])xlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-xlink-href=$2$3$2"
   );
   safe = safe.replace(
-    /(<image\s+[^>]*?)\bxlink:href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
-    "$1data-epub-xlink-href=$2$3$2"
+    /(<image\s+[^>]*?)(?<=[\s"'])href\s*=\s*(["'])(?!blob:|data:)(.*?)\2/gi,
+    "$1data-epub-href=$2$3$2"
   );
 
   return safe;
