@@ -19,6 +19,11 @@ export const DEVICE_COLOR_PALETTE = Object.freeze([
   "#fa8231",
 ]);
 
+export const EPUB_VIEW_MODES = Object.freeze({
+  PAGINATED: "paginated",
+  SCROLL: "scroll"
+});
+
 // ============================================
 // UI 初期設定
 // ============================================
@@ -30,6 +35,7 @@ export const UI_DEFAULTS = Object.freeze({
   defaultDirection: READING_DIRECTIONS.RTL,
   libraryViewMode: "grid",
   imageViewMode: IMAGE_VIEW_MODES.SINGLE,
+  epubViewMode: EPUB_VIEW_MODES.PAGINATED,
   writingMode: WRITING_MODES.HORIZONTAL,
   pageDirection: READING_DIRECTIONS.LTR,
   bookmarkMenuMode: "current",
@@ -100,12 +106,15 @@ export const UI_CLASSES = Object.freeze({
   RTL_MODE: "rtl-mode",
   RTL_PROGRESS: "rtl-progress",
   IS_ZOOMED: "is-zoomed",
-  EPUB_SCROLL: "epub-scroll",
+  EPUB_SCROLL: "epub-scroll", // 旧スクロールモード用（互換性残し）
+  EPUB_SCROLL_MODE: "epub-scroll-mode",
   DRAGGING: "dragging",
   BOOKMARK_MENU: "bookmark-menu",
   GOOGLE_AUTH_ACTIVE: "google-auth-active",
   ZOOMED: "zoomed",
   IS_DRAGGING: "is-dragging",
+  GAIJI_IMAGE: "reader-gaiji-img",
+  FULLSCREEN_IMAGE: "reader-fullscreen-img",
 });
 
 // ============================================
@@ -212,6 +221,7 @@ export const DOM_IDS = Object.freeze({
   SETTINGS_DEFAULT_WRITING_MODE: "settingsDefaultWritingMode",
   SETTINGS_DEFAULT_PAGE_DIRECTION: "settingsDefaultPageDirection",
   SETTINGS_DEFAULT_IMAGE_VIEW_MODE: "settingsDefaultImageViewMode",
+  SETTINGS_EPUB_VIEW_MODE: "settingsEpubViewMode",
   PROGRESS_DISPLAY_MODE: "progressDisplayMode",
   EXPORT_DATA_BTN: "exportDataBtn",
   IMPORT_DATA_INPUT: "importDataInput",
@@ -235,6 +245,7 @@ export const DOM_IDS = Object.freeze({
   SETTINGS_DEFAULT_WRITING_MODE_LABEL: "settingsDefaultWritingModeLabel",
   SETTINGS_DEFAULT_PAGE_DIRECTION_LABEL: "settingsDefaultPageDirectionLabel",
   SETTINGS_DEFAULT_IMAGE_VIEW_MODE_LABEL: "settingsDefaultImageViewModeLabel",
+  SETTINGS_EPUB_VIEW_MODE_LABEL: "settingsEpubViewModeLabel",
   THEME_LABEL: "themeLabel",
   WRITING_MODE_LABEL: "writingModeLabel",
   PAGE_DIRECTION_LABEL: "pageDirectionLabel",
@@ -305,7 +316,7 @@ export const DOM_SELECTORS = Object.freeze({
   FLOAT_PROGRESS: "#floatProgress",
   CLICK_EXCLUDE_MENU: ".left-menu, .progress-bar-panel, .bookmark-menu",
   CLICK_EXCLUDE_ALL:
-    ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgress",
+    ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgress, .epub-scroll-nav-btn",
   ZOOM_ALLOWED_TARGETS: "#toggleZoom, .zoom-slider-container",
   EPUB_PAGE: ".epub-page",
   SPREAD_CONTAINER: ".spread-container",

@@ -11,6 +11,7 @@ import {
   DOM_SELECTORS,
   WRITING_MODES,
   READING_DIRECTIONS,
+  EPUB_VIEW_MODES,
 } from "./constants.js";
 
 // UI制御モジュール：エリア判定、メニュー表示、進捗バー等
@@ -54,6 +55,7 @@ export class UIController {
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
     this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
+    this.getEpubViewMode = options.getEpubViewMode || (() => 'paginated');
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -376,6 +378,12 @@ export class UIController {
     }
 
     // 横書き
+    if (this.getEpubViewMode?.() === 'scroll') {
+      // シームレススクロール時はU3, B3等による全体タップページ送りを無効化
+      // (スクロール操作、または専用ボタンを使うため)
+      return;
+    }
+
     if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
       this.onPagePrev?.();
     } else if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
@@ -516,10 +524,16 @@ export class UIController {
     }
     if (bookmarkMenu) bookmarkMenu.classList.remove(UI_CLASSES.VISIBLE);
 
-    // オーバーレイを再度有効化
+    // オーバーレイを再度有効化（スクロールモード時はCSSで無効化されているため除外）
     if (overlay) {
-      overlay.style.pointerEvents = 'all';
-      console.log('Re-enabled overlay pointer events');
+      const isScrollMode = document.querySelector('.fullscreen-reader.epub-scroll-mode');
+      if (!isScrollMode) {
+        overlay.style.pointerEvents = 'all';
+        console.log('Re-enabled overlay pointer events');
+      } else {
+        // スクロールモード時はインラインスタイルをクリアしてCSSに委任
+        overlay.style.pointerEvents = '';
+      }
     }
 
     this.onLeftMenu?.('hide');

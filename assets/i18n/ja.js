@@ -70,6 +70,9 @@ export const UI_STRINGS_JA = Object.freeze({
   progressDisplayModeLabel: "進捗表示形式",
   progressDisplayPage: "ページ数",
   progressDisplayPercentage: "パーセンテージ",
+  settingsEpubViewModeLabel: "EPUB表示モード",
+  epubViewModePaginated: "ページめくり",
+  epubViewModeScroll: "スクロール (シームレス)",
   settingsLayoutDirectionRtl: "右開き (縦書き)",
   settingsLayoutDirectionLtr: "左開き (横書き)",
 
@@ -143,6 +146,7 @@ export const UI_STRINGS_JA = Object.freeze({
   // トグルボタン
   writingModeToggleVertical: "縦書き",
   writingModeToggleHorizontal: "横書き",
+  verticalScrollDisabled: "シームレススクロール中は横書き固定となります",
 
   // 同期プロンプト
   syncPromptTitle: "同期の確認",

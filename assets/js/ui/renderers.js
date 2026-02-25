@@ -251,12 +251,22 @@ export function updateThemeToggleIcon() {
 }
 
 export function updateEpubScrollMode() {
-    if (!elements.epubContainer) return;
-    const isVerticalGroup = _state.writingMode === WRITING_MODES.VERTICAL;
-    if (isVerticalGroup) {
-        elements.epubContainer.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+    if (!elements.fullscreenReader) return;
+    const isEpub = _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
+    const isScroll = _state.epubViewMode === 'scroll';
+    const isHorizontal = _state.writingMode === WRITING_MODES.HORIZONTAL;
+
+    // EPUB購読中のみインジケーターを表示するためのクラス
+    if (isEpub) {
+        elements.fullscreenReader.classList.add('show-mode-indicator');
     } else {
-        elements.epubContainer.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
+        elements.fullscreenReader.classList.remove('show-mode-indicator');
+    }
+
+    if (isScroll && isHorizontal) {
+        elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
+    } else {
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
     }
 }
 
@@ -957,7 +967,7 @@ export function renderSearchResults(results, query) {
     elements.searchResults.innerHTML = "";
 
     if (!results.length) {
-        elements.searchResults.textContent = tReplace("searchNoResults", { query });
+        elements.searchResults.textContent = tReplace("searchNoResults", { query }, _state.uiLanguage);
         return;
     }
 
@@ -971,7 +981,14 @@ export function renderSearchResults(results, query) {
 
         item.onclick = () => {
             if (_actions.closeAllMenus) _actions.closeAllMenus();
-            if (_reader) _reader.goTo(result.cfi);
+            if (_reader) _reader.goTo({
+                location: {
+                    spineIndex: result.spineIndex,
+                    segmentIndex: result.segmentIndex
+                },
+                cfi: result.cfi,
+                searchQuery: query
+            });
         };
 
         item.appendChild(text);

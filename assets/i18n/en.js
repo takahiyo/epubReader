@@ -70,6 +70,9 @@ export const UI_STRINGS_EN = Object.freeze({
   progressDisplayModeLabel: "Progress format",
   progressDisplayPage: "Pages",
   progressDisplayPercentage: "Percentage",
+  settingsEpubViewModeLabel: "EPUB View Mode",
+  epubViewModePaginated: "Paginated",
+  epubViewModeScroll: "Scroll (Seamless)",
   settingsLayoutDirectionRtl: "Right to Left (Vertical)",
   settingsLayoutDirectionLtr: "Left to Right (Horizontal)",
 
@@ -143,6 +146,7 @@ export const UI_STRINGS_EN = Object.freeze({
   // Toggle buttons
   writingModeToggleVertical: "V",
   writingModeToggleHorizontal: "H",
+  verticalScrollDisabled: "Writing mode is locked to horizontal during seamless scroll.",
 
   // Sync prompts
   syncPromptTitle: "Sync available",
