@@ -1013,7 +1013,7 @@ async function openFromLibrary(bookId, options = {}) {
   try {
 
     userOverrodeDirection = false;
-    const source = deviceSettings.source || SYNC_SOURCES.LOCAL;
+    const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
     const record = await loadFile(bookId, source);
 
     if (!record) {
