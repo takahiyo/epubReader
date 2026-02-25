@@ -119,6 +119,10 @@ const NOTION_STATUS_LABEL_KEYS = Object.freeze({
 // 初期化実行（非同期Lottie読み込み対応）
 document.addEventListener('DOMContentLoaded', async () => {
   await initLoadingAnimation();
+  // ズームスライダーの初期化をDOM準備後に行う
+  if (reader && typeof reader.setupZoomSlider === 'function') {
+    reader.setupZoomSlider();
+  }
 });
 
 
