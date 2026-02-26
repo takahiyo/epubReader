@@ -220,6 +220,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
 
     console.log('[syncAllBooksFromCloud] Starting D1 sync...');
     let didApplyIndex = false;
+    let index = {}; // クラウドインデックスのデフォルト値
     try {
         console.log('[syncAllBooksFromCloud] Pulling index from D1...');
         const remote = await _cloudSync.pullIndex();
