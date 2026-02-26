@@ -245,16 +245,30 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             index = _storage.data.cloudIndex ?? {};
             _storage.save();
         } else if (remote) {
-            // データが返された場合（空の場合も含む）
-            index = remote.index ?? {};
-            const updatedAt = remote.updatedAt ?? Date.now();
+            // Workerのレスポンス形式を自動判定:
+            // 形式A: { index: { cloudBookId: {...}, ... }, updatedAt: ... }
+            // 形式B: { cloudBookId: {...}, cloudBookId2: {...}, ... } (直接インデックスデータ)
+            // 形式C: { unchanged: true, updatedAt: ... } (上で処理済み)
+            const hasIndexProp = remote.index && typeof remote.index === "object";
+            const rawUpdatedAt = hasIndexProp ? remote.updatedAt : null;
+
+            if (hasIndexProp) {
+                index = remote.index;
+            } else {
+                // remote 自体がインデックスデータ: updatedAt 等の制御プロパティを除外
+                const { updatedAt: _u, unchanged: _uc, status: _s, source: _src, ...indexEntries } = remote;
+                index = indexEntries;
+            }
+
+            const updatedAt = rawUpdatedAt ?? Date.now();
 
             // 未来時刻のガード
             const safeUpdatedAt = Math.min(updatedAt, Date.now() + 60000);
 
             console.log('[syncAllBooksFromCloud] Index received, merging...', {
                 items: Object.keys(index).length,
-                updatedAt: safeUpdatedAt
+                updatedAt: safeUpdatedAt,
+                format: hasIndexProp ? 'wrapped' : 'flat'
             });
 
             _storage.mergeCloudIndex(index, safeUpdatedAt);
