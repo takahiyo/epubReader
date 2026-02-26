@@ -362,9 +362,12 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
  * ログイン時の同期処理
  */
 export async function handleAuthLogin() {
+    console.log('[handleAuthLogin] Start...');
     uiCallbacks.updateAuthStatusDisplay();
     uiCallbacks.syncAutoSyncPolicy();
-    await syncAllBooksFromCloud();
+    // クラウドからインデックスをプル
+    // UIが初期化されている状態で呼ばれるため true を渡し、同期後の再描画を確実に実行させる
+    await syncAllBooksFromCloud(true);
 }
 
 /**

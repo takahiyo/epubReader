@@ -253,6 +253,14 @@ syncLogic.init({
   },
 });
 
+// 認証成功時の同期トリガー設定 (初期化後すぐに登録)
+window.addEventListener("auth:login", () => {
+  console.log("[app] auth:login event received, starting sync...");
+  syncLogic.handleAuthLogin().catch((error) => {
+    console.error("同期データの取得に失敗しました:", error);
+  });
+});
+
 function setArchiveWarnings(warningTypes = []) {
   const uniqueTypes = [...new Set(warningTypes)];
   archiveWarningTypes = uniqueTypes;
@@ -3132,11 +3140,7 @@ function startAfterDomReady() {
   startApp();
 }
 
-window.addEventListener("auth:login", () => {
-  syncLogic.handleAuthLogin().catch((error) => {
-    console.error("同期データの取得に失敗しました:", error);
-  });
-});
+// auth:login リスナーを上部の初期化フローに移動したため、ここは削除
 
 window.addEventListener("load", () => {
   if (!googleLoginReady) {
