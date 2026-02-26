@@ -680,16 +680,40 @@ export function renderBookmarks(mode = "current") {
     if (mode === "all") {
         const historyOrder = _storage.data.history.map((item) => item.bookId);
         const libraryOrder = Object.keys(_storage.data.library);
-        const orderedBookIds = [...historyOrder, ...libraryOrder].filter((id, index, self) => self.indexOf(id) === index);
+        const cloudBookIds = Object.keys(_storage.data.cloudIndex ?? {});
+
+        // ローカルとクラウドのIDを統合（順序維持）
+        const allPotentialIds = [...historyOrder, ...libraryOrder, ...cloudBookIds].filter((id, index, self) => self.indexOf(id) === index);
         const entries = [];
 
-        orderedBookIds.forEach((bookId) => {
-            const book = _storage.data.library[bookId];
-            if (!book) return;
-            const bookmarks = _storage.getBookmarks(bookId);
-            bookmarks.forEach((bookmark) => {
-                entries.push({ bookId, book, bookmark });
-            });
+        allPotentialIds.forEach((id) => {
+            const localBook = _storage.data.library[id];
+
+            if (localBook) {
+                // ローカル書籍のしおり
+                const bookmarks = _storage.getBookmarks(id);
+                bookmarks.forEach((bookmark) => {
+                    entries.push({ bookId: id, book: localBook, bookmark, isCloudOnly: false });
+                });
+            } else if (_storage.data.cloudIndex && _storage.data.cloudIndex[id]) {
+                // クラウドのみ存在する（未リンク）書籍のしおり
+                const cloudMeta = _storage.data.cloudIndex[id];
+                const cloudState = _storage.getCloudState(id);
+                const bookmarks = cloudState?.bookmarks ?? [];
+
+                bookmarks.forEach((bookmark) => {
+                    entries.push({
+                        bookId: id,
+                        cloudBookId: id,
+                        book: {
+                            title: cloudMeta.title || t("untitledBook"),
+                            author: cloudMeta.author || ""
+                        },
+                        bookmark,
+                        isCloudOnly: true
+                    });
+                });
+            }
         });
 
         if (!entries.length) {
@@ -702,17 +726,29 @@ export function renderBookmarks(mode = "current") {
             return;
         }
 
-        entries.forEach(({ bookId, book, bookmark }) => {
+        // 最新順にソート（createdAt / updatedAt）
+        entries.sort((a, b) => {
+            const timeA = a.bookmark.updatedAt || a.bookmark.createdAt || 0;
+            const timeB = b.bookmark.updatedAt || b.bookmark.createdAt || 0;
+            return timeB - timeA;
+        });
+
+        entries.forEach(({ bookId, cloudBookId, book, bookmark, isCloudOnly }) => {
             const item = document.createElement("li");
             item.className = "bookmark-item";
+            if (isCloudOnly) item.classList.add("cloud-only"); // CSSスタイル用
             if (bookmark.deviceColor) item.style.borderLeftColor = bookmark.deviceColor;
 
             const info = document.createElement("div");
             info.className = "bookmark-info";
             info.onclick = async () => {
                 if (_actions.closeAllMenus) _actions.closeAllMenus();
+
                 if (bookId === _state.currentBookId && _reader) {
                     _reader.goTo(bookmark);
+                } else if (isCloudOnly) {
+                    // クラウドのみの書籍の場合はインポートを促す
+                    if (_actions.openCloudOnlyBook) await _actions.openCloudOnlyBook(cloudBookId);
                 } else if (_actions.openFromLibrary) {
                     await _actions.openFromLibrary(bookId, { bookmark });
                 }
@@ -723,8 +759,12 @@ export function renderBookmarks(mode = "current") {
             const colorDot = document.createElement("span");
             colorDot.className = "bookmark-color-dot";
             if (bookmark.deviceColor) colorDot.style.background = bookmark.deviceColor;
+
             const labelText = document.createElement("span");
-            labelText.textContent = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
+            let displayText = `${book.title} / ${bookmark.label || t("bookmarkDefault")}`;
+            if (isCloudOnly) displayText = `[${t("libraryCloudMissingBadge")}] ${displayText}`;
+            labelText.textContent = displayText;
+
             label.append(colorDot, labelText);
 
             const meta = document.createElement("div");
