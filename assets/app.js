@@ -1412,6 +1412,7 @@ function addBookmark() {
     deviceColor: deviceSettings.deviceColor,
   });
   if (bookmark) {
+    bookmark.updatedAt = Date.now();
     storage.addBookmark(currentBookId, bookmark);
     renderers.renderBookmarks(bookmarkMenuMode);
     renderers.renderBookmarkMarkers();

@@ -262,7 +262,27 @@ export class StorageService {
 
   addBookmark(bookId, bookmark) {
     const list = this.data.bookmarks[bookId] ?? [];
-    this.data.bookmarks[bookId] = [bookmark, ...list].slice(0, MAX_BOOKMARKS_PER_BOOK);
+    const incomingKey = getBookmarkKey(bookmark);
+    let updated = false;
+
+    // 同一箇所のしおりがあるか確認して更新
+    let newList = list.map((existing) => {
+      const existingKey = getBookmarkKey(existing);
+      if (incomingKey && existingKey === incomingKey) {
+        updated = true;
+        return pickNewerBookmark(existing, bookmark);
+      }
+      return existing;
+    });
+
+    if (!updated) {
+      // 新規追加
+      newList = [bookmark, ...newList];
+    }
+
+    this.data.bookmarks[bookId] = newList
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, MAX_BOOKMARKS_PER_BOOK);
     this.save();
   }
 
