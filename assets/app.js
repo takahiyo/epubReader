@@ -1644,6 +1644,7 @@ function applyUiLanguage(nextLanguage) {
   if (emptyDescription) emptyDescription.textContent = strings.emptyDescription;
   if (elements.cloudAttachButton) elements.cloudAttachButton.textContent = strings.libraryAttachFile;
   if (elements.loadingText) elements.loadingText.textContent = strings.loadingText;
+  if (elements.dropText) elements.dropText.textContent = strings.dropText;
   if (!currentBookId && currentCloudBookId) {
     const meta = storage.data.cloudIndex?.[currentCloudBookId];
     const state = storage.getCloudState(currentCloudBookId);
@@ -3015,6 +3016,43 @@ function setupEvents() {
   // ライブラリ検索入力欄
   elements.librarySearchInput?.addEventListener('input', (e) => {
     renderers.filterLibraryCards(e.target.value);
+  });
+
+  // ========================================
+  // ドラッグ＆ドロップ (D&D) イベント
+  // ========================================
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.add(UI_CLASSES.IS_FILE_DRAGGING);
+  });
+
+  window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 画面外または子要素への移動で判定が揺れるのを防ぐため、relatedTargetをチェック
+    if (!e.relatedTarget) {
+      document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
+    }
+  });
+
+  // オーバーレイ自体からも離脱判定（子要素対策）
+  elements.dropOverlay?.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFile(files[0]);
+    }
   });
 }
 

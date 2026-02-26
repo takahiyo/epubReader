@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="./assets/css/17-loading.css" />
   <link rel="stylesheet" href="./assets/css/18-float-lang.css" />
   <link rel="stylesheet" href="./assets/css/19-zoom.css" />
+  <link rel="stylesheet" href="./assets/css/20-drag-drop.css" />
   <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
@@ -495,6 +496,14 @@
   <div id="loadingOverlay" class="loading-overlay">
     <div id="lottie-loader" class="loading-animation"></div>
     <p id="loadingText" class="loading-text"></p>
+  </div>
+
+  <!-- D&Dオーバーレイ -->
+  <div id="dropOverlay" class="drop-overlay">
+    <div class="drop-message">
+      <span class="drop-icon">📂</span>
+      <p id="dropText"></p>
+    </div>
   </div>
 
   <div id="modalOverlay"></div>

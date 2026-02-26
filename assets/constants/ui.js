@@ -113,6 +113,7 @@ export const UI_CLASSES = Object.freeze({
   GOOGLE_AUTH_ACTIVE: "google-auth-active",
   ZOOMED: "zoomed",
   IS_DRAGGING: "is-dragging",
+  IS_FILE_DRAGGING: "is-file-dragging",
   GAIJI_IMAGE: "reader-gaiji-img",
   FULLSCREEN_IMAGE: "reader-fullscreen-img",
 });
@@ -291,6 +292,8 @@ export const DOM_IDS = Object.freeze({
   TOGGLE_ZOOM: "toggleZoom",
   TOGGLE_FULLSCREEN: "toggleFullscreen",
   LOADING_TEXT: "loadingText",
+  DROP_OVERLAY: "dropOverlay",
+  DROP_TEXT: "dropText",
   LOTTIE_LOADER: "lottie-loader",
   LEFT_MENU_BACKDROP: "leftMenuBackdrop",
   CLICK_OVERLAY: "clickOverlay",

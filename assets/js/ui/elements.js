@@ -203,4 +203,6 @@ export const elements = {
     toggleFullscreen: getById(DOM_IDS.TOGGLE_FULLSCREEN),
     lottieLoader: getById(DOM_IDS.LOTTIE_LOADER),
     loadingText: getById(DOM_IDS.LOADING_TEXT),
+    dropOverlay: getById(DOM_IDS.DROP_OVERLAY),
+    dropText: getById(DOM_IDS.DROP_TEXT),
 };
