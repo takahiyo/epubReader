@@ -308,14 +308,22 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
 
     try {
         const library = _storage.data.library;
-        const cloudIndex = _storage.data.cloudIndex ?? {};
+        // SSOT: クラウドから返された生のインデックス（index）を使って
+        // 「実際にクラウド上に存在するか」を判定する。
+        // _storage.data.cloudIndex はローカルにマージ済みのため、
+        // 過去にローカルでのみ作成されたエントリも含んでおり、
+        // これを使うとプッシュが誤ってスキップされる。
+        const remoteIndex = index; // クラウドから取得した生インデックス
+
+        console.log(`[syncAllBooksFromCloud] Push phase: checking ${Object.keys(library).length} local books against ${Object.keys(remoteIndex).length} cloud entries`);
 
         for (const localBook of Object.values(library)) {
             if (!localBook || !localBook.id) continue;
             let cloudBookId = _storage.getCloudBookId(localBook.id);
 
-            if (cloudBookId && !cloudIndex[cloudBookId]) {
-                console.log(`[Sync] Re-uploading missing metadata for linked book to D1: ${localBook.title}`);
+            if (cloudBookId && !remoteIndex[cloudBookId]) {
+                // cloudBookId はローカルで割当済みだが、クラウド上に存在しない → アップロード
+                console.log(`[Sync] Pushing local book to D1 (not found in cloud): "${localBook.title}" (cloudBookId: ${cloudBookId})`);
                 await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash, {
                     storage: _storage,
                     cloudSync: _cloudSync,
@@ -326,15 +334,16 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
             }
 
             if (!cloudBookId) {
-                const matchEntry = Object.values(cloudIndex).find(
+                // cloudBookId が未割当 → クラウドに同じ fingerprint の書籍があるか確認
+                const matchEntry = Object.values(remoteIndex).find(
                     (entry) => entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
                 );
 
                 if (matchEntry && matchEntry.cloudBookId) {
-                    console.log(`Linking local book "${localBook.title}" to existing cloud book`);
+                    console.log(`[Sync] Linking local book "${localBook.title}" to existing cloud book: ${matchEntry.cloudBookId}`);
                     _storage.setBookLink(localBook.id, matchEntry.cloudBookId);
                 } else {
-                    console.log(`[Sync] Uploading new local book to D1: ${localBook.title}`);
+                    console.log(`[Sync] Uploading new local book to D1: "${localBook.title}"`);
                     cloudBookId = generateCloudBookId();
                     _storage.setBookLink(localBook.id, cloudBookId);
                     await upsertCloudIndexEntry(cloudBookId, localBook, localBook.contentHash, {
