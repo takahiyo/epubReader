@@ -715,38 +715,48 @@ export async function resolveSyncedProgress(
         const remoteUpdatedAt = remoteState?.updatedAt ?? 0;
         const localLocation = localProgress?.location ?? null;
         const remoteLocation = remoteState?.lastCfi ?? null;
+        const localPercentage = localProgress?.percentage ?? 0;
+        const remotePercentage = remoteState?.progress ?? 0;
 
-        if (localUpdatedAt > remoteUpdatedAt && localLocation === null) {
-            _storage.setCloudState(resolvedCloudBookId, remoteState);
-            if (pushCurrentBookSync) {
-                await pushCurrentBookSync();
-            }
+        // 1. クラウド側のデータが新しい（または初回）が、中身が同じ（位置が同じ）場合は自動適用
+        if (remoteUpdatedAt >= localUpdatedAt && localLocation === remoteLocation) {
+            applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
             return _storage.getProgress(localBookId);
         }
 
-        if (
-            localUpdatedAt !== remoteUpdatedAt &&
-            localLocation !== null &&
-            remoteLocation !== null &&
-            localLocation !== remoteLocation
-        ) {
+        // 2. ユーザー要望：別端末に「新しい日付」の進捗データがあり、かつ「位置が異なる」場合にのみ確認
+        // 同一位置なら自動で最新化するのが自然（「どちらで開くか」の選択肢が同じになるため）
+        if (remoteUpdatedAt > localUpdatedAt && localLocation !== remoteLocation) {
+            console.log(`[resolveSyncedProgress] Conflict detected: remote is newer (${remoteUpdatedAt}) but distance is different.`);
             const choice = await promptSyncResolution(
                 { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null },
                 uiLanguage
             );
+
             if (choice === "remote") {
                 applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
                 _storage.setSettings({ lastSyncAt: Date.now() });
                 uiCallbacks.updateSyncStatusDisplay();
             } else {
+                // ローカルを選択した場合: クラウドの状態をローカルにキャッシュしつつ、
+                // 次回の保存時にローカルのほうが新しければクラウドへ上書きされるようにする
                 _storage.setCloudState(resolvedCloudBookId, remoteState);
-                if (localUpdatedAt > remoteUpdatedAt) {
-                    if (pushCurrentBookSync) await pushCurrentBookSync();
-                }
+                if (pushCurrentBookSync) await pushCurrentBookSync();
             }
             return _storage.getProgress(localBookId);
         }
 
+        // 3. ローカルのほうが新しい（または未同期の位置データがある）場合
+        if (localUpdatedAt > remoteUpdatedAt && localLocation !== null) {
+            // ローカルが最新であることをクラウド側に認識させるため、最新情報をプッシュ
+            _storage.setCloudState(resolvedCloudBookId, remoteState); // 一旦リモートをキャッシュ
+            if (pushCurrentBookSync) {
+                await pushCurrentBookSync({ force: true });
+            }
+            return _storage.getProgress(localBookId);
+        }
+
+        // 4. それ以外（同期済み、または安全な自動更新）
         applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
         _storage.setSettings({ lastSyncAt: Date.now() });
         uiCallbacks.updateSyncStatusDisplay();
