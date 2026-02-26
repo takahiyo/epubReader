@@ -374,6 +374,44 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
         console.warn("ローカル書籍のアップロードに失敗しました:", error);
     }
 
+    // Phase 2: リンク済み全書籍の状態（しおり・進捗）をプッシュ
+    // インデックスだけでなく、各書籍のしおりや読書進捗もクラウドに送信する
+    try {
+        const bookLinkMap = _storage.data.bookLinkMap ?? {};
+        const linkedEntries = Object.entries(bookLinkMap);
+
+        if (linkedEntries.length > 0) {
+            console.log(`[syncAllBooksFromCloud] State push phase: pushing states for ${linkedEntries.length} linked books...`);
+
+            for (const [localBookId, cloudBookId] of linkedEntries) {
+                try {
+                    const payload = buildCloudStatePayload(localBookId, cloudBookId);
+
+                    // 空の状態（進捗もしおりもない）はスキップ
+                    if (isEmptyCloudState(payload.state)) {
+                        continue;
+                    }
+
+                    // ローカルの更新時刻がクラウドの状態より新しい場合のみプッシュ
+                    const localState = payload.state;
+                    const cloudState = _storage.getCloudState(cloudBookId);
+                    const localUpdatedAt = payload.updatedAt ?? 0;
+                    const cloudUpdatedAt = cloudState?.updatedAt ?? 0;
+
+                    if (localUpdatedAt > cloudUpdatedAt) {
+                        console.log(`[syncAllBooksFromCloud] Pushing state for book: ${localBookId} (bookmarks: ${localState.bookmarks?.length ?? 0}, progress: ${localState.progress}%)`);
+                        await _cloudSync.pushState(cloudBookId, localState, localUpdatedAt);
+                        _storage.setCloudState(cloudBookId, { ...localState, updatedAt: localUpdatedAt });
+                    }
+                } catch (stateError) {
+                    console.warn(`[syncAllBooksFromCloud] Failed to push state for ${localBookId}:`, stateError);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[syncAllBooksFromCloud] Failed to push book states:', error);
+    }
+
     if (didApplyIndex) {
         const now = Date.now();
         console.log('[syncAllBooksFromCloud] Sync successful, setting lastIndexSyncAt:', now);
