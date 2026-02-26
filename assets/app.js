@@ -2653,61 +2653,62 @@ function setupEvents() {
   elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
 
   // Manual sync button
-  const manualSyncButton = document.getElementById(DOM_IDS.MANUAL_SYNC_BUTTON);
-  const syncStatus = document.getElementById(DOM_IDS.SYNC_STATUS);
-
-  manualSyncButton?.addEventListener('click', async () => {
+  elements.manualSyncButton?.addEventListener('click', async () => {
     const authStatus = checkAuthStatus();
     if (!authStatus.authenticated) {
-      if (syncStatus) {
-        syncStatus.textContent = t('syncNeedsLoginStatus');
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+      if (elements.syncStatus) {
+        elements.syncStatus.textContent = t('syncNeedsLoginStatus');
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_ERROR);
       }
       return;
     }
 
     try {
-      const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
+      const settings = storage.getSettings();
+      const resolvedSource = cloudSync.resolveSource(null, settings);
       if (resolvedSource !== SYNC_SOURCES.D1) {
+        console.log('[manualSync] Enforcing D1 source for manual sync');
         storage.setSettings({ source: SYNC_SOURCES.D1 });
       }
-      manualSyncButton.disabled = true;
-      manualSyncButton.textContent = t('syncInProgress');
-      if (syncStatus) {
-        syncStatus.textContent = t('syncStarting');
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
+
+      elements.manualSyncButton.disabled = true;
+      elements.manualSyncButton.textContent = t('syncInProgress');
+      if (elements.syncStatus) {
+        elements.syncStatus.textContent = t('syncStarting');
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_NEUTRAL);
       }
 
-      // Pull index
+      // 送信前に現在の進捗を強制保存（最新状態を同期するため）
+      saveCurrentProgress({ force: true });
+
+      // クラウドからインデックスをプル
       await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
 
-      // If a book is open, sync its state
+      // 開いている本があればその状態をプッシュ
       if (currentBookId && currentCloudBookId) {
-        await pushCurrentBookSync({ force: true });
+        await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
       }
 
       // SSOT: 同期完了後の最終的な永続化
       storage.save();
 
-      if (syncStatus) {
-        syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
+      if (elements.syncStatus) {
+        elements.syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_SUCCESS);
         setTimeout(() => {
-          syncStatus.textContent = '';
-          renderers.setStatusClass(syncStatus, null);
+          elements.syncStatus.textContent = '';
+          renderers.setStatusClass(elements.syncStatus, null);
         }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
       console.error('Manual sync failed:', error);
-      if (syncStatus) {
+      if (elements.syncStatus) {
         let userMessage = t('syncFailed');
         let detailMessage = error.message;
 
-        // ネットワークエラーやブロックの可能性を示唆する判定
         if (error.code === 'unavailable' ||
-          error.message.includes('Failed to fetch') ||
-          error.message.includes('Network Error')) {
-
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('Network Error')) {
           userMessage = t('syncBlocked');
           detailMessage = t('syncBlockedDetail');
         } else if (error.code === 'permission-denied') {
@@ -2715,15 +2716,16 @@ function setupEvents() {
           detailMessage = t('syncPermissionDetail');
         }
 
-        syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        elements.syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_ERROR);
 
-        // 詳細をアラートでも表示（ユーザーに気づかせるため）
         alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);
       }
     } finally {
-      manualSyncButton.disabled = false;
-      manualSyncButton.textContent = t('syncNowButton');
+      if (elements.manualSyncButton) {
+        elements.manualSyncButton.disabled = false;
+        elements.manualSyncButton.textContent = t('syncNowButton');
+      }
     }
   });
 

@@ -82,7 +82,7 @@ function hasIndexData(index) {
  */
 export function isCloudSyncEnabled() {
     if (!_checkAuthStatus || !_storage || !_cloudSync) {
-        console.log('[isCloudSyncEnabled] Missing dependencies:', {
+        console.warn('[isCloudSyncEnabled] Missing dependencies:', {
             checkAuthStatus: !!_checkAuthStatus,
             storage: !!_storage,
             cloudSync: !!_cloudSync
@@ -92,7 +92,8 @@ export function isCloudSyncEnabled() {
 
     const authStatus = _checkAuthStatus();
     if (!authStatus.authenticated) {
-        console.log('[isCloudSyncEnabled] Not authenticated');
+        // 開発用デバッグログ（認証エラーの場合は頻出するため verbose レベルが望ましいが現状は log）
+        console.log('[isCloudSyncEnabled] Sync disabled: User not authenticated');
         return false;
     }
 
@@ -100,20 +101,33 @@ export function isCloudSyncEnabled() {
     const resolvedSource = _cloudSync.resolveSource(null, settings);
     const endpoint = _cloudSync.getWorkerEndpoint(settings);
 
-    console.log('[isCloudSyncEnabled] Check:', {
+    // 同期が有効な条件の判定
+    const hasEndpoint = !!endpoint;
+    const isD1Source = resolvedSource === "d1";
+    const isLocalSource = settings.source === "local";
+
+    // 同期の動作状況を開発者が把握しやすくするための詳細ログ
+    console.log('[isCloudSyncEnabled] Check details:', {
+        authenticated: authStatus.authenticated,
+        userId: authStatus.user?.uid?.substring(0, 8),
         resolvedSource,
-        hasEndpoint: !!endpoint,
-        endpoint: endpoint ? endpoint.substring(0, 50) + '...' : 'none',
-        userSource: settings.source,
-        userDestination: settings.saveDestination
+        userSourceSettings: settings.source,
+        hasEndpoint,
+        status: (isD1Source && hasEndpoint) ? "ENABLED" : "DISABLED"
     });
 
-    // D1同期が有効な条件:
-    // - resolvedSourceが"d1"（Cloudflare D1バックエンド）
-    // - Workerエンドポイントが設定されている
-    const isEnabled = resolvedSource === "d1" && !!endpoint;
-    console.log('[isCloudSyncEnabled] Result:', isEnabled);
-    return isEnabled;
+    if (!isD1Source) {
+        if (isLocalSource) {
+            console.log('[isCloudSyncEnabled] Sync disabled: User chose "local" source');
+        } else {
+            console.log('[isCloudSyncEnabled] Sync disabled: Current source is NOT d1:', resolvedSource);
+        }
+    }
+    if (!hasEndpoint) {
+        console.log('[isCloudSyncEnabled] Sync disabled: Worker endpoint is missing in settings');
+    }
+
+    return isD1Source && hasEndpoint;
 }
 
 /**
@@ -214,35 +228,40 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
         // SSOT: unchangedフラグを正しく処理する
         // D1からのレスポンスが { unchanged: true, updatedAt: timestamp } の場合、
         // データは最新であり、同期時刻のみ更新する必要がある
-        let index = {}; // デフォルト値を設定
         if (remote?.unchanged === true) {
             console.log('[syncAllBooksFromCloud] Index is unchanged, data is up-to-date');
             didApplyIndex = true;
             const updatedAt = remote.updatedAt ?? Date.now();
-            // 同期時刻を更新（インデックス自体は変更なし）
-            if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
-                _storage.setCloudIndexUpdatedAt(updatedAt);
-            } else {
-                _storage.data.cloudIndexUpdatedAt = updatedAt;
-            }
-            // unchangedの場合、既存のcloudIndexを使用
-            index = _storage.data.cloudIndex ?? {};
-            _storage.save(); // 同期時刻の更新を永続化
-        } else {
-            // データが返された場合は通常のマージ処理
-            index = remote?.index ?? {};
-            const updatedAt = remote?.updatedAt ?? Date.now();
-            const hasRemoteIndex = hasIndexData(index);
-            console.log('[syncAllBooksFromCloud] Index has data:', hasRemoteIndex, 'updatedAt:', updatedAt);
-            _storage.mergeCloudIndex(index, updatedAt);
-            if (hasRemoteIndex && !isEmptySyncResult(remote)) {
-                didApplyIndex = true;
-                console.log('[syncAllBooksFromCloud] Index successfully applied');
 
-                // 新しく更新された書籍の状態をバックグラウンドでプル
-                if (isCloudSyncEnabled()) {
-                    await pullUpdatedBookStates(index, updatedAt);
-                }
+            // 未来時刻のガード
+            const safeUpdatedAt = Math.min(updatedAt, Date.now() + 60000);
+
+            if (typeof _storage.setCloudIndexUpdatedAt === 'function') {
+                _storage.setCloudIndexUpdatedAt(safeUpdatedAt);
+            } else {
+                _storage.data.cloudIndexUpdatedAt = safeUpdatedAt;
+            }
+            index = _storage.data.cloudIndex ?? {};
+            _storage.save();
+        } else if (remote) {
+            // データが返された場合（空の場合も含む）
+            index = remote.index ?? {};
+            const updatedAt = remote.updatedAt ?? Date.now();
+
+            // 未来時刻のガード
+            const safeUpdatedAt = Math.min(updatedAt, Date.now() + 60000);
+
+            console.log('[syncAllBooksFromCloud] Index received, merging...', {
+                items: Object.keys(index).length,
+                updatedAt: safeUpdatedAt
+            });
+
+            _storage.mergeCloudIndex(index, safeUpdatedAt);
+            didApplyIndex = true;
+
+            // 更新があった書籍の状態をプル
+            if (isCloudSyncEnabled()) {
+                await pullUpdatedBookStates(index, safeUpdatedAt);
             }
         }
 
@@ -509,19 +528,24 @@ async function pullUpdatedBookStates(indexDelta, serverUpdatedAt) {
         try {
             // ローカルに対応する書籍があるか確認
             const localId = findLocalIdByCloudId(cloudBookId);
-            if (!localId) continue;
 
             const remoteMeta = indexDelta[cloudBookId];
             const localState = _storage.getCloudState(cloudBookId);
 
             // サーバー側の更新時刻がローカルより新しい場合のみプル
             if (!localState || (remoteMeta.updatedAt > (localState.updatedAt ?? 0))) {
-                console.log(`[pullUpdatedBookStates] Pulling state for book: ${remoteMeta.title} (${cloudBookId})`);
+                console.log(`[pullUpdatedBookStates] Pulling state for book: ${remoteMeta.title || cloudBookId}`);
                 const response = await _cloudSync.pullState(cloudBookId);
                 const remoteState = response?.state ?? response;
 
                 if (remoteState && !isEmptyCloudState(remoteState)) {
-                    applyCloudStateToLocal(localId, cloudBookId, remoteState);
+                    if (localId) {
+                        applyCloudStateToLocal(localId, cloudBookId, remoteState);
+                    } else {
+                        // クラウドのみの書籍として状態を保存（将来の紐付け用）
+                        console.log(`[pullUpdatedBookStates] Storing cloud-only state for: ${cloudBookId}`);
+                        _storage.setCloudState(cloudBookId, remoteState);
+                    }
                 }
             }
         } catch (error) {
