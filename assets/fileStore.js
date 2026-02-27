@@ -102,14 +102,16 @@ async function saveToOPFS(id, data, meta) {
 /**
  * OPFS からファイルデータを読み込む。
  * @param {string} id - 書籍ID
- * @returns {Promise<{id: string, buffer: ArrayBuffer, meta: object}|null>}
+ * @returns {Promise<{id: string, buffer: ArrayBuffer|File, meta: object}|null>}
  */
 async function loadFromOPFS(id) {
   try {
     const dir = await getOPFSBookDir();
     const fileHandle = await dir.getFileHandle(id);
     const file = await fileHandle.getFile();
-    const buffer = await file.arrayBuffer();
+    // 全バッファをメモリに展開せず、Fileオブジェクト（Blob）を直接返す
+    // 呼び出し側（bufferToFile等）で適切に処理される
+    const buffer = file;
     // メタデータはIndexedDBから取得
     const record = await withStore("readonly", (store) => {
       return new Promise((resolve, reject) => {

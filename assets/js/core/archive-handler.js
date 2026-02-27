@@ -15,6 +15,7 @@ import {
   CDN_URLS,
   DATA_ATTRS,
   FILE_EXTENSIONS,
+  FILE_STRATEGY,
   MIME_TYPES,
   SUPPORTED_FORMATS,
   SYNC_PATHS,
@@ -547,6 +548,17 @@ export class RarHandler extends ArchiveHandler {
    * @returns {Promise<RarHandler>}
    */
   async init() {
+    // RARファイルは解凍ライブラリ(unrar.js, wasm)の制約上、全データをArrayBufferとして
+    // メモリに読み込む必要があり、ファイルサイズの約3倍のメモリ領域を消費します。
+    // モバイル端末等でのブラウザクラッシュ(OOM)を防ぐため、大容量ファイルは処理をブロックします。
+    if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) {
+      const mb = (this.file.size / 1024 / 1024).toFixed(1);
+      throw new Error(
+        `大容量のRARファイル (${mb}MB) はメモリ不足（クラッシュ）の恐れがあるため開けません。` +
+        `お手数ですが、パソコン等でZIP形式(CBZ)に変換してから再度お試しください。`
+      );
+    }
+
     const buffer = await this.file.arrayBuffer();
     const signature = new Uint8Array(buffer.slice(0, 8));
     this.isRar5Signature = signature[6] === 0x01 && signature[7] === 0x00;
