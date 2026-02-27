@@ -709,10 +709,20 @@ export class RarHandler extends ArchiveHandler {
 
 /**
  * @param {File|Blob} file
- * @returns {Promise<ArchiveHandler>}
+ * @param {{ forceStreaming?: boolean }} [options]
+ * @returns {Promise<ArchiveHandler|import("./streaming-zip-handler.js").StreamingZipHandler>}
  */
-export async function createArchiveHandler(file) {
+export async function createArchiveHandler(file, options = {}) {
   const type = await detectArchiveType(file);
+
+  // ストリーミングモード: ZIP 形式かつ明示的に要求された場合のみ
+  if (options.forceStreaming && type === BOOK_TYPES.ZIP) {
+    const { StreamingZipHandler } = await import("./streaming-zip-handler.js");
+    const handler = new StreamingZipHandler(file);
+    await handler.init();
+    return handler;
+  }
+
   const handler = type === BOOK_TYPES.RAR ? new RarHandler(file) : new ZipHandler(file);
   await handler.init();
   return handler;

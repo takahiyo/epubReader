@@ -8,6 +8,8 @@ export const CDN_URLS = Object.freeze({
   EPUBJS: "https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js",
   UNRAR_JS: "https://esm.sh/node-unrar-js@2.0.2",
   UNRAR_WASM: "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm",
+  // zip.js (ストリーミングZIP展開)
+  ZIPJS: "https://cdn.jsdelivr.net/npm/@zip.js/zip.js/dist/zip.min.js",
   // Firebase SDK
   FIREBASE_APP: "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
   FIREBASE_AUTH: "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",

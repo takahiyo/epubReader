@@ -63,4 +63,8 @@ export const FILE_STRATEGY = Object.freeze({
   PERMISSION_RETRY_MAX: 2,
   /** リトライ間の待機時間 (ms) */
   PERMISSION_RETRY_DELAY_MS: 500,
+  /** JSZip の一括展開時のピークメモリ推定倍率（元サイズの何倍） */
+  JSZIP_PEAK_MULTIPLIER: 3,
+  /** JSZip 展開に割り当てるメモリ上限（端末メモリの何割まで） */
+  SAFE_MEMORY_RATIO: 0.25,
 });

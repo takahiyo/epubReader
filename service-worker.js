@@ -10,7 +10,7 @@
  * 生成物: assets/sw-cache-config.json
  */
 
-const SERVICE_WORKER_VERSION = "2026-02-27.1";
+const SERVICE_WORKER_VERSION = "2026-02-27.2";
 const CONFIG_URL = "./assets/sw-cache-config.json";
 let configPromise;
 let assetUrlsPromise;

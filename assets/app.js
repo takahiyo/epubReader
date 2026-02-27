@@ -815,6 +815,12 @@ async function handleFile(file) {
 
     const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
 
+    // 2.5. ストリーミングモード判定（能力ベース、OS非依存）
+    //      ZIPファイルかつ端末のメモリ能力に対しファイルが大きすぎる場合、
+    //      JSZipの一括展開ではなくzip.jsのストリーミングモードに切り替える
+    const useStreaming = isArchiveBook && type === BOOK_TYPES.ZIP &&
+      fileHandler.shouldUseStreaming(file);
+
     // 3. ハッシュ計算（リトライ付き）
     //    画像書庫は fingerprint（File直接、バッファ不要）
     //    大容量EPUBは軽量ハッシュ（先頭1MB+末尾1MB+サイズ、ピークメモリ ~2MB）
@@ -839,15 +845,20 @@ async function handleFile(file) {
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
     // 4. ファイル保存
+    //    ストリーミングモード: 本体を保存しない（メタデータのみ）
     //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
     //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
-    console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
-    if (isLargeFile) {
-      // File オブジェクトを直接渡す — OPFS 対応環境ではストリーム書き込み
-      await saveFile(id, file, { fileName: file.name, mime }, source);
+    if (useStreaming) {
+      console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
+      // 本体保存スキップ — メタデータのみライブラリに記録
     } else {
-      const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
-      await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
+      console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
+      if (isLargeFile) {
+        await saveFile(id, file, { fileName: file.name, mime }, source);
+      } else {
+        const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
+        await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
+      }
     }
 
     // type: "epub" | "zip" | "rar" として正式に保存
@@ -859,6 +870,8 @@ async function handleFile(file) {
       size: file.size,
       contentHash,
       lastOpened: Date.now(),
+      // ストリーミングモード: 再開時にファイル再選択が必要
+      ...(useStreaming ? { isLargeFileStub: true } : {}),
     };
 
     storage.upsertBook(info);
@@ -963,7 +976,8 @@ async function handleFile(file) {
       await reader.openImageBook(
         fileToOpen,
         typeof startLocation === "number" ? startLocation : 0,
-        type
+        type,
+        { streaming: useStreaming }
       );
     }
 
@@ -1048,6 +1062,38 @@ function openCloudOnlyBook(cloudBookId) {
   }
 }
 
+/**
+ * スタブエントリー用ファイル再選択ダイアログ。
+ * ユーザーにファイルを選ばせ、軽量ハッシュで同一ファイルか検証する。
+ * @param {object} info - ライブラリのブック情報
+ * @returns {Promise<File|null>} 選択されたFile、キャンセル時はnull
+ */
+function promptFileReselect(info) {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
+    input.style.display = "none";
+    input.addEventListener("change", () => {
+      const file = input.files?.[0] ?? null;
+      document.body.removeChild(input);
+      resolve(file);
+    });
+    // キャンセル時（focusが戻ったのに値が空）
+    const onCancel = () => {
+      setTimeout(() => {
+        if (!input.files?.length) {
+          document.body.removeChild(input);
+          resolve(null);
+        }
+      }, 500);
+    };
+    window.addEventListener("focus", onCancel, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 async function openFromLibrary(bookId, options = {}) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
@@ -1058,6 +1104,76 @@ async function openFromLibrary(bookId, options = {}) {
   try {
 
     userOverrodeDirection = false;
+    const info = storage.data.library[bookId];
+
+    // ========================================
+    // スタブエントリー: ファイル再選択フロー
+    // ========================================
+    if (info?.isLargeFileStub) {
+      hideLoading();
+      const msg = translate('stubReselectMessage') ||
+        `「${info.title}」は大容量ファイルのため本体が保存されていません。\nファイルを選択してください。`;
+      alert(msg);
+
+      const file = await promptFileReselect(info);
+      if (!file) {
+        // キャンセル
+        return;
+      }
+      showLoading();
+      await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
+
+      // 軽量ハッシュで同一ファイルか検証
+      const reHash = await fileHandler.buildArchiveFingerprint(file);
+      if (reHash !== info.contentHash) {
+        hideLoading();
+        alert(translate('stubHashMismatch') ||
+          "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。");
+        return;
+      }
+
+      // 進捗の復元
+      currentBookId = bookId;
+      isBookLoading = true;
+      currentBookInfo = info;
+      resetLocalSaveTracking();
+      currentCloudBookId = storage.getCloudBookId(bookId);
+
+      const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
+      const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
+      await applyReadingState(normalizedProgress);
+      const startPage = normalizedProgress?.location;
+
+      // ストリーミングモードで閲覧を開始
+      renderers.hideCloudEmptyState();
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
+      if (elements.viewer) {
+        elements.viewer.classList.add(UI_CLASSES.HIDDEN);
+        elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
+      }
+      if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
+
+      await reader.openImageBook(file, typeof startPage === "number" ? startPage : 0, info.type, { streaming: true });
+
+      if (normalizedProgress) {
+        await applyReadingState(normalizedProgress);
+      }
+
+      storage.addHistory(bookId);
+      renderers.renderBookmarkMarkers();
+      renderers.updateProgressBarDisplay();
+      renderers.updateSearchButtonState();
+      renderers.updateFloatingUIButtons();
+      closeExclusiveMenus();
+      if (floatVisible) {
+        toggleFloatOverlay(false);
+      }
+      return;
+    }
+
+    // ========================================
+    // 通常フロー: IndexedDB / OPFS から読み込み
+    // ========================================
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
     const record = await loadFile(bookId, source);
 
@@ -1072,7 +1188,6 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     const file = bufferToFile(record);
-    const info = storage.data.library[bookId];
     if (!info) return;
 
     currentBookId = bookId;

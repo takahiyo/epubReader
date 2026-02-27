@@ -2416,7 +2416,7 @@ export class ReaderController {
     return this.firstPagePromise;
   }
 
-  async openImageBook(file, startPage = 0, bookType = null) {
+  async openImageBook(file, startPage = 0, bookType = null, options = {}) {
     this.resetReaderState();
     this.toc = [];
     void bookType;
@@ -2425,7 +2425,9 @@ export class ReaderController {
       phase: READER_LOADING_PHASES.ARCHIVE_INIT,
       status: READER_LOADING_STATUSES.START,
     });
-    const handler = await createArchiveHandler(file);
+    const handler = await createArchiveHandler(file, {
+      forceStreaming: options.streaming === true,
+    });
     this.emitLoadingUpdate({
       phase: READER_LOADING_PHASES.ARCHIVE_INIT,
       status: READER_LOADING_STATUSES.COMPLETE,

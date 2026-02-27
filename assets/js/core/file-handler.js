@@ -69,6 +69,35 @@ export function selectLoadStrategy(file) {
 }
 
 /**
+ * ZIP ファイルに対し、JSZip（一括展開）かzip.js（ストリーミング）かを判定する。
+ * OS/UA に依存せず、端末の能力ベース（deviceMemory, hardwareConcurrency）のみで判定。
+ *
+ * - JSZip は元サイズの約3倍のピークメモリを消費する
+ * - 端末メモリの 25% を安全上限とし、超える場合はストリーミングに切り替える
+ *
+ * @param {File|Blob} file - 対象ZIPファイル
+ * @returns {boolean} true = ストリーミングモード推奨
+ */
+export function shouldUseStreaming(file) {
+    const env = detectEnvironment();
+    const fileSizeMB = file.size / (1024 * 1024);
+
+    // 端末メモリの安全圏を算出（能力ベース、OS非依存）
+    const safeMemoryMB = env.memoryGB * 1024 * FILE_STRATEGY.SAFE_MEMORY_RATIO;
+    // JSZip の一括展開時ピークメモリ推定
+    const estimatedPeakMB = fileSizeMB * FILE_STRATEGY.JSZIP_PEAK_MULTIPLIER;
+
+    const needsStreaming = estimatedPeakMB > safeMemoryMB ||
+        (env.isLowEnd && fileSizeMB > FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024));
+
+    console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} — ` +
+        `file=${fileSizeMB.toFixed(1)}MB, peak≈${estimatedPeakMB.toFixed(0)}MB, ` +
+        `safe=${safeMemoryMB.toFixed(0)}MB (${env.memoryGB}GB×${FILE_STRATEGY.SAFE_MEMORY_RATIO}), ` +
+        `isLowEnd=${env.isLowEnd}`);
+    return needsStreaming;
+}
+
+/**
  * Blob.slice() を用いてファイルの先頭 N バイトだけを読み込む。
  * 全バッファを生成せずにマジックナンバー判定を行うために使用。
  * @param {File|Blob} file - 対象ファイル
