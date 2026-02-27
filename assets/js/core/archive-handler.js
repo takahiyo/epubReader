@@ -457,26 +457,11 @@ export class ZipHandler extends ArchiveHandler {
 
   /**
    * File/Blob を JSZip.loadAsync に渡して初期化します（ArrayBuffer 変換は行いません）。
+   * 注: 大容量ZIPはストリーミングモード (StreamingZipHandler) が処理するため、
+   *     このハンドラが呼ばれるのはメモリに余裕がある環境のみ。
    * @returns {Promise<ZipHandler>}
    */
   async init() {
-    const isMobile = typeof navigator !== 'undefined' && /Mobi|Android|iPhone/i.test(navigator.userAgent);
-    const deviceMemory = typeof navigator !== 'undefined' ? (navigator.deviceMemory || 4) : 4;
-
-    // JSZipは内部的に全バッファを展開するため、元サイズの約2〜3倍のメモリを消費します。
-    // Android等のブラウザ制約(OOM)を回避するため、上限を設けて安全にブロックします。
-    const maxZipSize = (isMobile || deviceMemory <= 4) ?
-      FILE_STRATEGY.LARGE_FILE_THRESHOLD * 2 : // 100MB (Mobile/Low spec)
-      FILE_STRATEGY.LARGE_FILE_THRESHOLD * 6;  // 300MB (PC)
-
-    if (this.file.size > maxZipSize) {
-      const mb = (this.file.size / 1024 / 1024).toFixed(1);
-      throw new Error(
-        `大容量のZIP/CBZファイル (${mb}MB) はお使いの環境のメモリ制限によりクラッシュの恐れがあるため開けません。` +
-        `パソコン等でより小さなサイズ（50MB〜100MB程度）に分割するか、EPUB形式に変換してから再度お試しください。`
-      );
-    }
-
     const JSZipLib = await ensureJSZip();
     // JSZip.loadAsync は File/Blob を直接扱えるため ArrayBuffer 変換は禁止（メモリ増加と誤用を防ぐ）。
     this.zip = await JSZipLib.loadAsync(this.file);

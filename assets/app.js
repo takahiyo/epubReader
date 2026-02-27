@@ -1268,7 +1268,9 @@ async function openFromLibrary(bookId, options = {}) {
       }
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
-      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type);
+      // 通常保存された画像書庫でも、現在の端末メモリに対して大きすぎる場合はストリーミングに切替
+      const streamingNeeded = (info.type === BOOK_TYPES.ZIP) && fileHandler.shouldUseStreaming(file);
+      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, { streaming: streamingNeeded });
     }
 
     // [修正] オープン処理の後に状態を再適用
