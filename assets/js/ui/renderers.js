@@ -536,10 +536,6 @@ export function renderLibrary() {
             }
         };
 
-        const cover = document.createElement("div");
-        cover.className = "library-cover";
-        cover.textContent = entry.title?.slice(0, 2) || UI_ICONS.BOOK;
-
         const info = document.createElement("div");
         info.className = "library-info";
 
@@ -591,7 +587,7 @@ export function renderLibrary() {
         }
 
         info.append(title, row2);
-        card.append(cover, info);
+        card.append(info);
         elements.libraryGrid.appendChild(card);
     });
 }

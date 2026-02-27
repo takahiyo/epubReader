@@ -248,30 +248,9 @@
 - LAYER: なし
 - SPLIT: GROUP
 ===================================== */
+/* .library-cover is no longer used since icons were removed */
 .library-cover {
-  width: 100%;
-  aspect-ratio: 3/4;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05));
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-/* =====================================
-[REF]
-- HTML: .library-grid[data-view="list"] .library-cover
-- JS: assets/app.js（表示切替で data-view 更新）
-- STATE: [data-view="list"]
-- LAYER: なし
-- SPLIT: LAST
-===================================== */
-.library-grid[data-view="list"] .library-cover {
-  width: 48px;
-  aspect-ratio: 1 / 1;
-  margin-bottom: 0;
-  font-size: 1.25rem;
+  display: none;
 }
 
 /* =====================================
@@ -309,9 +288,16 @@
 .library-title {
   font-size: 0.875rem;
   font-weight: 500;
+  margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  white-space: nowrap;
-  mask-image: linear-gradient(90deg, black 85%, transparent 100%);
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.3;
+  min-height: 3.9em;
+  /* 3 lines worth of space */
 }
 
 /* =====================================
@@ -356,8 +342,9 @@
    あるいはマーキーアニメーションを適用する。
    ユーザー要望は「スクロールをループ」なのでmarqueeを採用 */
 
+/* Marquee is removed as we now use wrapping and line-clamp */
 .library-card:hover .library-title span {
-  animation: marquee 8s linear infinite;
+  /* animation: marquee 8s linear infinite; removed */
   min-width: 100%;
 }
 
@@ -395,6 +382,9 @@
   flex: 1;
   white-space: nowrap;
   margin-bottom: 0;
+  display: block;
+  -webkit-line-clamp: initial;
+  min-height: 0;
 }
 
 /* =====================================
@@ -717,4 +707,3 @@
 .library-delete-btn.undo-mode:hover {
   background: var(--text);
 }
-
