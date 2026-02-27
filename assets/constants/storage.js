@@ -73,5 +73,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultWritingMode: UI_DEFAULTS.writingMode,
   defaultPageDirection: UI_DEFAULTS.defaultDirection,
   defaultImageViewMode: UI_DEFAULTS.imageViewMode,
+  oneBookmarkPerBook: false, // 1冊につき最後に作成したしおり1つだけを保持する
   notionIntegration: { ...NOTION_DEFAULT_SETTINGS },
 });

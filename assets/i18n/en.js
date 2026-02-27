@@ -9,6 +9,7 @@ export const UI_STRINGS_EN = Object.freeze({
   emptyTitle: "No book selected",
   emptyDescription: "Tap center of the screen to open menu",
   loadingText: "Loading...",
+  dropText: "Drop file to open",
 
   // Language selection
   languageLabelJa: "JA",
@@ -80,6 +81,7 @@ export const UI_STRINGS_EN = Object.freeze({
   settingsDefaultWritingModeLabel: "Default Writing Mode",
   settingsDefaultPageDirectionLabel: "Default Page Direction",
   settingsDefaultImageViewModeLabel: "Default View Mode",
+  settingsOneBookmarkPerBookLabel: "Only keep the most recent bookmark per book",
 
   // Account
   settingsAccountTitle: "Account",

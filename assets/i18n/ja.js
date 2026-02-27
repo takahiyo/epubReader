@@ -9,6 +9,7 @@ export const UI_STRINGS_JA = Object.freeze({
   emptyTitle: "本が選択されていません",
   emptyDescription: "画面中央をクリックしてメニューを表示",
   loadingText: "読み込み中...",
+  dropText: "ファイルをドロップして開く",
 
   // 言語選択
   languageLabelJa: "日",
@@ -80,6 +81,7 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsDefaultWritingModeLabel: "デフォルトの書字方向",
   settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
   settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
+  settingsOneBookmarkPerBookLabel: "1つの書籍に作成するしおりは一つだけにする",
 
   // アカウント
   settingsAccountTitle: "アカウント",

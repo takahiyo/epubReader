@@ -261,8 +261,35 @@ export class StorageService {
   }
 
   addBookmark(bookId, bookmark) {
-    const list = this.data.bookmarks[bookId] ?? [];
-    this.data.bookmarks[bookId] = [bookmark, ...list].slice(0, MAX_BOOKMARKS_PER_BOOK);
+    let list = this.data.bookmarks[bookId] ?? [];
+    const settings = this.getSettings();
+
+    if (settings.oneBookmarkPerBook) {
+      // 1冊につき1しおり設定が有効な場合は既存をクリア
+      list = [];
+    }
+
+    const incomingKey = getBookmarkKey(bookmark);
+    let updated = false;
+
+    // 同一箇所のしおりがあるか確認して更新
+    let newList = list.map((existing) => {
+      const existingKey = getBookmarkKey(existing);
+      if (incomingKey && existingKey === incomingKey) {
+        updated = true;
+        return pickNewerBookmark(existing, bookmark);
+      }
+      return existing;
+    });
+
+    if (!updated) {
+      // 新規追加
+      newList = [bookmark, ...newList];
+    }
+
+    this.data.bookmarks[bookId] = newList
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, MAX_BOOKMARKS_PER_BOOK);
     this.save();
   }
 

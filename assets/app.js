@@ -93,6 +93,7 @@ if (!pageDirection) pageDirection = UI_DEFAULTS.pageDirection;
 let defaultWritingMode = settings.defaultWritingMode ?? UI_DEFAULTS.writingMode;
 let defaultPageDirection = settings.defaultPageDirection ?? UI_DEFAULTS.defaultDirection;
 let defaultImageViewMode = settings.defaultImageViewMode ?? UI_DEFAULTS.imageViewMode;
+let oneBookmarkPerBook = settings.oneBookmarkPerBook ?? DEFAULT_SETTINGS.oneBookmarkPerBook;
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
@@ -251,6 +252,14 @@ syncLogic.init({
     openFileDialog,
     applyReadingState,
   },
+});
+
+// 認証成功時の同期トリガー設定 (初期化後すぐに登録)
+window.addEventListener("auth:login", () => {
+  console.log("[app] auth:login event received, starting sync...");
+  syncLogic.handleAuthLogin().catch((error) => {
+    console.error("同期データの取得に失敗しました:", error);
+  });
 });
 
 function setArchiveWarnings(warningTypes = []) {
@@ -1412,6 +1421,7 @@ function addBookmark() {
     deviceColor: deviceSettings.deviceColor,
   });
   if (bookmark) {
+    bookmark.updatedAt = Date.now();
     storage.addBookmark(currentBookId, bookmark);
     renderers.renderBookmarks(bookmarkMenuMode);
     renderers.renderBookmarkMarkers();
@@ -1644,6 +1654,7 @@ function applyUiLanguage(nextLanguage) {
   if (emptyDescription) emptyDescription.textContent = strings.emptyDescription;
   if (elements.cloudAttachButton) elements.cloudAttachButton.textContent = strings.libraryAttachFile;
   if (elements.loadingText) elements.loadingText.textContent = strings.loadingText;
+  if (elements.dropText) elements.dropText.textContent = strings.dropText;
   if (!currentBookId && currentCloudBookId) {
     const meta = storage.data.cloudIndex?.[currentCloudBookId];
     const state = storage.getCloudState(currentCloudBookId);
@@ -1760,6 +1771,12 @@ function applyUiLanguage(nextLanguage) {
   if (elements.deviceIdLabel) elements.deviceIdLabel.textContent = strings.deviceIdLabel;
   if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
   if (elements.deviceNameLabel) elements.deviceNameLabel.textContent = strings.deviceNameLabel;
+  if (elements.settingsOneBookmarkPerBookLabel) {
+    elements.settingsOneBookmarkPerBookLabel.textContent = strings.settingsOneBookmarkPerBookLabel;
+  }
+  if (elements.settingsOneBookmarkPerBook) {
+    elements.settingsOneBookmarkPerBook.checked = !!oneBookmarkPerBook;
+  }
 
   // デバイス情報の値をセット
   const deviceSettings = storage.getSettings();
@@ -2614,6 +2631,12 @@ function setupEvents() {
     applyProgressDisplayMode(e.target.value);
   });
 
+  elements.settingsOneBookmarkPerBook?.addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    oneBookmarkPerBook = enabled;
+    storage.setSettings({ oneBookmarkPerBook: enabled });
+  });
+
   elements.settingsEpubViewMode?.addEventListener('change', (e) => {
     applyEpubViewMode(e.target.value);
   });
@@ -2643,61 +2666,62 @@ function setupEvents() {
   elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
 
   // Manual sync button
-  const manualSyncButton = document.getElementById(DOM_IDS.MANUAL_SYNC_BUTTON);
-  const syncStatus = document.getElementById(DOM_IDS.SYNC_STATUS);
-
-  manualSyncButton?.addEventListener('click', async () => {
+  elements.manualSyncButton?.addEventListener('click', async () => {
     const authStatus = checkAuthStatus();
     if (!authStatus.authenticated) {
-      if (syncStatus) {
-        syncStatus.textContent = t('syncNeedsLoginStatus');
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+      if (elements.syncStatus) {
+        elements.syncStatus.textContent = t('syncNeedsLoginStatus');
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_ERROR);
       }
       return;
     }
 
     try {
-      const resolvedSource = cloudSync.resolveSource(null, storage.getSettings());
+      const settings = storage.getSettings();
+      const resolvedSource = cloudSync.resolveSource(null, settings);
       if (resolvedSource !== SYNC_SOURCES.D1) {
+        console.log('[manualSync] Enforcing D1 source for manual sync');
         storage.setSettings({ source: SYNC_SOURCES.D1 });
       }
-      manualSyncButton.disabled = true;
-      manualSyncButton.textContent = t('syncInProgress');
-      if (syncStatus) {
-        syncStatus.textContent = t('syncStarting');
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_NEUTRAL);
+
+      elements.manualSyncButton.disabled = true;
+      elements.manualSyncButton.textContent = t('syncInProgress');
+      if (elements.syncStatus) {
+        elements.syncStatus.textContent = t('syncStarting');
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_NEUTRAL);
       }
 
-      // Pull index
+      // 送信前に現在の進捗を強制保存（最新状態を同期するため）
+      saveCurrentProgress({ force: true });
+
+      // クラウドからインデックスをプル
       await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
 
-      // If a book is open, sync its state
+      // 開いている本があればその状態をプッシュ
       if (currentBookId && currentCloudBookId) {
-        await pushCurrentBookSync({ force: true });
+        await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
       }
 
       // SSOT: 同期完了後の最終的な永続化
       storage.save();
 
-      if (syncStatus) {
-        syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_SUCCESS);
+      if (elements.syncStatus) {
+        elements.syncStatus.textContent = `${UI_ICONS.CHECK_MARK} ${t('syncCompleted')}`;
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_SUCCESS);
         setTimeout(() => {
-          syncStatus.textContent = '';
-          renderers.setStatusClass(syncStatus, null);
+          elements.syncStatus.textContent = '';
+          renderers.setStatusClass(elements.syncStatus, null);
         }, TIMING_CONFIG.STATUS_MESSAGE_DISPLAY_MS);
       }
     } catch (error) {
       console.error('Manual sync failed:', error);
-      if (syncStatus) {
+      if (elements.syncStatus) {
         let userMessage = t('syncFailed');
         let detailMessage = error.message;
 
-        // ネットワークエラーやブロックの可能性を示唆する判定
         if (error.code === 'unavailable' ||
-          error.message.includes('Failed to fetch') ||
-          error.message.includes('Network Error')) {
-
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('Network Error')) {
           userMessage = t('syncBlocked');
           detailMessage = t('syncBlockedDetail');
         } else if (error.code === 'permission-denied') {
@@ -2705,15 +2729,16 @@ function setupEvents() {
           detailMessage = t('syncPermissionDetail');
         }
 
-        syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
-        renderers.setStatusClass(syncStatus, UI_CLASSES.STATUS_ERROR);
+        elements.syncStatus.textContent = `${UI_ICONS.ERROR_MARK} ${userMessage}`;
+        renderers.setStatusClass(elements.syncStatus, UI_CLASSES.STATUS_ERROR);
 
-        // 詳細をアラートでも表示（ユーザーに気づかせるため）
         alert(`${userMessage}\n\n${detailMessage}\n\n${t('errorDetail')}: ${error.message}`);
       }
     } finally {
-      manualSyncButton.disabled = false;
-      manualSyncButton.textContent = t('syncNowButton');
+      if (elements.manualSyncButton) {
+        elements.manualSyncButton.disabled = false;
+        elements.manualSyncButton.textContent = t('syncNowButton');
+      }
     }
   });
 
@@ -3016,6 +3041,43 @@ function setupEvents() {
   elements.librarySearchInput?.addEventListener('input', (e) => {
     renderers.filterLibraryCards(e.target.value);
   });
+
+  // ========================================
+  // ドラッグ＆ドロップ (D&D) イベント
+  // ========================================
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.add(UI_CLASSES.IS_FILE_DRAGGING);
+  });
+
+  window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 画面外または子要素への移動で判定が揺れるのを防ぐため、relatedTargetをチェック
+    if (!e.relatedTarget) {
+      document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
+    }
+  });
+
+  // オーバーレイ自体からも離脱判定（子要素対策）
+  elements.dropOverlay?.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFile(files[0]);
+    }
+  });
 }
 
 // ========================================
@@ -3093,11 +3155,7 @@ function startAfterDomReady() {
   startApp();
 }
 
-window.addEventListener("auth:login", () => {
-  syncLogic.handleAuthLogin().catch((error) => {
-    console.error("同期データの取得に失敗しました:", error);
-  });
-});
+// auth:login リスナーを上部の初期化フローに移動したため、ここは削除
 
 window.addEventListener("load", () => {
   if (!googleLoginReady) {

@@ -155,6 +155,8 @@ export const elements = {
     writingModeLabel: getById(DOM_IDS.WRITING_MODE_LABEL),
     pageDirectionLabel: getById(DOM_IDS.PAGE_DIRECTION_LABEL),
     progressDisplayModeLabel: getById(DOM_IDS.PROGRESS_DISPLAY_MODE_LABEL),
+    settingsOneBookmarkPerBook: getById(DOM_IDS.SETTINGS_ONE_BOOKMARK_PER_BOOK),
+    settingsOneBookmarkPerBookLabel: getById(DOM_IDS.SETTINGS_ONE_BOOKMARK_PER_BOOK_LABEL),
     deviceIdLabel: getById(DOM_IDS.DEVICE_ID_LABEL),
     deviceIdInput: getById(DOM_IDS.DEVICE_ID_INPUT),
     deviceColorLabel: getById(DOM_IDS.DEVICE_COLOR_LABEL),
@@ -203,4 +205,6 @@ export const elements = {
     toggleFullscreen: getById(DOM_IDS.TOGGLE_FULLSCREEN),
     lottieLoader: getById(DOM_IDS.LOTTIE_LOADER),
     loadingText: getById(DOM_IDS.LOADING_TEXT),
+    dropOverlay: getById(DOM_IDS.DROP_OVERLAY),
+    dropText: getById(DOM_IDS.DROP_TEXT),
 };

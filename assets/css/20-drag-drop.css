@@ -1,0 +1,57 @@
+/* =====================================
+[REF]
+- HTML: #dropOverlay.drop-overlay
+- JS: assets/app.js（ドラッグイベントで本体にクラス付与）
+- STATE: body.is-file-dragging
+- LAYER: z-index（--z-modal-overlay + 10）
+- SPLIT: NEW
+===================================== */
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 10000; /* ローディングより前面、かつ最前面に近い位置 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  pointer-events: none;
+}
+
+body.is-file-dragging .drop-overlay {
+  opacity: 1;
+  visibility: visible;
+}
+
+.drop-message {
+  text-align: center;
+  color: #fff;
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+body.is-file-dragging .drop-message {
+  transform: translateY(0);
+}
+
+.drop-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+  animation: bounce 2s infinite;
+}
+
+.drop-text {
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+  40% {transform: translateY(-20px);}
+  60% {transform: translateY(-10px);}
+}
