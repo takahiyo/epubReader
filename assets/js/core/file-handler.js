@@ -315,24 +315,19 @@ function resolveArchiveEntrySize(entry) {
     return Number.isFinite(size) ? size : 0;
 }
 
-function buildArchiveFingerprintPayload(entries) {
-    const sorted = [...entries].sort((a, b) => a.path.localeCompare(b.path, "en", { numeric: true, sensitivity: "base" }));
-    return {
-        count: sorted.length,
-        files: sorted.map(({ path, entry }) => ({
-            path,
-            size: resolveArchiveEntrySize(entry),
-        })),
-    };
-}
-
+/**
+ * 画像書庫ファイルのフィンガープリントを計算する。
+ * ファイル名 + サイズ + 先頭/末尾バイトによる軽量ハッシュ（メモリ消費 ~2MB）。
+ *
+ * 重要: 以前は createArchiveHandler() を呼んでZIP全体を展開していたが、
+ *       大容量ZIPで OOM/NotReadableError を引き起こす原因だったため、
+ *       ファイルの中身を展開せずにハッシュを計算する方式に変更。
+ *
+ * @param {File|Blob} file
+ * @returns {Promise<string>} SHA-256 ハッシュ文字列
+ */
 export async function buildArchiveFingerprint(file) {
-    const handler = await createArchiveHandler(file);
-    const entries = await handler.listImageEntries();
-    const payload = buildArchiveFingerprintPayload(entries);
-    const json = JSON.stringify(payload);
-    const buffer = new TextEncoder().encode(json).buffer;
-    return hashBuffer(buffer);
+    return hashFileLightweight(file);
 }
 
 /**

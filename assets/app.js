@@ -821,6 +821,18 @@ async function handleFile(file) {
     const useStreaming = isArchiveBook && type === BOOK_TYPES.ZIP &&
       fileHandler.shouldUseStreaming(file);
 
+    // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
+    if (useStreaming && elements.loadingOverlay) {
+      let notice = elements.loadingOverlay.querySelector('.streaming-notice');
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.className = 'streaming-notice';
+        notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
+        notice.textContent = 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
+        elements.loadingOverlay.appendChild(notice);
+      }
+    }
+
     // 3. ハッシュ計算（リトライ付き）
     //    画像書庫は fingerprint（File直接、バッファ不要）
     //    大容量EPUBは軽量ハッシュ（先頭1MB+末尾1MB+サイズ、ピークメモリ ~2MB）

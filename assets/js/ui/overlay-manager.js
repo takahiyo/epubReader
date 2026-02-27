@@ -85,5 +85,8 @@ export function hideLoading() {
         console.trace('[hideLoading] called');
         elements.loadingOverlay.classList.remove(UI_CLASSES.VISIBLE);
         lottieInstance?.stop(); // 非表示時は停止してリソース節約
+        // ストリーミングモード通知があれば削除
+        const notice = elements.loadingOverlay.querySelector('.streaming-notice');
+        if (notice) notice.remove();
     }
 }
