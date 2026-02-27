@@ -30,9 +30,12 @@ async function ensureZipJs() {
     zipJsPromise = (async () => {
         // グローバルに既に存在するか確認
         if (typeof window !== "undefined" && window.zip?.BlobReader) {
+            // WebWorkerを無効化（CDN経由のWorkerはCSP/CORSで無限ハングする可能性がある）
+            window.zip.configure({ useWebWorkers: false });
             return window.zip;
         }
         // CDN から <script> タグで読み込む
+        console.time('[StreamingZip] CDN load');
         await new Promise((resolve, reject) => {
             const script = document.createElement("script");
             script.src = CDN_URLS.ZIPJS;
@@ -41,9 +44,12 @@ async function ensureZipJs() {
             script.onerror = () => reject(new Error("zip.js の読み込みに失敗しました"));
             document.head.appendChild(script);
         });
+        console.timeEnd('[StreamingZip] CDN load');
         if (typeof window.zip?.BlobReader !== "function") {
             throw new Error("zip.js が正しく読み込まれませんでした");
         }
+        // WebWorkerを無効化（メインスレッドで解凍、ハング防止）
+        window.zip.configure({ useWebWorkers: false });
         return window.zip;
     })();
 
@@ -144,9 +150,18 @@ export class StreamingZipHandler {
      * @returns {Promise<StreamingZipHandler>}
      */
     async init() {
+        console.time('[StreamingZip] ensureZipJs');
         const zipLib = await ensureZipJs();
+        console.timeEnd('[StreamingZip] ensureZipJs');
+
+        console.time('[StreamingZip] ZipReader.open');
         this.zipReader = new zipLib.ZipReader(new zipLib.BlobReader(this.file));
+        console.timeEnd('[StreamingZip] ZipReader.open');
+
+        console.time('[StreamingZip] getEntries');
         const rawEntries = await this.zipReader.getEntries();
+        console.timeEnd('[StreamingZip] getEntries');
+        console.log(`[StreamingZip] Total entries: ${rawEntries.length}`);
 
         // 画像エントリーをフィルタし、パス→エントリーのマップを構築
         const imageEntries = [];
@@ -169,7 +184,7 @@ export class StreamingZipHandler {
         });
 
         this.imageEntries = imageEntries;
-        console.log(`[StreamingZipHandler] Initialized: ${imageEntries.length} images (streamed)`);
+        console.log(`[StreamingZipHandler] Initialized: ${imageEntries.length} images (streamed, no workers)`);
         return this;
     }
 
@@ -203,7 +218,9 @@ export class StreamingZipHandler {
         }
         const zipLib = await ensureZipJs();
         const mimeType = resolveImageMimeType(path);
+        console.time(`[StreamingZip] extract: ${path.split('/').pop()}`);
         const blob = await entry.getData(new zipLib.BlobWriter(mimeType));
+        console.timeEnd(`[StreamingZip] extract: ${path.split('/').pop()}`);
         return blob;
     }
 

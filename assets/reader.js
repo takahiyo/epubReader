@@ -2490,11 +2490,13 @@ export class ReaderController {
       this.imagePageErrors = new Array(images.length).fill(null);
 
       const memoryStrategy = getMemoryStrategy();
-      const preloadCount = Math.min(
-        memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount,
-        images.length
-      );
-      console.log(`Preloading ${preloadCount} images to object URLs...`);
+      // ストリーミングモード時は最小限（1枚）のプリロードに制限
+      const isStreamingMode = typeof handler.close === "function"; // StreamingZipHandler固有メソッド
+      const basePreloadCount = isStreamingMode
+        ? 1
+        : (memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount);
+      const preloadCount = Math.min(basePreloadCount, images.length);
+      console.log(`Preloading ${preloadCount} images to object URLs... (streaming=${isStreamingMode})`);
       this.emitLoadingUpdate({
         phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
         status: READER_LOADING_STATUSES.START,
