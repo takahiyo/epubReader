@@ -70,10 +70,15 @@ export function selectLoadStrategy(file) {
 
 /**
  * ZIP ファイルに対し、JSZip（一括展開）かzip.js（ストリーミング）かを判定する。
- * OS/UA に依存せず、端末の能力ベース（deviceMemory, hardwareConcurrency）のみで判定。
+ * OS/UA に依存せず、端末の能力ベースのみで判定。
  *
- * - JSZip は元サイズの約3倍のピークメモリを消費する
- * - 端末メモリの 25% を安全上限とし、超える場合はストリーミングに切り替える
+ * 判定優先順位:
+ *  1. performance.memory.jsHeapSizeLimit（Chrome）— ブラウザのタブ単位のJSヒープ上限
+ *  2. navigator.deviceMemory × 控えめ比率 — フォールバック
+ *
+ * 重要: navigator.deviceMemory は端末全体のRAMを返すが、ブラウザの1タブが使える
+ *       JSヒープ上限はこれより遥かに小さい（例: Pixel8 8GB → タブ上限 ~512MB）。
+ *       そのため deviceMemory だけで判定すると安全圏を大幅に過大評価してしまう。
  *
  * @param {File|Blob} file - 対象ZIPファイル
  * @returns {boolean} true = ストリーミングモード推奨
@@ -82,17 +87,37 @@ export function shouldUseStreaming(file) {
     const env = detectEnvironment();
     const fileSizeMB = file.size / (1024 * 1024);
 
-    // 端末メモリの安全圏を算出（能力ベース、OS非依存）
-    const safeMemoryMB = env.memoryGB * 1024 * FILE_STRATEGY.SAFE_MEMORY_RATIO;
     // JSZip の一括展開時ピークメモリ推定
     const estimatedPeakMB = fileSizeMB * FILE_STRATEGY.JSZIP_PEAK_MULTIPLIER;
+
+    // ブラウザが実際に使えるJSヒープ上限を取得（能力ベース、OS非依存）
+    let safeMemoryMB;
+    let memorySource;
+
+    // 1. performance.memory (Chrome系): 実際のJSヒープ上限を取得
+    //    これが最も正確 — 端末メモリではなくブラウザタブの実メモリ制約を反映
+    const jsHeapLimit = (typeof performance !== "undefined" && performance.memory)
+        ? performance.memory.jsHeapSizeLimit
+        : 0;
+
+    if (jsHeapLimit > 0) {
+        // ヒープ上限の30%をJSZip展開に安全に使えるメモリとする
+        // （他のJS処理やDOM等もメモリを消費するため）
+        safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.30;
+        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB×0.30`;
+    } else {
+        // 2. deviceMemory フォールバック — 控えめに算出
+        //    ブラウザのタブ制限は端末メモリの10〜15%程度が目安
+        safeMemoryMB = env.memoryGB * 1024 * 0.10;
+        memorySource = `deviceMemory=${env.memoryGB}GB×0.10`;
+    }
 
     const needsStreaming = estimatedPeakMB > safeMemoryMB ||
         (env.isLowEnd && fileSizeMB > FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024));
 
     console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} — ` +
         `file=${fileSizeMB.toFixed(1)}MB, peak≈${estimatedPeakMB.toFixed(0)}MB, ` +
-        `safe=${safeMemoryMB.toFixed(0)}MB (${env.memoryGB}GB×${FILE_STRATEGY.SAFE_MEMORY_RATIO}), ` +
+        `safe=${safeMemoryMB.toFixed(0)}MB (${memorySource}), ` +
         `isLowEnd=${env.isLowEnd}`);
     return needsStreaming;
 }
