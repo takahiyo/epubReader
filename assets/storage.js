@@ -261,7 +261,14 @@ export class StorageService {
   }
 
   addBookmark(bookId, bookmark) {
-    const list = this.data.bookmarks[bookId] ?? [];
+    let list = this.data.bookmarks[bookId] ?? [];
+    const settings = this.getSettings();
+
+    if (settings.oneBookmarkPerBook) {
+      // 1冊につき1しおり設定が有効な場合は既存をクリア
+      list = [];
+    }
+
     const incomingKey = getBookmarkKey(bookmark);
     let updated = false;
 

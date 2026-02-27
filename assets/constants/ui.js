@@ -251,6 +251,8 @@ export const DOM_IDS = Object.freeze({
   WRITING_MODE_LABEL: "writingModeLabel",
   PAGE_DIRECTION_LABEL: "pageDirectionLabel",
   PROGRESS_DISPLAY_MODE_LABEL: "progressDisplayModeLabel",
+  SETTINGS_ONE_BOOKMARK_PER_BOOK: "settingsOneBookmarkPerBook",
+  SETTINGS_ONE_BOOKMARK_PER_BOOK_LABEL: "settingsOneBookmarkPerBookLabel",
   DEVICE_ID_LABEL: "deviceIdLabel",
   DEVICE_ID_INPUT: "deviceId",
   DEVICE_COLOR_LABEL: "deviceColorLabel",

@@ -81,6 +81,7 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsDefaultWritingModeLabel: "デフォルトの書字方向",
   settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
   settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
+  settingsOneBookmarkPerBookLabel: "1つの書籍に作成するしおりは一つだけにする",
 
   // アカウント
   settingsAccountTitle: "アカウント",

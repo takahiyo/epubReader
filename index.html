@@ -183,12 +183,11 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3 id="bookmarkMenuTitle"></h3>
+        <button id="addBookmarkBtn" class="add-bookmark-btn"></button>
         <button id="closeBookmarkMenu" class="close-btn"></button>
       </div>
       <div class="modal-body">
         <ul id="bookmarkList" class="bookmark-list"></ul>
-        <button id="addBookmarkBtn" class="add-bookmark-btn">
-        </button>
       </div>
     </div>
   </div>
@@ -345,6 +344,10 @@
               <option value="single"></option>
               <option value="spread"></option>
             </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsOneBookmarkPerBook" id="settingsOneBookmarkPerBookLabel"></label>
+            <input type="checkbox" id="settingsOneBookmarkPerBook" />
           </div>
         </div>
 

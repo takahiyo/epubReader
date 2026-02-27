@@ -81,6 +81,7 @@ export const UI_STRINGS_EN = Object.freeze({
   settingsDefaultWritingModeLabel: "Default Writing Mode",
   settingsDefaultPageDirectionLabel: "Default Page Direction",
   settingsDefaultImageViewModeLabel: "Default View Mode",
+  settingsOneBookmarkPerBookLabel: "Only keep the most recent bookmark per book",
 
   // Account
   settingsAccountTitle: "Account",

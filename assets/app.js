@@ -93,6 +93,7 @@ if (!pageDirection) pageDirection = UI_DEFAULTS.pageDirection;
 let defaultWritingMode = settings.defaultWritingMode ?? UI_DEFAULTS.writingMode;
 let defaultPageDirection = settings.defaultPageDirection ?? UI_DEFAULTS.defaultDirection;
 let defaultImageViewMode = settings.defaultImageViewMode ?? UI_DEFAULTS.imageViewMode;
+let oneBookmarkPerBook = settings.oneBookmarkPerBook ?? DEFAULT_SETTINGS.oneBookmarkPerBook;
 let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
@@ -1770,6 +1771,12 @@ function applyUiLanguage(nextLanguage) {
   if (elements.deviceIdLabel) elements.deviceIdLabel.textContent = strings.deviceIdLabel;
   if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
   if (elements.deviceNameLabel) elements.deviceNameLabel.textContent = strings.deviceNameLabel;
+  if (elements.settingsOneBookmarkPerBookLabel) {
+    elements.settingsOneBookmarkPerBookLabel.textContent = strings.settingsOneBookmarkPerBookLabel;
+  }
+  if (elements.settingsOneBookmarkPerBook) {
+    elements.settingsOneBookmarkPerBook.checked = !!oneBookmarkPerBook;
+  }
 
   // デバイス情報の値をセット
   const deviceSettings = storage.getSettings();
@@ -2622,6 +2629,12 @@ function setupEvents() {
 
   elements.progressDisplayModeSelect?.addEventListener('change', (e) => {
     applyProgressDisplayMode(e.target.value);
+  });
+
+  elements.settingsOneBookmarkPerBook?.addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    oneBookmarkPerBook = enabled;
+    storage.setSettings({ oneBookmarkPerBook: enabled });
   });
 
   elements.settingsEpubViewMode?.addEventListener('change', (e) => {
