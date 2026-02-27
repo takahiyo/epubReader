@@ -191,6 +191,8 @@ export function guessMime(type, file) {
 
 /**
  * バッファのハッシュ(SHA-256)を計算
+ * @param {ArrayBuffer} buffer - ハッシュ対象のバッファ
+ * @returns {Promise<string>} 16進数のハッシュ文字列
  */
 export async function hashBuffer(buffer) {
     const hash = await crypto.subtle.digest("SHA-256", buffer);
@@ -198,6 +200,49 @@ export async function hashBuffer(buffer) {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     return hex;
+}
+
+/**
+ * 大容量ファイル向けの軽量ハッシュ計算。
+ * SubtleCrypto はストリーミングハッシュに非対応のため、
+ * ファイル全体を読み込まず「先頭1MB + 末尾1MB + ファイルサイズ」を
+ * フィンガープリントとしてSHA-256ハッシュする。
+ * ピークメモリは最大約2MB。
+ * @param {File|Blob} file - ハッシュ対象のファイル
+ * @returns {Promise<string>} 16進数のハッシュ文字列
+ */
+export async function hashFileLightweight(file) {
+    const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
+    const fileSize = file.size;
+
+    // 先頭チャンクを読み込み
+    const headEnd = Math.min(CHUNK_SIZE, fileSize);
+    const headSlice = file.slice(0, headEnd);
+    const headBuffer = await headSlice.arrayBuffer();
+
+    // 末尾チャンクを読み込み（先頭と重複する場合はスキップ）
+    let tailBuffer = new ArrayBuffer(0);
+    if (fileSize > CHUNK_SIZE) {
+        const tailStart = Math.max(fileSize - CHUNK_SIZE, headEnd);
+        const tailSlice = file.slice(tailStart, fileSize);
+        tailBuffer = await tailSlice.arrayBuffer();
+    }
+
+    // ファイルサイズを8バイトのバッファに変換
+    const sizeBuffer = new ArrayBuffer(8);
+    const sizeView = new DataView(sizeBuffer);
+    // ファイルサイズが2^32を超える可能性があるためhigh/lowに分割
+    sizeView.setUint32(0, Math.floor(fileSize / 0x100000000), false);
+    sizeView.setUint32(4, fileSize >>> 0, false);
+
+    // 3つの要素を結合してハッシュ
+    const combined = new Uint8Array(headBuffer.byteLength + tailBuffer.byteLength + sizeBuffer.byteLength);
+    combined.set(new Uint8Array(headBuffer), 0);
+    combined.set(new Uint8Array(tailBuffer), headBuffer.byteLength);
+    combined.set(new Uint8Array(sizeBuffer), headBuffer.byteLength + tailBuffer.byteLength);
+
+    console.log(`[hashFileLightweight] ${file.name}: head=${headBuffer.byteLength}B + tail=${tailBuffer.byteLength}B + size=8B → ${combined.byteLength}B`);
+    return hashBuffer(combined.buffer);
 }
 
 function resolveArchiveEntrySize(entry) {

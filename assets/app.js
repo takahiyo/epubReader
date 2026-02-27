@@ -796,6 +796,7 @@ async function handleFile(file) {
 
     // 1. 環境に適した読み込み戦略を選択
     const strategy = fileHandler.selectLoadStrategy(file);
+    const isLargeFile = file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
 
     // 2. 先頭バイトのみでファイルタイプを判定（全バッファ不要）
     //    NotReadableError 発生時は自動リトライ
@@ -815,11 +816,21 @@ async function handleFile(file) {
     const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
 
     // 3. ハッシュ計算（リトライ付き）
-    //    画像書庫は fingerprint（File直接）、EPUBはbufferからハッシュ
-    const contentHash = isArchiveBook
-      ? await fileHandler.buildArchiveFingerprint(file)
-      : await fileHandler.readFileWithRetry(file,
+    //    画像書庫は fingerprint（File直接、バッファ不要）
+    //    大容量EPUBは軽量ハッシュ（先頭1MB+末尾1MB+サイズ、ピークメモリ ~2MB）
+    //    小容量EPUBは従来の全バッファハッシュ（高速）
+    let contentHash;
+    if (isArchiveBook) {
+      contentHash = await fileHandler.buildArchiveFingerprint(file);
+    } else if (isLargeFile) {
+      // 大容量EPUB: file.arrayBuffer() を呼ばずにハッシュ計算
+      contentHash = await fileHandler.readFileWithRetry(file,
+        () => fileHandler.hashFileLightweight(file));
+    } else {
+      // 小容量EPUB: 従来の全バッファハッシュ（高速）
+      contentHash = await fileHandler.readFileWithRetry(file,
         async () => fileHandler.hashBuffer(await file.arrayBuffer()));
+    }
 
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
@@ -827,11 +838,17 @@ async function handleFile(file) {
     const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
-    // 4. ファイル保存（リトライ付き）
-    //    大容量ファイルはOPFS優先、小容量はIndexedDB（fileStore.js内で自動判定）
+    // 4. ファイル保存
+    //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
+    //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
-    const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
-    await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
+    if (isLargeFile) {
+      // File オブジェクトを直接渡す — OPFS 対応環境ではストリーム書き込み
+      await saveFile(id, file, { fileName: file.name, mime }, source);
+    } else {
+      const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
+      await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
+    }
 
     // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
@@ -900,9 +917,10 @@ async function handleFile(file) {
 
     renderers.hideCloudEmptyState();
 
-    // 5. リーダーへの File オブジェクト生成
-    //    bufferForSave が既にあるのでそれを再利用し、二重取得を回避
-    const fileToOpen = new File([new Uint8Array(bufferForSave)], file.name, { type: mime });
+    // 5. リーダーへの File オブジェクト渡し
+    //    大容量: 元の File オブジェクトをそのまま渡す（バッファ二重消費を完全回避）
+    //    小容量: 保存済みバッファからFileを再構築（従来互換）
+    const fileToOpen = file; // File オブジェクトをそのまま渡す
 
     // 6. ビューアの切り替えと初期表示設定
     if (!isArchiveBook) {

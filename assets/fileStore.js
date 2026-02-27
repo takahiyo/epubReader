@@ -75,17 +75,19 @@ async function getOPFSBookDir() {
 
 /**
  * OPFS にファイルデータを保存する。
+ * ArrayBuffer または File/Blob を受け取る。Blob の場合は全バッファをメモリに載せずに書き込む。
  * IndexedDB にはメタデータのみを格納し、大容量バッファの負荷を低減する。
  * @param {string} id - 書籍ID
- * @param {ArrayBuffer} buffer - ファイルデータ
+ * @param {ArrayBuffer|File|Blob} data - ファイルデータ
  * @param {object} meta - ファイルメタデータ（fileName, mime等）
  */
-async function saveToOPFS(id, buffer, meta) {
+async function saveToOPFS(id, data, meta) {
   const dir = await getOPFSBookDir();
   const fileHandle = await dir.getFileHandle(id, { create: true });
   const writable = await fileHandle.createWritable();
   try {
-    await writable.write(buffer);
+    // File/Blob はそのまま書き込み可能（ブラウザが内部でストリーム処理する）
+    await writable.write(data);
   } finally {
     await writable.close();
   }
@@ -93,7 +95,8 @@ async function saveToOPFS(id, buffer, meta) {
   await withStore("readwrite", (store) => {
     store.put({ id, meta, storedIn: "opfs", updatedAt: Date.now() });
   });
-  console.log(`[fileStore] Saved to OPFS: ${id} (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
+  const sizeBytes = data instanceof ArrayBuffer ? data.byteLength : data.size;
+  console.log(`[fileStore] Saved to OPFS: ${id} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB)`);
 }
 
 /**
@@ -142,11 +145,12 @@ async function deleteFromOPFS(id) {
 
 /**
  * ファイルサイズが大容量しきい値を超え、かつ OPFS が利用可能かを判定する。
- * @param {ArrayBuffer} buffer - 保存対象のバッファ
+ * @param {ArrayBuffer|File|Blob} data - 保存対象のデータ
  * @returns {boolean}
  */
-function shouldUseOPFS(buffer) {
-  return isOPFSAvailable() && buffer.byteLength > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
+function shouldUseOPFS(data) {
+  const size = data instanceof ArrayBuffer ? data.byteLength : data.size;
+  return isOPFSAvailable() && size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
 }
 
 // ========================================
@@ -184,20 +188,23 @@ async function withStore(mode, callback) {
  * ローカルにファイルを保存する。
  * 大容量ファイル（>50MB）かつOPFS対応環境ではOPFSを優先使用し、
  * それ以外はIndexedDBにフォールバックする。
+ * File/Blob が渡された場合、OPFS 対応環境では全バッファをメモリに載せずに保存可能。
  * @param {string} id - 書籍ID
- * @param {ArrayBuffer} buffer - ファイルデータ
+ * @param {ArrayBuffer|File|Blob} data - ファイルデータ
  * @param {object} meta - ファイルメタデータ
  */
-async function saveLocalFile(id, buffer, meta) {
-  if (shouldUseOPFS(buffer)) {
+async function saveLocalFile(id, data, meta) {
+  if (shouldUseOPFS(data)) {
     try {
-      await saveToOPFS(id, buffer, meta);
+      await saveToOPFS(id, data, meta);
       return;
     } catch (error) {
       // OPFS保存に失敗した場合はIndexedDBにフォールバック
       console.warn(`[fileStore] OPFS save failed, falling back to IndexedDB:`, error);
     }
   }
+  // IndexedDB は ArrayBuffer が必要。File/Blob の場合は変換する。
+  const buffer = data instanceof ArrayBuffer ? data : await data.arrayBuffer();
   await withStore("readwrite", (store) => {
     store.put({ id, buffer, meta, updatedAt: Date.now() });
   });
