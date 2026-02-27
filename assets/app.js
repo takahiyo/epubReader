@@ -43,6 +43,7 @@ import {
   IMAGE_VIEW_MODES,
   FILESTORE_CONFIG,
   FILE_EXTENSIONS,
+  FILE_STRATEGY,
   ARCHIVE_WARNING_EVENT,
   ARCHIVE_WARNING_CONFIG,
   DOM_IDS,
@@ -793,11 +794,17 @@ async function handleFile(file) {
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
-    const buffer = await file.arrayBuffer();
-    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
+    // 1. 環境に適した読み込み戦略を選択
+    const strategy = fileHandler.selectLoadStrategy(file);
 
-    // ファイルタイプを自動判別 (マジックナンバー優先)
-    const type = fileHandler.detectFileType(buffer) || fileHandler.detectFileType(file);
+    // 2. 先頭バイトのみでファイルタイプを判定（全バッファ不要）
+    //    NotReadableError 発生時は自動リトライ
+    const header = await fileHandler.readFileWithRetry(file,
+      () => fileHandler.readFileHeader(file, FILE_STRATEGY.HEADER_BYTES));
+    console.log(`File header loaded: ${header.byteLength} bytes`);
+
+    // マジックナンバー優先、フォールバックとして拡張子判定
+    const type = fileHandler.detectFileType(header) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
       alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
@@ -806,17 +813,25 @@ async function handleFile(file) {
     console.log(`Detected file type: ${type}`);
 
     const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
+
+    // 3. ハッシュ計算（リトライ付き）
+    //    画像書庫は fingerprint（File直接）、EPUBはbufferからハッシュ
     const contentHash = isArchiveBook
       ? await fileHandler.buildArchiveFingerprint(file)
-      : await fileHandler.hashBuffer(buffer); // EPUBは従来のコンテンツハッシュを継続使用
+      : await fileHandler.readFileWithRetry(file,
+        async () => fileHandler.hashBuffer(await file.arrayBuffer()));
+
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
+    // 4. ファイル保存（リトライ付き）
+    //    大容量ファイルはOPFS優先、小容量はIndexedDB（fileStore.js内で自動判定）
     console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
-    await saveFile(id, buffer, { fileName: file.name, mime }, source);
+    const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
+    await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
 
     // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
@@ -885,7 +900,11 @@ async function handleFile(file) {
 
     renderers.hideCloudEmptyState();
 
-    // 1. ビューアの切り替えと初期表示設定
+    // 5. リーダーへの File オブジェクト生成
+    //    bufferForSave が既にあるのでそれを再利用し、二重取得を回避
+    const fileToOpen = new File([new Uint8Array(bufferForSave)], file.name, { type: mime });
+
+    // 6. ビューアの切り替えと初期表示設定
     if (!isArchiveBook) {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
@@ -901,7 +920,6 @@ async function handleFile(file) {
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
-        const fileToOpen = new File([new Uint8Array(buffer)], file.name, { type: mime });
         await reader.openEpub(fileToOpen, {
           location: startLocation,
           percentage: startProgress,
@@ -925,7 +943,7 @@ async function handleFile(file) {
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
       await reader.openImageBook(
-        new File([new Uint8Array(buffer)], file.name, { type: mime }),
+        fileToOpen,
         typeof startLocation === "number" ? startLocation : 0,
         type
       );

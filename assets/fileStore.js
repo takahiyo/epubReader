@@ -1,7 +1,7 @@
-import { FILESTORE_CONFIG, DEFAULT_DATA_SHAPE } from "./constants.js";
+import { FILESTORE_CONFIG, FILE_STRATEGY, DEFAULT_DATA_SHAPE } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
-const { DB_NAME, STORE, VERSION, STORAGE_KEY } = FILESTORE_CONFIG;
+const { DB_NAME, STORE, VERSION, STORAGE_KEY, OPFS_DIR } = FILESTORE_CONFIG;
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -50,6 +50,109 @@ function ensureCloudLoggedIn(source, settings) {
   }
 }
 
+// ========================================
+// OPFS (Origin Private File System) サポート
+// ========================================
+
+/**
+ * OPFS がブラウザで利用可能かどうかを判定する。
+ * navigator.storage.getDirectory が存在すれば対応と見なす。
+ * @returns {boolean}
+ */
+function isOPFSAvailable() {
+  return typeof navigator?.storage?.getDirectory === "function";
+}
+
+/**
+ * OPFS 内の書籍保存ディレクトリハンドルを取得する。
+ * ディレクトリが存在しなければ自動作成する。
+ * @returns {Promise<FileSystemDirectoryHandle>}
+ */
+async function getOPFSBookDir() {
+  const root = await navigator.storage.getDirectory();
+  return await root.getDirectoryHandle(OPFS_DIR, { create: true });
+}
+
+/**
+ * OPFS にファイルデータを保存する。
+ * IndexedDB にはメタデータのみを格納し、大容量バッファの負荷を低減する。
+ * @param {string} id - 書籍ID
+ * @param {ArrayBuffer} buffer - ファイルデータ
+ * @param {object} meta - ファイルメタデータ（fileName, mime等）
+ */
+async function saveToOPFS(id, buffer, meta) {
+  const dir = await getOPFSBookDir();
+  const fileHandle = await dir.getFileHandle(id, { create: true });
+  const writable = await fileHandle.createWritable();
+  try {
+    await writable.write(buffer);
+  } finally {
+    await writable.close();
+  }
+  // IndexedDB にはメタデータのみ保存（バッファ無し → ストレージ節約）
+  await withStore("readwrite", (store) => {
+    store.put({ id, meta, storedIn: "opfs", updatedAt: Date.now() });
+  });
+  console.log(`[fileStore] Saved to OPFS: ${id} (${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB)`);
+}
+
+/**
+ * OPFS からファイルデータを読み込む。
+ * @param {string} id - 書籍ID
+ * @returns {Promise<{id: string, buffer: ArrayBuffer, meta: object}|null>}
+ */
+async function loadFromOPFS(id) {
+  try {
+    const dir = await getOPFSBookDir();
+    const fileHandle = await dir.getFileHandle(id);
+    const file = await fileHandle.getFile();
+    const buffer = await file.arrayBuffer();
+    // メタデータはIndexedDBから取得
+    const record = await withStore("readonly", (store) => {
+      return new Promise((resolve, reject) => {
+        const request = store.get(id);
+        request.onsuccess = () => resolve(request.result ?? null);
+        request.onerror = () => reject(request.error);
+      });
+    });
+    return { id, buffer, meta: record?.meta ?? {} };
+  } catch (error) {
+    // ファイルが見つからない場合はnullを返す
+    if (error.name === "NotFoundError") return null;
+    console.warn(`[fileStore] OPFS read failed for ${id}:`, error);
+    return null;
+  }
+}
+
+/**
+ * OPFS からファイルを削除する。
+ * @param {string} id - 書籍ID
+ */
+async function deleteFromOPFS(id) {
+  try {
+    const dir = await getOPFSBookDir();
+    await dir.removeEntry(id);
+  } catch (error) {
+    // NotFoundError は無視（既に削除済み）
+    if (error.name !== "NotFoundError") {
+      console.warn(`[fileStore] OPFS delete failed for ${id}:`, error);
+    }
+  }
+}
+
+/**
+ * ファイルサイズが大容量しきい値を超え、かつ OPFS が利用可能かを判定する。
+ * @param {ArrayBuffer} buffer - 保存対象のバッファ
+ * @returns {boolean}
+ */
+function shouldUseOPFS(buffer) {
+  return isOPFSAvailable() && buffer.byteLength > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
+}
+
+// ========================================
+// IndexedDB
+// ========================================
+
 function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, VERSION);
@@ -77,7 +180,24 @@ async function withStore(mode, callback) {
   });
 }
 
+/**
+ * ローカルにファイルを保存する。
+ * 大容量ファイル（>50MB）かつOPFS対応環境ではOPFSを優先使用し、
+ * それ以外はIndexedDBにフォールバックする。
+ * @param {string} id - 書籍ID
+ * @param {ArrayBuffer} buffer - ファイルデータ
+ * @param {object} meta - ファイルメタデータ
+ */
 async function saveLocalFile(id, buffer, meta) {
+  if (shouldUseOPFS(buffer)) {
+    try {
+      await saveToOPFS(id, buffer, meta);
+      return;
+    } catch (error) {
+      // OPFS保存に失敗した場合はIndexedDBにフォールバック
+      console.warn(`[fileStore] OPFS save failed, falling back to IndexedDB:`, error);
+    }
+  }
   await withStore("readwrite", (store) => {
     store.put({ id, buffer, meta, updatedAt: Date.now() });
   });
@@ -97,14 +217,30 @@ export async function saveFile(id, buffer, meta, source) {
   return handler(id, buffer, meta, getStoredSettings());
 }
 
+/**
+ * ローカルからファイルを読み込む。
+ * OPFS に保存されているファイルの場合はOPFSから取得し、
+ * そうでなければ従来のIndexedDBレコードを返す。
+ * @param {string} id - 書籍ID
+ * @returns {Promise<{id: string, buffer: ArrayBuffer, meta: object}|null>}
+ */
 async function loadLocalFile(id) {
-  return withStore("readonly", (store) => {
+  // まずIndexedDBからメタ情報を確認
+  const record = await withStore("readonly", (store) => {
     return new Promise((resolve, reject) => {
       const request = store.get(id);
       request.onsuccess = () => resolve(request.result ?? null);
       request.onerror = () => reject(request.error);
     });
   });
+  // OPFSに保存されている場合はそちらから読み込む
+  if (record?.storedIn === "opfs" && isOPFSAvailable()) {
+    const opfsResult = await loadFromOPFS(id);
+    if (opfsResult) return opfsResult;
+    // OPFSから取得失敗 → IndexedDBレコードにbufferがあればそれを返す
+    console.warn(`[fileStore] OPFS load failed for ${id}, checking IndexedDB fallback`);
+  }
+  return record;
 }
 
 export async function loadFile(id, source) {
@@ -121,7 +257,15 @@ export async function loadFile(id, source) {
   return handler(id, getStoredSettings());
 }
 
+/**
+ * ファイルを削除する。OPFS・IndexedDB 両方のデータをクリーンアップする。
+ * @param {string} id - 書籍ID
+ */
 export async function deleteFile(id) {
+  // OPFSに保存されている可能性があるため、両方を削除
+  if (isOPFSAvailable()) {
+    await deleteFromOPFS(id);
+  }
   await withStore("readwrite", (store) => store.delete(id));
 }
 

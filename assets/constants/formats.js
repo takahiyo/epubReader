@@ -42,3 +42,25 @@ export const MIME_TYPES = Object.freeze({
   HEIF: "image/heif",
   TIFF: "image/tiff",
 });
+
+// ============================================
+// ファイル読み込み戦略 (SSOT)
+// ============================================
+/**
+ * ファイルサイズと端末環境に基づく読み込み戦略の閾値。
+ * handleFile / file-handler.js が参照し、最適な読み込み手法を自動選択する。
+ */
+export const FILE_STRATEGY = Object.freeze({
+  /** マジックナンバー判定に必要な先頭バイト数 */
+  HEADER_BYTES: 100,
+  /** 一括読み込みの上限（これ以下は従来通り arrayBuffer() で高速一括処理） */
+  DIRECT_BUFFER_LIMIT: 10 * 1024 * 1024,   // 10MB
+  /** 大容量ファイルのしきい値（これ以上はOPFS優先保存の対象） */
+  LARGE_FILE_THRESHOLD: 50 * 1024 * 1024,   // 50MB
+  /** 低メモリと判定するデバイスメモリ (GB) */
+  LOW_MEMORY_THRESHOLD_GB: 2,
+  /** 権限消失 (NotReadableError) 時の最大リトライ回数 */
+  PERMISSION_RETRY_MAX: 2,
+  /** リトライ間の待機時間 (ms) */
+  PERMISSION_RETRY_DELAY_MS: 500,
+});
