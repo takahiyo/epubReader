@@ -1978,22 +1978,22 @@ export class ReaderController {
     this.pageContainer = this.viewer.querySelector(DOM_SELECTORS.EPUB_PAGE);
     if (!this.pageContainer) return;
 
-    // --- [修正開始] ---
     // Join Mode か通常の単一ページ描画かを判定
     let combinedHtml = "";
     if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && page.isJoined) {
-      // 同一グループに属する concatenated なページを連結
+      // Join Modeでは、paginator側で非先頭spineをページ化しない実装のため、
+      // pagination.pages だけで連結すると途中spine（挿絵ページ等）が欠落する。
+      // そのため描画時は spineItems（SSOT）を基準に連結する。
       const currentSpineIndex = page.spineIndex;
       const group = this._spineGroups?.find(g => currentSpineIndex >= g.start && currentSpineIndex <= g.end);
 
       if (group) {
-        // 現在のグループに属する全 spineItem の htmlFragment を連結
-        // パジネーターは 1 spineItem = 1 page (in scroll mode) としているので、spineIndex で走査
         for (let si = group.start; si <= group.end; si++) {
-          const p = pagination.pages.find(p => p.spineIndex === si);
-          if (p) {
-            combinedHtml += `<div class="joined-spine-item" data-spine-index="${p.spineIndex}">${p.htmlFragment || ""}</div>`;
-          }
+          const spineItem = this.spineItems?.[si];
+          const fallbackPage = pagination.pages.find((p) => p.spineIndex === si);
+          const htmlFragment = spineItem?.htmlString || fallbackPage?.htmlFragment || "";
+          if (!htmlFragment) continue;
+          combinedHtml += `<div class="joined-spine-item" data-spine-index="${si}">${htmlFragment}</div>`;
         }
       } else {
         combinedHtml = `<div class="joined-spine-item" data-spine-index="${page.spineIndex}">${page.htmlFragment || ""}</div>`;
