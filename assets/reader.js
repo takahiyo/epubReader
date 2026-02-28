@@ -1867,16 +1867,49 @@ export class ReaderController {
     const spineLength = this.book.spine.length;
     const groups = [];
 
+    // book.spine から href のルックアップマップを構築する
+    // （this.spineItems はまだ空の可能性があるため、book.spine を直接参照する）
+    const spineHrefMap = new Map();
+    for (let i = 0; i < spineLength; i++) {
+      const spineItem = this.book.spine.get(i);
+      if (spineItem?.href) {
+        // 正規化された href とファイル名のみの両方でマッピング
+        const href = spineItem.href;
+        const resolvedHref = this.book?.path?.resolve
+          ? this.book.path.resolve(href) : href;
+        const filename = href.split('/').pop();
+        spineHrefMap.set(href, i);
+        spineHrefMap.set(resolvedHref, i);
+        if (filename) spineHrefMap.set(filename, i);
+      }
+    }
+
+    // TOC href から spineIndex を解決するローカル関数
+    const resolveSpineIndex = (tocHref) => {
+      if (!tocHref) return -1;
+      const [pathPart] = tocHref.split('#');
+      if (!pathPart) return -1;
+
+      // そのままマッチ
+      if (spineHrefMap.has(pathPart)) return spineHrefMap.get(pathPart);
+
+      // book.path.resolve で解決してマッチ
+      const resolved = this.book?.path?.resolve
+        ? this.book.path.resolve(pathPart) : pathPart;
+      if (spineHrefMap.has(resolved)) return spineHrefMap.get(resolved);
+
+      // ファイル名のみで部分マッチ
+      const filename = pathPart.split('/').pop();
+      if (filename && spineHrefMap.has(filename)) return spineHrefMap.get(filename);
+
+      return -1;
+    };
+
     // 目次項目を spineIndex 順にソートして、各項目の開始位置を特定する
     const tocEntries = [];
     const traverseToc = (items) => {
       items.forEach(item => {
-        let fullPath = item.href;
-        if (this.book?.path?.resolve && !item.href.includes('://') && !item.href.startsWith('/')) {
-          fullPath = this.book.path.resolve(item.href);
-        }
-        const [path] = fullPath.split('#');
-        const spineIndex = this.resolveSpineIndexFromHref(path);
+        const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
           tocEntries.push({ title: item.label, spineIndex });
         }
