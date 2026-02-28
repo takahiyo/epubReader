@@ -137,11 +137,15 @@ function t(key) {
   return translate(key, uiLanguage);
 }
 
-const folderNavigatorState = {
-  directoryHandle: null,
-  fileHandles: [],
-  currentIndex: -1,
-};
+var folderNavigatorState = globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__;
+if (!folderNavigatorState) {
+  folderNavigatorState = {
+    directoryHandle: null,
+    fileHandles: [],
+    currentIndex: -1,
+  };
+  globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__ = folderNavigatorState;
+}
 
 function resetFolderNavigatorCache() {
   folderNavigatorState.directoryHandle = null;
