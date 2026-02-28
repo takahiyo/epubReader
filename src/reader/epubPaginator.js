@@ -435,6 +435,12 @@ export class EpubPaginator {
         const shouldCreatePage = this.shouldCreateScrollPageAtSpine(spineIndex);
         if (!shouldCreatePage) {
           this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
+          // progressive モードでは Reader 側が「spine 1件ごとに next() を呼ぶ」前提のため、
+          // スキップ時も必ず 1 回 yield して進行同期を保つ。
+          yield {
+            pages: [...this.pages],
+            isComplete: false
+          };
           continue;
         }
         const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
