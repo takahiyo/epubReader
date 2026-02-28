@@ -72,6 +72,11 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
 let pendingCloudBookId = null;
+const folderNavigatorState = {
+  directoryHandle: null,
+  fileHandles: [],
+  currentIndex: -1,
+};
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let writingMode = settings.writingMode;
@@ -130,6 +135,81 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function t(key) {
   return translate(key, uiLanguage);
+}
+
+function resetFolderNavigatorCache() {
+  folderNavigatorState.directoryHandle = null;
+  folderNavigatorState.fileHandles = [];
+  folderNavigatorState.currentIndex = -1;
+}
+
+function isSupportedBookFileName(fileName) {
+  if (!fileName) return false;
+  const lowerFileName = fileName.toLowerCase();
+  return FILE_INPUT_ACCEPT.some((ext) => lowerFileName.endsWith(ext));
+}
+
+async function refreshFolderNavigatorEntries() {
+  if (!folderNavigatorState.directoryHandle) return false;
+  const handles = [];
+  for await (const entry of folderNavigatorState.directoryHandle.values()) {
+    if (entry.kind !== "file") continue;
+    if (!isSupportedBookFileName(entry.name)) continue;
+    handles.push(entry);
+  }
+  handles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+  folderNavigatorState.fileHandles = handles;
+  return handles.length > 0;
+}
+
+async function ensureFolderNavigatorReady() {
+  if (!currentBookInfo?.fileName) {
+    alert(t("folderNavigationBookRequired"));
+    return false;
+  }
+  if (typeof window.showDirectoryPicker !== "function") {
+    alert(t("folderNavigationUnsupported"));
+    return false;
+  }
+
+  if (!folderNavigatorState.directoryHandle) {
+    try {
+      folderNavigatorState.directoryHandle = await window.showDirectoryPicker({ mode: "read" });
+    } catch (error) {
+      if (error?.name !== "AbortError") console.warn("showDirectoryPicker failed:", error);
+      return false;
+    }
+  }
+
+  const hasEntries = await refreshFolderNavigatorEntries();
+  if (!hasEntries) {
+    alert(t("libraryEmpty"));
+    return false;
+  }
+
+  folderNavigatorState.currentIndex = folderNavigatorState.fileHandles.findIndex((handle) => handle.name === currentBookInfo.fileName);
+  if (folderNavigatorState.currentIndex < 0) {
+    alert(t("folderNavigationCurrentBookNotFound"));
+    return false;
+  }
+  return true;
+}
+
+async function openAdjacentBook(step) {
+  if (isBookLoading) return;
+  const ready = await ensureFolderNavigatorReady();
+  if (!ready) return;
+
+  const nextIndex = folderNavigatorState.currentIndex + step;
+  if (nextIndex < 0 || nextIndex >= folderNavigatorState.fileHandles.length) {
+    alert(step < 0 ? t("folderNavigationNoPrev") : t("folderNavigationNoNext"));
+    return;
+  }
+
+  const targetHandle = folderNavigatorState.fileHandles[nextIndex];
+  const file = await targetHandle.getFile();
+  folderNavigatorState.currentIndex = nextIndex;
+  await handleFile(file);
 }
 
 function getNotionSettingsSnapshot() {
@@ -1856,6 +1936,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
+  setFloatLabel(elements.floatPrevBook, UI_ICONS.AREA_LEFT, strings.menuPrevBook);
+  setFloatLabel(elements.floatNextBook, UI_ICONS.AREA_RIGHT, strings.menuNextBook);
   setFloatLabel(elements.floatLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
   setFloatLabel(elements.floatSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setFloatLabel(elements.floatBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
@@ -2395,6 +2477,7 @@ function ensureLegacyFileInput() {
 }
 
 async function openFileDialog() {
+  resetFolderNavigatorCache();
   const openLegacyFileInput = () => {
     const input = ensureLegacyFileInput();
     if (!input) return;
@@ -2579,6 +2662,18 @@ function setupEvents() {
     e.stopPropagation();
     e.preventDefault();
     openFileDialog();
+  });
+
+  elements.floatPrevBook?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    await openAdjacentBook(-1);
+  });
+
+  elements.floatNextBook?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    await openAdjacentBook(1);
   });
 
   elements.floatLibrary?.addEventListener('click', (e) => {
