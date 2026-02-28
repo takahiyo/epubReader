@@ -1493,10 +1493,12 @@ function updateVolumeNavButtons() {
   const hasFileSystemAccess = lastFileHandle && parsed;
   // ライブラリに前巻/次巻がある → ボタン表示
   const hasLibraryVolumes = volumes.prev || volumes.next;
+  // ファイル名がシリーズパターンに合致 → ボタン表示（クリック時にFSアクセス要求）
+  const hasSeriesPattern = !!parsed;
 
-  console.log('[VolumeNav]', { hasFileSystemAccess, hasLibraryVolumes, libraryVolumes: volumes });
+  console.log('[VolumeNav]', { hasFileSystemAccess, hasLibraryVolumes, hasSeriesPattern, libraryVolumes: volumes });
 
-  if (!hasFileSystemAccess && !hasLibraryVolumes) {
+  if (!hasFileSystemAccess && !hasLibraryVolumes && !hasSeriesPattern) {
     console.log('[VolumeNav] 条件を満たさないため非表示');
     container.classList.add(UI_CLASSES.HIDDEN);
     return;
@@ -1514,7 +1516,7 @@ function updateVolumeNavButtons() {
       elements.volumePrev.disabled = false;
       elements.volumePrev.textContent = `◀◀ ${strings.volumePrevLabel} (${volumes.prev.volume})`;
       elements.volumePrev.title = `${strings.volumePrevTitle}: ${volumes.prev.book.title}`;
-    } else if (hasFileSystemAccess) {
+    } else if (hasFileSystemAccess || hasSeriesPattern) {
       elements.volumePrev.disabled = false;
       elements.volumePrev.textContent = `◀◀ ${strings.volumePrevLabel}`;
       elements.volumePrev.title = strings.volumePrevTitle;
@@ -1530,7 +1532,7 @@ function updateVolumeNavButtons() {
       elements.volumeNext.disabled = false;
       elements.volumeNext.textContent = `${strings.volumeNextLabel} (${volumes.next.volume}) ▶▶`;
       elements.volumeNext.title = `${strings.volumeNextTitle}: ${volumes.next.book.title}`;
-    } else if (hasFileSystemAccess) {
+    } else if (hasFileSystemAccess || hasSeriesPattern) {
       elements.volumeNext.disabled = false;
       elements.volumeNext.textContent = `${strings.volumeNextLabel} ▶▶`;
       elements.volumeNext.title = strings.volumeNextTitle;
