@@ -179,6 +179,20 @@
   /* 横方向のスクロールバーを強制 */
 }
 
+/* Join Mode (継続スクロール) 用の章ごとのラップ要素 */
+.joined-spine-item {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 縦書きモード時のラップ要素調整 */
+.viewer[style*="writing-mode: vertical-rl"] .joined-spine-item {
+  width: auto;
+  height: 100%;
+  display: inline-block;
+}
+
 /* スクロールモードでは click-overlay のイベント検知を無効化し、
    ビューア内のナビゲーションボタンへクリックが透過するようにする。
    M3（中央クリックでメニュー開閉）は document レベルの click リスナーで

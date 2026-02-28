@@ -47,7 +47,9 @@ const DEFAULTS = {
   widows: READER_CONFIG.widows,
   margin: READER_CONFIG.margin,
   padding: READER_CONFIG.padding,
-  maxWidth: READER_CONFIG.layout?.maxWidth
+  maxWidth: READER_CONFIG.layout?.maxWidth,
+  joinSpineItems: false, // 新規：全章を結合して1つのスクロール領域にするか
+  spineGroups: null      // [追加] 章のグループ情報 { start, end } の配列
 };
 
 const MAX_BINARY_SEARCH_ITERATIONS = READER_CONFIG.MAX_BINARY_SEARCH_ITERATIONS;
@@ -432,7 +434,10 @@ export class EpubPaginator {
           spineIndex,
           withinSpineOffset: `s:0`,
           htmlFragment,
-          estimatedCharCount: htmlFragment.length
+          estimatedCharCount: htmlFragment.length,
+          isJoined: (!!this.settings.joinSpineItems && this.settings.spineGroups)
+            ? (this.settings.spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end)?.end > spineIndex)
+            : !!this.settings.joinSpineItems
         });
         this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
       } else {
@@ -556,7 +561,10 @@ export class EpubPaginator {
           spineIndex,
           withinSpineOffset: `s:0`,
           htmlFragment,
-          estimatedCharCount: htmlFragment.length
+          estimatedCharCount: htmlFragment.length,
+          isJoined: (!!this.settings.joinSpineItems && this.settings.spineGroups)
+            ? (this.settings.spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end)?.end > spineIndex)
+            : !!this.settings.joinSpineItems
         });
         this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
       } else {

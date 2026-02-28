@@ -1,0 +1,196 @@
+<?xml version="1.0"  encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" prefix="rendition: http://www.idpf.org/vocab/rendition/#" unique-identifier="uid">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+<dc:creator opf:role="aut" opf:file-as="すずの木くろ">すずの木くろ</dc:creator>
+<dc:title id="title01">宝くじで40億当たったんだけど異世界に移住する：１</dc:title>
+<dc:identifier id="uid">3782057203</dc:identifier>
+<meta property="dcterms:modified">2015-06-09T06:49:31Z</meta>
+<dc:date>2014-09-29T19:00:00+00:00</dc:date>
+<!-- Refines MetaData from EXTH -->
+<meta property="file-as" refines="#title01">タカラクジデヨンジュウオクアタッタンダケドイセカイニイジュウスル001</meta>
+<meta property="file-as" refines="#creator01">スズノキクロ</meta>
+<meta property="file-as" refines="#publisher01">フタバシャ</meta>
+<!-- THE FOLLOWINGS ARE REQUIRED TO EDIT IDS MANUALLY
+<meta property="file-as" refines="#title">タカラクジデ40オクアタッタンダケドイセカイニイジュウスル①</meta>
+<meta scheme="marc:relators" property="role" refines="#creator01">aut</meta>
+<meta property="file-as" refines="#creator01">スズノキクロ</meta>
+<meta property="display-seq" refines="#creator01">1</meta>
+<meta property="file-as" refines="#publisher">フタバシャ</meta>
+-->
+<!-- Extra MetaData from RESC
+<meta content="Adobe InDesign" name="generator"/>
+<meta property="dcterms:modified">2014-08-29T12:00:00Z</meta>
+-->
+<meta name="cover" content="x_cover.jpg"/>
+<meta name="output encoding" content="utf-8"/>
+<meta name="primary-writing-mode" content="vertical-rl"/>
+<!-- BEGIN INFORMATION ONLY 
+<meta name="Cover ThumbNail Image" content="Images/image00229.jpeg" />
+<meta name="Drm Ebookbase Book Id" content="0006002376225" />
+<meta name="ASIN" content="B00NOPBJ9Y" />
+<meta name="Creator Software" content="200" />
+<meta name="Creator Major Version" content="2" />
+<meta name="Creator Minor Version" content="9" />
+<meta name="Creator Build Number" content="0" />
+<meta name="Clipping Limit" content="100" />
+<meta name="Text to Speech Disabled" content="0" />
+<meta name="Font Signature (hex)" content="0100008020040708100000000000008000200000000000000000000000000000fde9eefb409540a640bb439248e048e1609060916080608160cd60e760c860ee61da61fc61b861b90128ca01428f014df8013d83037e9a037e85037e89037e88" />
+<meta name="Tamper Proof Keys (hex)" content="01000000d000000001940000000191000000019500000001960000000197" />
+<meta name="kindlegen_BuildRev_Number" content="0523-9bd8a95" />
+<meta name="K8(129)_Masthead/Cover_Image" content="kindle:embed:000F" />
+<meta name="Unknown_but_changes_with_file_name_only_542" content="sOnt" />
+<meta name="Unknown_(407) (hex)" content="0000000000000000" />
+<meta name="Has Fake Cover" content="0" />
+<meta name="sample" content="0" />
+<meta name="K8(125)_Count_of_Resources_Fonts_Images" content="16" />
+<meta name="Unknown_517" content="スズノキクロ" />
+<meta name="Unknown_(403) (hex)" content="00" />
+<meta name="K8(131)_Unidentified_Count" content="4294967295" />
+<meta name="Watermark (hex)" content="6174763a6b696e3a323a7a5073626343306f6a672b673937514f4a36576b4b73746c2f476e78716a4e6838675565686a4955474950695851655342676f566578656c7533667a5745577778506f6d3971356959537a70465377764b4a467359715254475a703977794a345952492f644a47347a5557717947706b69302f5854737a482b6b342f4b59662b347a66735970664e784c4f54434d62712b4c50394d5a616c527876702b4545447a352b33484750635044343d3a2b704f7041504b4e6f397a372b32476e556c476b53614d486734453d" />
+<meta name="Rental_Indicator" content="0000000000000000" />
+<meta name="StartOffset" content="775" />
+<meta name="kindlegen_Source-Target" content="Source-Target:c1-c2 KT_Version:2.9 Build:1004-7ba0fd2" />
+<meta name="Language_524" content="ja-JP" />
+<meta name="override-kindle-fonts" content="false" />
+<meta name="Updated_Title" content="宝くじで40億当たったんだけど異世界に移住する：１" />
+<meta name="ASIN_504" content="B00NOPBJ9Y" />
+<meta name="Unknown_522" content="フタバシャ" />
+<meta name="cdeType" content="EBOK" />
+<meta name="Unknown_(405) (hex)" content="00" />
+<meta name="Unknown_508" content="タカラクジデヨンジュウオクアタッタンダケドイセカイニイジュウスル001" />
+END INFORMATION ONLY -->
+<meta name="calibre:title_sort" content="宝くじで40億当たったんだけど異世界に移住する：１"/>
+<meta name="calibre:series" content="宝くじで40億当たったんだけど異世界に移住する"/>
+<meta name="calibre:series_index" content="1.0"/>
+<dc:description>B00NOPBJ9Y EBOK</dc:description>
+<dc:contributor opf:role="bkp">calibre (2.30.0) [http://calibre-ebook.com]</dc:contributor>
+<meta name="calibre:author_link_map" content="{&quot;すずの木くろ&quot;: &quot;&quot;}"/>
+<dc:language>ja</dc:language>
+<dc:identifier opf:scheme="calibre">72ed31d0-c774-4fc0-b6a8-bc4f2c060deb</dc:identifier>
+<dc:identifier opf:scheme="MOBI-ASIN">B00NOPBJ9Y</dc:identifier>
+<meta name="calibre:user_metadata:#age_rest" content="{&quot;search_terms&quot;: [&quot;#age_rest&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 22, &quot;colnum&quot;: 6, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Age Restriction&quot;, &quot;label&quot;: &quot;age_rest&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_6&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#ebook" content="{&quot;search_terms&quot;: [&quot;#ebook&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 25, &quot;colnum&quot;: 15, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;bool&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Ebook Availability&quot;, &quot;label&quot;: &quot;ebook&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: false, &quot;table&quot;: &quot;custom_column_15&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#en_title" content="{&quot;search_terms&quot;: [&quot;#en_title&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: &quot;Takarakuji de 40 Oku Atattandakedo Isekai ni Ijuu Suru 01&quot;, &quot;rec_index&quot;: 28, &quot;colnum&quot;: 8, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;English Title&quot;, &quot;label&quot;: &quot;en_title&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_8&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#scn_src" content="{&quot;search_terms&quot;: [&quot;#scn_src&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 35, &quot;colnum&quot;: 3, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Media Source&quot;, &quot;label&quot;: &quot;scn_src&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_3&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#illustrator" content="{&quot;search_terms&quot;: [&quot;#illustrator&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 30, &quot;colnum&quot;: 1, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Illustrator&quot;, &quot;label&quot;: &quot;illustrator&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_1&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#en_seriesn" content="{&quot;search_terms&quot;: [&quot;#en_seriesn&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: &quot;Takarakuji de 40 Oku Atattandakedo Isekai ni Ijuu Suru&quot;, &quot;rec_index&quot;: 27, &quot;colnum&quot;: 12, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Series EN&quot;, &quot;label&quot;: &quot;en_seriesn&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_12&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#read_date" content="{&quot;search_terms&quot;: [&quot;#read_date&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 32, &quot;colnum&quot;: 14, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;datetime&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;date_format&quot;: &quot;yyyy MMM dd&quot;}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Date Read&quot;, &quot;label&quot;: &quot;read_date&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: false, &quot;table&quot;: &quot;custom_column_14&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#read" content="{&quot;search_terms&quot;: [&quot;#read&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 31, &quot;colnum&quot;: 13, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;bool&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Reading Status&quot;, &quot;label&quot;: &quot;read&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: false, &quot;table&quot;: &quot;custom_column_13&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#deform" content="{&quot;search_terms&quot;: [&quot;#deform&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {&quot;cache_to_list&quot;: &quot;|&quot;, &quot;ui_to_list&quot;: &quot;,&quot;, &quot;list_to_ui&quot;: &quot;, &quot;}, &quot;#value#&quot;: [], &quot;rec_index&quot;: 24, &quot;colnum&quot;: 17, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;is_names&quot;: false, &quot;description&quot;: &quot;&quot;}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: &quot;|&quot;, &quot;name&quot;: &quot;Deformities&quot;, &quot;label&quot;: &quot;deform&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_17&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#alt_titles" content="{&quot;search_terms&quot;: [&quot;#alt_titles&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 23, &quot;colnum&quot;: 5, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Alternate Titles&quot;, &quot;label&quot;: &quot;alt_titles&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_5&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#status" content="{&quot;search_terms&quot;: [&quot;#status&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 37, &quot;colnum&quot;: 7, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Status&quot;, &quot;label&quot;: &quot;status&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_7&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#en_author" content="{&quot;search_terms&quot;: [&quot;#en_author&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 26, &quot;colnum&quot;: 9, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;English Author&quot;, &quot;label&quot;: &quot;en_author&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_9&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#rename" content="{&quot;search_terms&quot;: [&quot;#rename&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: &quot;[Novel] Takarakuji de 40 Oku Atattandakedo Isekai ni Ijuu Suru (宝くじで40億当たったんだけど異世界に移住する)&quot;, &quot;rec_index&quot;: 33, &quot;colnum&quot;: 18, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;composite&quot;, &quot;display&quot;: {&quot;contains_html&quot;: false, &quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0, &quot;make_category&quot;: false, &quot;composite_template&quot;: &quot;[Novel] {#en_seriesn} ({series})&quot;, &quot;composite_sort&quot;: &quot;text&quot;}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Base Processing&quot;, &quot;label&quot;: &quot;rename&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: false, &quot;table&quot;: &quot;custom_column_18&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#series_en" content="{&quot;search_terms&quot;: [&quot;#series_en&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: &quot;Takarakuji de 40 Oku Atattandakedo Isekai ni Ijuu Suru 1&quot;, &quot;rec_index&quot;: 36, &quot;colnum&quot;: 11, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;composite&quot;, &quot;display&quot;: {&quot;contains_html&quot;: false, &quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0, &quot;make_category&quot;: false, &quot;composite_template&quot;: &quot;{#en_seriesn} {series_index}&quot;, &quot;composite_sort&quot;: &quot;text&quot;}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Series English&quot;, &quot;label&quot;: &quot;series_en&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: false, &quot;table&quot;: &quot;custom_column_11&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#sca_src" content="{&quot;search_terms&quot;: [&quot;#sca_src&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 34, &quot;colnum&quot;: 16, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;enumeration&quot;, &quot;display&quot;: {&quot;enum_colors&quot;: [], &quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0, &quot;enum_values&quot;: [&quot;'Scan&quot;, &quot;Digital&quot;, &quot;Scan &amp; Digital'&quot;]}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Med&quot;, &quot;label&quot;: &quot;sca_src&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_16&quot;, &quot;is_csp&quot;: false}"/>
+        <meta name="calibre:user_metadata:#ex_series" content="{&quot;search_terms&quot;: [&quot;#ex_series&quot;], &quot;#extra#&quot;: null, &quot;is_multiple2&quot;: {}, &quot;#value#&quot;: null, &quot;rec_index&quot;: 29, &quot;colnum&quot;: 4, &quot;kind&quot;: &quot;field&quot;, &quot;is_custom&quot;: true, &quot;datatype&quot;: &quot;text&quot;, &quot;display&quot;: {&quot;description&quot;: &quot;&quot;, &quot;use_decorations&quot;: 0}, &quot;link_column&quot;: &quot;value&quot;, &quot;category_sort&quot;: &quot;value&quot;, &quot;is_multiple&quot;: null, &quot;name&quot;: &quot;Extended Series Info&quot;, &quot;label&quot;: &quot;ex_series&quot;, &quot;is_editable&quot;: true, &quot;column&quot;: &quot;value&quot;, &quot;is_category&quot;: true, &quot;table&quot;: &quot;custom_column_4&quot;, &quot;is_csp&quot;: false}"/>
+        </metadata>
+<manifest>
+<item id="x_CoverImage" media-type="application/xhtml+xml" href="Text/cover_page.xhtml"/>
+<item id="x_x01_4c_1" media-type="application/xhtml+xml" href="Text/part0000.xhtml"/>
+<item id="x_x02_4c_2_3" media-type="application/xhtml+xml" href="Text/part0001.xhtml"/>
+<item id="x_x03_4c_4" media-type="application/xhtml+xml" href="Text/part0002.xhtml"/>
+<item id="x_x04_tobira" media-type="application/xhtml+xml" href="Text/part0003.xhtml"/>
+<item id="x_x05_okotowari" media-type="application/xhtml+xml" href="Text/part0004.xhtml"/>
+<item id="x_x06_credit" media-type="application/xhtml+xml" href="Text/part0005.xhtml"/>
+<item id="x_x07_mokuji" media-type="application/xhtml+xml" href="Text/part0006.xhtml"/>
+<item id="x_x08_jo" media-type="application/xhtml+xml" href="Text/part0007.xhtml"/>
+<item id="x_x09_1_01" media-type="application/xhtml+xml" href="Text/part0008.xhtml"/>
+<item id="x_x10_1_02p" media-type="application/xhtml+xml" href="Text/part0009.xhtml"/>
+<item id="x_x11_1_03" media-type="application/xhtml+xml" href="Text/part0010.xhtml"/>
+<item id="x_x12_1_04p" media-type="application/xhtml+xml" href="Text/part0011.xhtml"/>
+<item id="x_x13_1_05" media-type="application/xhtml+xml" href="Text/part0012.xhtml"/>
+<item id="x_x14_2_01" media-type="application/xhtml+xml" href="Text/part0013.xhtml"/>
+<item id="x_x15_2_02p" media-type="application/xhtml+xml" href="Text/part0014.xhtml"/>
+<item id="x_x16_2_03" media-type="application/xhtml+xml" href="Text/part0015.xhtml"/>
+<item id="x_x17_3_01" media-type="application/xhtml+xml" href="Text/part0016.xhtml"/>
+<item id="x_x18_3_02p" media-type="application/xhtml+xml" href="Text/part0017.xhtml"/>
+<item id="x_x19_3_03" media-type="application/xhtml+xml" href="Text/part0018.xhtml"/>
+<item id="x_x20_3_04p" media-type="application/xhtml+xml" href="Text/part0019.xhtml"/>
+<item id="x_x21_3_05" media-type="application/xhtml+xml" href="Text/part0020.xhtml"/>
+<item id="x_x22_4_01" media-type="application/xhtml+xml" href="Text/part0021.xhtml"/>
+<item id="x_x23_4_02p" media-type="application/xhtml+xml" href="Text/part0022.xhtml"/>
+<item id="x_x24_4_03" media-type="application/xhtml+xml" href="Text/part0023.xhtml"/>
+<item id="x_x25_4_04p" media-type="application/xhtml+xml" href="Text/part0024.xhtml"/>
+<item id="x_x26_4_05" media-type="application/xhtml+xml" href="Text/part0025.xhtml"/>
+<item id="x_x27_5_01" media-type="application/xhtml+xml" href="Text/part0026.xhtml"/>
+<item id="x_x28_5_02p" media-type="application/xhtml+xml" href="Text/part0027.xhtml"/>
+<item id="x_x29_5_03" media-type="application/xhtml+xml" href="Text/part0028.xhtml"/>
+<item id="x_x30_6" media-type="application/xhtml+xml" href="Text/part0029.xhtml"/>
+<item id="x_x31_7_01" media-type="application/xhtml+xml" href="Text/part0030.xhtml"/>
+<item id="x_x32_7_02p" media-type="application/xhtml+xml" href="Text/part0031.xhtml"/>
+<item id="x_x33_7_03" media-type="application/xhtml+xml" href="Text/part0032.xhtml"/>
+<item id="x_x34_7_04p" media-type="application/xhtml+xml" href="Text/part0033.xhtml"/>
+<item id="x_x35_7_05" media-type="application/xhtml+xml" href="Text/part0034.xhtml"/>
+<item id="x_x36_tensho" media-type="application/xhtml+xml" href="Text/part0035.xhtml"/>
+<item id="x_x37_atogaki" media-type="application/xhtml+xml" href="Text/part0036.xhtml"/>
+<item id="x_x38_profile" media-type="application/xhtml+xml" href="Text/part0037.xhtml"/>
+<item id="x_x39_okuduke" media-type="application/xhtml+xml" href="Text/part0038.xhtml"/>
+<item id="item40" media-type="text/css" href="Styles/style0001.css"/>
+<item id="item41" media-type="text/css" href="Styles/style0002.css"/>
+<item id="item42" media-type="text/css" href="Styles/style0003.css"/>
+<item id="item43" media-type="text/css" href="Styles/style0004.css"/>
+<item id="item44" media-type="image/jpeg" href="Images/image00214.jpeg"/>
+<item id="item45" media-type="image/jpeg" href="Images/image00215.jpeg"/>
+<item id="item46" media-type="image/jpeg" href="Images/image00216.jpeg"/>
+<item id="item47" media-type="image/jpeg" href="Images/image00217.jpeg"/>
+<item id="item48" media-type="image/jpeg" href="Images/image00218.jpeg"/>
+<item id="item49" media-type="image/jpeg" href="Images/image00219.jpeg"/>
+<item id="item50" media-type="image/jpeg" href="Images/image00220.jpeg"/>
+<item id="item51" media-type="image/jpeg" href="Images/image00221.jpeg"/>
+<item id="item52" media-type="image/jpeg" href="Images/image00222.jpeg"/>
+<item id="item53" media-type="image/jpeg" href="Images/image00223.jpeg"/>
+<item id="item54" media-type="image/jpeg" href="Images/image00224.jpeg"/>
+<item id="item55" media-type="image/jpeg" href="Images/image00225.jpeg"/>
+<item id="item56" media-type="image/jpeg" href="Images/image00226.jpeg"/>
+<item id="x_cover.jpg" media-type="image/jpeg" href="Images/cover00227.jpeg" properties="cover-image"/>
+<item id="nav" media-type="application/xhtml+xml" href="Text/nav.xhtml" properties="nav"/>
+<item id="ncx" media-type="application/x-dtbncx+xml" href="toc.ncx"/>
+</manifest>
+<spine page-progression-direction="rtl" toc="ncx">
+<itemref idref="x_CoverImage" linear="no"/>
+<itemref idref="x_x01_4c_1"/>
+<itemref idref="x_x02_4c_2_3"/>
+<itemref idref="x_x03_4c_4"/>
+<itemref idref="x_x04_tobira"/>
+<itemref idref="x_x05_okotowari"/>
+<itemref idref="x_x06_credit"/>
+<itemref idref="x_x07_mokuji"/>
+<itemref idref="x_x08_jo"/>
+<itemref idref="x_x09_1_01"/>
+<itemref idref="x_x10_1_02p"/>
+<itemref idref="x_x11_1_03"/>
+<itemref idref="x_x12_1_04p"/>
+<itemref idref="x_x13_1_05"/>
+<itemref idref="x_x14_2_01"/>
+<itemref idref="x_x15_2_02p"/>
+<itemref idref="x_x16_2_03"/>
+<itemref idref="x_x17_3_01"/>
+<itemref idref="x_x18_3_02p"/>
+<itemref idref="x_x19_3_03"/>
+<itemref idref="x_x20_3_04p"/>
+<itemref idref="x_x21_3_05"/>
+<itemref idref="x_x22_4_01"/>
+<itemref idref="x_x23_4_02p"/>
+<itemref idref="x_x24_4_03"/>
+<itemref idref="x_x25_4_04p"/>
+<itemref idref="x_x26_4_05"/>
+<itemref idref="x_x27_5_01"/>
+<itemref idref="x_x28_5_02p"/>
+<itemref idref="x_x29_5_03"/>
+<itemref idref="x_x30_6"/>
+<itemref idref="x_x31_7_01"/>
+<itemref idref="x_x32_7_02p"/>
+<itemref idref="x_x33_7_03"/>
+<itemref idref="x_x34_7_04p"/>
+<itemref idref="x_x35_7_05"/>
+<itemref idref="x_x36_tensho"/>
+<itemref idref="x_x37_atogaki"/>
+<itemref idref="x_x38_profile"/>
+<itemref idref="x_x39_okuduke"/>
+</spine>
+<guide>
+<reference type="toc" title="目次" href="Text/part0006.xhtml"/>
+<reference type="cover" title="Cover" href="Text/cover_page.xhtml"/>
+</guide>
+</package>

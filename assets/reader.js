@@ -453,6 +453,7 @@ export class ReaderController {
       contentWidth: paginationMetrics.contentWidth,
       padding: edgePadding,
       lineHeight: paginationMetrics.lineHeight,
+      joinSpineItems: this.epubViewMode === EPUB_VIEW_MODES.SCROLL,
     };
 
     try {
@@ -1437,8 +1438,9 @@ export class ReaderController {
    * スクロールモード用: DOM内の指定位置までスクロールする。
    * searchQueryがある場合は実際のテキストをDOM内で検索してピンポイントでスクロール。
    * @param {boolean} shouldHighlight 
+   * @param {number|null} targetSpineIndex [追加] 目標とする章のインデックス
    */
-  _scrollToPositionInDOM(container, segmentIndex, searchQuery, shouldHighlight = true) {
+  _scrollToPositionInDOM(container, segmentIndex, searchQuery, shouldHighlight = true, targetSpineIndex = null) {
     if (!container) {
       console.warn("[ジャンプデバッグ] container がありません");
       return;
@@ -1446,13 +1448,23 @@ export class ReaderController {
 
     let targetElement = null;
     let matchDataArray = null;
+    let targetContainer = container;
 
-    console.log(`[ジャンプデバッグ] 実行開始: segmentIndex=${segmentIndex}, hasSearchQuery=${!!searchQuery}`);
+    // [修正] Join Mode の場合、まずは対象の章のコンテナに絞り込む
+    if (targetSpineIndex != null) {
+      const joinedItem = container.querySelector(`.joined-spine-item[data-spine-index="${targetSpineIndex}"]`);
+      if (joinedItem) {
+        targetContainer = joinedItem;
+        console.log(`[ジャンプデバッグ] 対象の章コンテナを特定しました: spineIndex=${targetSpineIndex}`);
+      }
+    }
+
+    console.log(`[ジャンプデバッグ] 実行開始: segmentIndex=${segmentIndex}, hasSearchQuery=${!!searchQuery}, targetSpineIndex=${targetSpineIndex}`);
 
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {
       console.log(`[ジャンプデバッグ] テキスト検索による位置特定を試行中: "${searchQuery.substring(0, 20)}..."`);
-      matchDataArray = this._findTextInDOM(container, searchQuery);
+      matchDataArray = this._findTextInDOM(targetContainer, searchQuery);
       if (matchDataArray && matchDataArray.length > 0) {
         // 最初に見つかった親要素をスクロールターゲットとする
         targetElement = matchDataArray[0].node.parentElement;
@@ -1462,11 +1474,10 @@ export class ReaderController {
       }
     }
 
-    // 方法2: セグメントインデックスで近似位置へスクロール（しおり等）
-    if (!targetElement && segmentIndex > 0) {
+    if (!targetElement && (segmentIndex > 0 || (targetSpineIndex != null && targetContainer !== container))) {
       console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
-        container,
+        targetContainer,
         NodeFilter.SHOW_TEXT,
         {
           acceptNode: (node) => {
@@ -1834,11 +1845,76 @@ export class ReaderController {
         if (!href || this.isExternalLink(href)) return;
         event.preventDefault();
         event.stopPropagation();
-        const fallbackSpineIndex =
-          page?.spineIndex ?? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0;
-        this.navigateToHref(href, fallbackSpineIndex);
+
+        // [修正] Join Mode への対応: リンクが含まれるコンテナから spineIndex を特定
+        const parentSpineContainer = anchor.closest('.joined-spine-item');
+        const spineIndexContext = parentSpineContainer
+          ? parseInt(parentSpineContainer.getAttribute('data-spine-index'), 10)
+          : (page?.spineIndex ?? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0);
+
+        this.navigateToHref(href, spineIndexContext);
       });
     });
+  }
+
+  /**
+   * [追加] 目次情報を基に、spine item を章（グループ）ごとに分類する。
+   * @returns {Array<Object>} グループ情報の配列。各要素は { name: string, startIndex: number, endIndices: Array<number> }
+   */
+  generateSpineGroupsFromToc() {
+    if (!this.book?.spine || !this.book?.toc) return null;
+
+    const spineLength = this.book.spine.length;
+    const groups = [];
+
+    // 目次項目を spineIndex 順にソートして、各項目の開始位置を特定する
+    const tocEntries = [];
+    const traverseToc = (items) => {
+      items.forEach(item => {
+        const [path] = item.href.split('#');
+        const spineIndex = this.resolveSpineIndexFromHref(path);
+        if (spineIndex >= 0) {
+          tocEntries.push({ title: item.label, spineIndex });
+        }
+        if (item.subitems && item.subitems.length > 0) {
+          traverseToc(item.subitems);
+        }
+      });
+    };
+    traverseToc(this.book.toc);
+
+    // 重複を削除し、インデックス順にソート
+    const sortedToc = tocEntries
+      .sort((a, b) => a.spineIndex - b.spineIndex)
+      .filter((entry, index, self) =>
+        index === 0 || entry.spineIndex !== self[index - 1].spineIndex
+      );
+
+    if (sortedToc.length === 0) {
+      // 目次がない場合は全章を一つのグループにする（以前の挙動）
+      return [{ start: 0, end: spineLength - 1 }];
+    }
+
+    // 各セクション（章）の範囲を決定
+    for (let i = 0; i < sortedToc.length; i++) {
+      const start = sortedToc[i].spineIndex;
+      const end = (i < sortedToc.length - 1)
+        ? sortedToc[i + 1].spineIndex - 1
+        : spineLength - 1;
+
+      // start > end になるケース（同じファイルに複数の目次がある等）は無視
+      if (start <= end) {
+        groups.push({ start, end });
+      }
+    }
+
+    // 最初の目次項目より前の spine items がある場合、それもグループ化する（表紙など）
+    if (groups.length > 0 && groups[0].start > 0) {
+      groups.unshift({ start: 0, end: groups[0].start - 1 });
+    }
+
+    console.log('[JoinMode] Spine Groups generated from TOC:', groups);
+    return groups;
   }
 
   renderEpubPage(index, pagination = this.pagination) {
@@ -1852,8 +1928,32 @@ export class ReaderController {
     if (!this.pageContainer) return;
 
     // --- [修正開始] ---
+    // Join Mode か通常の単一ページ描画かを判定
+    let combinedHtml = "";
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && page.isJoined) {
+      // 同一グループに属する concatenated なページを連結
+      const currentSpineIndex = page.spineIndex;
+      const group = this._spineGroups?.find(g => currentSpineIndex >= g.start && currentSpineIndex <= g.end);
+
+      if (group) {
+        // 現在のグループに属する全 spineItem の htmlFragment を連結
+        // パジネーターは 1 spineItem = 1 page (in scroll mode) としているので、spineIndex で走査
+        for (let si = group.start; si <= group.end; si++) {
+          const p = pagination.pages.find(p => p.spineIndex === si);
+          if (p) {
+            combinedHtml += `<div class="joined-spine-item" data-spine-index="${p.spineIndex}">${p.htmlFragment || ""}</div>`;
+          }
+        }
+      } else {
+        combinedHtml = `<div class="joined-spine-item" data-spine-index="${page.spineIndex}">${page.htmlFragment || ""}</div>`;
+      }
+    } else {
+      // Joined でない場合でも、単一の spine item をラップして描画（CSSの一貫性のため）
+      combinedHtml = `<div class="joined-spine-item" data-spine-index="${page.spineIndex}">${page.htmlFragment || ""}</div>`;
+    }
+
     // HTML内の src/srcset を data-src/data-srcset に一時退避させて 404 を防ぐ
-    let safeHtml = page.htmlFragment || "";
+    let safeHtml = combinedHtml;
 
     // src="..." を data-src="..." に置換 (blob: や data: で始まるもの、またはすでに data-src のものは除外)
     // (?<=[\s"']) によって、直前が空白文字または引用符の場合のみに限定し data-src= の誤判定を防ぐ
@@ -1907,7 +2007,9 @@ export class ReaderController {
 
         if (pendingSegment != null || pendingSearchQuery) {
           const shouldHighlight = this._pendingScrollHighlight;
-          this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery, shouldHighlight);
+          // [修正] Join Mode 時に正しい章へ飛ぶよう spineIndex を渡す
+          const targetSpineIndex = page?.spineIndex;
+          this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery, shouldHighlight, targetSpineIndex);
           this._pendingScrollToSegment = null;
           this._pendingScrollSearchQuery = null;
           this._pendingScrollHighlight = true; // デフォルトに戻す
@@ -2060,13 +2162,21 @@ export class ReaderController {
 
   async resolveImagesInRenderedPage(page) {
     if (!this.pageContainer || !this.resourceLoader) return;
-    if (page?.spineIndex == null || page.spineIndex < 0) return;
-    const spineItem = this.spineItems[page.spineIndex];
-    if (!spineItem) return;
     const images = Array.from(this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG));
     if (!images.length) return;
+
     await Promise.all(
       images.map(async (img) => {
+        // [修正] Join Mode への対応: 親要素から spineIndex を取得
+        const parentSpineContainer = img.closest('.joined-spine-item');
+        const spineIndex = parentSpineContainer
+          ? parseInt(parentSpineContainer.getAttribute('data-spine-index'), 10)
+          : (page?.spineIndex ?? -1);
+
+        if (spineIndex < 0) return;
+        const spineItem = this.spineItems[spineIndex];
+        if (!spineItem) return;
+
         const tagName = img.tagName.toLowerCase();
         const isSvgImage = tagName === BOOK_TYPES.IMAGE;
 
@@ -2292,6 +2402,7 @@ export class ReaderController {
         }
       });
       this.spineItems = [];
+      this._spineGroups = this.generateSpineGroupsFromToc();
 
       // パジネーター初期化 (spineItems は後で追加される)
       this.paginator = new EpubPaginator([], this.resourceLoader, {
@@ -2303,7 +2414,9 @@ export class ReaderController {
         lineHeight: paginationMetrics.lineHeight,
         writingMode,
         padding: edgePadding,
-        epubViewMode: this.epubViewMode, // パジネーターにモードを渡す
+        epubViewMode: this.epubViewMode,
+        joinSpineItems: this.epubViewMode === EPUB_VIEW_MODES.SCROLL,
+        spineGroups: this._spineGroups, // [追加] 章の境界情報を渡す
       });
 
       // 以前のパジネーション実行があれば中断
