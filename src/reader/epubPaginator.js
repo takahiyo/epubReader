@@ -57,6 +57,8 @@ const MAX_PAGES_PER_SPINE = READER_CONFIG.MAX_PAGES_PER_SPINE;
 const MIN_TEXT_UNIT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 const FIT_TOLERANCE_PX = READER_CONFIG.FIT_TOLERANCE_PX;
 const MAX_FIT_ATTEMPTS = READER_CONFIG.MAX_FIT_ATTEMPTS;
+const DEBUG_EPUB_PAGINATION = !!READER_CONFIG.DEBUG_EPUB_PAGINATION;
+const DEBUG_TRACE_LIMIT = READER_CONFIG.DEBUG_TRACE_LIMIT || 300;
 
 function normalizeSettings(settings) {
   return {
@@ -389,6 +391,7 @@ export class EpubPaginator {
     this.paginationRun = null;
     this.paginationPromise = null;
     this.isComplete = false;
+    this.debugTrace = [];
   }
 
   async paginate() {
@@ -408,6 +411,7 @@ export class EpubPaginator {
     this.pages = [];
     this.pageStartIndexMap = [];
     this.isComplete = false;
+    this.resetDebugTrace();
 
     this.resetMeasurement();
 
@@ -428,17 +432,28 @@ export class EpubPaginator {
       const totalUnits = segments.length;
 
       if (this.settings.epubViewMode === "scroll") {
+        const shouldCreatePage = this.shouldCreateScrollPageAtSpine(spineIndex);
+        if (!shouldCreatePage) {
+          this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
+          // progressive モードでは Reader 側が「spine 1件ごとに next() を呼ぶ」前提のため、
+          // スキップ時も必ず 1 回 yield して進行同期を保つ。
+          yield {
+            pages: [...this.pages],
+            isComplete: false
+          };
+          continue;
+        }
         const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
         const htmlFragment = serializeRange(range);
+        const isJoined = this.shouldJoinAtSpine(spineIndex);
         this.pages.push({
           spineIndex,
           withinSpineOffset: `s:0`,
           htmlFragment,
           estimatedCharCount: htmlFragment.length,
-          isJoined: (!!this.settings.joinSpineItems && this.settings.spineGroups)
-            ? (this.settings.spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end)?.end > spineIndex)
-            : !!this.settings.joinSpineItems
+          isJoined
         });
+        this.appendDebugTrace("scroll_page_created", { spineIndex, isJoined, totalUnits });
         this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
       } else {
         let startIndex = 0;
@@ -520,6 +535,53 @@ export class EpubPaginator {
     return error && error.name === "PaginationCancelledError";
   }
 
+  getSpineGroup(spineIndex) {
+    if (!Array.isArray(this.settings.spineGroups)) return null;
+    return this.settings.spineGroups.find(
+      (group) => spineIndex >= group.start && spineIndex <= group.end
+    ) || null;
+  }
+
+  shouldJoinAtSpine(spineIndex) {
+    if (!this.settings.joinSpineItems) return false;
+    const group = this.getSpineGroup(spineIndex);
+    if (!group) return true;
+    return group.start === spineIndex && group.end > group.start;
+  }
+
+  shouldCreateScrollPageAtSpine(spineIndex) {
+    if (!this.settings.joinSpineItems) return true;
+    const group = this.getSpineGroup(spineIndex);
+    if (!group) return true;
+    return group.start === spineIndex;
+  }
+
+  appendDebugTrace(event, detail = {}) {
+    if (!this.debugTrace) {
+      this.debugTrace = [];
+    }
+    const entry = {
+      timestamp: Date.now(),
+      event,
+      ...detail,
+    };
+    this.debugTrace.push(entry);
+    if (this.debugTrace.length > DEBUG_TRACE_LIMIT) {
+      this.debugTrace.shift();
+    }
+    if (DEBUG_EPUB_PAGINATION) {
+      console.debug('[EpubPaginatorDebug]', entry);
+    }
+  }
+
+  getDebugTrace() {
+    return Array.isArray(this.debugTrace) ? [...this.debugTrace] : [];
+  }
+
+  resetDebugTrace() {
+    this.debugTrace = [];
+  }
+
   resetMeasurement() {
     if (this.measurement) {
       this.measurement.container.remove();
@@ -535,6 +597,7 @@ export class EpubPaginator {
     }
     this.pages = [];
     this.pageStartIndexMap = [];
+    this.resetDebugTrace();
 
     this.resetMeasurement();
 
@@ -555,17 +618,22 @@ export class EpubPaginator {
       const totalUnits = segments.length;
 
       if (this.settings.epubViewMode === "scroll") {
+        const shouldCreatePage = this.shouldCreateScrollPageAtSpine(spineIndex);
+        if (!shouldCreatePage) {
+          this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
+          continue;
+        }
         const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
         const htmlFragment = serializeRange(range);
+        const isJoined = this.shouldJoinAtSpine(spineIndex);
         this.pages.push({
           spineIndex,
           withinSpineOffset: `s:0`,
           htmlFragment,
           estimatedCharCount: htmlFragment.length,
-          isJoined: (!!this.settings.joinSpineItems && this.settings.spineGroups)
-            ? (this.settings.spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end)?.end > spineIndex)
-            : !!this.settings.joinSpineItems
+          isJoined
         });
+        this.appendDebugTrace("scroll_page_created", { spineIndex, isJoined, totalUnits });
         this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
       } else {
         let startIndex = 0;
@@ -650,6 +718,7 @@ export class EpubPaginator {
   locatePage(spineIndex, withinSpineOffset) {
     const offsetIndex = Number(String(withinSpineOffset).replace("s:", ""));
     if (Number.isNaN(offsetIndex)) return -1;
+    this.appendDebugTrace("locate_page_request", { spineIndex, withinSpineOffset, offsetIndex });
 
     let lastMatch = -1;
     for (let i = 0; i < this.pageStartIndexMap.length; i += 1) {
@@ -661,7 +730,21 @@ export class EpubPaginator {
         break;
       }
     }
-    return lastMatch;
+    if (lastMatch >= 0) {
+      this.appendDebugTrace("locate_page_matched", { spineIndex, offsetIndex, pageIndex: lastMatch, mode: "direct" });
+      return lastMatch;
+    }
+
+    for (let i = this.pages.length - 1; i >= 0; i -= 1) {
+      const page = this.pages[i];
+      if ((page?.spineIndex ?? -1) <= spineIndex) {
+        this.appendDebugTrace("locate_page_matched", { spineIndex, offsetIndex, pageIndex: i, mode: "fallback" });
+        return i;
+      }
+    }
+    const pageIndex = this.pages.length > 0 ? 0 : -1;
+    this.appendDebugTrace("locate_page_matched", { spineIndex, offsetIndex, pageIndex, mode: "default" });
+    return pageIndex;
   }
 
   getLocator(pageIndex) {

@@ -108,6 +108,8 @@ export const READER_CONFIG = Object.freeze({
   TEXT_SEGMENT_STEP: 5,
   DEFAULT_LINE_HEIGHT: 1.8,
   LOCATIONS_CHARS_PER_PAGE: 1600,
+  DEBUG_EPUB_PAGINATION: false,
+  DEBUG_TRACE_LIMIT: 300,
 });
 
 // ============================================
