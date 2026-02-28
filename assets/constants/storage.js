@@ -23,6 +23,8 @@ export const FILESTORE_CONFIG = Object.freeze({
   DEFAULT_FILE_NAME: "book.bin",
   ONEDRIVE_FALLBACK_PREFIX: "onedrive",
   PCLOUD_FALLBACK_PREFIX: "pcloud",
+  /** OPFS (Origin Private File System) 内のファイル保存ディレクトリ名 */
+  OPFS_DIR: "books",
 });
 
 // ============================================

@@ -726,8 +726,9 @@ export class ReaderController {
       throw new Error("EPUB.jsライブラリが読み込まれていません。\\n\\nページを再読み込みしてください。\\n\\n問題が解決しない場合は、開発者ツールのコンソールを確認してください。");
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-
+    // EPUB.js は File/Blob を直接受け取れるため、大容量ファイルで
+    // 全バッファをメモリに展開しないよう file をそのまま渡す
+    const bookData = file;
     console.log("Creating ePub instance with constructor:", typeof epubConstructor);
     // EPUB.jsのための最終的なJSZip確認
     console.log("JSZip check before creating book:", {
@@ -749,7 +750,7 @@ export class ReaderController {
     }
 
     try {
-      this.book = epubConstructor(arrayBuffer);
+      this.book = epubConstructor(bookData);
       console.log("ePub book instance created successfully");
     } catch (error) {
       console.error("Failed to create ePub instance:", error);
@@ -768,7 +769,7 @@ export class ReaderController {
         // JSZipエラーでもbookインスタンスが作成されている可能性があるため続行を試みる
         // EPUB.jsの古いバージョンではエラーが出ても動作することがある
         try {
-          this.book = epubConstructor(arrayBuffer);
+          this.book = epubConstructor(bookData);
           console.log("Retry succeeded: ePub book instance created");
         } catch (retryError) {
           console.error("Retry failed:", retryError);
@@ -776,7 +777,7 @@ export class ReaderController {
           if (!this.book) {
             // 最後の手段：エラーを無視して続行を試みる
             console.warn("Creating book instance despite errors...");
-            this.book = epubConstructor(arrayBuffer);
+            this.book = epubConstructor(bookData);
           }
         }
       } else {
@@ -2415,7 +2416,7 @@ export class ReaderController {
     return this.firstPagePromise;
   }
 
-  async openImageBook(file, startPage = 0, bookType = null) {
+  async openImageBook(file, startPage = 0, bookType = null, options = {}) {
     this.resetReaderState();
     this.toc = [];
     void bookType;
@@ -2424,7 +2425,9 @@ export class ReaderController {
       phase: READER_LOADING_PHASES.ARCHIVE_INIT,
       status: READER_LOADING_STATUSES.START,
     });
-    const handler = await createArchiveHandler(file);
+    const handler = await createArchiveHandler(file, {
+      forceStreaming: options.streaming === true,
+    });
     this.emitLoadingUpdate({
       phase: READER_LOADING_PHASES.ARCHIVE_INIT,
       status: READER_LOADING_STATUSES.COMPLETE,
@@ -2487,11 +2490,13 @@ export class ReaderController {
       this.imagePageErrors = new Array(images.length).fill(null);
 
       const memoryStrategy = getMemoryStrategy();
-      const preloadCount = Math.min(
-        memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount,
-        images.length
-      );
-      console.log(`Preloading ${preloadCount} images to object URLs...`);
+      // ストリーミングモード時は最小限（1枚）のプリロードに制限
+      const isStreamingMode = typeof handler.close === "function"; // StreamingZipHandler固有メソッド
+      const basePreloadCount = isStreamingMode
+        ? 1
+        : (memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount);
+      const preloadCount = Math.min(basePreloadCount, images.length);
+      console.log(`Preloading ${preloadCount} images to object URLs... (streaming=${isStreamingMode})`);
       this.emitLoadingUpdate({
         phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
         status: READER_LOADING_STATUSES.START,

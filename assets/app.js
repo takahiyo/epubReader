@@ -43,6 +43,7 @@ import {
   IMAGE_VIEW_MODES,
   FILESTORE_CONFIG,
   FILE_EXTENSIONS,
+  FILE_STRATEGY,
   ARCHIVE_WARNING_EVENT,
   ARCHIVE_WARNING_CONFIG,
   DOM_IDS,
@@ -793,11 +794,18 @@ async function handleFile(file) {
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
-    const buffer = await file.arrayBuffer();
-    console.log(`File buffer loaded: ${buffer.byteLength} bytes`);
+    // 1. 環境に適した読み込み戦略を選択
+    const strategy = fileHandler.selectLoadStrategy(file);
+    const isLargeFile = file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
 
-    // ファイルタイプを自動判別 (マジックナンバー優先)
-    const type = fileHandler.detectFileType(buffer) || fileHandler.detectFileType(file);
+    // 2. 先頭バイトのみでファイルタイプを判定（全バッファ不要）
+    //    NotReadableError 発生時は自動リトライ
+    const header = await fileHandler.readFileWithRetry(file,
+      () => fileHandler.readFileHeader(file, FILE_STRATEGY.HEADER_BYTES));
+    console.log(`File header loaded: ${header.byteLength} bytes`);
+
+    // マジックナンバー優先、フォールバックとして拡張子判定
+    const type = fileHandler.detectFileType(header) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
       alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
@@ -806,17 +814,64 @@ async function handleFile(file) {
     console.log(`Detected file type: ${type}`);
 
     const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
-    const contentHash = isArchiveBook
-      ? await fileHandler.buildArchiveFingerprint(file)
-      : await fileHandler.hashBuffer(buffer); // EPUBは従来のコンテンツハッシュを継続使用
+
+    // 2.5. ストリーミングモード判定（能力ベース、OS非依存）
+    //      ZIPファイルかつ端末のメモリ能力に対しファイルが大きすぎる場合、
+    //      JSZipの一括展開ではなくzip.jsのストリーミングモードに切り替える
+    const useStreaming = isArchiveBook && type === BOOK_TYPES.ZIP &&
+      fileHandler.shouldUseStreaming(file);
+
+    // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
+    if (useStreaming && elements.loadingOverlay) {
+      let notice = elements.loadingOverlay.querySelector('.streaming-notice');
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.className = 'streaming-notice';
+        notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
+        notice.textContent = 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
+        elements.loadingOverlay.appendChild(notice);
+      }
+    }
+
+    // 3. ハッシュ計算（リトライ付き）
+    //    画像書庫は fingerprint（File直接、バッファ不要）
+    //    大容量EPUBは軽量ハッシュ（先頭1MB+末尾1MB+サイズ、ピークメモリ ~2MB）
+    //    小容量EPUBは従来の全バッファハッシュ（高速）
+    let contentHash;
+    if (isArchiveBook) {
+      contentHash = await fileHandler.buildArchiveFingerprint(file);
+    } else if (isLargeFile) {
+      // 大容量EPUB: file.arrayBuffer() を呼ばずにハッシュ計算
+      contentHash = await fileHandler.readFileWithRetry(file,
+        () => fileHandler.hashFileLightweight(file));
+    } else {
+      // 小容量EPUB: 従来の全バッファハッシュ（高速）
+      contentHash = await fileHandler.readFileWithRetry(file,
+        async () => fileHandler.hashBuffer(await file.arrayBuffer()));
+    }
+
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
     const id = existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
-    console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
-    await saveFile(id, buffer, { fileName: file.name, mime }, source);
+    // 4. ファイル保存
+    //    ストリーミングモード: 本体を保存しない（メタデータのみ）
+    //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
+    //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
+    if (useStreaming) {
+      console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
+      // 本体保存スキップ — メタデータのみライブラリに記録
+    } else {
+      console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
+      if (isLargeFile) {
+        await saveFile(id, file, { fileName: file.name, mime }, source);
+      } else {
+        const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
+        await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
+      }
+    }
 
     // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
@@ -827,6 +882,8 @@ async function handleFile(file) {
       size: file.size,
       contentHash,
       lastOpened: Date.now(),
+      // ストリーミングモード: 再開時にファイル再選択が必要
+      ...(useStreaming ? { isLargeFileStub: true } : {}),
     };
 
     storage.upsertBook(info);
@@ -885,7 +942,12 @@ async function handleFile(file) {
 
     renderers.hideCloudEmptyState();
 
-    // 1. ビューアの切り替えと初期表示設定
+    // 5. リーダーへの File オブジェクト渡し
+    //    大容量: 元の File オブジェクトをそのまま渡す（バッファ二重消費を完全回避）
+    //    小容量: 保存済みバッファからFileを再構築（従来互換）
+    const fileToOpen = file; // File オブジェクトをそのまま渡す
+
+    // 6. ビューアの切り替えと初期表示設定
     if (!isArchiveBook) {
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
       if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
@@ -901,7 +963,6 @@ async function handleFile(file) {
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       try {
-        const fileToOpen = new File([new Uint8Array(buffer)], file.name, { type: mime });
         await reader.openEpub(fileToOpen, {
           location: startLocation,
           percentage: startProgress,
@@ -925,9 +986,10 @@ async function handleFile(file) {
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
       await reader.openImageBook(
-        new File([new Uint8Array(buffer)], file.name, { type: mime }),
+        fileToOpen,
         typeof startLocation === "number" ? startLocation : 0,
-        type
+        type,
+        { streaming: useStreaming }
       );
     }
 
@@ -1012,6 +1074,38 @@ function openCloudOnlyBook(cloudBookId) {
   }
 }
 
+/**
+ * スタブエントリー用ファイル再選択ダイアログ。
+ * ユーザーにファイルを選ばせ、軽量ハッシュで同一ファイルか検証する。
+ * @param {object} info - ライブラリのブック情報
+ * @returns {Promise<File|null>} 選択されたFile、キャンセル時はnull
+ */
+function promptFileReselect(info) {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
+    input.style.display = "none";
+    input.addEventListener("change", () => {
+      const file = input.files?.[0] ?? null;
+      document.body.removeChild(input);
+      resolve(file);
+    });
+    // キャンセル時（focusが戻ったのに値が空）
+    const onCancel = () => {
+      setTimeout(() => {
+        if (!input.files?.length) {
+          document.body.removeChild(input);
+          resolve(null);
+        }
+      }, 500);
+    };
+    window.addEventListener("focus", onCancel, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 async function openFromLibrary(bookId, options = {}) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
@@ -1022,6 +1116,76 @@ async function openFromLibrary(bookId, options = {}) {
   try {
 
     userOverrodeDirection = false;
+    const info = storage.data.library[bookId];
+
+    // ========================================
+    // スタブエントリー: ファイル再選択フロー
+    // ========================================
+    if (info?.isLargeFileStub) {
+      hideLoading();
+      const msg = translate('stubReselectMessage') ||
+        `「${info.title}」は大容量ファイルのため本体が保存されていません。\nファイルを選択してください。`;
+      alert(msg);
+
+      const file = await promptFileReselect(info);
+      if (!file) {
+        // キャンセル
+        return;
+      }
+      showLoading();
+      await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
+
+      // 軽量ハッシュで同一ファイルか検証
+      const reHash = await fileHandler.buildArchiveFingerprint(file);
+      if (reHash !== info.contentHash) {
+        hideLoading();
+        alert(translate('stubHashMismatch') ||
+          "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。");
+        return;
+      }
+
+      // 進捗の復元
+      currentBookId = bookId;
+      isBookLoading = true;
+      currentBookInfo = info;
+      resetLocalSaveTracking();
+      currentCloudBookId = storage.getCloudBookId(bookId);
+
+      const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
+      const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
+      await applyReadingState(normalizedProgress);
+      const startPage = normalizedProgress?.location;
+
+      // ストリーミングモードで閲覧を開始
+      renderers.hideCloudEmptyState();
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
+      if (elements.viewer) {
+        elements.viewer.classList.add(UI_CLASSES.HIDDEN);
+        elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
+      }
+      if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
+
+      await reader.openImageBook(file, typeof startPage === "number" ? startPage : 0, info.type, { streaming: true });
+
+      if (normalizedProgress) {
+        await applyReadingState(normalizedProgress);
+      }
+
+      storage.addHistory(bookId);
+      renderers.renderBookmarkMarkers();
+      renderers.updateProgressBarDisplay();
+      renderers.updateSearchButtonState();
+      renderers.updateFloatingUIButtons();
+      closeExclusiveMenus();
+      if (floatVisible) {
+        toggleFloatOverlay(false);
+      }
+      return;
+    }
+
+    // ========================================
+    // 通常フロー: IndexedDB / OPFS から読み込み
+    // ========================================
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
     const record = await loadFile(bookId, source);
 
@@ -1036,7 +1200,6 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     const file = bufferToFile(record);
-    const info = storage.data.library[bookId];
     if (!info) return;
 
     currentBookId = bookId;
@@ -1117,7 +1280,9 @@ async function openFromLibrary(bookId, options = {}) {
       }
       if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
 
-      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type);
+      // 通常保存された画像書庫でも、現在の端末メモリに対して大きすぎる場合はストリーミングに切替
+      const streamingNeeded = (info.type === BOOK_TYPES.ZIP) && fileHandler.shouldUseStreaming(file);
+      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, { streaming: streamingNeeded });
     }
 
     // [修正] オープン処理の後に状態を再適用

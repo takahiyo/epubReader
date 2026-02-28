@@ -11,23 +11,187 @@ import {
     FILESTORE_CONFIG,
     TIMING_CONFIG,
     UI_CLASSES,
-    IMAGE_VIEW_MODES
+    IMAGE_VIEW_MODES,
+    FILE_STRATEGY
 } from "../../constants.js";
 import { createArchiveHandler } from "./archive-handler.js";
 import { resolveErrorCode, t } from "../ui/i18n-utils.js";
 import { showLoading, hideLoading } from "../ui/overlay-manager.js";
 import { elements } from "../ui/elements.js";
 
+// ========================================
+// 環境検知・読み込み戦略
+// ========================================
+
 /**
- * ファイルタイプを判定
+ * 端末の環境プロファイルを返す。
+ * navigator.deviceMemory / navigator.connection / navigator.hardwareConcurrency
+ * の各APIは利用可能な場合のみ参照し、非対応環境ではデフォルト値にフォールバックする。
+ * @returns {{ memoryGB: number, cpuCores: number, connectionType: string|null, isLowEnd: boolean }}
+ */
+export function detectEnvironment() {
+    // deviceMemory: Chrome系のみ対応（GB単位、未対応時は4想定）
+    const memoryGB = navigator.deviceMemory ?? 4;
+    // hardwareConcurrency: 大半のブラウザで対応（CPUコア数、未対応時は2想定）
+    const cpuCores = navigator.hardwareConcurrency ?? 2;
+    // Network Information API: 接続種別（Chrome系のみ）
+    const connectionType = navigator.connection?.effectiveType ?? null;
+    // 低スペック端末の判定：メモリ不足 or シングルコア or 低速回線
+    const isLowEnd =
+        memoryGB < FILE_STRATEGY.LOW_MEMORY_THRESHOLD_GB ||
+        cpuCores <= 1 ||
+        connectionType === "slow-2g" ||
+        connectionType === "2g";
+    return { memoryGB, cpuCores, connectionType, isLowEnd };
+}
+
+/**
+ * ファイルサイズと環境に基づき、最適な読み込み戦略を選択する。
+ * - "direct"  : 10MB以下 かつ 高スペック → arrayBuffer() で一括高速読み込み
+ * - "deferred": 10MB超 または 低スペック → 先頭バイト読みで判定し、バッファ取得を遅延
+ * @param {File} file - 対象ファイル
+ * @returns {"direct"|"deferred"}
+ */
+export function selectLoadStrategy(file) {
+    const env = detectEnvironment();
+    const size = file.size;
+
+    if (size <= FILE_STRATEGY.DIRECT_BUFFER_LIMIT && !env.isLowEnd) {
+        console.log(`[Strategy] direct mode — ${(size / 1024 / 1024).toFixed(1)}MB, ` +
+            `memory=${env.memoryGB}GB, cores=${env.cpuCores}`);
+        return "direct";
+    }
+
+    console.log(`[Strategy] deferred mode — ${(size / 1024 / 1024).toFixed(1)}MB, ` +
+        `memory=${env.memoryGB}GB, cores=${env.cpuCores}, ` +
+        `connection=${env.connectionType ?? "unknown"}, isLowEnd=${env.isLowEnd}`);
+    return "deferred";
+}
+
+/**
+ * ZIP ファイルに対し、JSZip（一括展開）かzip.js（ストリーミング）かを判定する。
+ * OS/UA に依存せず、端末の能力ベースのみで判定。
+ *
+ * 判定優先順位:
+ *  1. performance.memory.jsHeapSizeLimit（Chrome）— ブラウザのタブ単位のJSヒープ上限
+ *  2. navigator.deviceMemory × 控えめ比率 — フォールバック
+ *
+ * 重要: navigator.deviceMemory は端末全体のRAMを返すが、ブラウザの1タブが使える
+ *       JSヒープ上限はこれより遥かに小さい（例: Pixel8 8GB → タブ上限 ~512MB）。
+ *       そのため deviceMemory だけで判定すると安全圏を大幅に過大評価してしまう。
+ *
+ * @param {File|Blob} file - 対象ZIPファイル
+ * @returns {boolean} true = ストリーミングモード推奨
+ */
+export function shouldUseStreaming(file) {
+    const env = detectEnvironment();
+    const fileSizeMB = file.size / (1024 * 1024);
+
+    // JSZip の一括展開時ピークメモリ推定
+    const estimatedPeakMB = fileSizeMB * FILE_STRATEGY.JSZIP_PEAK_MULTIPLIER;
+
+    // ブラウザが実際に使えるJSヒープ上限を取得（能力ベース、OS非依存）
+    let safeMemoryMB;
+    let memorySource;
+
+    // 1. performance.memory (Chrome系): 実際のJSヒープ上限を取得
+    //    これが最も正確 — 端末メモリではなくブラウザタブの実メモリ制約を反映
+    const jsHeapLimit = (typeof performance !== "undefined" && performance.memory)
+        ? performance.memory.jsHeapSizeLimit
+        : 0;
+
+    if (jsHeapLimit > 0) {
+        // ヒープ上限の30%をJSZip展開に安全に使えるメモリとする
+        // （他のJS処理やDOM等もメモリを消費するため）
+        safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.30;
+        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB×0.30`;
+    } else {
+        // 2. deviceMemory フォールバック — 控えめに算出
+        //    ブラウザのタブ制限は端末メモリの10〜15%程度が目安
+        safeMemoryMB = env.memoryGB * 1024 * 0.10;
+        memorySource = `deviceMemory=${env.memoryGB}GB×0.10`;
+    }
+
+    const needsStreaming = estimatedPeakMB > safeMemoryMB ||
+        (env.isLowEnd && fileSizeMB > FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024));
+
+    console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} — ` +
+        `file=${fileSizeMB.toFixed(1)}MB, peak≈${estimatedPeakMB.toFixed(0)}MB, ` +
+        `safe=${safeMemoryMB.toFixed(0)}MB (${memorySource}), ` +
+        `isLowEnd=${env.isLowEnd}`);
+    return needsStreaming;
+}
+
+/**
+ * Blob.slice() を用いてファイルの先頭 N バイトだけを読み込む。
+ * 全バッファを生成せずにマジックナンバー判定を行うために使用。
+ * @param {File|Blob} file - 対象ファイル
+ * @param {number} byteCount - 読み込むバイト数
+ * @returns {Promise<ArrayBuffer>} 先頭バイトの ArrayBuffer
+ */
+export async function readFileHeader(file, byteCount = FILE_STRATEGY.HEADER_BYTES) {
+    const slice = file.slice(0, byteCount);
+    return await slice.arrayBuffer();
+}
+
+/**
+ * NotReadableError（権限消失）発生時に自動リトライする汎用ラッパー。
+ * ユーザーがファイルを選択した直後のコンテキストでは通常成功するが、
+ * モバイル端末のバックグラウンド移行等で権限が消失するケースに対応。
+ * @param {File} file - 対象ファイル（ログ出力用）
+ * @param {() => Promise<T>} readFn - 実行する読み込み処理
+ * @returns {Promise<T>}
+ * @template T
+ */
+export async function readFileWithRetry(file, readFn) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= FILE_STRATEGY.PERMISSION_RETRY_MAX; attempt++) {
+        try {
+            return await readFn();
+        } catch (error) {
+            lastError = error;
+            if (error.name === "NotReadableError" && attempt < FILE_STRATEGY.PERMISSION_RETRY_MAX) {
+                console.warn(
+                    `[readFileWithRetry] NotReadableError on attempt ${attempt + 1}/${FILE_STRATEGY.PERMISSION_RETRY_MAX + 1}` +
+                    ` for "${file.name}". Retrying in ${FILE_STRATEGY.PERMISSION_RETRY_DELAY_MS}ms...`
+                );
+                await new Promise(resolve => setTimeout(resolve, FILE_STRATEGY.PERMISSION_RETRY_DELAY_MS));
+            } else {
+                break;
+            }
+        }
+    }
+    // リトライ上限を超えた場合、NotReadableError にはユーザー向けメッセージを付与
+    if (lastError?.name === "NotReadableError") {
+        const wrapped = new Error(
+            `ファイル「${file.name}」へのアクセス権限が失われました。再度ファイルを選択してください。`
+        );
+        wrapped.name = "NotReadableError";
+        wrapped.cause = lastError;
+        throw wrapped;
+    }
+    throw lastError;
+}
+
+// ========================================
+// ファイルタイプ判定
+// ========================================
+
+/**
+ * マジックナンバーまたはファイル拡張子からファイルタイプを判定する。
+ * ArrayBuffer（全体/先頭ヘッダ部分のみ）または File オブジェクトを受け取れる。
+ * @param {ArrayBuffer|File|{name:string}} fileOrBuffer
+ * @returns {string|null} BOOK_TYPES の値、または判定不能時 null
  */
 export function detectFileType(fileOrBuffer) {
+    // ArrayBuffer からのマジックナンバー判定
     if (fileOrBuffer instanceof ArrayBuffer) {
         const view = new Uint8Array(fileOrBuffer);
-        if (view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
+        if (view.length >= 4 && view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
             // ZIP形式の場合、EPUBかどうかを判定するために mimetype ファイルを確認
-            // 一般的に mimetype はZIPの先頭付近にあるが、念のため広い範囲（100バイト）をチェック
-            const headerStr = String.fromCharCode(...view.slice(0, 100));
+            // 一般的に mimetype はZIPの先頭付近にあるが、念のため広い範囲をチェック
+            const checkLen = Math.min(view.length, FILE_STRATEGY.HEADER_BYTES);
+            const headerStr = String.fromCharCode(...view.slice(0, checkLen));
             if (headerStr.includes("mimetype") && headerStr.includes("application/epub+zip")) {
                 return BOOK_TYPES.EPUB;
             }
@@ -35,14 +199,17 @@ export function detectFileType(fileOrBuffer) {
             // これにより、マジックナンバー判定の誤爆を防ぐ
             return null;
         }
-        if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
+        // RAR4シグネチャ: 52 61 72 21 1A 07 00
+        if (view.length >= 6 && view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
             return BOOK_TYPES.RAR;
         }
-        if (view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07 && view[6] === 0x01) {
+        // RAR5シグネチャ: 52 61 72 21 1A 07 01 00
+        if (view.length >= 7 && view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07 && view[6] === 0x01) {
             return BOOK_TYPES.RAR;
         }
     }
 
+    // ファイル名の拡張子によるフォールバック判定
     const name = fileOrBuffer.name || "";
     const ext = name.split(".").pop().toLowerCase();
     if (ext === FILE_EXTENSIONS.EPUB) return BOOK_TYPES.EPUB;
@@ -78,6 +245,8 @@ export function guessMime(type, file) {
 
 /**
  * バッファのハッシュ(SHA-256)を計算
+ * @param {ArrayBuffer} buffer - ハッシュ対象のバッファ
+ * @returns {Promise<string>} 16進数のハッシュ文字列
  */
 export async function hashBuffer(buffer) {
     const hash = await crypto.subtle.digest("SHA-256", buffer);
@@ -85,6 +254,49 @@ export async function hashBuffer(buffer) {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     return hex;
+}
+
+/**
+ * 大容量ファイル向けの軽量ハッシュ計算。
+ * SubtleCrypto はストリーミングハッシュに非対応のため、
+ * ファイル全体を読み込まず「先頭1MB + 末尾1MB + ファイルサイズ」を
+ * フィンガープリントとしてSHA-256ハッシュする。
+ * ピークメモリは最大約2MB。
+ * @param {File|Blob} file - ハッシュ対象のファイル
+ * @returns {Promise<string>} 16進数のハッシュ文字列
+ */
+export async function hashFileLightweight(file) {
+    const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
+    const fileSize = file.size;
+
+    // 先頭チャンクを読み込み
+    const headEnd = Math.min(CHUNK_SIZE, fileSize);
+    const headSlice = file.slice(0, headEnd);
+    const headBuffer = await headSlice.arrayBuffer();
+
+    // 末尾チャンクを読み込み（先頭と重複する場合はスキップ）
+    let tailBuffer = new ArrayBuffer(0);
+    if (fileSize > CHUNK_SIZE) {
+        const tailStart = Math.max(fileSize - CHUNK_SIZE, headEnd);
+        const tailSlice = file.slice(tailStart, fileSize);
+        tailBuffer = await tailSlice.arrayBuffer();
+    }
+
+    // ファイルサイズを8バイトのバッファに変換
+    const sizeBuffer = new ArrayBuffer(8);
+    const sizeView = new DataView(sizeBuffer);
+    // ファイルサイズが2^32を超える可能性があるためhigh/lowに分割
+    sizeView.setUint32(0, Math.floor(fileSize / 0x100000000), false);
+    sizeView.setUint32(4, fileSize >>> 0, false);
+
+    // 3つの要素を結合してハッシュ
+    const combined = new Uint8Array(headBuffer.byteLength + tailBuffer.byteLength + sizeBuffer.byteLength);
+    combined.set(new Uint8Array(headBuffer), 0);
+    combined.set(new Uint8Array(tailBuffer), headBuffer.byteLength);
+    combined.set(new Uint8Array(sizeBuffer), headBuffer.byteLength + tailBuffer.byteLength);
+
+    console.log(`[hashFileLightweight] ${file.name}: head=${headBuffer.byteLength}B + tail=${tailBuffer.byteLength}B + size=8B → ${combined.byteLength}B`);
+    return hashBuffer(combined.buffer);
 }
 
 function resolveArchiveEntrySize(entry) {
@@ -103,24 +315,19 @@ function resolveArchiveEntrySize(entry) {
     return Number.isFinite(size) ? size : 0;
 }
 
-function buildArchiveFingerprintPayload(entries) {
-    const sorted = [...entries].sort((a, b) => a.path.localeCompare(b.path, "en", { numeric: true, sensitivity: "base" }));
-    return {
-        count: sorted.length,
-        files: sorted.map(({ path, entry }) => ({
-            path,
-            size: resolveArchiveEntrySize(entry),
-        })),
-    };
-}
-
+/**
+ * 画像書庫ファイルのフィンガープリントを計算する。
+ * ファイル名 + サイズ + 先頭/末尾バイトによる軽量ハッシュ（メモリ消費 ~2MB）。
+ *
+ * 重要: 以前は createArchiveHandler() を呼んでZIP全体を展開していたが、
+ *       大容量ZIPで OOM/NotReadableError を引き起こす原因だったため、
+ *       ファイルの中身を展開せずにハッシュを計算する方式に変更。
+ *
+ * @param {File|Blob} file
+ * @returns {Promise<string>} SHA-256 ハッシュ文字列
+ */
 export async function buildArchiveFingerprint(file) {
-    const handler = await createArchiveHandler(file);
-    const entries = await handler.listImageEntries();
-    const payload = buildArchiveFingerprintPayload(entries);
-    const json = JSON.stringify(payload);
-    const buffer = new TextEncoder().encode(json).buffer;
-    return hashBuffer(buffer);
+    return hashFileLightweight(file);
 }
 
 /**

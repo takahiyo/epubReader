@@ -15,6 +15,7 @@ import {
   CDN_URLS,
   DATA_ATTRS,
   FILE_EXTENSIONS,
+  FILE_STRATEGY,
   MIME_TYPES,
   SUPPORTED_FORMATS,
   SYNC_PATHS,
@@ -456,6 +457,8 @@ export class ZipHandler extends ArchiveHandler {
 
   /**
    * File/Blob を JSZip.loadAsync に渡して初期化します（ArrayBuffer 変換は行いません）。
+   * 注: 大容量ZIPはストリーミングモード (StreamingZipHandler) が処理するため、
+   *     このハンドラが呼ばれるのはメモリに余裕がある環境のみ。
    * @returns {Promise<ZipHandler>}
    */
   async init() {
@@ -547,6 +550,17 @@ export class RarHandler extends ArchiveHandler {
    * @returns {Promise<RarHandler>}
    */
   async init() {
+    // RARファイルは解凍ライブラリ(unrar.js, wasm)の制約上、全データをArrayBufferとして
+    // メモリに読み込む必要があり、ファイルサイズの約3倍のメモリ領域を消費します。
+    // モバイル端末等でのブラウザクラッシュ(OOM)を防ぐため、大容量ファイルは処理をブロックします。
+    if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) {
+      const mb = (this.file.size / 1024 / 1024).toFixed(1);
+      throw new Error(
+        `大容量のRARファイル (${mb}MB) はメモリ不足（クラッシュ）の恐れがあるため開けません。` +
+        `お手数ですが、パソコン等でZIP形式(CBZ)に変換してから再度お試しください。`
+      );
+    }
+
     const buffer = await this.file.arrayBuffer();
     const signature = new Uint8Array(buffer.slice(0, 8));
     this.isRar5Signature = signature[6] === 0x01 && signature[7] === 0x00;
@@ -680,10 +694,20 @@ export class RarHandler extends ArchiveHandler {
 
 /**
  * @param {File|Blob} file
- * @returns {Promise<ArchiveHandler>}
+ * @param {{ forceStreaming?: boolean }} [options]
+ * @returns {Promise<ArchiveHandler|import("./streaming-zip-handler.js").StreamingZipHandler>}
  */
-export async function createArchiveHandler(file) {
+export async function createArchiveHandler(file, options = {}) {
   const type = await detectArchiveType(file);
+
+  // ストリーミングモード: ZIP 形式かつ明示的に要求された場合のみ
+  if (options.forceStreaming && type === BOOK_TYPES.ZIP) {
+    const { StreamingZipHandler } = await import("./streaming-zip-handler.js");
+    const handler = new StreamingZipHandler(file);
+    await handler.init();
+    return handler;
+  }
+
   const handler = type === BOOK_TYPES.RAR ? new RarHandler(file) : new ZipHandler(file);
   await handler.init();
   return handler;
