@@ -72,6 +72,11 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
 let pendingCloudBookId = null;
+const folderNavigatorState = {
+  directoryHandle: null,
+  fileHandles: [],
+  currentIndex: -1,
+};
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let writingMode = settings.writingMode;
