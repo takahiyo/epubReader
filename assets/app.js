@@ -108,6 +108,9 @@ let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
+// 巻ナビゲーション: ファイルシステムアクセス用ハンドル
+let lastFileHandle = null;
+let cachedDirectoryHandle = null;
 const NOTION_STATUS_LABEL_KEYS = Object.freeze({
   [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
   [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
@@ -1460,21 +1463,36 @@ async function seekToPercentage(percentage) {
 
 /**
  * 巻ナビゲーションボタンの表示状態を更新する。
- * 現在開いている書籍のファイル名からシリーズを検出し、
- * ライブラリ内に前巻・次巻が存在する場合にボタンを有効化する。
+ *
+ * 表示優先度:
+ *   1. ファイルハンドルがある場合 → ファイル名パターンからシリーズ検出し常にボタン表示
+ *      （ディレクトリ内の実ファイルの有無はクリック時に判定）
+ *   2. ライブラリに同一シリーズの書籍がある場合 → ボタン表示
+ *   3. どちらもない場合 → ボタン非表示
  */
 function updateVolumeNavButtons() {
   const container = elements.volumeNavContainer;
   if (!container) return;
 
-  if (!currentBookId || !currentBookInfo?.fileName) {
+  const fileName = currentBookInfo?.fileName;
+  if (!fileName) {
     container.classList.add(UI_CLASSES.HIDDEN);
     return;
   }
 
-  const volumes = fileHandler.findAdjacentVolumes(storage.data.library, currentBookId);
+  const parsed = fileHandler.parseVolume(fileName);
 
-  if (!volumes.prev && !volumes.next) {
+  // ライブラリベースの隣接巻情報
+  const volumes = currentBookId
+    ? fileHandler.findAdjacentVolumes(storage.data.library, currentBookId)
+    : { prev: null, next: null };
+
+  // ファイルハンドルがありシリーズパターンに合致 → ボタン表示（FS経由でナビゲーション可能）
+  const hasFileSystemAccess = lastFileHandle && parsed;
+  // ライブラリに前巻/次巻がある → ボタン表示
+  const hasLibraryVolumes = volumes.prev || volumes.next;
+
+  if (!hasFileSystemAccess && !hasLibraryVolumes) {
     container.classList.add(UI_CLASSES.HIDDEN);
     return;
   }
@@ -1484,26 +1502,89 @@ function updateVolumeNavButtons() {
   const strings = getUiStrings(uiLanguage);
 
   if (elements.volumePrev) {
-    elements.volumePrev.disabled = !volumes.prev;
-    const prevLabel = volumes.prev
-      ? `${strings.volumePrevLabel} (${volumes.prev.volume})`
-      : strings.volumePrevLabel;
-    elements.volumePrev.textContent = `◀◀ ${prevLabel}`;
-    elements.volumePrev.title = volumes.prev
-      ? `${strings.volumePrevTitle}: ${volumes.prev.book.title}`
-      : strings.volumePrevTitle;
+    // ライブラリに具体的な前巻情報がある場合は巻数を表示
+    // ファイルハンドルのみの場合は汎用ラベル
+    if (volumes.prev) {
+      elements.volumePrev.disabled = false;
+      elements.volumePrev.textContent = `◀◀ ${strings.volumePrevLabel} (${volumes.prev.volume})`;
+      elements.volumePrev.title = `${strings.volumePrevTitle}: ${volumes.prev.book.title}`;
+    } else if (hasFileSystemAccess) {
+      elements.volumePrev.disabled = false;
+      elements.volumePrev.textContent = `◀◀ ${strings.volumePrevLabel}`;
+      elements.volumePrev.title = strings.volumePrevTitle;
+    } else {
+      elements.volumePrev.disabled = true;
+      elements.volumePrev.textContent = `◀◀ ${strings.volumePrevLabel}`;
+      elements.volumePrev.title = strings.volumePrevTitle;
+    }
   }
 
   if (elements.volumeNext) {
-    elements.volumeNext.disabled = !volumes.next;
-    const nextLabel = volumes.next
-      ? `${strings.volumeNextLabel} (${volumes.next.volume})`
-      : strings.volumeNextLabel;
-    elements.volumeNext.textContent = `${nextLabel} ▶▶`;
-    elements.volumeNext.title = volumes.next
-      ? `${strings.volumeNextTitle}: ${volumes.next.book.title}`
-      : strings.volumeNextTitle;
+    if (volumes.next) {
+      elements.volumeNext.disabled = false;
+      elements.volumeNext.textContent = `${strings.volumeNextLabel} (${volumes.next.volume}) ▶▶`;
+      elements.volumeNext.title = `${strings.volumeNextTitle}: ${volumes.next.book.title}`;
+    } else if (hasFileSystemAccess) {
+      elements.volumeNext.disabled = false;
+      elements.volumeNext.textContent = `${strings.volumeNextLabel} ▶▶`;
+      elements.volumeNext.title = strings.volumeNextTitle;
+    } else {
+      elements.volumeNext.disabled = true;
+      elements.volumeNext.textContent = `${strings.volumeNextLabel} ▶▶`;
+      elements.volumeNext.title = strings.volumeNextTitle;
+    }
   }
+}
+
+/**
+ * ファイルシステムから隣接する巻のファイルを取得して開く。
+ * ディレクトリハンドルがない場合は showDirectoryPicker で取得を試みる。
+ *
+ * @param {'prev'|'next'} direction - 移動方向
+ * @returns {Promise<boolean>} ファイルシステム経由で開けた場合 true
+ */
+async function openAdjacentVolumeFromFS(direction) {
+  if (!lastFileHandle) return false;
+
+  const currentFileName = lastFileHandle.name;
+  const parsed = fileHandler.parseVolume(currentFileName);
+  if (!parsed) return false;
+
+  // ディレクトリハンドルが未取得の場合、ユーザーにディレクトリ選択を求める
+  if (!cachedDirectoryHandle) {
+    if (typeof window.showDirectoryPicker !== 'function') return false;
+    try {
+      cachedDirectoryHandle = await window.showDirectoryPicker({
+        startIn: lastFileHandle,
+        mode: 'read',
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') return false;
+      console.warn('showDirectoryPicker failed:', error);
+      return false;
+    }
+  }
+
+  // ディレクトリ内を走査して隣接ファイルを検索
+  const adjacent = await fileHandler.scanDirectoryForAdjacentFiles(
+    cachedDirectoryHandle,
+    currentFileName
+  );
+
+  const targetHandle = direction === 'prev' ? adjacent.prev : adjacent.next;
+  if (!targetHandle) {
+    // 隣接ファイルが見つからない場合
+    const strings = getUiStrings(uiLanguage);
+    const msg = direction === 'prev' ? strings.volumePrevTitle : strings.volumeNextTitle;
+    console.log(`[VolumeNav] ${msg}: 該当ファイルなし`);
+    return false;
+  }
+
+  // ファイルハンドルを更新して開く
+  lastFileHandle = targetHandle;
+  const file = await targetHandle.getFile();
+  await handleFile(file);
+  return true;
 }
 
 async function handleBookReady(payload) {
@@ -2471,6 +2552,8 @@ async function openFileDialog() {
   if (typeof window.showOpenFilePicker === 'function') {
     try {
       const [fileHandle] = await window.showOpenFilePicker(buildFilePickerOptions());
+      lastFileHandle = fileHandle;
+      cachedDirectoryHandle = null; // 新しいファイルを開いたらディレクトリキャッシュをクリア
       const file = await fileHandle.getFile();
       if (file) {
         await handleFile(file);
@@ -3262,7 +3345,14 @@ function setupEvents() {
   });
 
   // 巻ナビゲーションボタン
-  elements.volumePrev?.addEventListener('click', () => {
+  // 優先度: 1. ファイルシステム直接アクセス → 2. ライブラリから開く
+  elements.volumePrev?.addEventListener('click', async () => {
+    // ファイルシステム経由で前巻を開く（ハンドルがある場合）
+    if (lastFileHandle) {
+      const opened = await openAdjacentVolumeFromFS('prev');
+      if (opened) return;
+    }
+    // フォールバック: ライブラリから開く
     if (!currentBookId) return;
     const volumes = fileHandler.findAdjacentVolumes(storage.data.library, currentBookId);
     if (volumes.prev) {
@@ -3270,7 +3360,13 @@ function setupEvents() {
     }
   });
 
-  elements.volumeNext?.addEventListener('click', () => {
+  elements.volumeNext?.addEventListener('click', async () => {
+    // ファイルシステム経由で次巻を開く（ハンドルがある場合）
+    if (lastFileHandle) {
+      const opened = await openAdjacentVolumeFromFS('next');
+      if (opened) return;
+    }
+    // フォールバック: ライブラリから開く
     if (!currentBookId) return;
     const volumes = fileHandler.findAdjacentVolumes(storage.data.library, currentBookId);
     if (volumes.next) {

@@ -525,3 +525,54 @@ export function findAdjacentVolumes(library, currentBookId) {
 
     return result;
 }
+
+/**
+ * 対応する書籍ファイルの拡張子パターン
+ */
+const SUPPORTED_BOOK_EXTENSIONS = /\.(epub|cbz|zip|rar|cbr)$/i;
+
+/**
+ * FileSystemDirectoryHandle からディレクトリ内の書籍ファイルを走査し、
+ * 指定ファイルの前後の巻を特定する。
+ *
+ * @param {FileSystemDirectoryHandle} dirHandle - ディレクトリハンドル
+ * @param {string} currentFileName - 現在開いているファイルの名前
+ * @returns {Promise<{ prev: FileSystemFileHandle|null, next: FileSystemFileHandle|null, files: FileSystemFileHandle[] }>}
+ */
+export async function scanDirectoryForAdjacentFiles(dirHandle, currentFileName) {
+    const result = { prev: null, next: null, files: [] };
+    if (!dirHandle || !currentFileName) return result;
+
+    const currentParsed = parseVolume(currentFileName);
+    if (!currentParsed) return result;
+
+    // ディレクトリ内の対応ファイルを収集
+    const entries = [];
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind !== 'file') continue;
+        if (!SUPPORTED_BOOK_EXTENSIONS.test(entry.name)) continue;
+
+        const parsed = parseVolume(entry.name);
+        if (!parsed) continue;
+        if (parsed.baseName === currentParsed.baseName) {
+            entries.push({ handle: entry, volume: parsed.volume, name: entry.name });
+        }
+    }
+
+    // 巻数順にソート
+    entries.sort((a, b) => a.volume - b.volume);
+    result.files = entries.map(e => e.handle);
+
+    // 現在のファイルの位置を特定
+    const currentIndex = entries.findIndex(e => e.name === currentFileName);
+    if (currentIndex < 0) return result;
+
+    if (currentIndex > 0) {
+        result.prev = entries[currentIndex - 1].handle;
+    }
+    if (currentIndex < entries.length - 1) {
+        result.next = entries[currentIndex + 1].handle;
+    }
+
+    return result;
+}
