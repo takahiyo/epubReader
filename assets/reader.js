@@ -1862,7 +1862,7 @@ export class ReaderController {
    * @returns {Array<Object>} グループ情報の配列。各要素は { name: string, startIndex: number, endIndices: Array<number> }
    */
   generateSpineGroupsFromToc() {
-    if (!this.book?.spine || !this.book?.toc) return null;
+    if (!this.book?.spine || !this.toc) return null;
 
     const spineLength = this.book.spine.length;
     const groups = [];
@@ -1871,7 +1871,11 @@ export class ReaderController {
     const tocEntries = [];
     const traverseToc = (items) => {
       items.forEach(item => {
-        const [path] = item.href.split('#');
+        let fullPath = item.href;
+        if (this.book?.path?.resolve && !item.href.includes('://') && !item.href.startsWith('/')) {
+          fullPath = this.book.path.resolve(item.href);
+        }
+        const [path] = fullPath.split('#');
         const spineIndex = this.resolveSpineIndexFromHref(path);
         if (spineIndex >= 0) {
           tocEntries.push({ title: item.label, spineIndex });
@@ -1881,7 +1885,7 @@ export class ReaderController {
         }
       });
     };
-    traverseToc(this.book.toc);
+    traverseToc(this.toc);
 
     // 重複を削除し、インデックス順にソート
     const sortedToc = tocEntries
