@@ -415,3 +415,113 @@ export function buildMatchMeta(info) {
         identifiers: info?.identifiers ?? [],
     };
 }
+
+// ========================================
+// 巻ナビゲーション（シリーズ検出）
+// ========================================
+
+/**
+ * ファイル名からシリーズのベース名と巻数を解析する。
+ * 日本語の書籍ファイル名で一般的なパターンに対応。
+ *
+ * 対応パターン:
+ *   - 第01巻, 第1話, 第3章
+ *   - v01, Vol.01, Vol 1
+ *   - (01), （01）
+ *   - [01], 【01】
+ *   - _01 (アンダースコア + 数字)
+ *   - 末尾の数字（スペース区切り）: 作品名 01
+ *   - 末尾の数字（直結）: 作品名01
+ *
+ * @param {string} fileName - ファイル名（拡張子あり/なし）
+ * @returns {{ baseName: string, volume: number } | null}
+ */
+export function parseVolume(fileName) {
+    if (!fileName) return null;
+
+    // 拡張子を除去
+    const name = fileName.replace(/\.[^.]+$/, '');
+
+    // パターン定義（優先度の高い順）
+    const patterns = [
+        // 第01巻, 第1話, 第3章 etc.
+        /^(.+?)[\s_]*第(\d+)[巻話章編部].*$/,
+        // v01, v1, Vol.01, Vol01
+        /^(.+?)[\s_]*[Vv](?:ol\.?\s*)?(\d+).*$/,
+        // (01), （01）- 全角/半角括弧
+        /^(.+?)[\s_]*[（(](\d+)[）)].*$/,
+        // [01], 【01】- 角括弧/隅付き括弧
+        /^(.+?)[\s_]*[[\[【](\d+)[\]】\]].*$/,
+        // _01 - アンダースコア + 数字（末尾）
+        /^(.+?)_(\d+)$/,
+        // 末尾の数字（スペース区切り）: 作品名 01
+        /^(.+?)\s+(\d+)$/,
+        // 末尾の数字（直結、ベース名が非数字で終わる場合）: 作品名01
+        /^(.+?\D)(\d+)$/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = name.match(pattern);
+        if (match) {
+            const baseName = match[1].trim();
+            const volume = parseInt(match[2], 10);
+            if (baseName.length > 0 && !isNaN(volume)) {
+                return { baseName, volume };
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * ライブラリ内から同一シリーズの書籍を検出し、巻数順にソートして返す。
+ * 現在開いている書籍のファイル名をベースに、同じシリーズ名を持つ書籍を特定する。
+ *
+ * @param {Object} library - storage.data.library オブジェクト
+ * @param {string} currentBookId - 現在開いている書籍のID
+ * @returns {{ prev: Object|null, next: Object|null, currentVolume: number|null, seriesBooks: Array }}
+ */
+export function findAdjacentVolumes(library, currentBookId) {
+    const result = { prev: null, next: null, currentVolume: null, seriesBooks: [] };
+
+    if (!library || !currentBookId) return result;
+
+    const currentBook = library[currentBookId];
+    if (!currentBook?.fileName) return result;
+
+    const currentParsed = parseVolume(currentBook.fileName);
+    if (!currentParsed) return result;
+
+    result.currentVolume = currentParsed.volume;
+
+    // ライブラリ内の全書籍を走査し、同じベース名を持つ書籍を収集
+    const seriesEntries = [];
+    for (const [bookId, book] of Object.entries(library)) {
+        if (!book?.fileName) continue;
+        const parsed = parseVolume(book.fileName);
+        if (!parsed) continue;
+        if (parsed.baseName === currentParsed.baseName) {
+            seriesEntries.push({ bookId, book, volume: parsed.volume });
+        }
+    }
+
+    // 巻数順にソート
+    seriesEntries.sort((a, b) => a.volume - b.volume);
+    result.seriesBooks = seriesEntries;
+
+    // 現在の巻の位置を特定し、前巻・次巻を取得
+    const currentIndex = seriesEntries.findIndex(e => e.bookId === currentBookId);
+    if (currentIndex < 0) return result;
+
+    if (currentIndex > 0) {
+        const prev = seriesEntries[currentIndex - 1];
+        result.prev = { bookId: prev.bookId, book: prev.book, volume: prev.volume };
+    }
+    if (currentIndex < seriesEntries.length - 1) {
+        const next = seriesEntries[currentIndex + 1];
+        result.next = { bookId: next.bookId, book: next.book, volume: next.volume };
+    }
+
+    return result;
+}

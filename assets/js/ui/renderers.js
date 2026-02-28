@@ -184,6 +184,9 @@ export function updateFloatingUIButtons() {
     }
 
     updateProgressBarDirection();
+    if (_actions.updateVolumeNavButtons) {
+        _actions.updateVolumeNavButtons();
+    }
 }
 
 /**

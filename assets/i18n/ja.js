@@ -252,4 +252,10 @@ export const UI_STRINGS_JA = Object.freeze({
   delete_button: "削除",
   undo_button: "やり直し",
   linkMismatchWarning: "選択された書籍は、ライブラリ上の書籍と内容が異なる可能性があります。\n\nこのまま紐付けますか？",
+
+  // 巻ナビゲーション
+  volumePrevLabel: "前巻",
+  volumeNextLabel: "次巻",
+  volumePrevTitle: "前の巻を開く",
+  volumeNextTitle: "次の巻を開く",
 });

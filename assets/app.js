@@ -629,7 +629,8 @@ renderers.init({
       if (reader.type !== BOOK_TYPES.EPUB || !reader.paginator) return null;
       return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
     },
-    setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
+    setPendingCloudBookId: (id) => { pendingCloudBookId = id; },
+    updateVolumeNavButtons,
   }
 });
 
@@ -1453,6 +1454,58 @@ async function seekToPercentage(percentage) {
   }
 }
 
+// ========================================
+// 巻ナビゲーション
+// ========================================
+
+/**
+ * 巻ナビゲーションボタンの表示状態を更新する。
+ * 現在開いている書籍のファイル名からシリーズを検出し、
+ * ライブラリ内に前巻・次巻が存在する場合にボタンを有効化する。
+ */
+function updateVolumeNavButtons() {
+  const container = elements.volumeNavContainer;
+  if (!container) return;
+
+  if (!currentBookId || !currentBookInfo?.fileName) {
+    container.classList.add(UI_CLASSES.HIDDEN);
+    return;
+  }
+
+  const volumes = fileHandler.findAdjacentVolumes(storage.data.library, currentBookId);
+
+  if (!volumes.prev && !volumes.next) {
+    container.classList.add(UI_CLASSES.HIDDEN);
+    return;
+  }
+
+  container.classList.remove(UI_CLASSES.HIDDEN);
+
+  const strings = getUiStrings(uiLanguage);
+
+  if (elements.volumePrev) {
+    elements.volumePrev.disabled = !volumes.prev;
+    const prevLabel = volumes.prev
+      ? `${strings.volumePrevLabel} (${volumes.prev.volume})`
+      : strings.volumePrevLabel;
+    elements.volumePrev.textContent = `◀◀ ${prevLabel}`;
+    elements.volumePrev.title = volumes.prev
+      ? `${strings.volumePrevTitle}: ${volumes.prev.book.title}`
+      : strings.volumePrevTitle;
+  }
+
+  if (elements.volumeNext) {
+    elements.volumeNext.disabled = !volumes.next;
+    const nextLabel = volumes.next
+      ? `${strings.volumeNextLabel} (${volumes.next.volume})`
+      : strings.volumeNextLabel;
+    elements.volumeNext.textContent = `${nextLabel} ▶▶`;
+    elements.volumeNext.title = volumes.next
+      ? `${strings.volumeNextTitle}: ${volumes.next.book.title}`
+      : strings.volumeNextTitle;
+  }
+}
+
 async function handleBookReady(payload) {
   if (!currentBookInfo || !payload) return;
 
@@ -1558,6 +1611,9 @@ async function handleBookReady(payload) {
   if (currentBookInfo.type === BOOK_TYPES.EPUB) {
 
   }
+
+  // 巻ナビゲーションの更新
+  updateVolumeNavButtons();
 }
 
 // 移行済み: updateEpubScrollMode
@@ -1903,6 +1959,9 @@ function applyUiLanguage(nextLanguage) {
   if (elements.closeCandidateModal) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
+  // 巻ナビゲーションラベルの更新
+  updateVolumeNavButtons();
+
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
   if (archiveWarningTypes.length > 0) {
     renderers.showArchiveWarnings(archiveWarningTypes);
@@ -3200,6 +3259,23 @@ function setupEvents() {
   elements.progressNext?.addEventListener('click', () => {
 
     reader.next(1); // 1ページずつ進む
+  });
+
+  // 巻ナビゲーションボタン
+  elements.volumePrev?.addEventListener('click', () => {
+    if (!currentBookId) return;
+    const volumes = fileHandler.findAdjacentVolumes(storage.data.library, currentBookId);
+    if (volumes.prev) {
+      openFromLibrary(volumes.prev.bookId);
+    }
+  });
+
+  elements.volumeNext?.addEventListener('click', () => {
+    if (!currentBookId) return;
+    const volumes = fileHandler.findAdjacentVolumes(storage.data.library, currentBookId);
+    if (volumes.next) {
+      openFromLibrary(volumes.next.bookId);
+    }
   });
 
   // ライブラリ検索入力欄

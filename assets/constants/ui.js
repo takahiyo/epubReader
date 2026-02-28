@@ -200,6 +200,8 @@ export const DOM_IDS = Object.freeze({
   TOTAL_PAGES: "totalPages",
   PROGRESS_PREV: "progressPrev",
   PROGRESS_NEXT: "progressNext",
+  VOLUME_PREV: "volumePrev",
+  VOLUME_NEXT: "volumeNext",
   BOOKMARK_MENU: "bookmarkMenu",
   BOOKMARK_LIST: "bookmarkList",
   ADD_BOOKMARK_BTN: "addBookmarkBtn",

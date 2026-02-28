@@ -90,6 +90,9 @@ export const elements = {
     totalPages: getById(DOM_IDS.TOTAL_PAGES),
     progressPrev: getById(DOM_IDS.PROGRESS_PREV),
     progressNext: getById(DOM_IDS.PROGRESS_NEXT),
+    volumePrev: getById(DOM_IDS.VOLUME_PREV),
+    volumeNext: getById(DOM_IDS.VOLUME_NEXT),
+    volumeNavContainer: getById("volumeNavContainer"),
 
     // しおりメニュー
     bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
