@@ -132,6 +132,44 @@ function t(key) {
   return translate(key, uiLanguage);
 }
 
+function getSortedLocalLibraryBooks() {
+  const library = storage.data.library ?? {};
+  return Object.values(library)
+    .filter((book) => book?.id && book?.fileName)
+    .sort((a, b) => (a.fileName || "").localeCompare((b.fileName || ""), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }));
+}
+
+async function openAdjacentBook(step) {
+  if (isBookLoading) return;
+  if (!currentBookId || !currentBookInfo?.fileName) {
+    alert(t("folderNavigationBookRequired"));
+    return;
+  }
+
+  const sortedBooks = getSortedLocalLibraryBooks();
+  if (sortedBooks.length === 0) {
+    alert(t("libraryEmpty"));
+    return;
+  }
+
+  const currentIndex = sortedBooks.findIndex((book) => book.id === currentBookId);
+  if (currentIndex < 0) {
+    alert(t("folderNavigationCurrentBookNotFound"));
+    return;
+  }
+
+  const nextIndex = currentIndex + step;
+  if (nextIndex < 0 || nextIndex >= sortedBooks.length) {
+    alert(step < 0 ? t("folderNavigationNoPrev") : t("folderNavigationNoNext"));
+    return;
+  }
+
+  await openFromLibrary(sortedBooks[nextIndex].id);
+}
+
 function getNotionSettingsSnapshot() {
   const currentSettings = storage.getSettings();
   return {
@@ -1856,6 +1894,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
+  setFloatLabel(elements.floatPrevBook, UI_ICONS.AREA_LEFT, strings.menuPrevBook);
+  setFloatLabel(elements.floatNextBook, UI_ICONS.AREA_RIGHT, strings.menuNextBook);
   setFloatLabel(elements.floatLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
   setFloatLabel(elements.floatSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setFloatLabel(elements.floatBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
@@ -2579,6 +2619,18 @@ function setupEvents() {
     e.stopPropagation();
     e.preventDefault();
     openFileDialog();
+  });
+
+  elements.floatPrevBook?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    await openAdjacentBook(-1);
+  });
+
+  elements.floatNextBook?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    await openAdjacentBook(1);
   });
 
   elements.floatLibrary?.addEventListener('click', (e) => {

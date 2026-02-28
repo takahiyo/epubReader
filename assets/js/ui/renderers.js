@@ -176,6 +176,13 @@ export function updateFloatingUIButtons() {
         updateZoomButtonLabel();
     }
 
+    if (elements.floatPrevBook) {
+        elements.floatPrevBook.disabled = !isBookOpen;
+    }
+    if (elements.floatNextBook) {
+        elements.floatNextBook.disabled = !isBookOpen;
+    }
+
     if (elements.progressPrev) {
         elements.progressPrev.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
     }
