@@ -1906,19 +1906,33 @@ export class ReaderController {
     };
 
     // 目次項目を spineIndex 順にソートして、各項目の開始位置を特定する
+    // NOTE:
+    //   サブ目次（subitems）には「挿絵」「節」など章境界ではない項目が含まれることがある。
+    //   それを章区切りに使うと、挿絵ページで章が切れてしまうため、まずはトップレベルを優先する。
     const tocEntries = [];
-    const traverseToc = (items) => {
+    const nestedTocEntries = [];
+    const traverseToc = (items, depth = 0) => {
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
-          tocEntries.push({ title: item.label, spineIndex });
+          const entry = { title: item.label, spineIndex };
+          if (depth === 0) {
+            tocEntries.push(entry);
+          } else {
+            nestedTocEntries.push(entry);
+          }
         }
         if (item.subitems && item.subitems.length > 0) {
-          traverseToc(item.subitems);
+          traverseToc(item.subitems, depth + 1);
         }
       });
     };
-    traverseToc(this.toc);
+    traverseToc(this.toc, 0);
+
+    // トップレベルが取れないEPUBだけ、後方互換としてネスト項目を使う
+    if (tocEntries.length === 0 && nestedTocEntries.length > 0) {
+      tocEntries.push(...nestedTocEntries);
+    }
 
     // 重複を削除し、インデックス順にソート
     const sortedToc = tocEntries
