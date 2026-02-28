@@ -57,7 +57,6 @@ export const SW_CACHE_ASSETS = Object.freeze([
   "./assets/Flag_America.svg",
   "./assets/icon_BookReader_192.png",
   "./assets/icon_BookReader_512.png",
-  "./assets/icon_BookReader_2048.png",
   "./assets/vendor/jszip.min.js",
   "./assets/vendor/unrar.js",
   "./assets/vendor/unrar.wasm",

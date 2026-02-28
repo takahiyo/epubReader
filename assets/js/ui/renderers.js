@@ -1063,3 +1063,14 @@ export function hideCloudEmptyState() {
         elements.cloudEmptyState.classList.add(UI_CLASSES.HIDDEN);
     }
 }
+
+/**
+ * PWA インストールボタンの表示更新
+ * @param {boolean} isInstallable - インストール可能（beforeinstallprompt発生済み）か
+ */
+export function updateInstallButton(isInstallable) {
+    if (!elements.installButton || !elements.installContainer) return;
+
+    elements.installButton.textContent = t("installApp");
+    setElementVisibility(elements.installContainer, isInstallable);
+}

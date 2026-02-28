@@ -108,6 +108,7 @@ let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
+let deferredPrompt = null;
 const NOTION_STATUS_LABEL_KEYS = Object.freeze({
   [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
   [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
@@ -2802,6 +2803,16 @@ function setupEvents() {
     storage.setSettings({ oneBookmarkPerBook: enabled });
   });
 
+  // PWA Install Button
+  elements.installButton?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`[PWA] User response to the install prompt: ${outcome}`);
+    deferredPrompt = null;
+    renderers.updateInstallButton(false);
+  });
+
   elements.settingsEpubViewMode?.addEventListener('change', (e) => {
     applyEpubViewMode(e.target.value);
   });
@@ -3238,10 +3249,27 @@ function setupEvents() {
     e.stopPropagation();
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
 
-    const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       handleFile(files[0]);
     }
+  });
+
+  // PWA Install Event Listeners
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    // Update UI notify the user they can install the PWA
+    renderers.updateInstallButton(true);
+    console.log('[PWA] beforeinstallprompt event fired');
+  });
+
+  window.addEventListener('appinstalled', (event) => {
+    // Clear the deferredPrompt so it can be garbage collected
+    deferredPrompt = null;
+    renderers.updateInstallButton(false);
+    console.log('[PWA] App was installed');
   });
 }
 

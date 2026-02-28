@@ -300,6 +300,7 @@ export const DOM_IDS = Object.freeze({
   LEFT_MENU_BACKDROP: "leftMenuBackdrop",
   CLICK_OVERLAY: "clickOverlay",
   ZOOM_SLIDER: "zoomSlider",
+  INSTALL_BUTTON: "installButton",
 });
 
 export const DOM_SELECTORS = Object.freeze({

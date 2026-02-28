@@ -253,4 +253,5 @@ export const UI_STRINGS_EN = Object.freeze({
   delete_button: "Delete",
   undo_button: "Undo",
   linkMismatchWarning: "The selected book may be different from the one in your library.\n\nDo you want to link it anyway?",
+  installApp: "Install App",
 });
