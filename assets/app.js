@@ -1476,11 +1476,13 @@ function updateVolumeNavButtons() {
 
   const fileName = currentBookInfo?.fileName;
   if (!fileName) {
+    console.log('[VolumeNav] currentBookInfo.fileName がありません');
     container.classList.add(UI_CLASSES.HIDDEN);
     return;
   }
 
   const parsed = fileHandler.parseVolume(fileName);
+  console.log('[VolumeNav] 解析結果:', { fileName, parsed, lastFileHandle: !!lastFileHandle });
 
   // ライブラリベースの隣接巻情報
   const volumes = currentBookId
@@ -1492,11 +1494,15 @@ function updateVolumeNavButtons() {
   // ライブラリに前巻/次巻がある → ボタン表示
   const hasLibraryVolumes = volumes.prev || volumes.next;
 
+  console.log('[VolumeNav]', { hasFileSystemAccess, hasLibraryVolumes, libraryVolumes: volumes });
+
   if (!hasFileSystemAccess && !hasLibraryVolumes) {
+    console.log('[VolumeNav] 条件を満たさないため非表示');
     container.classList.add(UI_CLASSES.HIDDEN);
     return;
   }
 
+  console.log('[VolumeNav] ボタンを表示');
   container.classList.remove(UI_CLASSES.HIDDEN);
 
   const strings = getUiStrings(uiLanguage);
