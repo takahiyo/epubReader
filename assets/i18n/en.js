@@ -58,7 +58,7 @@ export const UI_STRINGS_EN = Object.freeze({
   libraryViewListLabel: "List view",
   folderNavigationUnsupported: "Folder navigation is not supported in this browser",
   folderNavigationBookRequired: "Open a book before using this action",
-  folderNavigationCurrentBookNotFound: "The current book was not found in the library",
+  folderNavigationCurrentBookNotFound: "The current book was not found in the selected folder",
   folderNavigationNoPrev: "No previous volume",
   folderNavigationNoNext: "No next volume",
 

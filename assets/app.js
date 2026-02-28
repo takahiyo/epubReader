@@ -137,42 +137,92 @@ function t(key) {
   return translate(key, uiLanguage);
 }
 
-function getSortedLocalLibraryBooks() {
-  const library = storage.data.library ?? {};
-  return Object.values(library)
-    .filter((book) => book?.id && book?.fileName)
-    .sort((a, b) => (a.fileName || "").localeCompare((b.fileName || ""), undefined, {
-      numeric: true,
-      sensitivity: "base",
-    }));
+const folderNavigatorState = {
+  directoryHandle: null,
+  fileHandles: [],
+  currentIndex: -1,
+};
+
+function resetFolderNavigatorCache() {
+  folderNavigatorState.directoryHandle = null;
+  folderNavigatorState.fileHandles = [];
+  folderNavigatorState.currentIndex = -1;
+}
+
+function isSupportedAdjacentBookName(fileName) {
+  if (!fileName) return false;
+  const lower = fileName.toLowerCase();
+  return FILE_INPUT_ACCEPT.some((ext) => lower.endsWith(ext));
+}
+
+async function refreshFolderNavigatorEntries() {
+  if (!folderNavigatorState.directoryHandle) return false;
+  const handles = [];
+  for await (const entry of folderNavigatorState.directoryHandle.values()) {
+    if (entry.kind !== "file") continue;
+    if (!isSupportedAdjacentBookName(entry.name)) continue;
+    handles.push(entry);
+  }
+  handles.sort((a, b) => a.name.localeCompare(b.name, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  }));
+  folderNavigatorState.fileHandles = handles;
+  return handles.length > 0;
+}
+
+async function ensureFolderNavigatorReady() {
+  if (!currentBookId || !currentBookInfo?.fileName) {
+    alert(t("folderNavigationBookRequired"));
+    return false;
+  }
+
+  if (typeof window.showDirectoryPicker !== "function") {
+    alert(t("folderNavigationUnsupported"));
+    return false;
+  }
+
+  if (!folderNavigatorState.directoryHandle) {
+    try {
+      folderNavigatorState.directoryHandle = await window.showDirectoryPicker({ mode: "read" });
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        console.warn("showDirectoryPicker failed:", error);
+      }
+      return false;
+    }
+  }
+
+  const hasEntries = await refreshFolderNavigatorEntries();
+  if (!hasEntries) {
+    alert(t("libraryEmpty"));
+    return false;
+  }
+
+  folderNavigatorState.currentIndex = folderNavigatorState.fileHandles.findIndex((handle) => handle.name === currentBookInfo.fileName);
+  if (folderNavigatorState.currentIndex < 0) {
+    alert(t("folderNavigationCurrentBookNotFound"));
+    return false;
+  }
+
+  return true;
 }
 
 async function openAdjacentBook(step) {
   if (isBookLoading) return;
-  if (!currentBookId || !currentBookInfo?.fileName) {
-    alert(t("folderNavigationBookRequired"));
-    return;
-  }
+  const ready = await ensureFolderNavigatorReady();
+  if (!ready) return;
 
-  const sortedBooks = getSortedLocalLibraryBooks();
-  if (sortedBooks.length === 0) {
-    alert(t("libraryEmpty"));
-    return;
-  }
-
-  const currentIndex = sortedBooks.findIndex((book) => book.id === currentBookId);
-  if (currentIndex < 0) {
-    alert(t("folderNavigationCurrentBookNotFound"));
-    return;
-  }
-
-  const nextIndex = currentIndex + step;
-  if (nextIndex < 0 || nextIndex >= sortedBooks.length) {
+  const nextIndex = folderNavigatorState.currentIndex + step;
+  if (nextIndex < 0 || nextIndex >= folderNavigatorState.fileHandles.length) {
     alert(step < 0 ? t("folderNavigationNoPrev") : t("folderNavigationNoNext"));
     return;
   }
 
-  await openFromLibrary(sortedBooks[nextIndex].id);
+  const targetHandle = folderNavigatorState.fileHandles[nextIndex];
+  const file = await targetHandle.getFile();
+  folderNavigatorState.currentIndex = nextIndex;
+  await handleFile(file);
 }
 
 function getNotionSettingsSnapshot() {
