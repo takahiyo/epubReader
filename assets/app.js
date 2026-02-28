@@ -3296,9 +3296,9 @@ function setupEvents() {
     e.stopPropagation();
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
 
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFile(files[0]);
+    const droppedFiles = Array.from(e.dataTransfer?.files ?? []);
+    if (droppedFiles.length > 0) {
+      handleFile(droppedFiles[0]);
     }
   });
 }
