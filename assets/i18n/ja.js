@@ -58,7 +58,7 @@ export const UI_STRINGS_JA = Object.freeze({
   libraryViewListLabel: "一覧表示",
   folderNavigationUnsupported: "このブラウザではフォルダ移動がサポートされていません",
   folderNavigationBookRequired: "書籍を開いた状態で操作してください",
-  folderNavigationCurrentBookNotFound: "選択したフォルダに現在の書籍が見つかりません",
+  folderNavigationCurrentBookNotFound: "ライブラリ内に現在の書籍が見つかりません",
   folderNavigationNoPrev: "前の巻はありません",
   folderNavigationNoNext: "次の巻はありません",
 
