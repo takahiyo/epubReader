@@ -27,6 +27,8 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // メニュー
   menuOpen: "開く",
+  menuPrevBook: "前の巻",
+  menuNextBook: "次の巻",
   menuLibrary: "ライブラリ",
   menuSearch: "テキスト検索",
   menuBookmarks: "しおり",
@@ -54,6 +56,11 @@ export const UI_STRINGS_JA = Object.freeze({
   historyTitle: "履歴",
   libraryViewGridLabel: "グリッド表示",
   libraryViewListLabel: "一覧表示",
+  folderNavigationUnsupported: "このブラウザではフォルダ移動がサポートされていません",
+  folderNavigationBookRequired: "書籍を開いた状態で操作してください",
+  folderNavigationCurrentBookNotFound: "選択したフォルダに現在の書籍が見つかりません",
+  folderNavigationNoPrev: "前の巻はありません",
+  folderNavigationNoNext: "次の巻はありません",
 
   // 設定
   settingsTitle: "設定",
