@@ -72,11 +72,12 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
 let pendingCloudBookId = null;
-const folderNavigatorState = {
+const folderNavigatorState = globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__ || {
   directoryHandle: null,
   fileHandles: [],
   currentIndex: -1,
 };
+globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__ = folderNavigatorState;
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let writingMode = settings.writingMode;
@@ -140,15 +141,7 @@ function t(key) {
   return translate(key, uiLanguage);
 }
 
-var folderNavigatorState = globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__;
-if (!folderNavigatorState) {
-  folderNavigatorState = {
-    directoryHandle: null,
-    fileHandles: [],
-    currentIndex: -1,
-  };
-  globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__ = folderNavigatorState;
-}
+
 
 function resetFolderNavigatorCache() {
   folderNavigatorState.directoryHandle = null;
@@ -2662,6 +2655,22 @@ async function openFileDialog() {
       const [fileHandle] = await window.showOpenFilePicker(buildFilePickerOptions());
       lastFileHandle = fileHandle;
       cachedDirectoryHandle = null; // 新しいファイルを開いたらディレクトリキャッシュをクリア
+
+      // ファイルオープン後、同一フォルダのナビゲーションを即時有効化するためディレクトリ権限を要求
+      try {
+        if (typeof window.showDirectoryPicker === 'function') {
+          const dirHandle = await window.showDirectoryPicker({ startIn: fileHandle, mode: 'read' });
+          cachedDirectoryHandle = dirHandle;
+          folderNavigatorState.directoryHandle = dirHandle;
+          // フォルダ内のエントリー情報を事前更新しておく
+          await refreshFolderNavigatorEntries();
+        }
+      } catch (dirError) {
+        if (dirError?.name !== 'AbortError') {
+          console.warn('showDirectoryPicker immediately after open failed:', dirError);
+        }
+      }
+
       const file = await fileHandle.getFile();
       if (file) {
         await handleFile(file);
