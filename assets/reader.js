@@ -1528,8 +1528,9 @@ export class ReaderController {
       console.warn("[ジャンプデバッグ] 最終的なターゲットが見つからなかったため、章の先頭へフォールバックします");
       this._scrollTargetNode = null;
       // フォールバック：先頭へ
+      const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
       if (this.viewer) {
-        if (this.writingMode === WRITING_MODES.VERTICAL) {
+        if (isVerticalScroll) {
           this.viewer.scrollLeft = 0;
         } else {
           this.viewer.scrollTop = 0;
@@ -2072,7 +2073,8 @@ export class ReaderController {
             this._scrollPositionOnNextRender = null; // リセット
             this._currentAlignToEnd = alignToEnd;    // ResizeObserver用に保持
 
-            if (this.writingMode === WRITING_MODES.VERTICAL) {
+            const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
+            if (isVerticalScroll) {
               if (alignToEnd) {
                 this.viewer.scrollLeft = -this.viewer.scrollWidth;
               } else {
@@ -2097,12 +2099,13 @@ export class ReaderController {
           }
           this._resizeObserver = new ResizeObserver(() => {
             if (!this.viewer) return;
+            const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
             if (this._scrollTargetNode) {
               // ジャンプ先のノードがある場合はそのノードの位置を維持
               this._scrollTargetNode.scrollIntoView({ block: "start", inline: "start", behavior: "instant" });
             } else if (this._currentAlignToEnd) {
               // 前のページから戻ってきた場合など、末尾合わせを維持する
-              if (this.writingMode === WRITING_MODES.VERTICAL) {
+              if (isVerticalScroll) {
                 this.viewer.scrollLeft = -this.viewer.scrollWidth;
               } else {
                 this.viewer.scrollTop = this.viewer.scrollHeight;
@@ -3253,6 +3256,9 @@ export class ReaderController {
 
     // EPUBの場合はPageControllerを使用
     if (this.type === BOOK_TYPES.EPUB) {
+      if (this.epubViewMode === "scroll") {
+        this._scrollPositionOnNextRender = 'start';
+      }
       this.pageController?.next();
       return;
     }
