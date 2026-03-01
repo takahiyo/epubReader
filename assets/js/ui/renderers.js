@@ -265,7 +265,7 @@ export function updateEpubScrollMode() {
         elements.fullscreenReader.classList.remove('show-mode-indicator');
     }
 
-    if (isScroll && isHorizontal) {
+    if (isScroll) {
         elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
     } else {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);

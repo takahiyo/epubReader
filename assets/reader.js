@@ -2318,8 +2318,9 @@ export class ReaderController {
     const baseFontSize = Number.parseFloat(
       window.getComputedStyle(this.viewer || document.body)?.fontSize
     ) || 16;
+    const isScrollMode = this.epubViewMode === "scroll";
     const writingMode =
-      this.writingMode === WRITING_MODES.VERTICAL
+      (!isScrollMode && this.writingMode === WRITING_MODES.VERTICAL)
         ? CSS_WRITING_MODES.VERTICAL
         : CSS_WRITING_MODES.HORIZONTAL;
 
@@ -2339,7 +2340,8 @@ export class ReaderController {
       const baseFontSize = Number.parseFloat(
         window.getComputedStyle(this.viewer || document.body)?.fontSize
       ) || 16;
-      const writingMode = this.writingMode === WRITING_MODES.VERTICAL
+      const isScrollMode = this.epubViewMode === "scroll";
+      const writingMode = (!isScrollMode && this.writingMode === WRITING_MODES.VERTICAL)
         ? CSS_WRITING_MODES.VERTICAL
         : CSS_WRITING_MODES.HORIZONTAL;
 
@@ -3647,7 +3649,8 @@ export class ReaderController {
 
   applyWritingModeToContents() {
     if (this.type !== BOOK_TYPES.EPUB) return;
-    const isVertical = this.writingMode === WRITING_MODES.VERTICAL;
+    const isScrollMode = this.epubViewMode === "scroll";
+    const isVertical = !isScrollMode && this.writingMode === WRITING_MODES.VERTICAL;
     const writingMode = isVertical ? CSS_WRITING_MODES.VERTICAL : CSS_WRITING_MODES.HORIZONTAL;
     const textOrientation = isVertical ? "mixed" : "initial";
     const contentDirection = READING_DIRECTIONS.LTR;
