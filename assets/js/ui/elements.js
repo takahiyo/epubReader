@@ -209,4 +209,6 @@ export const elements = {
     loadingText: getById(DOM_IDS.LOADING_TEXT),
     dropOverlay: getById(DOM_IDS.DROP_OVERLAY),
     dropText: getById(DOM_IDS.DROP_TEXT),
+    installButton: getById(DOM_IDS.INSTALL_BUTTON),
+    installContainer: getById("installContainer"),
 };

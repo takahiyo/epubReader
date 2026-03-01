@@ -2823,6 +2823,16 @@ function setupEvents() {
     storage.setSettings({ oneBookmarkPerBook: enabled });
   });
 
+  // PWA Install Button
+  elements.installButton?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`[PWA] User response to the install prompt: ${outcome}`);
+    deferredPrompt = null;
+    renderers.updateInstallButton(false);
+  });
+
   elements.settingsEpubViewMode?.addEventListener('change', (e) => {
     applyEpubViewMode(e.target.value);
   });
@@ -3263,6 +3273,24 @@ function setupEvents() {
     if (droppedFiles.length > 0) {
       handleFile(droppedFiles[0]);
     }
+  });
+
+  // PWA Install Event Listeners
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    // Update UI notify the user they can install the PWA
+    renderers.updateInstallButton(true);
+    console.log('[PWA] beforeinstallprompt event fired');
+  });
+
+  window.addEventListener('appinstalled', (event) => {
+    // Clear the deferredPrompt so it can be garbage collected
+    deferredPrompt = null;
+    renderers.updateInstallButton(false);
+    console.log('[PWA] App was installed');
   });
 }
 
