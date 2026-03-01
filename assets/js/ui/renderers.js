@@ -133,6 +133,7 @@ export function updateSearchButtonState() {
  * フローティングUIのボタン表示を更新
  */
 export function updateFloatingUIButtons() {
+    console.log('[Renderers.updateFloatingUIButtons] 呼び出し', { bookId: _state.currentBookId, bookType: _state.currentBookInfo?.type });
     const isImageBook = _state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR);
     const isEpub = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.EPUB;
     const isBookOpen = _state.currentBookId !== null;
@@ -184,6 +185,7 @@ export function updateFloatingUIButtons() {
     }
 
     updateProgressBarDirection();
+
 }
 
 /**
@@ -263,7 +265,7 @@ export function updateEpubScrollMode() {
         elements.fullscreenReader.classList.remove('show-mode-indicator');
     }
 
-    if (isScroll && isHorizontal) {
+    if (isScroll) {
         elements.fullscreenReader.classList.add(UI_CLASSES.EPUB_SCROLL_MODE);
     } else {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);

@@ -27,6 +27,8 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // メニュー
   menuOpen: "開く",
+  menuPrevBook: "前の巻",
+  menuNextBook: "次の巻",
   menuLibrary: "ライブラリ",
   menuSearch: "テキスト検索",
   menuBookmarks: "しおり",
@@ -54,6 +56,11 @@ export const UI_STRINGS_JA = Object.freeze({
   historyTitle: "履歴",
   libraryViewGridLabel: "グリッド表示",
   libraryViewListLabel: "一覧表示",
+  folderNavigationUnsupported: "このブラウザではフォルダ移動がサポートされていません",
+  folderNavigationBookRequired: "書籍を開いた状態で操作してください",
+  folderNavigationCurrentBookNotFound: "選択したフォルダに現在の書籍が見つかりません",
+  folderNavigationNoPrev: "前の巻はありません",
+  folderNavigationNoNext: "次の巻はありません",
 
   // 設定
   settingsTitle: "設定",
@@ -252,5 +259,10 @@ export const UI_STRINGS_JA = Object.freeze({
   delete_button: "削除",
   undo_button: "やり直し",
   linkMismatchWarning: "選択された書籍は、ライブラリ上の書籍と内容が異なる可能性があります。\n\nこのまま紐付けますか？",
-  installApp: "アプリをインストール",
+
+  // 巻ナビゲーション
+  volumePrevLabel: "前巻",
+  volumeNextLabel: "次巻",
+  volumePrevTitle: "前の巻を開く",
+  volumeNextTitle: "次の巻を開く",
 });

@@ -27,6 +27,8 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Menu
   menuOpen: "Open",
+  menuPrevBook: "Previous Volume",
+  menuNextBook: "Next Volume",
   menuLibrary: "Library",
   menuSearch: "Text Search",
   menuBookmarks: "Bookmarks",
@@ -54,6 +56,11 @@ export const UI_STRINGS_EN = Object.freeze({
   historyTitle: "History",
   libraryViewGridLabel: "Grid view",
   libraryViewListLabel: "List view",
+  folderNavigationUnsupported: "Folder navigation is not supported in this browser",
+  folderNavigationBookRequired: "Open a book before using this action",
+  folderNavigationCurrentBookNotFound: "The current book was not found in the selected folder",
+  folderNavigationNoPrev: "No previous volume",
+  folderNavigationNoNext: "No next volume",
 
   // Settings
   settingsTitle: "Settings",
@@ -253,5 +260,10 @@ export const UI_STRINGS_EN = Object.freeze({
   delete_button: "Delete",
   undo_button: "Undo",
   linkMismatchWarning: "The selected book may be different from the one in your library.\n\nDo you want to link it anyway?",
-  installApp: "Install App",
+
+  // Volume navigation
+  volumePrevLabel: "Prev",
+  volumeNextLabel: "Next",
+  volumePrevTitle: "Open previous volume",
+  volumeNextTitle: "Open next volume",
 });

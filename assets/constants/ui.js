@@ -77,6 +77,8 @@ export const UI_ICONS = Object.freeze({
   SPREAD_SINGLE: "tablet",
   FULLSCREEN_ENTER: "⛶",
   FULLSCREEN_EXIT: "⛶",
+  AREA_LEFT: "⏮",
+  AREA_RIGHT: "⏭",
 });
 
 // ============================================
@@ -148,6 +150,7 @@ export const DOM_IDS = Object.freeze({
   ARCHIVE_WARNING_CLOSE: "archiveWarningClose",
   FLOAT_OVERLAY: "floatOverlay",
   FLOAT_OPEN: "floatOpen",
+
   FLOAT_LIBRARY: "floatLibrary",
   FLOAT_SEARCH: "floatSearch",
   FLOAT_BOOKMARKS: "floatBookmarks",
@@ -200,6 +203,7 @@ export const DOM_IDS = Object.freeze({
   TOTAL_PAGES: "totalPages",
   PROGRESS_PREV: "progressPrev",
   PROGRESS_NEXT: "progressNext",
+
   BOOKMARK_MENU: "bookmarkMenu",
   BOOKMARK_LIST: "bookmarkList",
   ADD_BOOKMARK_BTN: "addBookmarkBtn",

@@ -72,6 +72,7 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
 let pendingCloudBookId = null;
+
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let writingMode = settings.writingMode;
@@ -108,7 +109,7 @@ let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
-let deferredPrompt = null;
+
 const NOTION_STATUS_LABEL_KEYS = Object.freeze({
   [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
   [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
@@ -132,6 +133,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 function t(key) {
   return translate(key, uiLanguage);
 }
+
+
+
+
 
 function getNotionSettingsSnapshot() {
   const currentSettings = storage.getSettings();
@@ -630,7 +635,8 @@ renderers.init({
       if (reader.type !== BOOK_TYPES.EPUB || !reader.paginator) return null;
       return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
     },
-    setPendingCloudBookId: (id) => { pendingCloudBookId = id; }
+    setPendingCloudBookId: (id) => { pendingCloudBookId = id; },
+
   }
 });
 
@@ -796,7 +802,7 @@ async function handleFile(file) {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
     // 1. 環境に適した読み込み戦略を選択
-    const strategy = fileHandler.selectLoadStrategy(file);
+    const strategy = fileHandler.selectLoadingStrategy(file, fileHandler.detectEnvironment());
     const isLargeFile = file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
 
     // 2. 先頭バイトのみでファイルタイプを判定（全バッファ不要）
@@ -1454,6 +1460,9 @@ async function seekToPercentage(percentage) {
   }
 }
 
+
+
+
 async function handleBookReady(payload) {
   if (!currentBookInfo || !payload) return;
 
@@ -1559,6 +1568,8 @@ async function handleBookReady(payload) {
   if (currentBookInfo.type === BOOK_TYPES.EPUB) {
 
   }
+
+
 }
 
 // 移行済み: updateEpubScrollMode
@@ -1857,6 +1868,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
+  setFloatLabel(elements.floatPrevBook, UI_ICONS.AREA_LEFT, strings.menuPrevBook);
+  setFloatLabel(elements.floatNextBook, UI_ICONS.AREA_RIGHT, strings.menuNextBook);
   setFloatLabel(elements.floatLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
   setFloatLabel(elements.floatSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setFloatLabel(elements.floatBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
@@ -1904,6 +1917,8 @@ function applyUiLanguage(nextLanguage) {
   if (elements.closeCandidateModal) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
+  // 巻ナビゲーションラベルの更新
+
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
   if (archiveWarningTypes.length > 0) {
     renderers.showArchiveWarnings(archiveWarningTypes);
@@ -2352,7 +2367,7 @@ function buildFilePickerOptions() {
       },
     ],
     excludeAcceptAllOption: false,
-    multiple: false,
+    multiple: true,
   };
 }
 
@@ -2396,6 +2411,7 @@ function ensureLegacyFileInput() {
 }
 
 async function openFileDialog() {
+
   const openLegacyFileInput = () => {
     const input = ensureLegacyFileInput();
     if (!input) return;
@@ -2412,8 +2428,12 @@ async function openFileDialog() {
 
   if (typeof window.showOpenFilePicker === 'function') {
     try {
-      const [fileHandle] = await window.showOpenFilePicker(buildFilePickerOptions());
+      const fileHandles = await window.showOpenFilePicker(buildFilePickerOptions());
+      if (fileHandles.length === 0) return;
+
+      const fileHandle = fileHandles[0];
       const file = await fileHandle.getFile();
+
       if (file) {
         await handleFile(file);
       }
@@ -3249,8 +3269,9 @@ function setupEvents() {
     e.stopPropagation();
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
 
-    if (files && files.length > 0) {
-      handleFile(files[0]);
+    const droppedFiles = Array.from(e.dataTransfer?.files ?? []);
+    if (droppedFiles.length > 0) {
+      handleFile(droppedFiles[0]);
     }
   });
 

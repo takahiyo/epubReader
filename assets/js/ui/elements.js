@@ -31,6 +31,7 @@ export const elements = {
     floatOverlay: getById(DOM_IDS.FLOAT_OVERLAY),
     floatBackdrop: getBySelector(DOM_SELECTORS.FLOAT_OVERLAY_BACKDROP),
     floatOpen: getById(DOM_IDS.FLOAT_OPEN),
+
     floatLibrary: getById(DOM_IDS.FLOAT_LIBRARY),
     floatSearch: getById(DOM_IDS.FLOAT_SEARCH),
     floatBookmarks: getById(DOM_IDS.FLOAT_BOOKMARKS),
@@ -90,6 +91,7 @@ export const elements = {
     totalPages: getById(DOM_IDS.TOTAL_PAGES),
     progressPrev: getById(DOM_IDS.PROGRESS_PREV),
     progressNext: getById(DOM_IDS.PROGRESS_NEXT),
+
 
     // しおりメニュー
     bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
