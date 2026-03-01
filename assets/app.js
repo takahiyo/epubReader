@@ -1918,7 +1918,6 @@ function applyUiLanguage(nextLanguage) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
   // 巻ナビゲーションラベルの更新
-  updateVolumeNavButtons();
 
   if (elements.openFileModalTitle) elements.openFileModalTitle.textContent = strings.openFileTitle;
   if (archiveWarningTypes.length > 0) {
