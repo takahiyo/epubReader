@@ -306,32 +306,3 @@ export function buildMatchMeta(info) {
         identifiers: info?.identifiers ?? [],
     };
 }
-
-/**
- * Calculates archive fingerprint.
- * @param {File|Blob} file
- * @returns {Promise<string>}
- */
-export async function buildArchiveFingerprint(file) {
-    return hashFileLightweight(file);
-}
-
-/**
- * Upserts a cloud index entry, handles pushing to cloudSync and saving locally.
- */
-export async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, { storage, cloudSync, isCloudSyncEnabled, uiLanguage, overrides = {} }) {
-    if (!cloudBookId) return null;
-    const meta = buildCloudMeta({ cloudBookId, info, fingerprint, storage, overrides, uiLanguage });
-
-    if (isCloudSyncEnabled && isCloudSyncEnabled()) {
-        try {
-            await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
-            storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
-        } catch (error) {
-            console.warn("クラウドインデックスの更新に失敗しました。次回の同期で再試行されます。", error);
-        }
-    } else {
-        storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
-    }
-    return meta;
-}
