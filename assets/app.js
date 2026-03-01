@@ -56,6 +56,7 @@ import {
   NOTION_INTEGRATION_STATUS,
   NOTION_DEFAULT_SETTINGS,
   NOTION_CONFIG,
+  DEFAULT_SETTINGS,
 } from "./constants.js";
 
 // ========================================
