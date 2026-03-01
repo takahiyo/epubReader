@@ -534,7 +534,7 @@ export class UIController {
     if (overlay) {
       const isScrollMode = document.querySelector('.fullscreen-reader.epub-scroll-mode');
       if (!isScrollMode) {
-        overlay.style.pointerEvents = 'all';
+        overlay.style.pointerEvents = 'auto';
         console.log('Re-enabled overlay pointer events');
       } else {
         // スクロールモード時はインラインスタイルをクリアしてCSSに委任
