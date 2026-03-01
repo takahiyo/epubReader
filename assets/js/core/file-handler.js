@@ -68,11 +68,11 @@ export function shouldUseStreaming(file) {
         : 0;
 
     if (jsHeapLimit > 0) {
-        safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.30;
-        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB*0.30`;
+        safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * FILE_STRATEGY.SAFE_MEMORY_RATIO;
+        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB*${FILE_STRATEGY.SAFE_MEMORY_RATIO}`;
     } else {
-        safeMemoryMB = env.memoryGB * 1024 * 0.10;
-        memorySource = `deviceMemory=${env.memoryGB}GB*0.10`;
+        safeMemoryMB = env.memoryGB * 1024 * (FILE_STRATEGY.SAFE_MEMORY_RATIO * 0.5); // Fallback to half the ratio for deviceMemory
+        memorySource = `deviceMemory=${env.memoryGB}GB*${(FILE_STRATEGY.SAFE_MEMORY_RATIO * 0.5).toFixed(2)}`;
     }
 
     const needsStreaming = estimatedPeakMB > safeMemoryMB ||

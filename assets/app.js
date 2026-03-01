@@ -17,7 +17,7 @@ import {
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
-import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
+import { saveFile, loadFile, bufferToFile, deleteBook, isOPFSAvailable } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
@@ -867,12 +867,17 @@ async function handleFile(file) {
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
     // 4. ファイル保存
-    //    ストリーミングモード: 本体を保存しない（メタデータのみ）
-    //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
-    //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
+    //    本来はストリーミングモード時も、OPFS が利用可能なら本体を保存して再選択を不要にする。
+    //    容量制限や OPFS 非対応時のみスタブモード（本体保存スキップ）とする。
+    let isLargeFileStub = false;
     if (useStreaming) {
-      console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
-      // 本体保存スキップ — メタデータのみライブラリに記録
+      if (isOPFSAvailable()) {
+        console.log(`[Streaming] Saving to OPFS to avoid re-selection requirement for ${id.substring(0, 12)}...`);
+        await saveFile(id, file, { fileName: file.name, mime }, source);
+      } else {
+        console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
+        isLargeFileStub = true;
+      }
     } else {
       console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
       if (isLargeFile) {
@@ -892,8 +897,8 @@ async function handleFile(file) {
       size: file.size,
       contentHash,
       lastOpened: Date.now(),
-      // ストリーミングモード: 再開時にファイル再選択が必要
-      ...(useStreaming ? { isLargeFileStub: true } : {}),
+      // ストリーミングモードかつ保存できなかった場合のみ、再開時にファイル再選択が必要
+      ...(isLargeFileStub ? { isLargeFileStub: true } : {}),
     };
 
     storage.upsertBook(info);
@@ -1096,21 +1101,42 @@ function promptFileReselect(info) {
     input.type = "file";
     input.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
     input.style.display = "none";
+
+    let isResolved = false;
+
     input.addEventListener("change", () => {
+      if (isResolved) return;
+      isResolved = true;
       const file = input.files?.[0] ?? null;
-      document.body.removeChild(input);
+      if (input.parentNode) {
+        document.body.removeChild(input);
+      }
       resolve(file);
     });
+
     // キャンセル時（focusが戻ったのに値が空）
     const onCancel = () => {
+      // Android等で alert() 直後の focus イベントが重複発火するのを防ぐため、
+      // 登録後に十分な時間を置いてから判定する
       setTimeout(() => {
+        if (isResolved) return;
         if (!input.files?.length) {
-          document.body.removeChild(input);
+          isResolved = true;
+          if (input.parentNode) {
+            document.body.removeChild(input);
+          }
           resolve(null);
         }
-      }, 500);
+      }, 1000); // 500ms から 1000ms に延長し、判定をより慎重に
     };
-    window.addEventListener("focus", onCancel, { once: true });
+
+    // input.click() 直後に focus リスナーを貼ると、
+    // picker が開いた瞬間の focus 喪失/取得を誤検知する可能性があるため
+    // わずかに遅延させてからリスナーを登録する
+    setTimeout(() => {
+      window.addEventListener("focus", onCancel, { once: true });
+    }, 300);
+
     document.body.appendChild(input);
     input.click();
   });
