@@ -182,6 +182,16 @@ async function ensureFolderNavigatorReady() {
     return false;
   }
 
+  // ディレクトリハンドルがない場合でも、すでに複数ファイルがロードされており、
+  // その中に現在開いている本が含まれている場合はナビゲーション可能とする
+  if (!folderNavigatorState.directoryHandle && folderNavigatorState.fileHandles.length > 0) {
+    const idx = folderNavigatorState.fileHandles.findIndex((handle) => handle.name === currentBookInfo.fileName);
+    if (idx >= 0) {
+      folderNavigatorState.currentIndex = idx;
+      return true;
+    }
+  }
+
   if (!folderNavigatorState.directoryHandle) {
     try {
       folderNavigatorState.directoryHandle = await window.showDirectoryPicker({ mode: "read" });
@@ -2591,7 +2601,7 @@ function buildFilePickerOptions() {
       },
     ],
     excludeAcceptAllOption: false,
-    multiple: false,
+    multiple: true,
   };
 }
 
@@ -2652,18 +2662,39 @@ async function openFileDialog() {
 
   if (typeof window.showOpenFilePicker === 'function') {
     try {
-      const [fileHandle] = await window.showOpenFilePicker(buildFilePickerOptions());
+      const fileHandles = await window.showOpenFilePicker(buildFilePickerOptions());
+      if (fileHandles.length === 0) return;
+
+      const fileHandle = fileHandles[0];
       lastFileHandle = fileHandle;
       cachedDirectoryHandle = null; // 新しいファイルを開いたらディレクトリキャッシュをクリア
+
+      // 複数選択された場合、ディレクトリ権限がなくてもナビゲーションできるように事前にセット
+      if (fileHandles.length > 1) {
+        folderNavigatorState.fileHandles = fileHandles.sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+        );
+      }
 
       // ファイルオープン後、同一フォルダのナビゲーションを即時有効化するためディレクトリ権限を要求
       try {
         if (typeof window.showDirectoryPicker === 'function') {
-          const dirHandle = await window.showDirectoryPicker({ startIn: fileHandle, mode: 'read' });
-          cachedDirectoryHandle = dirHandle;
-          folderNavigatorState.directoryHandle = dirHandle;
-          // フォルダ内のエントリー情報を事前更新しておく
-          await refreshFolderNavigatorEntries();
+          let dirHandle = null;
+          try {
+            // 1. まずはファイル位置からの自動推測(startIn)を試みる
+            dirHandle = await window.showDirectoryPicker({ startIn: fileHandle, mode: 'read' });
+          } catch (e) {
+            // 2. pCloudなどの制限で失敗した場合は、場所指定なしの汎用ダイアログでフォールバック
+            console.log('[VolumeNav] Automatic startIn failed, trying manual directory picker...');
+            dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+          }
+
+          if (dirHandle) {
+            cachedDirectoryHandle = dirHandle;
+            folderNavigatorState.directoryHandle = dirHandle;
+            // フォルダ内のエントリー情報を事前更新しておく
+            await refreshFolderNavigatorEntries();
+          }
         }
       } catch (dirError) {
         if (dirError?.name !== 'AbortError') {
