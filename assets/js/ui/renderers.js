@@ -177,13 +177,6 @@ export function updateFloatingUIButtons() {
         updateZoomButtonLabel();
     }
 
-    if (elements.floatPrevBook) {
-        elements.floatPrevBook.disabled = !isBookOpen;
-    }
-    if (elements.floatNextBook) {
-        elements.floatNextBook.disabled = !isBookOpen;
-    }
-
     if (elements.progressPrev) {
         elements.progressPrev.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
     }
@@ -192,10 +185,7 @@ export function updateFloatingUIButtons() {
     }
 
     updateProgressBarDirection();
-    if (_actions.updateVolumeNavButtons) {
-        console.log('[Renderers] updateVolumeNavButtons 呼び出し');
-        _actions.updateVolumeNavButtons();
-    }
+
 }
 
 /**

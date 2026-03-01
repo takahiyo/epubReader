@@ -1,7 +1,7 @@
-/**
+﻿/**
  * assets/js/core/file-handler.js
  * 
- * ファイル処理と書籍の読み込みロジックを担当します。
+ * 繝輔ぃ繧､繝ｫ蜃ｦ逅・→譖ｸ邀阪・隱ｭ縺ｿ霎ｼ縺ｿ繝ｭ繧ｸ繝・け繧呈球蠖薙＠縺ｾ縺吶・
  */
 
 import {
@@ -20,23 +20,23 @@ import { showLoading, hideLoading } from "../ui/overlay-manager.js";
 import { elements } from "../ui/elements.js";
 
 // ========================================
-// 環境検知・読み込み戦略
+// 迺ｰ蠅・､懃衍繝ｻ隱ｭ縺ｿ霎ｼ縺ｿ謌ｦ逡･
 // ========================================
 
 /**
- * 端末の環境プロファイルを返す。
+ * 遶ｯ譛ｫ縺ｮ迺ｰ蠅・・繝ｭ繝輔ぃ繧､繝ｫ繧定ｿ斐☆縲・
  * navigator.deviceMemory / navigator.connection / navigator.hardwareConcurrency
- * の各APIは利用可能な場合のみ参照し、非対応環境ではデフォルト値にフォールバックする。
+ * 縺ｮ蜷БPI縺ｯ蛻ｩ逕ｨ蜿ｯ閭ｽ縺ｪ蝣ｴ蜷医・縺ｿ蜿ら・縺励・撼蟇ｾ蠢懃腸蠅・〒縺ｯ繝・ヵ繧ｩ繝ｫ繝亥､縺ｫ繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ縺吶ｋ縲・
  * @returns {{ memoryGB: number, cpuCores: number, connectionType: string|null, isLowEnd: boolean }}
  */
 export function detectEnvironment() {
-    // deviceMemory: Chrome系のみ対応（GB単位、未対応時は4想定）
+    // deviceMemory: Chrome邉ｻ縺ｮ縺ｿ蟇ｾ蠢懶ｼ・B蜊倅ｽ阪∵悴蟇ｾ蠢懈凾縺ｯ4諠ｳ螳夲ｼ・
     const memoryGB = navigator.deviceMemory ?? 4;
-    // hardwareConcurrency: 大半のブラウザで対応（CPUコア数、未対応時は2想定）
+    // hardwareConcurrency: 螟ｧ蜊翫・繝悶Λ繧ｦ繧ｶ縺ｧ蟇ｾ蠢懶ｼ・PU繧ｳ繧｢謨ｰ縲∵悴蟇ｾ蠢懈凾縺ｯ2諠ｳ螳夲ｼ・
     const cpuCores = navigator.hardwareConcurrency ?? 2;
-    // Network Information API: 接続種別（Chrome系のみ）
+    // Network Information API: 謗･邯夂ｨｮ蛻･・・hrome邉ｻ縺ｮ縺ｿ・・
     const connectionType = navigator.connection?.effectiveType ?? null;
-    // 低スペック端末の判定：メモリ不足 or シングルコア or 低速回線
+    // 菴弱せ繝壹ャ繧ｯ遶ｯ譛ｫ縺ｮ蛻､螳夲ｼ壹Γ繝｢繝ｪ荳崎ｶｳ or 繧ｷ繝ｳ繧ｰ繝ｫ繧ｳ繧｢ or 菴朱溷屓邱・
     const isLowEnd =
         memoryGB < FILE_STRATEGY.LOW_MEMORY_THRESHOLD_GB ||
         cpuCores <= 1 ||
@@ -46,10 +46,10 @@ export function detectEnvironment() {
 }
 
 /**
- * ファイルサイズと環境に基づき、最適な読み込み戦略を選択する。
- * - "direct"  : 10MB以下 かつ 高スペック → arrayBuffer() で一括高速読み込み
- * - "deferred": 10MB超 または 低スペック → 先頭バイト読みで判定し、バッファ取得を遅延
- * @param {File} file - 対象ファイル
+ * 繝輔ぃ繧､繝ｫ繧ｵ繧､繧ｺ縺ｨ迺ｰ蠅・↓蝓ｺ縺･縺阪∵怙驕ｩ縺ｪ隱ｭ縺ｿ霎ｼ縺ｿ謌ｦ逡･繧帝∈謚槭☆繧九・
+ * - "direct"  : 10MB莉･荳・縺九▽ 鬮倥せ繝壹ャ繧ｯ 竊・arrayBuffer() 縺ｧ荳諡ｬ鬮倬溯ｪｭ縺ｿ霎ｼ縺ｿ
+ * - "deferred": 10MB雜・縺ｾ縺溘・ 菴弱せ繝壹ャ繧ｯ 竊・蜈磯ｭ繝舌う繝郁ｪｭ縺ｿ縺ｧ蛻､螳壹＠縲√ヰ繝・ヵ繧｡蜿門ｾ励ｒ驕・ｻｶ
+ * @param {File} file - 蟇ｾ雎｡繝輔ぃ繧､繝ｫ
  * @returns {"direct"|"deferred"}
  */
 export function selectLoadStrategy(file) {
@@ -57,77 +57,77 @@ export function selectLoadStrategy(file) {
     const size = file.size;
 
     if (size <= FILE_STRATEGY.DIRECT_BUFFER_LIMIT && !env.isLowEnd) {
-        console.log(`[Strategy] direct mode — ${(size / 1024 / 1024).toFixed(1)}MB, ` +
+        console.log(`[Strategy] direct mode 窶・${(size / 1024 / 1024).toFixed(1)}MB, ` +
             `memory=${env.memoryGB}GB, cores=${env.cpuCores}`);
         return "direct";
     }
 
-    console.log(`[Strategy] deferred mode — ${(size / 1024 / 1024).toFixed(1)}MB, ` +
+    console.log(`[Strategy] deferred mode 窶・${(size / 1024 / 1024).toFixed(1)}MB, ` +
         `memory=${env.memoryGB}GB, cores=${env.cpuCores}, ` +
         `connection=${env.connectionType ?? "unknown"}, isLowEnd=${env.isLowEnd}`);
     return "deferred";
 }
 
 /**
- * ZIP ファイルに対し、JSZip（一括展開）かzip.js（ストリーミング）かを判定する。
- * OS/UA に依存せず、端末の能力ベースのみで判定。
+ * ZIP 繝輔ぃ繧､繝ｫ縺ｫ蟇ｾ縺励゛SZip・井ｸ諡ｬ螻暮幕・峨°zip.js・医せ繝医Μ繝ｼ繝溘Φ繧ｰ・峨°繧貞愛螳壹☆繧九・
+ * OS/UA 縺ｫ萓晏ｭ倥○縺壹∫ｫｯ譛ｫ縺ｮ閭ｽ蜉帙・繝ｼ繧ｹ縺ｮ縺ｿ縺ｧ蛻､螳壹・
  *
- * 判定優先順位:
- *  1. performance.memory.jsHeapSizeLimit（Chrome）— ブラウザのタブ単位のJSヒープ上限
- *  2. navigator.deviceMemory × 控えめ比率 — フォールバック
+ * 蛻､螳壼━蜈磯・ｽ・
+ *  1. performance.memory.jsHeapSizeLimit・・hrome・俄・繝悶Λ繧ｦ繧ｶ縺ｮ繧ｿ繝門腰菴阪・JS繝偵・繝嶺ｸ企剞
+ *  2. navigator.deviceMemory ﾃ・謗ｧ縺医ａ豈皮紫 窶・繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ
  *
- * 重要: navigator.deviceMemory は端末全体のRAMを返すが、ブラウザの1タブが使える
- *       JSヒープ上限はこれより遥かに小さい（例: Pixel8 8GB → タブ上限 ~512MB）。
- *       そのため deviceMemory だけで判定すると安全圏を大幅に過大評価してしまう。
+ * 驥崎ｦ・ navigator.deviceMemory 縺ｯ遶ｯ譛ｫ蜈ｨ菴薙・RAM繧定ｿ斐☆縺後√ヶ繝ｩ繧ｦ繧ｶ縺ｮ1繧ｿ繝悶′菴ｿ縺医ｋ
+ *       JS繝偵・繝嶺ｸ企剞縺ｯ縺薙ｌ繧医ｊ驕･縺九↓蟆上＆縺・ｼ井ｾ・ Pixel8 8GB 竊・繧ｿ繝紋ｸ企剞 ~512MB・峨・
+ *       縺昴・縺溘ａ deviceMemory 縺縺代〒蛻､螳壹☆繧九→螳牙・蝨上ｒ螟ｧ蟷・↓驕主､ｧ隧穂ｾ｡縺励※縺励∪縺・・
  *
- * @param {File|Blob} file - 対象ZIPファイル
- * @returns {boolean} true = ストリーミングモード推奨
+ * @param {File|Blob} file - 蟇ｾ雎｡ZIP繝輔ぃ繧､繝ｫ
+ * @returns {boolean} true = 繧ｹ繝医Μ繝ｼ繝溘Φ繧ｰ繝｢繝ｼ繝画耳螂ｨ
  */
 export function shouldUseStreaming(file) {
     const env = detectEnvironment();
     const fileSizeMB = file.size / (1024 * 1024);
 
-    // JSZip の一括展開時ピークメモリ推定
+    // JSZip 縺ｮ荳諡ｬ螻暮幕譎ゅヴ繝ｼ繧ｯ繝｡繝｢繝ｪ謗ｨ螳・
     const estimatedPeakMB = fileSizeMB * FILE_STRATEGY.JSZIP_PEAK_MULTIPLIER;
 
-    // ブラウザが実際に使えるJSヒープ上限を取得（能力ベース、OS非依存）
+    // 繝悶Λ繧ｦ繧ｶ縺悟ｮ滄圀縺ｫ菴ｿ縺医ｋJS繝偵・繝嶺ｸ企剞繧貞叙蠕暦ｼ郁・蜉帙・繝ｼ繧ｹ縲＾S髱樔ｾ晏ｭ假ｼ・
     let safeMemoryMB;
     let memorySource;
 
-    // 1. performance.memory (Chrome系): 実際のJSヒープ上限を取得
-    //    これが最も正確 — 端末メモリではなくブラウザタブの実メモリ制約を反映
+    // 1. performance.memory (Chrome邉ｻ): 螳滄圀縺ｮJS繝偵・繝嶺ｸ企剞繧貞叙蠕・
+    //    縺薙ｌ縺梧怙繧よｭ｣遒ｺ 窶・遶ｯ譛ｫ繝｡繝｢繝ｪ縺ｧ縺ｯ縺ｪ縺上ヶ繝ｩ繧ｦ繧ｶ繧ｿ繝悶・螳溘Γ繝｢繝ｪ蛻ｶ邏・ｒ蜿肴丐
     const jsHeapLimit = (typeof performance !== "undefined" && performance.memory)
         ? performance.memory.jsHeapSizeLimit
         : 0;
 
     if (jsHeapLimit > 0) {
-        // ヒープ上限の30%をJSZip展開に安全に使えるメモリとする
-        // （他のJS処理やDOM等もメモリを消費するため）
+        // 繝偵・繝嶺ｸ企剞縺ｮ30%繧谷SZip螻暮幕縺ｫ螳牙・縺ｫ菴ｿ縺医ｋ繝｡繝｢繝ｪ縺ｨ縺吶ｋ
+        // ・井ｻ悶・JS蜃ｦ逅・ｄDOM遲峨ｂ繝｡繝｢繝ｪ繧呈ｶ郁ｲｻ縺吶ｋ縺溘ａ・・
         safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.30;
-        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB×0.30`;
+        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MBﾃ・.30`;
     } else {
-        // 2. deviceMemory フォールバック — 控えめに算出
-        //    ブラウザのタブ制限は端末メモリの10〜15%程度が目安
+        // 2. deviceMemory 繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ 窶・謗ｧ縺医ａ縺ｫ邂怜・
+        //    繝悶Λ繧ｦ繧ｶ縺ｮ繧ｿ繝門宛髯舌・遶ｯ譛ｫ繝｡繝｢繝ｪ縺ｮ10縲・5%遞句ｺｦ縺檎岼螳・
         safeMemoryMB = env.memoryGB * 1024 * 0.10;
-        memorySource = `deviceMemory=${env.memoryGB}GB×0.10`;
+        memorySource = `deviceMemory=${env.memoryGB}GBﾃ・.10`;
     }
 
     const needsStreaming = estimatedPeakMB > safeMemoryMB ||
         (env.isLowEnd && fileSizeMB > FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024));
 
-    console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} — ` +
-        `file=${fileSizeMB.toFixed(1)}MB, peak≈${estimatedPeakMB.toFixed(0)}MB, ` +
+    console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} 窶・` +
+        `file=${fileSizeMB.toFixed(1)}MB, peak竕・{estimatedPeakMB.toFixed(0)}MB, ` +
         `safe=${safeMemoryMB.toFixed(0)}MB (${memorySource}), ` +
         `isLowEnd=${env.isLowEnd}`);
     return needsStreaming;
 }
 
 /**
- * Blob.slice() を用いてファイルの先頭 N バイトだけを読み込む。
- * 全バッファを生成せずにマジックナンバー判定を行うために使用。
- * @param {File|Blob} file - 対象ファイル
- * @param {number} byteCount - 読み込むバイト数
- * @returns {Promise<ArrayBuffer>} 先頭バイトの ArrayBuffer
+ * Blob.slice() 繧堤畑縺・※繝輔ぃ繧､繝ｫ縺ｮ蜈磯ｭ N 繝舌う繝医□縺代ｒ隱ｭ縺ｿ霎ｼ繧縲・
+ * 蜈ｨ繝舌ャ繝輔ぃ繧堤函謌舌○縺壹↓繝槭ず繝・け繝翫Φ繝舌・蛻､螳壹ｒ陦後≧縺溘ａ縺ｫ菴ｿ逕ｨ縲・
+ * @param {File|Blob} file - 蟇ｾ雎｡繝輔ぃ繧､繝ｫ
+ * @param {number} byteCount - 隱ｭ縺ｿ霎ｼ繧繝舌う繝域焚
+ * @returns {Promise<ArrayBuffer>} 蜈磯ｭ繝舌う繝医・ ArrayBuffer
  */
 export async function readFileHeader(file, byteCount = FILE_STRATEGY.HEADER_BYTES) {
     const slice = file.slice(0, byteCount);
@@ -135,11 +135,11 @@ export async function readFileHeader(file, byteCount = FILE_STRATEGY.HEADER_BYTE
 }
 
 /**
- * NotReadableError（権限消失）発生時に自動リトライする汎用ラッパー。
- * ユーザーがファイルを選択した直後のコンテキストでは通常成功するが、
- * モバイル端末のバックグラウンド移行等で権限が消失するケースに対応。
- * @param {File} file - 対象ファイル（ログ出力用）
- * @param {() => Promise<T>} readFn - 実行する読み込み処理
+ * NotReadableError・域ｨｩ髯先ｶ亥､ｱ・臥匱逕滓凾縺ｫ閾ｪ蜍輔Μ繝医Λ繧､縺吶ｋ豎守畑繝ｩ繝・ヱ繝ｼ縲・
+ * 繝ｦ繝ｼ繧ｶ繝ｼ縺後ヵ繧｡繧､繝ｫ繧帝∈謚槭＠縺溽峩蠕後・繧ｳ繝ｳ繝・く繧ｹ繝医〒縺ｯ騾壼ｸｸ謌仙粥縺吶ｋ縺後・
+ * 繝｢繝舌う繝ｫ遶ｯ譛ｫ縺ｮ繝舌ャ繧ｯ繧ｰ繝ｩ繧ｦ繝ｳ繝臥ｧｻ陦檎ｭ峨〒讓ｩ髯舌′豸亥､ｱ縺吶ｋ繧ｱ繝ｼ繧ｹ縺ｫ蟇ｾ蠢懊・
+ * @param {File} file - 蟇ｾ雎｡繝輔ぃ繧､繝ｫ・医Ο繧ｰ蜃ｺ蜉帷畑・・
+ * @param {() => Promise<T>} readFn - 螳溯｡後☆繧玖ｪｭ縺ｿ霎ｼ縺ｿ蜃ｦ逅・
  * @returns {Promise<T>}
  * @template T
  */
@@ -161,10 +161,10 @@ export async function readFileWithRetry(file, readFn) {
             }
         }
     }
-    // リトライ上限を超えた場合、NotReadableError にはユーザー向けメッセージを付与
+    // 繝ｪ繝医Λ繧､荳企剞繧定ｶ・∴縺溷ｴ蜷医¨otReadableError 縺ｫ縺ｯ繝ｦ繝ｼ繧ｶ繝ｼ蜷代￠繝｡繝・そ繝ｼ繧ｸ繧剃ｻ倅ｸ・
     if (lastError?.name === "NotReadableError") {
         const wrapped = new Error(
-            `ファイル「${file.name}」へのアクセス権限が失われました。再度ファイルを選択してください。`
+            `繝輔ぃ繧､繝ｫ縲・{file.name}縲阪∈縺ｮ繧｢繧ｯ繧ｻ繧ｹ讓ｩ髯舌′螟ｱ繧上ｌ縺ｾ縺励◆縲ょ・蠎ｦ繝輔ぃ繧､繝ｫ繧帝∈謚槭＠縺ｦ縺上□縺輔＞縲Ａ
         );
         wrapped.name = "NotReadableError";
         wrapped.cause = lastError;
@@ -174,42 +174,42 @@ export async function readFileWithRetry(file, readFn) {
 }
 
 // ========================================
-// ファイルタイプ判定
+// 繝輔ぃ繧､繝ｫ繧ｿ繧､繝怜愛螳・
 // ========================================
 
 /**
- * マジックナンバーまたはファイル拡張子からファイルタイプを判定する。
- * ArrayBuffer（全体/先頭ヘッダ部分のみ）または File オブジェクトを受け取れる。
+ * 繝槭ず繝・け繝翫Φ繝舌・縺ｾ縺溘・繝輔ぃ繧､繝ｫ諡｡蠑ｵ蟄舌°繧峨ヵ繧｡繧､繝ｫ繧ｿ繧､繝励ｒ蛻､螳壹☆繧九・
+ * ArrayBuffer・亥・菴・蜈磯ｭ繝倥ャ繝驛ｨ蛻・・縺ｿ・峨∪縺溘・ File 繧ｪ繝悶ず繧ｧ繧ｯ繝医ｒ蜿励￠蜿悶ｌ繧九・
  * @param {ArrayBuffer|File|{name:string}} fileOrBuffer
- * @returns {string|null} BOOK_TYPES の値、または判定不能時 null
+ * @returns {string|null} BOOK_TYPES 縺ｮ蛟､縲√∪縺溘・蛻､螳壻ｸ崎・譎・null
  */
 export function detectFileType(fileOrBuffer) {
-    // ArrayBuffer からのマジックナンバー判定
+    // ArrayBuffer 縺九ｉ縺ｮ繝槭ず繝・け繝翫Φ繝舌・蛻､螳・
     if (fileOrBuffer instanceof ArrayBuffer) {
         const view = new Uint8Array(fileOrBuffer);
         if (view.length >= 4 && view[0] === 0x50 && view[1] === 0x4b && view[2] === 0x03 && view[3] === 0x04) {
-            // ZIP形式の場合、EPUBかどうかを判定するために mimetype ファイルを確認
-            // 一般的に mimetype はZIPの先頭付近にあるが、念のため広い範囲をチェック
+            // ZIP蠖｢蠑上・蝣ｴ蜷医・PUB縺九←縺・°繧貞愛螳壹☆繧九◆繧√↓ mimetype 繝輔ぃ繧､繝ｫ繧堤｢ｺ隱・
+            // 荳闊ｬ逧・↓ mimetype 縺ｯZIP縺ｮ蜈磯ｭ莉倩ｿ代↓縺ゅｋ縺後∝ｿｵ縺ｮ縺溘ａ蠎・＞遽・峇繧偵メ繧ｧ繝・け
             const checkLen = Math.min(view.length, FILE_STRATEGY.HEADER_BYTES);
             const headerStr = String.fromCharCode(...view.slice(0, checkLen));
             if (headerStr.includes("mimetype") && headerStr.includes("application/epub+zip")) {
                 return BOOK_TYPES.EPUB;
             }
-            // EPUBと確信できない場合は null を返し、拡張子による判定へフォールバックさせる
-            // これにより、マジックナンバー判定の誤爆を防ぐ
+            // EPUB縺ｨ遒ｺ菫｡縺ｧ縺阪↑縺・ｴ蜷医・ null 繧定ｿ斐＠縲∵僑蠑ｵ蟄舌↓繧医ｋ蛻､螳壹∈繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ縺輔○繧・
+            // 縺薙ｌ縺ｫ繧医ｊ縲√・繧ｸ繝・け繝翫Φ繝舌・蛻､螳壹・隱､辷・ｒ髦ｲ縺・
             return null;
         }
-        // RAR4シグネチャ: 52 61 72 21 1A 07 00
+        // RAR4繧ｷ繧ｰ繝阪メ繝｣: 52 61 72 21 1A 07 00
         if (view.length >= 6 && view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07) {
             return BOOK_TYPES.RAR;
         }
-        // RAR5シグネチャ: 52 61 72 21 1A 07 01 00
+        // RAR5繧ｷ繧ｰ繝阪メ繝｣: 52 61 72 21 1A 07 01 00
         if (view.length >= 7 && view[0] === 0x52 && view[1] === 0x61 && view[2] === 0x72 && view[3] === 0x21 && view[4] === 0x1a && view[5] === 0x07 && view[6] === 0x01) {
             return BOOK_TYPES.RAR;
         }
     }
 
-    // ファイル名の拡張子によるフォールバック判定
+    // 繝輔ぃ繧､繝ｫ蜷阪・諡｡蠑ｵ蟄舌↓繧医ｋ繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ蛻､螳・
     const name = fileOrBuffer.name || "";
     const ext = name.split(".").pop().toLowerCase();
     if (ext === FILE_EXTENSIONS.EPUB) return BOOK_TYPES.EPUB;
@@ -220,14 +220,14 @@ export function detectFileType(fileOrBuffer) {
 }
 
 /**
- * ファイル名から拡張子を除いたタイトルを取得
+ * 繝輔ぃ繧､繝ｫ蜷阪°繧画僑蠑ｵ蟄舌ｒ髯､縺・◆繧ｿ繧､繝医Ν繧貞叙蠕・
  */
 export function fileTitle(name) {
     return name.replace(/\.[^.]+$/, "");
 }
 
 /**
- * MIMEタイプを推測
+ * MIME繧ｿ繧､繝励ｒ謗ｨ貂ｬ
  */
 export function guessMime(type, file) {
     if (type === BOOK_TYPES.EPUB) return MIME_TYPES.EPUB;
@@ -244,9 +244,9 @@ export function guessMime(type, file) {
 }
 
 /**
- * バッファのハッシュ(SHA-256)を計算
- * @param {ArrayBuffer} buffer - ハッシュ対象のバッファ
- * @returns {Promise<string>} 16進数のハッシュ文字列
+ * 繝舌ャ繝輔ぃ縺ｮ繝上ャ繧ｷ繝･(SHA-256)繧定ｨ育ｮ・
+ * @param {ArrayBuffer} buffer - 繝上ャ繧ｷ繝･蟇ｾ雎｡縺ｮ繝舌ャ繝輔ぃ
+ * @returns {Promise<string>} 16騾ｲ謨ｰ縺ｮ繝上ャ繧ｷ繝･譁・ｭ怜・
  */
 export async function hashBuffer(buffer) {
     const hash = await crypto.subtle.digest("SHA-256", buffer);
@@ -257,24 +257,24 @@ export async function hashBuffer(buffer) {
 }
 
 /**
- * 大容量ファイル向けの軽量ハッシュ計算。
- * SubtleCrypto はストリーミングハッシュに非対応のため、
- * ファイル全体を読み込まず「先頭1MB + 末尾1MB + ファイルサイズ」を
- * フィンガープリントとしてSHA-256ハッシュする。
- * ピークメモリは最大約2MB。
- * @param {File|Blob} file - ハッシュ対象のファイル
- * @returns {Promise<string>} 16進数のハッシュ文字列
+ * 螟ｧ螳ｹ驥上ヵ繧｡繧､繝ｫ蜷代￠縺ｮ霆ｽ驥上ワ繝・す繝･險育ｮ励・
+ * SubtleCrypto 縺ｯ繧ｹ繝医Μ繝ｼ繝溘Φ繧ｰ繝上ャ繧ｷ繝･縺ｫ髱槫ｯｾ蠢懊・縺溘ａ縲・
+ * 繝輔ぃ繧､繝ｫ蜈ｨ菴薙ｒ隱ｭ縺ｿ霎ｼ縺ｾ縺壹悟・鬆ｭ1MB + 譛ｫ蟆ｾ1MB + 繝輔ぃ繧､繝ｫ繧ｵ繧､繧ｺ縲阪ｒ
+ * 繝輔ぅ繝ｳ繧ｬ繝ｼ繝励Μ繝ｳ繝医→縺励※SHA-256繝上ャ繧ｷ繝･縺吶ｋ縲・
+ * 繝斐・繧ｯ繝｡繝｢繝ｪ縺ｯ譛螟ｧ邏・MB縲・
+ * @param {File|Blob} file - 繝上ャ繧ｷ繝･蟇ｾ雎｡縺ｮ繝輔ぃ繧､繝ｫ
+ * @returns {Promise<string>} 16騾ｲ謨ｰ縺ｮ繝上ャ繧ｷ繝･譁・ｭ怜・
  */
 export async function hashFileLightweight(file) {
     const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
     const fileSize = file.size;
 
-    // 先頭チャンクを読み込み
+    // 蜈磯ｭ繝√Ε繝ｳ繧ｯ繧定ｪｭ縺ｿ霎ｼ縺ｿ
     const headEnd = Math.min(CHUNK_SIZE, fileSize);
     const headSlice = file.slice(0, headEnd);
     const headBuffer = await headSlice.arrayBuffer();
 
-    // 末尾チャンクを読み込み（先頭と重複する場合はスキップ）
+    // 譛ｫ蟆ｾ繝√Ε繝ｳ繧ｯ繧定ｪｭ縺ｿ霎ｼ縺ｿ・亥・鬆ｭ縺ｨ驥崎､・☆繧句ｴ蜷医・繧ｹ繧ｭ繝・・・・
     let tailBuffer = new ArrayBuffer(0);
     if (fileSize > CHUNK_SIZE) {
         const tailStart = Math.max(fileSize - CHUNK_SIZE, headEnd);
@@ -282,20 +282,20 @@ export async function hashFileLightweight(file) {
         tailBuffer = await tailSlice.arrayBuffer();
     }
 
-    // ファイルサイズを8バイトのバッファに変換
+    // 繝輔ぃ繧､繝ｫ繧ｵ繧､繧ｺ繧・繝舌う繝医・繝舌ャ繝輔ぃ縺ｫ螟画鋤
     const sizeBuffer = new ArrayBuffer(8);
     const sizeView = new DataView(sizeBuffer);
-    // ファイルサイズが2^32を超える可能性があるためhigh/lowに分割
+    // 繝輔ぃ繧､繝ｫ繧ｵ繧､繧ｺ縺・^32繧定ｶ・∴繧句庄閭ｽ諤ｧ縺後≠繧九◆繧”igh/low縺ｫ蛻・牡
     sizeView.setUint32(0, Math.floor(fileSize / 0x100000000), false);
     sizeView.setUint32(4, fileSize >>> 0, false);
 
-    // 3つの要素を結合してハッシュ
+    // 3縺､縺ｮ隕∫ｴ繧堤ｵ仙粋縺励※繝上ャ繧ｷ繝･
     const combined = new Uint8Array(headBuffer.byteLength + tailBuffer.byteLength + sizeBuffer.byteLength);
     combined.set(new Uint8Array(headBuffer), 0);
     combined.set(new Uint8Array(tailBuffer), headBuffer.byteLength);
     combined.set(new Uint8Array(sizeBuffer), headBuffer.byteLength + tailBuffer.byteLength);
 
-    console.log(`[hashFileLightweight] ${file.name}: head=${headBuffer.byteLength}B + tail=${tailBuffer.byteLength}B + size=8B → ${combined.byteLength}B`);
+    console.log(`[hashFileLightweight] ${file.name}: head=${headBuffer.byteLength}B + tail=${tailBuffer.byteLength}B + size=8B 竊・${combined.byteLength}B`);
     return hashBuffer(combined.buffer);
 }
 
@@ -316,22 +316,22 @@ function resolveArchiveEntrySize(entry) {
 }
 
 /**
- * 画像書庫ファイルのフィンガープリントを計算する。
- * ファイル名 + サイズ + 先頭/末尾バイトによる軽量ハッシュ（メモリ消費 ~2MB）。
+ * 逕ｻ蜒乗嶌蠎ｫ繝輔ぃ繧､繝ｫ縺ｮ繝輔ぅ繝ｳ繧ｬ繝ｼ繝励Μ繝ｳ繝医ｒ險育ｮ励☆繧九・
+ * 繝輔ぃ繧､繝ｫ蜷・+ 繧ｵ繧､繧ｺ + 蜈磯ｭ/譛ｫ蟆ｾ繝舌う繝医↓繧医ｋ霆ｽ驥上ワ繝・す繝･・医Γ繝｢繝ｪ豸郁ｲｻ ~2MB・峨・
  *
- * 重要: 以前は createArchiveHandler() を呼んでZIP全体を展開していたが、
- *       大容量ZIPで OOM/NotReadableError を引き起こす原因だったため、
- *       ファイルの中身を展開せずにハッシュを計算する方式に変更。
+ * 驥崎ｦ・ 莉･蜑阪・ createArchiveHandler() 繧貞他繧薙〒ZIP蜈ｨ菴薙ｒ螻暮幕縺励※縺・◆縺後・
+ *       螟ｧ螳ｹ驥住IP縺ｧ OOM/NotReadableError 繧貞ｼ輔″襍ｷ縺薙☆蜴溷屏縺縺｣縺溘◆繧√・
+ *       繝輔ぃ繧､繝ｫ縺ｮ荳ｭ霄ｫ繧貞ｱ暮幕縺帙★縺ｫ繝上ャ繧ｷ繝･繧定ｨ育ｮ励☆繧区婿蠑上↓螟画峩縲・
  *
  * @param {File|Blob} file
- * @returns {Promise<string>} SHA-256 ハッシュ文字列
+ * @returns {Promise<string>} SHA-256 繝上ャ繧ｷ繝･譁・ｭ怜・
  */
 export async function buildArchiveFingerprint(file) {
     return hashFileLightweight(file);
 }
 
 /**
- * ハッシュからライブラリ内の書籍を検索
+ * 繝上ャ繧ｷ繝･縺九ｉ繝ｩ繧､繝悶Λ繝ｪ蜀・・譖ｸ邀阪ｒ讀懃ｴ｢
  */
 export function findBookByContentHash(library, contentHash) {
     const shortHash = contentHash.slice(0, 12);
@@ -349,7 +349,7 @@ export function findBookByContentHash(library, contentHash) {
 }
 
 /**
- * クラウド書籍IDを生成
+ * 繧ｯ繝ｩ繧ｦ繝画嶌邀巧D繧堤函謌・
  */
 export function generateCloudBookId() {
     if (crypto?.randomUUID) {
@@ -359,7 +359,7 @@ export function generateCloudBookId() {
 }
 
 /**
- * クラウドメタデータを構築
+ * 繧ｯ繝ｩ繧ｦ繝峨Γ繧ｿ繝・・繧ｿ繧呈ｧ狗ｯ・
  */
 export function buildCloudMeta({ cloudBookId, info, fingerprint, storage, overrides = {}, uiLanguage }) {
     const existing = storage.data.cloudIndex?.[cloudBookId] ?? {};
@@ -382,7 +382,7 @@ export function buildCloudMeta({ cloudBookId, info, fingerprint, storage, overri
 }
 
 /**
- * クラウドインデックスを更新
+ * 繧ｯ繝ｩ繧ｦ繝峨う繝ｳ繝・ャ繧ｯ繧ｹ繧呈峩譁ｰ
  */
 export async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, { storage, cloudSync, isCloudSyncEnabled, uiLanguage, overrides = {} }) {
     if (!cloudBookId) return null;
@@ -391,22 +391,22 @@ export async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, { st
     if (isCloudSyncEnabled()) {
         try {
             await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
-            // プッシュ成功後にのみローカルのクラウドインデックスを更新
+            // 繝励ャ繧ｷ繝･謌仙粥蠕後↓縺ｮ縺ｿ繝ｭ繝ｼ繧ｫ繝ｫ縺ｮ繧ｯ繝ｩ繧ｦ繝峨う繝ｳ繝・ャ繧ｯ繧ｹ繧呈峩譁ｰ
             storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
         } catch (error) {
-            console.warn("クラウドインデックスの更新に失敗しました。次回の同期で再試行されます:", error);
-            // 失敗時はローカルのクラウドインデックスを更新しないことで、
-            // 次回の syncAllBooksFromCloud のアップロードループで再試行対象になるようにする
+            console.warn("繧ｯ繝ｩ繧ｦ繝峨う繝ｳ繝・ャ繧ｯ繧ｹ縺ｮ譖ｴ譁ｰ縺ｫ螟ｱ謨励＠縺ｾ縺励◆縲よｬ｡蝗槭・蜷梧悄縺ｧ蜀崎ｩｦ陦後＆繧後∪縺・", error);
+            // 螟ｱ謨玲凾縺ｯ繝ｭ繝ｼ繧ｫ繝ｫ縺ｮ繧ｯ繝ｩ繧ｦ繝峨う繝ｳ繝・ャ繧ｯ繧ｹ繧呈峩譁ｰ縺励↑縺・％縺ｨ縺ｧ縲・
+            // 谺｡蝗槭・ syncAllBooksFromCloud 縺ｮ繧｢繝・・繝ｭ繝ｼ繝峨Ν繝ｼ繝励〒蜀崎ｩｦ陦悟ｯｾ雎｡縺ｫ縺ｪ繧九ｈ縺・↓縺吶ｋ
         }
     } else {
-        // 同期が無効な場合はローカルのみ更新
+        // 蜷梧悄縺檎┌蜉ｹ縺ｪ蝣ｴ蜷医・繝ｭ繝ｼ繧ｫ繝ｫ縺ｮ縺ｿ譖ｴ譁ｰ
         storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
     }
     return meta;
 }
 
 /**
- * 照合用メタデータを構築
+ * 辣ｧ蜷育畑繝｡繧ｿ繝・・繧ｿ繧呈ｧ狗ｯ・
  */
 export function buildMatchMeta(info) {
     return {
@@ -414,165 +414,4 @@ export function buildMatchMeta(info) {
         author: info?.author ?? "",
         identifiers: info?.identifiers ?? [],
     };
-}
-
-// ========================================
-// 巻ナビゲーション（シリーズ検出）
-// ========================================
-
-/**
- * ファイル名からシリーズのベース名と巻数を解析する。
- * 日本語の書籍ファイル名で一般的なパターンに対応。
- *
- * 対応パターン:
- *   - 第01巻, 第1話, 第3章
- *   - v01, Vol.01, Vol 1
- *   - (01), （01）
- *   - [01], 【01】
- *   - _01 (アンダースコア + 数字)
- *   - 末尾の数字（スペース区切り）: 作品名 01
- *   - 末尾の数字（直結）: 作品名01
- *
- * @param {string} fileName - ファイル名（拡張子あり/なし）
- * @returns {{ baseName: string, volume: number } | null}
- */
-export function parseVolume(fileName) {
-    if (!fileName) return null;
-
-    // 拡張子を除去
-    const name = fileName.replace(/\.[^.]+$/, '');
-
-    // パターン定義（優先度の高い順）
-    const patterns = [
-        // 第01巻, 第1話, 第3章 etc.
-        /^(.+?)[\s_]*第(\d+)[巻話章編部].*$/,
-        // v01, v1, Vol.01, Vol01
-        /^(.+?)[\s_]*[Vv](?:ol\.?\s*)?(\d+).*$/,
-        // (01), （01）- 全角/半角括弧
-        /^(.+?)[\s_]*[（(](\d+)[）)].*$/,
-        // [01], 【01】- 角括弧/隅付き括弧
-        /^(.+?)[\s_]*[[\[【](\d+)[\]】\]].*$/,
-        // _01 - アンダースコア + 数字（末尾）
-        /^(.+?)_(\d+)$/,
-        // 末尾の数字（スペース区切り）: 作品名 01
-        /^(.+?)\s+(\d+)$/,
-        // 末尾の数字（直結、ベース名が非数字で終わる場合）: 作品名01
-        /^(.+?\D)(\d+)$/,
-    ];
-
-    for (const pattern of patterns) {
-        const match = name.match(pattern);
-        if (match) {
-            const baseName = match[1].trim();
-            const volume = parseInt(match[2], 10);
-            if (baseName.length > 0 && !isNaN(volume)) {
-                return { baseName, volume };
-            }
-        }
-    }
-
-    return null;
-}
-
-/**
- * ライブラリ内から同一シリーズの書籍を検出し、巻数順にソートして返す。
- * 現在開いている書籍のファイル名をベースに、同じシリーズ名を持つ書籍を特定する。
- *
- * @param {Object} library - storage.data.library オブジェクト
- * @param {string} currentBookId - 現在開いている書籍のID
- * @returns {{ prev: Object|null, next: Object|null, currentVolume: number|null, seriesBooks: Array }}
- */
-export function findAdjacentVolumes(library, currentBookId) {
-    const result = { prev: null, next: null, currentVolume: null, seriesBooks: [] };
-
-    if (!library || !currentBookId) return result;
-
-    const currentBook = library[currentBookId];
-    if (!currentBook?.fileName) return result;
-
-    const currentParsed = parseVolume(currentBook.fileName);
-    if (!currentParsed) return result;
-
-    result.currentVolume = currentParsed.volume;
-
-    // ライブラリ内の全書籍を走査し、同じベース名を持つ書籍を収集
-    const seriesEntries = [];
-    for (const [bookId, book] of Object.entries(library)) {
-        if (!book?.fileName) continue;
-        const parsed = parseVolume(book.fileName);
-        if (!parsed) continue;
-        if (parsed.baseName === currentParsed.baseName) {
-            seriesEntries.push({ bookId, book, volume: parsed.volume });
-        }
-    }
-
-    // 巻数順にソート
-    seriesEntries.sort((a, b) => a.volume - b.volume);
-    result.seriesBooks = seriesEntries;
-
-    // 現在の巻の位置を特定し、前巻・次巻を取得
-    const currentIndex = seriesEntries.findIndex(e => e.bookId === currentBookId);
-    if (currentIndex < 0) return result;
-
-    if (currentIndex > 0) {
-        const prev = seriesEntries[currentIndex - 1];
-        result.prev = { bookId: prev.bookId, book: prev.book, volume: prev.volume };
-    }
-    if (currentIndex < seriesEntries.length - 1) {
-        const next = seriesEntries[currentIndex + 1];
-        result.next = { bookId: next.bookId, book: next.book, volume: next.volume };
-    }
-
-    return result;
-}
-
-/**
- * 対応する書籍ファイルの拡張子パターン
- */
-const SUPPORTED_BOOK_EXTENSIONS = /\.(epub|cbz|zip|rar|cbr)$/i;
-
-/**
- * FileSystemDirectoryHandle からディレクトリ内の書籍ファイルを走査し、
- * 指定ファイルの前後の巻を特定する。
- *
- * @param {FileSystemDirectoryHandle} dirHandle - ディレクトリハンドル
- * @param {string} currentFileName - 現在開いているファイルの名前
- * @returns {Promise<{ prev: FileSystemFileHandle|null, next: FileSystemFileHandle|null, files: FileSystemFileHandle[] }>}
- */
-export async function scanDirectoryForAdjacentFiles(dirHandle, currentFileName) {
-    const result = { prev: null, next: null, files: [] };
-    if (!dirHandle || !currentFileName) return result;
-
-    const currentParsed = parseVolume(currentFileName);
-    if (!currentParsed) return result;
-
-    // ディレクトリ内の対応ファイルを収集
-    const entries = [];
-    for await (const entry of dirHandle.values()) {
-        if (entry.kind !== 'file') continue;
-        if (!SUPPORTED_BOOK_EXTENSIONS.test(entry.name)) continue;
-
-        const parsed = parseVolume(entry.name);
-        if (!parsed) continue;
-        if (parsed.baseName === currentParsed.baseName) {
-            entries.push({ handle: entry, volume: parsed.volume, name: entry.name });
-        }
-    }
-
-    // 巻数順にソート
-    entries.sort((a, b) => a.volume - b.volume);
-    result.files = entries.map(e => e.handle);
-
-    // 現在のファイルの位置を特定
-    const currentIndex = entries.findIndex(e => e.name === currentFileName);
-    if (currentIndex < 0) return result;
-
-    if (currentIndex > 0) {
-        result.prev = entries[currentIndex - 1].handle;
-    }
-    if (currentIndex < entries.length - 1) {
-        result.next = entries[currentIndex + 1].handle;
-    }
-
-    return result;
 }

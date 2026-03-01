@@ -72,12 +72,7 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
 let pendingCloudBookId = null;
-const folderNavigatorState = globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__ || {
-  directoryHandle: null,
-  fileHandles: [],
-  currentIndex: -1,
-};
-globalThis.__BOOKREADER_FOLDER_NAVIGATOR_STATE__ = folderNavigatorState;
+
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
 let writingMode = settings.writingMode;
@@ -114,9 +109,7 @@ let archiveWarningTypes = [];
 // ライブラリで削除マークが付いた書籍のID（メニューを閉じた時に実際に削除）
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
-// 巻ナビゲーション: ファイルシステムアクセス用ハンドル
-let lastFileHandle = null;
-let cachedDirectoryHandle = null;
+
 const NOTION_STATUS_LABEL_KEYS = Object.freeze({
   [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
   [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
@@ -143,97 +136,7 @@ function t(key) {
 
 
 
-function resetFolderNavigatorCache() {
-  folderNavigatorState.directoryHandle = null;
-  folderNavigatorState.fileHandles = [];
-  folderNavigatorState.currentIndex = -1;
-}
 
-function isSupportedAdjacentBookName(fileName) {
-  if (!fileName) return false;
-  const lower = fileName.toLowerCase();
-  return FILE_INPUT_ACCEPT.some((ext) => lower.endsWith(ext));
-}
-
-async function refreshFolderNavigatorEntries() {
-  if (!folderNavigatorState.directoryHandle) return false;
-  const handles = [];
-  for await (const entry of folderNavigatorState.directoryHandle.values()) {
-    if (entry.kind !== "file") continue;
-    if (!isSupportedAdjacentBookName(entry.name)) continue;
-    handles.push(entry);
-  }
-  handles.sort((a, b) => a.name.localeCompare(b.name, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  }));
-  folderNavigatorState.fileHandles = handles;
-  return handles.length > 0;
-}
-
-async function ensureFolderNavigatorReady() {
-  if (!currentBookId || !currentBookInfo?.fileName) {
-    alert(t("folderNavigationBookRequired"));
-    return false;
-  }
-
-  if (typeof window.showDirectoryPicker !== "function") {
-    alert(t("folderNavigationUnsupported"));
-    return false;
-  }
-
-  // ディレクトリハンドルがない場合でも、すでに複数ファイルがロードされており、
-  // その中に現在開いている本が含まれている場合はナビゲーション可能とする
-  if (!folderNavigatorState.directoryHandle && folderNavigatorState.fileHandles.length > 0) {
-    const idx = folderNavigatorState.fileHandles.findIndex((handle) => handle.name === currentBookInfo.fileName);
-    if (idx >= 0) {
-      folderNavigatorState.currentIndex = idx;
-      return true;
-    }
-  }
-
-  if (!folderNavigatorState.directoryHandle) {
-    try {
-      folderNavigatorState.directoryHandle = await window.showDirectoryPicker({ mode: "read" });
-    } catch (error) {
-      if (error?.name !== "AbortError") {
-        console.warn("showDirectoryPicker failed:", error);
-      }
-      return false;
-    }
-  }
-
-  const hasEntries = await refreshFolderNavigatorEntries();
-  if (!hasEntries) {
-    alert(t("libraryEmpty"));
-    return false;
-  }
-
-  folderNavigatorState.currentIndex = folderNavigatorState.fileHandles.findIndex((handle) => handle.name === currentBookInfo.fileName);
-  if (folderNavigatorState.currentIndex < 0) {
-    alert(t("folderNavigationCurrentBookNotFound"));
-    return false;
-  }
-
-  return true;
-}
-
-async function openAdjacentBook(step) {
-  if (isBookLoading) return;
-  const ready = await ensureFolderNavigatorReady();
-  if (!ready) return;
-
-  const nextIndex = folderNavigatorState.currentIndex + step;
-  if (nextIndex < 0 || nextIndex >= folderNavigatorState.fileHandles.length) {
-    alert(step < 0 ? t("folderNavigationNoPrev") : t("folderNavigationNoNext"));
-    return;
-  }
-
-  const targetHandle = folderNavigatorState.fileHandles[nextIndex];
-  const file = await targetHandle.getFile();
-  folderNavigatorState.currentIndex = nextIndex;
-  await handleFile(file);
-}
 
 function getNotionSettingsSnapshot() {
   const currentSettings = storage.getSettings();
@@ -733,7 +636,7 @@ renderers.init({
       return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
     },
     setPendingCloudBookId: (id) => { pendingCloudBookId = id; },
-    updateVolumeNavButtons,
+
   }
 });
 
@@ -1557,9 +1460,8 @@ async function seekToPercentage(percentage) {
   }
 }
 
-// ========================================
-// 巻ナビゲーション
-// ========================================
+
+
 
 /**
  * 巻ナビゲーションボタンの表示状態を更新する。
@@ -1801,8 +1703,7 @@ async function handleBookReady(payload) {
 
   }
 
-  // 巻ナビゲーションの更新
-  updateVolumeNavButtons();
+
 }
 
 // 移行済み: updateEpubScrollMode
@@ -2645,7 +2546,7 @@ function ensureLegacyFileInput() {
 }
 
 async function openFileDialog() {
-  resetFolderNavigatorCache();
+
   const openLegacyFileInput = () => {
     const input = ensureLegacyFileInput();
     if (!input) return;
@@ -2666,43 +2567,8 @@ async function openFileDialog() {
       if (fileHandles.length === 0) return;
 
       const fileHandle = fileHandles[0];
-      lastFileHandle = fileHandle;
-      cachedDirectoryHandle = null; // 新しいファイルを開いたらディレクトリキャッシュをクリア
-
-      // 複数選択された場合、ディレクトリ権限がなくてもナビゲーションできるように事前にセット
-      if (fileHandles.length > 1) {
-        folderNavigatorState.fileHandles = fileHandles.sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-        );
-      }
-
-      // ファイルオープン後、同一フォルダのナビゲーションを即時有効化するためディレクトリ権限を要求
-      try {
-        if (typeof window.showDirectoryPicker === 'function') {
-          let dirHandle = null;
-          try {
-            // 1. まずはファイル位置からの自動推測(startIn)を試みる
-            dirHandle = await window.showDirectoryPicker({ startIn: fileHandle, mode: 'read' });
-          } catch (e) {
-            // 2. pCloudなどの制限で失敗した場合は、場所指定なしの汎用ダイアログでフォールバック
-            console.log('[VolumeNav] Automatic startIn failed, trying manual directory picker...');
-            dirHandle = await window.showDirectoryPicker({ mode: 'read' });
-          }
-
-          if (dirHandle) {
-            cachedDirectoryHandle = dirHandle;
-            folderNavigatorState.directoryHandle = dirHandle;
-            // フォルダ内のエントリー情報を事前更新しておく
-            await refreshFolderNavigatorEntries();
-          }
-        }
-      } catch (dirError) {
-        if (dirError?.name !== 'AbortError') {
-          console.warn('showDirectoryPicker immediately after open failed:', dirError);
-        }
-      }
-
       const file = await fileHandle.getFile();
+
       if (file) {
         await handleFile(file);
       }

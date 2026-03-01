@@ -31,8 +31,7 @@ export const elements = {
     floatOverlay: getById(DOM_IDS.FLOAT_OVERLAY),
     floatBackdrop: getBySelector(DOM_SELECTORS.FLOAT_OVERLAY_BACKDROP),
     floatOpen: getById(DOM_IDS.FLOAT_OPEN),
-    floatPrevBook: getById(DOM_IDS.FLOAT_PREV_BOOK),
-    floatNextBook: getById(DOM_IDS.FLOAT_NEXT_BOOK),
+
     floatLibrary: getById(DOM_IDS.FLOAT_LIBRARY),
     floatSearch: getById(DOM_IDS.FLOAT_SEARCH),
     floatBookmarks: getById(DOM_IDS.FLOAT_BOOKMARKS),
@@ -92,9 +91,7 @@ export const elements = {
     totalPages: getById(DOM_IDS.TOTAL_PAGES),
     progressPrev: getById(DOM_IDS.PROGRESS_PREV),
     progressNext: getById(DOM_IDS.PROGRESS_NEXT),
-    volumePrev: getById(DOM_IDS.VOLUME_PREV),
-    volumeNext: getById(DOM_IDS.VOLUME_NEXT),
-    volumeNavContainer: getById("volumeNavContainer"),
+
 
     // しおりメニュー
     bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
