@@ -2662,7 +2662,7 @@ export class ReaderController {
       // ストリーミングモード時は最小限（1枚）のプリロードに制限
       const isStreamingMode = typeof handler.close === "function"; // StreamingZipHandler固有メソッド
       const basePreloadCount = isStreamingMode
-        ? 1
+        ? MEMORY_STRATEGY.imageStreamingPreloadCount
         : (memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount);
       const preloadCount = Math.min(basePreloadCount, images.length);
       console.log(`Preloading ${preloadCount} images to object URLs... (streaming=${isStreamingMode})`);

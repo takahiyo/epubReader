@@ -117,6 +117,7 @@ export const READER_CONFIG = Object.freeze({
 // ============================================
 export const MEMORY_STRATEGY = Object.freeze({
   imagePreloadCount: 3,
+  imageStreamingPreloadCount: 1, // ストリーミングモード時の初期読み込み枚数（手書きで変更してテスト可能）
   imagePreloadAheadCount: 1,
   CACHE_SIZE: 6,
   LARGE_CACHE_SIZE: 3,
