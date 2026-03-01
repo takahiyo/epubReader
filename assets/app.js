@@ -542,8 +542,11 @@ const ui = new UIController({
   isFloatVisible: () => elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE),
 
   // 追加: 画像/見開き判定用
-  isImageBook: () => Boolean(reader?.type === BOOK_TYPES.IMAGE_DIR || reader?.type === BOOK_TYPES.IMAGE_ARCHIVE),
-  isSpreadMode: () => Boolean(reader?.imageViewMode === IMAGE_VIEW_MODES.DOUBLE),
+  isImageBook: () => {
+    const type = reader?.type;
+    return Boolean(type === BOOK_TYPES.IMAGE || type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR);
+  },
+  isSpreadMode: () => Boolean(reader?.imageViewMode === IMAGE_VIEW_MODES.SPREAD),
 
   getReadingDirection: () => {
     // EPUBの場合は pageDirection (ltr/rtl)
