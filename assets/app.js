@@ -832,15 +832,8 @@ async function handleFile(file) {
       fileHandler.shouldUseStreaming(file);
 
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
-    if (useStreaming && elements.loadingOverlay) {
-      let notice = elements.loadingOverlay.querySelector('.streaming-notice');
-      if (!notice) {
-        notice = document.createElement('div');
-        notice.className = 'streaming-notice';
-        notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
-        notice.textContent = t('streamingNotice');
-        elements.loadingOverlay.appendChild(notice);
-      }
+    if (useStreaming) {
+      showStreamingNotice();
     }
 
     // 3. ハッシュ計算（リトライ付き）
@@ -1057,6 +1050,22 @@ async function handleFile(file) {
   }
 }
 
+/**
+ * ストリーミングモード（機能制限モード）の通知を表示する
+ */
+function showStreamingNotice() {
+  if (elements.loadingOverlay) {
+    let notice = elements.loadingOverlay.querySelector('.streaming-notice');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.className = 'streaming-notice';
+      notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
+      notice.textContent = translate('streamingNotice') || 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
+      elements.loadingOverlay.appendChild(notice);
+    }
+  }
+}
+
 function openCloudOnlyBook(cloudBookId) {
   const meta = storage.data.cloudIndex?.[cloudBookId];
   const state = storage.getCloudState(cloudBookId);
@@ -1196,10 +1205,13 @@ async function openFromLibrary(bookId, options = {}) {
         return;
       }
       showLoading();
+      showStreamingNotice();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
-      // 軽量ハッシュで同一ファイルか検証
-      const reHash = await fileHandler.buildArchiveFingerprint(file);
+      // 軽量ハッシュで同一ファイルか検証（リトライ付き）
+      const reHash = await fileHandler.readFileWithRetry(file,
+        () => fileHandler.buildArchiveFingerprint(file));
+
       if (reHash !== info.contentHash) {
         hideLoading();
         alert(translate('stubHashMismatch', uiLanguage) ||
@@ -1216,7 +1228,6 @@ async function openFromLibrary(bookId, options = {}) {
 
       const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
       const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
-      await applyReadingState(normalizedProgress);
       const startPage = normalizedProgress?.location;
 
       // ストリーミングモードで閲覧を開始
