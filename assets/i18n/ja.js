@@ -265,4 +265,8 @@ export const UI_STRINGS_JA = Object.freeze({
   volumeNextLabel: "次巻",
   volumePrevTitle: "前の巻を開く",
   volumeNextTitle: "次の巻を開く",
+
+  // ストリーミング・スタブ
+  stubReselectTitle: "ファイルの再選択",
+  stubReselectMessage: "「{title}」は大容量ファイルのため本体が保存されていません。\n閲覧を再開するには元のファイルを選択してください。",
 });

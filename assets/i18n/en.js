@@ -266,4 +266,8 @@ export const UI_STRINGS_EN = Object.freeze({
   volumeNextLabel: "Next",
   volumePrevTitle: "Open previous volume",
   volumeNextTitle: "Open next volume",
+
+  // Streaming & File stub
+  stubReselectTitle: "Reselect File",
+  stubReselectMessage: "The content of \"{title}\" is not saved because it is a large file.\nPlease select the original file to resume reading.",
 });

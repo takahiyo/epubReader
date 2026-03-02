@@ -40,8 +40,19 @@ async function ensureZipJs() {
             const script = document.createElement("script");
             script.src = CDN_URLS.ZIPJS;
             script.async = true;
-            script.onload = resolve;
-            script.onerror = () => reject(new Error("zip.js の読み込みに失敗しました"));
+
+            const timeoutId = setTimeout(() => {
+                reject(new Error("zip.js の読み込みがタイムアウトしました (ネットワーク制限やブロッカーの可能性があります)"));
+            }, 10000); // 10秒でタイムアウト
+
+            script.onload = () => {
+                clearTimeout(timeoutId);
+                resolve();
+            };
+            script.onerror = () => {
+                clearTimeout(timeoutId);
+                reject(new Error("zip.js の読み込みに失敗しました"));
+            };
             document.head.appendChild(script);
         });
         console.timeEnd('[StreamingZip] CDN load');
