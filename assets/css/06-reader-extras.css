@@ -129,6 +129,22 @@
 
 /* =====================================
 [REF]
+- HTML: body.is-zoomed .image-viewer
+- JS: assets/reader.js（is-zoomed 付与）
+- STATE: body.is-zoomed
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+/* ズーム時は flex 中央配置を無効化し、transform (translate + scale) のみで位置制御する。
+   justify-content/align-items: center のままだと、flex オフセットと panX/panY が二重に
+   位置を制御してしまい、clampPan() の計算が破綻する（画面外にはみ出す問題の原因）。 */
+body.is-zoomed .image-viewer {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+/* =====================================
+[REF]
 - HTML: body.is-zoomed .image-viewer img / .spread-container
 - JS: assets/reader.js（is-zoomed 付与）
 - STATE: body.is-zoomed

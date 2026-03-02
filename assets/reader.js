@@ -4209,7 +4209,9 @@ export class ReaderController {
     if (!target) return;
 
     this.clampPan();
-    if (this.zoomScale <= this.getZoomConfig().min) {
+    if (this.zoomScale <= this.getZoomConfig().min && !this.imageZoomed) {
+      // ズームモード外かつ最小倍率なら transform をリセット
+      // （ズームモード中は flex-start 補正のため translate が必要）
       target.style.transform = '';
       this.syncZoomSlider();
       return;
@@ -4302,7 +4304,25 @@ export class ReaderController {
     body.classList.add(UI_CLASSES.IS_ZOOMED);
     if (backdrop) backdrop.style.pointerEvents = 'none';
     this.syncZoomedClass();
+
+    // ズーム時は CSS で flex 中央配置が無効化される（flex-start）ため、
+    // transform の translate で中央位置を補正する。
+    // これにより clampPan() の計算と整合し、画面外へはみ出す問題を防ぐ。
+    if (this.isImageBook()) {
+      const container = this.imageViewer;
+      const target = this.getZoomTarget();
+      if (container && target) {
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+        const tw = target.offsetWidth;
+        const th = target.offsetHeight;
+        this.panX = (cw - tw * this.zoomScale) / 2;
+        this.panY = (ch - th * this.zoomScale) / 2;
+      }
+    }
+
     this.onImageZoom?.(this.imageZoomed, this.zoomScale);
+    this.updateTransform();
     return true;
   }
 }
