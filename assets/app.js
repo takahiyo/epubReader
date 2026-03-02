@@ -665,8 +665,31 @@ function setupViewerIframeClickBridge() {
         const doc = iframe.contentDocument;
         if (!doc) return;
         doc.addEventListener("click", (event) => handleIframeClick(iframe, event));
+
+        // タッチイベントも親へ転送（ズームやスワイプのため）
+        const forwardTouchEvent = (e) => {
+          // タッチ座標を親ウィンドウ基準に変換してはいないが、イベント自体を親に伝える
+          // フルスクリーンリーダーがタッチを拾えるようにする
+          const newEvent = new CustomEvent(e.type, {
+            bubbles: true,
+            cancelable: true,
+            detail: e
+          });
+          // カスタムプロパティとしてオリジナルイベントのtouchesを付与
+          newEvent.touches = e.touches;
+          newEvent.changedTouches = e.changedTouches;
+          newEvent.target = e.target;
+
+          elements.fullscreenReader.dispatchEvent(newEvent);
+        };
+
+        doc.addEventListener("touchstart", forwardTouchEvent, { passive: false });
+        doc.addEventListener("touchmove", forwardTouchEvent, { passive: false });
+        doc.addEventListener("touchend", forwardTouchEvent, { passive: false });
+        doc.addEventListener("touchcancel", forwardTouchEvent, { passive: false });
+
       } catch (error) {
-        console.warn("Failed to attach iframe click bridge:", error);
+        console.warn("Failed to attach iframe event bridge:", error);
       }
     };
 
@@ -735,10 +758,20 @@ const floatProgressHandler = new ProgressBarHandler({
 
 // UI表示ロジックは renderers.js に移行済み
 
-function handleToggleZoom() {
+function handleToggleZoom(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   // ズーム切替（toggleZoom()内部でbodyクラスも制御済み）
-  reader.toggleZoom();
+  const zoomOn = reader.toggleZoom();
   renderers.updateZoomButtonLabel();
+
+  // ズーム解除時はフローティングメニューを閉じてリーダー画面に戻す
+  // （ズーム中はCSSで非表示だがDOMはvisible状態のため、解除時にメニューが残る問題を防止）
+  if (!zoomOn) {
+    renderers.toggleFloatOverlay(false);
+  }
 }
 
 // ========================================

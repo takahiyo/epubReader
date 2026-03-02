@@ -285,7 +285,8 @@ body.is-zoomed .modal {
 /* ズーム時はブラウザ既定のタッチ操作を無効化 */
 body.is-zoomed #viewer,
 body.is-zoomed .viewer,
-body.is-zoomed #imageViewer {
+body.is-zoomed #imageViewer,
+body.is-zoomed .click-overlay {
   touch-action: none;
 }
 
@@ -299,9 +300,8 @@ body.is-zoomed #imageViewer {
 ===================================== */
 /* ズーム時もクリックオーバーレイを有効にしてイベントを捕捉（iframe内にイベントが沈むのを防ぐ） */
 body.is-zoomed .click-overlay {
-  pointer-events: all !important;
+  pointer-events: auto !important;
   cursor: grab;
-  touch-action: none;
 }
 
 /* =====================================
