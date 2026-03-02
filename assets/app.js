@@ -832,15 +832,8 @@ async function handleFile(file) {
       fileHandler.shouldUseStreaming(file);
 
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
-    if (useStreaming && elements.loadingOverlay) {
-      let notice = elements.loadingOverlay.querySelector('.streaming-notice');
-      if (!notice) {
-        notice = document.createElement('div');
-        notice.className = 'streaming-notice';
-        notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
-        notice.textContent = 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
-        elements.loadingOverlay.appendChild(notice);
-      }
+    if (useStreaming) {
+      showStreamingNotice();
     }
 
     // 3. ハッシュ計算（リトライ付き）
@@ -892,8 +885,8 @@ async function handleFile(file) {
       size: file.size,
       contentHash,
       lastOpened: Date.now(),
-      // ストリーミングモード: 再開時にファイル再選択が必要
-      ...(useStreaming ? { isLargeFileStub: true } : {}),
+      // ストリーミング不要になった場合、過去の true を上書きしてスタブ状態を解除する
+      isLargeFileStub: useStreaming,
     };
 
     storage.upsertBook(info);
@@ -1012,6 +1005,9 @@ async function handleFile(file) {
     renderers.renderBookmarks(bookmarkMenuMode);
 
     console.log("Book opened successfully");
+    // ストリーミングモード通知を削除
+    const streamingNotice = elements.loadingOverlay?.querySelector('.streaming-notice');
+    if (streamingNotice) streamingNotice.remove();
     hideLoading();
     renderers.renderLibrary();
     renderers.renderBookmarkMarkers();
@@ -1054,6 +1050,22 @@ async function handleFile(file) {
   }
 }
 
+/**
+ * ストリーミングモード（機能制限モード）の通知を表示する
+ */
+function showStreamingNotice() {
+  if (elements.loadingOverlay) {
+    let notice = elements.loadingOverlay.querySelector('.streaming-notice');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.className = 'streaming-notice';
+      notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
+      notice.textContent = translate('streamingNotice', uiLanguage) || 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
+      elements.loadingOverlay.appendChild(notice);
+    }
+  }
+}
+
 function openCloudOnlyBook(cloudBookId) {
   const meta = storage.data.cloudIndex?.[cloudBookId];
   const state = storage.getCloudState(cloudBookId);
@@ -1084,6 +1096,8 @@ function openCloudOnlyBook(cloudBookId) {
   }
 }
 
+let stubReselectInput = null;
+
 /**
  * スタブエントリー用ファイル再選択ダイアログ。
  * ユーザーにファイルを選ばせ、軽量ハッシュで同一ファイルか検証する。
@@ -1092,27 +1106,77 @@ function openCloudOnlyBook(cloudBookId) {
  */
 function promptFileReselect(info) {
   return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
-    input.style.display = "none";
-    input.addEventListener("change", () => {
-      const file = input.files?.[0] ?? null;
-      document.body.removeChild(input);
-      resolve(file);
-    });
-    // キャンセル時（focusが戻ったのに値が空）
-    const onCancel = () => {
-      setTimeout(() => {
-        if (!input.files?.length) {
-          document.body.removeChild(input);
-          resolve(null);
-        }
-      }, 500);
+    // 恒久的な input 要素を準備（Android WebViewでのFileストリーム切断・無限ロードを防ぐためDOMから削除しない）
+    if (!stubReselectInput) {
+      stubReselectInput = document.createElement("input");
+      stubReselectInput.type = "file";
+      stubReselectInput.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
+      stubReselectInput.style.display = "none";
+      document.body.appendChild(stubReselectInput);
+    }
+
+    // 以前のイベントを確実に消すため要素を置き換える
+    const newClone = stubReselectInput.cloneNode(true);
+    stubReselectInput.parentNode.replaceChild(newClone, stubReselectInput);
+    stubReselectInput = newClone;
+    stubReselectInput.value = '';
+
+    // カスタムダイアログUIの構築
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;font-family:sans-serif;";
+
+    const dialog = document.createElement("div");
+    dialog.style.cssText = "background:var(--bg-color, #fff);color:var(--text-color, #333);padding:24px;border-radius:8px;width:90%;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.2);";
+
+    const title = document.createElement("h3");
+    title.textContent = translate('stubReselectTitle', uiLanguage) || "ファイル再選択";
+    title.style.cssText = "margin:0 0 16px 0;font-size:1.2rem;";
+
+    const msgTemplate = translate('stubReselectMessage', uiLanguage) || "「{title}」は大容量ファイルのため本体が保存されていません。\n閲覧を再開するには元のファイルを選択してください。";
+    const desc = document.createElement("p");
+    desc.textContent = msgTemplate.replace('{title}', info.title);
+    desc.style.cssText = "margin:0 0 24px 0;line-height:1.5;white-space:pre-wrap;font-size:0.95rem;";
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.cssText = "display:flex;justify-content:flex-end;gap:12px;";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = translate('cancel', uiLanguage) || "キャンセル";
+    cancelBtn.style.cssText = "padding:8px 16px;border:none;background:transparent;color:var(--text-color, #333);cursor:pointer;font-size:0.95rem;font-weight:bold;";
+
+    const selectBtn = document.createElement("button");
+    selectBtn.textContent = translate('selectFile', uiLanguage) || "ファイルを選択";
+    selectBtn.style.cssText = "padding:8px 16px;border:none;background:var(--primary-color, #007bff);color:#fff;border-radius:4px;cursor:pointer;font-size:0.95rem;font-weight:bold;";
+
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(selectBtn);
+
+    dialog.appendChild(title);
+    dialog.appendChild(desc);
+    dialog.appendChild(btnContainer);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const cleanup = () => {
+      if (overlay.parentNode) {
+        document.body.removeChild(overlay);
+      }
     };
-    window.addEventListener("focus", onCancel, { once: true });
-    document.body.appendChild(input);
-    input.click();
+
+    cancelBtn.addEventListener("click", () => {
+      cleanup();
+      resolve(null);
+    });
+
+    selectBtn.addEventListener("click", () => {
+      stubReselectInput.click();
+    });
+
+    stubReselectInput.addEventListener("change", () => {
+      const file = stubReselectInput.files?.[0] ?? null;
+      cleanup();
+      resolve(file);
+    }, { once: true });
   });
 }
 
@@ -1133,9 +1197,6 @@ async function openFromLibrary(bookId, options = {}) {
     // ========================================
     if (info?.isLargeFileStub) {
       hideLoading();
-      const msg = translate('stubReselectMessage') ||
-        `「${info.title}」は大容量ファイルのため本体が保存されていません。\nファイルを選択してください。`;
-      alert(msg);
 
       const file = await promptFileReselect(info);
       if (!file) {
@@ -1145,51 +1206,21 @@ async function openFromLibrary(bookId, options = {}) {
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
-      // 軽量ハッシュで同一ファイルか検証
-      const reHash = await fileHandler.buildArchiveFingerprint(file);
+      // 軽量ハッシュで同一ファイルか検証（リトライ付き）
+      const reHash = await fileHandler.readFileWithRetry(file,
+        () => fileHandler.buildArchiveFingerprint(file));
+
       if (reHash !== info.contentHash) {
         hideLoading();
-        alert(translate('stubHashMismatch') ||
+        alert(translate('stubHashMismatch', uiLanguage) ||
           "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。");
         return;
       }
 
-      // 進捗の復元
-      currentBookId = bookId;
-      isBookLoading = true;
-      currentBookInfo = info;
-      resetLocalSaveTracking();
-      currentCloudBookId = storage.getCloudBookId(bookId);
-
-      const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
-      const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
-      await applyReadingState(normalizedProgress);
-      const startPage = normalizedProgress?.location;
-
-      // ストリーミングモードで閲覧を開始
-      renderers.hideCloudEmptyState();
-      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
-      if (elements.viewer) {
-        elements.viewer.classList.add(UI_CLASSES.HIDDEN);
-        elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
-      }
-      if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
-
-      await reader.openImageBook(file, typeof startPage === "number" ? startPage : 0, info.type, { streaming: true });
-
-      if (normalizedProgress) {
-        await applyReadingState(normalizedProgress);
-      }
-
-      storage.addHistory(bookId);
-      renderers.renderBookmarkMarkers();
-      renderers.updateProgressBarDisplay();
-      renderers.updateSearchButtonState();
-      renderers.updateFloatingUIButtons();
-      closeExclusiveMenus();
-      if (floatVisible) {
-        toggleFloatOverlay(false);
-      }
+      // スタブファイルが正しく再選択された場合、以後の振る舞いを
+      // 全て通常の「ファイルを開く」フローへ委譲し、動作を完全に統一する
+      hideLoading();
+      await handleFile(file, bookId);
       return;
     }
 

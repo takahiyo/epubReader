@@ -68,8 +68,11 @@ export function shouldUseStreaming(file) {
         : 0;
 
     if (jsHeapLimit > 0) {
-        safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.30;
-        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB*0.30`;
+        // JSZip.loadAsync(File) は File/Blob を直接処理するため、
+        // ファイルサイズの3倍全てがJSヒープを消費するわけではない。
+        // ヒープリミットの50%を安全ラインとする（30%では100MB程度で不必要にストリーミングに切り替わる）。
+        safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.50;
+        memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB*0.50`;
     } else {
         safeMemoryMB = env.memoryGB * 1024 * 0.10;
         memorySource = `deviceMemory=${env.memoryGB}GB*0.10`;

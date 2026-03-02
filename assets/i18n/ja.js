@@ -265,4 +265,13 @@ export const UI_STRINGS_JA = Object.freeze({
   volumeNextLabel: "次巻",
   volumePrevTitle: "前の巻を開く",
   volumeNextTitle: "次の巻を開く",
+
+  // ストリーミング・スタブ
+  stubReselectTitle: "ファイルの再選択",
+  stubReselectMessage: "ブラウザにキャッシュが見つかりませんでした（「{title}」は大容量ファイルのため、本体を保存していません）。\n閲覧を再開するには元のファイルを選択してください。",
+  stubHashMismatch: "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。",
+  cancel: "キャンセル",
+  selectFile: "ファイルを選択",
+  streamingNotice: "メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。",
+  streamingCdnFailed: "ストリーミング用ライブラリの読み込みに失敗しました。通常モードで再試行します。",
 });

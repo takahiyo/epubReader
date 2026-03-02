@@ -2716,10 +2716,11 @@ export class ReaderController {
     }
   }
 
-  async convertImageAtIndex(index, { reportError } = {}) {
+  async convertImageAtIndex(index, { reportError, retry = false } = {}) {
     if (!this.imageEntries.length) return null;
     if (this.imagePages[index]) return this.imagePages[index];
-    if (this.imagePageErrors[index]) return null;
+    // retry フラグが立っている場合はエラーキャッシュをクリアして再試行を許可
+    if (this.imagePageErrors[index] && !retry) return null;
 
     const image = this.imageEntries[index];
     if (!image) return null;
@@ -2743,6 +2744,8 @@ export class ReaderController {
 
       const objectUrl = URL.createObjectURL(blob);
       this.imagePages[index] = objectUrl;
+      // 成功時はエラーをクリア（リトライ成功時のため）
+      this.imagePageErrors[index] = null;
       this.manageImageCache(index);
       this.emitLoadingUpdate({
         phase: READER_LOADING_PHASES.IMAGE_CONVERT,
@@ -2851,9 +2854,9 @@ export class ReaderController {
     if (index < 0 || index >= this.imagePages.length) return null;
 
     // ★追加: データがまだロードされていない（nullの）場合は、ここで変換処理を実行する
-    if (!this.imagePages[index] && !this.imagePageErrors[index]) {
-      // convertImageAtIndex はアーカイブから画像を取得し、this.imagePages[index] にセットします
-      await this.convertImageAtIndex(index);
+    // エラー済みの場合もリトライを試みる（一時的なエラーの可能性があるため）
+    if (!this.imagePages[index]) {
+      await this.convertImageAtIndex(index, { retry: true });
     }
 
     // imagePages[index] が Promise (アーカイブ読込待ち) の可能性があるため await する
@@ -3136,7 +3139,8 @@ export class ReaderController {
       return;
     }
 
-    const objectUrl = await this.convertImageAtIndex(index, { reportError: true });
+    // エラー済みの場合もリトライを試みる（一時的なエラーの可能性があるため）
+    const objectUrl = await this.convertImageAtIndex(index, { reportError: true, retry: true });
     if (!objectUrl) return;
     if (currentToken === this.imageLoadToken) {
       this.imageElement.src = objectUrl;

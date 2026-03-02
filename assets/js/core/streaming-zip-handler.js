@@ -22,6 +22,7 @@ let zipJsPromise = null;
 /**
  * zip.js ライブラリを CDN から動的に読み込む。
  * 2回目以降はキャッシュされた Promise を返す。
+ * 失敗した場合はキャッシュをリセットし、次回の呼び出しで再試行する。
  * @returns {Promise<object>} zip.js のグローバルオブジェクト (zip)
  */
 async function ensureZipJs() {
@@ -40,8 +41,22 @@ async function ensureZipJs() {
             const script = document.createElement("script");
             script.src = CDN_URLS.ZIPJS;
             script.async = true;
-            script.onload = resolve;
-            script.onerror = () => reject(new Error("zip.js の読み込みに失敗しました"));
+
+            const timeoutId = setTimeout(() => {
+                // タイムアウト: script要素を削除してリソースをクリーンアップ
+                script.remove();
+                reject(new Error("zip.js の読み込みがタイムアウトしました (ネットワーク制限やブロッカーの可能性があります)"));
+            }, 10000); // 10秒でタイムアウト
+
+            script.onload = () => {
+                clearTimeout(timeoutId);
+                resolve();
+            };
+            script.onerror = () => {
+                clearTimeout(timeoutId);
+                script.remove();
+                reject(new Error("zip.js の読み込みに失敗しました"));
+            };
             document.head.appendChild(script);
         });
         console.timeEnd('[StreamingZip] CDN load');
@@ -51,7 +66,11 @@ async function ensureZipJs() {
         // WebWorkerを無効化（メインスレッドで解凍、ハング防止）
         window.zip.configure({ useWebWorkers: false });
         return window.zip;
-    })();
+    })().catch((error) => {
+        // 失敗時はキャッシュをリセットして次回再試行を許可
+        zipJsPromise = null;
+        throw error;
+    });
 
     return zipJsPromise;
 }
@@ -123,6 +142,27 @@ function resolveImageMimeType(path) {
 // ========================================
 
 /**
+ * タイムアウト付きPromiseラッパー。
+ * Androidのメインスレッドブロックや静かなハングを検出するために使用。
+ * @param {Promise} promise 対象のPromise
+ * @param {number} timeoutMs タイムアウト（ミリ秒）
+ * @param {string} operationName 操作名（エラーメッセージ用）
+ * @returns {Promise}
+ */
+function withTimeout(promise, timeoutMs, operationName) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`${operationName}がタイムアウトしました (${timeoutMs / 1000}秒)。ファイルが大きすぎるか、端末のメモリが不足している可能性があります。`));
+        }, timeoutMs);
+
+        promise.then(
+            (value) => { clearTimeout(timer); resolve(value); },
+            (error) => { clearTimeout(timer); reject(error); },
+        );
+    });
+}
+
+/**
  * zip.js ベースのストリーミング ZIP ハンドラ。
  * ArchiveHandler インターフェース (init, listImageEntries, getFileBlob, getArchiveLabel) に準拠。
  *
@@ -159,7 +199,12 @@ export class StreamingZipHandler {
         console.timeEnd('[StreamingZip] ZipReader.open');
 
         console.time('[StreamingZip] getEntries');
-        const rawEntries = await this.zipReader.getEntries();
+        // getEntries にタイムアウトを設定（100MB超のZIPはAndroidで数分かかる場合がある）
+        const rawEntries = await withTimeout(
+            this.zipReader.getEntries(),
+            120000, // 120秒
+            'ZIPエントリー一覧の取得'
+        );
         console.timeEnd('[StreamingZip] getEntries');
         console.log(`[StreamingZip] Total entries: ${rawEntries.length}`);
 
@@ -218,9 +263,15 @@ export class StreamingZipHandler {
         }
         const zipLib = await ensureZipJs();
         const mimeType = resolveImageMimeType(path);
-        console.time(`[StreamingZip] extract: ${path.split('/').pop()}`);
-        const blob = await entry.getData(new zipLib.BlobWriter(mimeType));
-        console.timeEnd(`[StreamingZip] extract: ${path.split('/').pop()}`);
+        const fileName = path.split('/').pop();
+        console.time(`[StreamingZip] extract: ${fileName}`);
+        // 個別画像の展開にタイムアウトを設定（1枚あたり最大30秒）
+        const blob = await withTimeout(
+            entry.getData(new zipLib.BlobWriter(mimeType)),
+            30000,
+            `画像の展開 (${fileName})`
+        );
+        console.timeEnd(`[StreamingZip] extract: ${fileName}`);
         return blob;
     }
 

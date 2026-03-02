@@ -702,10 +702,22 @@ export async function createArchiveHandler(file, options = {}) {
 
   // ストリーミングモード: ZIP 形式かつ明示的に要求された場合のみ
   if (options.forceStreaming && type === BOOK_TYPES.ZIP) {
-    const { StreamingZipHandler } = await import("./streaming-zip-handler.js");
-    const handler = new StreamingZipHandler(file);
-    await handler.init();
-    return handler;
+    try {
+      const { StreamingZipHandler } = await import("./streaming-zip-handler.js");
+      const handler = new StreamingZipHandler(file);
+      await handler.init();
+      return handler;
+    } catch (streamingError) {
+      // ストリーミングモード失敗時（CDNタイムアウト、メモリ不足等）は JSZip にフォールバック
+      console.warn(
+        "[createArchiveHandler] ストリーミングモードが失敗しました。JSZip一括展開にフォールバックします:",
+        streamingError.message
+      );
+      // JSZip での読み込みを試行（大容量ファイルだが、ストリーミングが使えない場合の最終手段）
+      const fallbackHandler = new ZipHandler(file);
+      await fallbackHandler.init();
+      return fallbackHandler;
+    }
   }
 
   const handler = type === BOOK_TYPES.RAR ? new RarHandler(file) : new ZipHandler(file);

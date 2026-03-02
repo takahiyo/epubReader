@@ -266,4 +266,13 @@ export const UI_STRINGS_EN = Object.freeze({
   volumeNextLabel: "Next",
   volumePrevTitle: "Open previous volume",
   volumeNextTitle: "Open next volume",
+
+  // Streaming & File stub
+  stubReselectTitle: "Reselect File",
+  stubReselectMessage: "The cached file for \"{title}\" was not found in the browser (cached file is skipped for large files).\nPlease select the original file to resume reading.",
+  stubHashMismatch: "The selected file does not match the registered file.\nPlease select the correct file.",
+  cancel: "Cancel",
+  selectFile: "Select File",
+  streamingNotice: "Loading in limited mode (streaming) due to insufficient memory. Some features may not be available.",
+  streamingCdnFailed: "Failed to load streaming library. Retrying with standard mode.",
 });
