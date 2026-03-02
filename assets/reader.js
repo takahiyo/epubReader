@@ -3909,11 +3909,24 @@ export class ReaderController {
     const reader = document.getElementById(DOM_IDS.FULLSCREEN_READER);
     if (!reader) return false;
     const rect = reader.getBoundingClientRect();
+
+    let clientX, clientY;
+    if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else if (event.changedTouches && event.changedTouches.length > 0) {
+      clientX = event.changedTouches[0].clientX;
+      clientY = event.changedTouches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+
     return (
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
     );
   }
 
@@ -3975,28 +3988,52 @@ export class ReaderController {
       }
     });
 
+    // マウスドラッグ終了（documentレベルで捕捉し、領域外でのmouseupも検知）
     document.addEventListener('mouseup', endDrag);
 
-    // タッチイベント
+    const readerContainer = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+    if (!readerContainer) return;
+
+    // タッチイベント (リーダーコンテナ領域にバインド)
+    // Android等では clickOverlay が touchstart を受け取り readerContainer にバブリングする。
+    // touchstart / touchmove / touchend / touchcancel を全て同じ要素（readerContainer）で
+    // 一貫して監視することで、Android WebView でもパン操作を確実に捕捉する。
     const touchOpts = { passive: false };
 
-    document.addEventListener('touchstart', (e) => {
-      if (this.imageZoomed && this.isEventInReaderArea(e)) {
-        if (e.touches.length === 1) {
-          e.preventDefault();
-          startDrag(e.touches[0].clientX, e.touches[0].clientY);
+    readerContainer.addEventListener('touchstart', (e) => {
+      if (this.imageZoomed) {
+        // ズーム操作UIへのタッチは無視
+        if (e.target && typeof e.target.closest === 'function' && e.target.closest(DOM_SELECTORS.ZOOM_ALLOWED_TARGETS)) {
+          return;
+        }
+
+        const isTouch = e.touches && e.touches.length > 0;
+        if (isTouch || this.isEventInReaderArea(e)) {
+          if (e.touches.length === 1) {
+            e.preventDefault();
+            e.stopPropagation();
+            startDrag(e.touches[0].clientX, e.touches[0].clientY);
+          }
         }
       }
     }, touchOpts);
 
-    document.addEventListener('touchmove', (e) => {
+    readerContainer.addEventListener('touchmove', (e) => {
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
         e.preventDefault();
+        e.stopPropagation();
         moveDrag(e.touches[0].clientX, e.touches[0].clientY);
       }
     }, touchOpts);
 
-    document.addEventListener('touchend', endDrag);
+    // [修正] touchend/touchcancel を readerContainer にバインド（旧: viewer）
+    // 以前は viewer（#viewer 要素）にバインドしていたが、Android では
+    // clickOverlay 上でタッチが開始されるため、touchend が viewer に到達せず
+    // ドラッグ状態が解除されない問題があった。
+    // readerContainer（#fullscreenReader）はすべての子要素を包含するため、
+    // どの子要素でタッチが開始されても touchend を確実にキャッチできる。
+    readerContainer.addEventListener('touchend', endDrag);
+    readerContainer.addEventListener('touchcancel', endDrag);
   }
 
   bindZoomEvents() {
@@ -4026,14 +4063,19 @@ export class ReaderController {
       this.setZoomLevel(nextScale, { x: event.clientX, y: event.clientY });
     }, { passive: false });
 
+    const readerContainer = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+    if (!readerContainer) return;
+
     // ピンチズーム（documentレベルで捕捉）
     const touchOpts = { passive: false };
 
-    document.addEventListener('touchstart', (event) => {
-      if (!this.isEventInReaderArea(event)) return;
+    readerContainer.addEventListener('touchstart', (event) => {
+      const isTouch = event.touches && event.touches.length > 0;
+      if (!isTouch && !this.isEventInReaderArea(event)) return;
 
-      if (event.touches.length === 2) {
+      if (event.touches && event.touches.length === 2) {
         event.preventDefault();
+        event.stopPropagation();
         this.isPinching = true;
         this.isDragging = false;
         this.pinchStartDistance = this.getPinchDistance(event.touches);
@@ -4042,9 +4084,10 @@ export class ReaderController {
       }
     }, touchOpts);
 
-    document.addEventListener('touchmove', (event) => {
+    readerContainer.addEventListener('touchmove', (event) => {
       if (this.isPinching && event.touches.length === 2) {
         event.preventDefault();
+        event.stopPropagation();
         const distance = this.getPinchDistance(event.touches);
         const center = this.getPinchCenter(event.touches);
 
@@ -4055,7 +4098,13 @@ export class ReaderController {
       }
     }, touchOpts);
 
-    document.addEventListener('touchend', (event) => {
+    readerContainer.addEventListener('touchend', (event) => {
+      if (event.touches.length < 2) {
+        this.isPinching = false;
+        this.pinchStartDistance = 0;
+      }
+    }, touchOpts);
+    readerContainer.addEventListener('touchcancel', (event) => {
       if (event.touches.length < 2) {
         this.isPinching = false;
         this.pinchStartDistance = 0;
