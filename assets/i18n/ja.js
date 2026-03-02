@@ -269,4 +269,9 @@ export const UI_STRINGS_JA = Object.freeze({
   // ストリーミング・スタブ
   stubReselectTitle: "ファイルの再選択",
   stubReselectMessage: "「{title}」は大容量ファイルのため本体が保存されていません。\n閲覧を再開するには元のファイルを選択してください。",
+  stubHashMismatch: "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。",
+  cancel: "キャンセル",
+  selectFile: "ファイルを選択",
+  streamingNotice: "メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。",
+  streamingCdnFailed: "ストリーミング用ライブラリの読み込みに失敗しました。通常モードで再試行します。",
 });

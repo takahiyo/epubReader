@@ -270,4 +270,9 @@ export const UI_STRINGS_EN = Object.freeze({
   // Streaming & File stub
   stubReselectTitle: "Reselect File",
   stubReselectMessage: "The content of \"{title}\" is not saved because it is a large file.\nPlease select the original file to resume reading.",
+  stubHashMismatch: "The selected file does not match the registered file.\nPlease select the correct file.",
+  cancel: "Cancel",
+  selectFile: "Select File",
+  streamingNotice: "Loading in limited mode (streaming) due to insufficient memory. Some features may not be available.",
+  streamingCdnFailed: "Failed to load streaming library. Retrying with standard mode.",
 });
