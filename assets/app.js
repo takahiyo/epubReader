@@ -17,7 +17,7 @@ import {
   onGoogleLoginEnd as endGoogleLoginUi,
 } from "./auth.js";
 import { auth } from "./firebaseConfig.js";
-import { saveFile, loadFile, bufferToFile, deleteBook, isOPFSAvailable } from "./fileStore.js";
+import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
@@ -56,7 +56,6 @@ import {
   NOTION_INTEGRATION_STATUS,
   NOTION_DEFAULT_SETTINGS,
   NOTION_CONFIG,
-  DEFAULT_SETTINGS,
 } from "./constants.js";
 
 // ========================================
@@ -868,17 +867,12 @@ async function handleFile(file) {
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
     // 4. ファイル保存
-    //    本来はストリーミングモード時も、OPFS が利用可能なら本体を保存して再選択を不要にする。
-    //    容量制限や OPFS 非対応時のみスタブモード（本体保存スキップ）とする。
-    let isLargeFileStub = false;
+    //    ストリーミングモード: 本体を保存しない（メタデータのみ）
+    //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
+    //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
     if (useStreaming) {
-      if (isOPFSAvailable()) {
-        console.log(`[Streaming] Saving to OPFS to avoid re-selection requirement for ${id.substring(0, 12)}...`);
-        await saveFile(id, file, { fileName: file.name, mime }, source);
-      } else {
-        console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
-        isLargeFileStub = true;
-      }
+      console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
+      // 本体保存スキップ — メタデータのみライブラリに記録
     } else {
       console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
       if (isLargeFile) {
@@ -898,8 +892,8 @@ async function handleFile(file) {
       size: file.size,
       contentHash,
       lastOpened: Date.now(),
-      // ストリーミングモードかつ保存できなかった場合のみ、再開時にファイル再選択が必要
-      ...(isLargeFileStub ? { isLargeFileStub: true } : {}),
+      // ストリーミングモード: 再開時にファイル再選択が必要
+      ...(useStreaming ? { isLargeFileStub: true } : {}),
     };
 
     storage.upsertBook(info);
@@ -1090,6 +1084,8 @@ function openCloudOnlyBook(cloudBookId) {
   }
 }
 
+let stubReselectInput = null;
+
 /**
  * スタブエントリー用ファイル再選択ダイアログ。
  * ユーザーにファイルを選ばせ、軽量ハッシュで同一ファイルか検証する。
@@ -1098,48 +1094,77 @@ function openCloudOnlyBook(cloudBookId) {
  */
 function promptFileReselect(info) {
   return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
-    input.style.display = "none";
+    // 恒久的な input 要素を準備（Android WebViewでのFileストリーム切断・無限ロードを防ぐためDOMから削除しない）
+    if (!stubReselectInput) {
+      stubReselectInput = document.createElement("input");
+      stubReselectInput.type = "file";
+      stubReselectInput.accept = SUPPORTED_FORMATS.IMAGE_ARCHIVE.join(",");
+      stubReselectInput.style.display = "none";
+      document.body.appendChild(stubReselectInput);
+    }
 
-    let isResolved = false;
+    // 以前のイベントを確実に消すため要素を置き換える
+    const newClone = stubReselectInput.cloneNode(true);
+    stubReselectInput.parentNode.replaceChild(newClone, stubReselectInput);
+    stubReselectInput = newClone;
+    stubReselectInput.value = '';
 
-    input.addEventListener("change", () => {
-      if (isResolved) return;
-      isResolved = true;
-      const file = input.files?.[0] ?? null;
-      if (input.parentNode) {
-        document.body.removeChild(input);
+    // カスタムダイアログUIの構築
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;font-family:sans-serif;";
+
+    const dialog = document.createElement("div");
+    dialog.style.cssText = "background:var(--bg-color, #fff);color:var(--text-color, #333);padding:24px;border-radius:8px;width:90%;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.2);";
+
+    const title = document.createElement("h3");
+    title.textContent = translate('stubReselectTitle') || "ファイル再選択";
+    title.style.cssText = "margin:0 0 16px 0;font-size:1.2rem;";
+
+    const msgTemplate = translate('stubReselectMessage') || "「{title}」は大容量ファイルのため本体が保存されていません。\n閲覧を再開するには元のファイルを選択してください。";
+    const desc = document.createElement("p");
+    desc.textContent = msgTemplate.replace('{title}', info.title);
+    desc.style.cssText = "margin:0 0 24px 0;line-height:1.5;white-space:pre-wrap;font-size:0.95rem;";
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.cssText = "display:flex;justify-content:flex-end;gap:12px;";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = translate('cancel') || "キャンセル";
+    cancelBtn.style.cssText = "padding:8px 16px;border:none;background:transparent;color:var(--text-color, #333);cursor:pointer;font-size:0.95rem;font-weight:bold;";
+
+    const selectBtn = document.createElement("button");
+    selectBtn.textContent = translate('selectFile') || "ファイルを選択";
+    selectBtn.style.cssText = "padding:8px 16px;border:none;background:var(--primary-color, #007bff);color:#fff;border-radius:4px;cursor:pointer;font-size:0.95rem;font-weight:bold;";
+
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(selectBtn);
+
+    dialog.appendChild(title);
+    dialog.appendChild(desc);
+    dialog.appendChild(btnContainer);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const cleanup = () => {
+      if (overlay.parentNode) {
+        document.body.removeChild(overlay);
       }
-      resolve(file);
-    });
-
-    // キャンセル時（focusが戻ったのに値が空）
-    const onCancel = () => {
-      // Android等で alert() 直後の focus イベントが重複発火するのを防ぐため、
-      // 登録後に十分な時間を置いてから判定する
-      setTimeout(() => {
-        if (isResolved) return;
-        if (!input.files?.length) {
-          isResolved = true;
-          if (input.parentNode) {
-            document.body.removeChild(input);
-          }
-          resolve(null);
-        }
-      }, 1000); // 500ms から 1000ms に延長し、判定をより慎重に
     };
 
-    // input.click() 直後に focus リスナーを貼ると、
-    // picker が開いた瞬間の focus 喪失/取得を誤検知する可能性があるため
-    // わずかに遅延させてからリスナーを登録する
-    setTimeout(() => {
-      window.addEventListener("focus", onCancel, { once: true });
-    }, 300);
+    cancelBtn.addEventListener("click", () => {
+      cleanup();
+      resolve(null);
+    });
 
-    document.body.appendChild(input);
-    input.click();
+    selectBtn.addEventListener("click", () => {
+      stubReselectInput.click();
+    });
+
+    stubReselectInput.addEventListener("change", () => {
+      const file = stubReselectInput.files?.[0] ?? null;
+      cleanup();
+      resolve(file);
+    }, { once: true });
   });
 }
 
@@ -1160,9 +1185,7 @@ async function openFromLibrary(bookId, options = {}) {
     // ========================================
     if (info?.isLargeFileStub) {
       hideLoading();
-      const msg = translate('stubReselectMessage') ||
-        `「${info.title}」は大容量ファイルのため本体が保存されていません。\nファイルを選択してください。`;
-      alert(msg);
+      // ブラウザ標準のalertを削除し、専用のダイアログからファイル再選択を促す
 
       const file = await promptFileReselect(info);
       if (!file) {

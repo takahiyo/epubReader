@@ -59,7 +59,7 @@ function ensureCloudLoggedIn(source, settings) {
  * navigator.storage.getDirectory が存在すれば対応と見なす。
  * @returns {boolean}
  */
-export function isOPFSAvailable() {
+function isOPFSAvailable() {
   return typeof navigator?.storage?.getDirectory === "function";
 }
 
