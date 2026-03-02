@@ -1060,7 +1060,7 @@ function showStreamingNotice() {
       notice = document.createElement('div');
       notice.className = 'streaming-notice';
       notice.style.cssText = 'color:#ffb74d;font-size:0.85rem;text-align:center;margin-top:12px;padding:0 16px;line-height:1.5;';
-      notice.textContent = translate('streamingNotice') || 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
+      notice.textContent = translate('streamingNotice', uiLanguage) || 'メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。';
       elements.loadingOverlay.appendChild(notice);
     }
   }
@@ -1197,7 +1197,6 @@ async function openFromLibrary(bookId, options = {}) {
     // ========================================
     if (info?.isLargeFileStub) {
       hideLoading();
-      // ブラウザ標準のalertを削除し、専用のダイアログからファイル再選択を促す
 
       const file = await promptFileReselect(info);
       if (!file) {
@@ -1219,44 +1218,10 @@ async function openFromLibrary(bookId, options = {}) {
         return;
       }
 
-      // 進捗の復元
-      currentBookId = bookId;
-      isBookLoading = true;
-      currentBookInfo = info;
-      resetLocalSaveTracking();
-      currentCloudBookId = storage.getCloudBookId(bookId);
-
-      const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
-      const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
-      const startPage = normalizedProgress?.location;
-
-      // ストリーミングモードで閲覧を開始
-      renderers.hideCloudEmptyState();
-      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
-      if (elements.viewer) {
-        elements.viewer.classList.add(UI_CLASSES.HIDDEN);
-        elements.viewer.classList.remove(UI_CLASSES.VISIBLE);
-      }
-      if (elements.imageViewer) elements.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
-
-      await reader.openImageBook(file, typeof startPage === "number" ? startPage : 0, info.type, { streaming: true });
-
-      if (normalizedProgress) {
-        await applyReadingState(normalizedProgress);
-      }
-
-      storage.addHistory(bookId);
-      renderers.renderBookmarkMarkers();
-      renderers.updateProgressBarDisplay();
-      renderers.updateSearchButtonState();
-      renderers.updateFloatingUIButtons();
-      closeExclusiveMenus();
-      if (floatVisible) {
-        toggleFloatOverlay(false);
-      }
-      // スタブフロー正常完了: isBookLoading を解除し、ローディングを非表示にする
-      isBookLoading = false;
+      // スタブファイルが正しく再選択された場合、以後の振る舞いを
+      // 全て通常の「ファイルを開く」フローへ委譲し、動作を完全に統一する
       hideLoading();
+      await handleFile(file, bookId);
       return;
     }
 
