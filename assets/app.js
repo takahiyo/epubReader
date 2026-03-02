@@ -885,8 +885,8 @@ async function handleFile(file) {
       size: file.size,
       contentHash,
       lastOpened: Date.now(),
-      // ストリーミングモード: 再開時にファイル再選択が必要
-      ...(useStreaming ? { isLargeFileStub: true } : {}),
+      // ストリーミング不要になった場合、過去の true を上書きしてスタブ状態を解除する
+      isLargeFileStub: useStreaming,
     };
 
     storage.upsertBook(info);
@@ -1204,7 +1204,6 @@ async function openFromLibrary(bookId, options = {}) {
         return;
       }
       showLoading();
-      showStreamingNotice();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
       // 軽量ハッシュで同一ファイルか検証（リトライ付き）

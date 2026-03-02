@@ -269,7 +269,7 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Streaming & File stub
   stubReselectTitle: "Reselect File",
-  stubReselectMessage: "The cached file for \"{title}\" was not found in this environment (cached file is skipped for large files).\nPlease select the original file to resume reading.",
+  stubReselectMessage: "The cached file for \"{title}\" was not found in the browser (cached file is skipped for large files).\nPlease select the original file to resume reading.",
   stubHashMismatch: "The selected file does not match the registered file.\nPlease select the correct file.",
   cancel: "Cancel",
   selectFile: "Select File",

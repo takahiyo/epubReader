@@ -268,7 +268,7 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // ストリーミング・スタブ
   stubReselectTitle: "ファイルの再選択",
-  stubReselectMessage: "環境にキャッシュされたファイルが見当たりません（「{title}」は大容量ファイルのため、本体を保存していません）。\n閲覧を再開するには元のファイルを選択してください。",
+  stubReselectMessage: "ブラウザにキャッシュが見つかりませんでした（「{title}」は大容量ファイルのため、本体を保存していません）。\n閲覧を再開するには元のファイルを選択してください。",
   stubHashMismatch: "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。",
   cancel: "キャンセル",
   selectFile: "ファイルを選択",
