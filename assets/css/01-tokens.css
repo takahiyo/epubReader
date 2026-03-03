@@ -17,7 +17,7 @@
   --reader-bg: #0b1020;
   --reader-text: #e5e7eb;
   --reader-safe-inline: clamp(12px, 4vw, 36px);
-  --reader-safe-block: clamp(12px, 5vh, 48px);
+  --reader-safe-block: clamp(4px, 0.5vh, 48px);
   /* レイアウト設定（JSから注入される前提） */
   --reader-max-width: 800px;
   --reader-text-align: justify;
