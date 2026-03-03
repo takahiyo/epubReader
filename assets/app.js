@@ -389,6 +389,14 @@ function saveCurrentProgress(options = {}) {
   }
 
   if (!progressData) return progressSnapshot;
+
+  // [修正] 強制保存（pagehide等のバックグラウンド移行時）における意図しない位置リセットを防止
+  // すでに読了が進んでいる（0.1%以上）状態で、今回0%が取得された場合は、ブラウザのDOM計測失敗の可能性が高いため保存をスキップ
+  if (force && progressData.percentage === 0 && lastSavedPercentage > 0.001) {
+    console.warn("[saveCurrentProgress] Force save detected potential reset (0% vs last " + lastSavedPercentage + "%). Skipping.");
+    return progressSnapshot;
+  }
+
   if (!force && !shouldPersistLocalProgress(progressData.percentage)) return progressSnapshot;
 
   storage.setProgress(currentBookId, progressData);
