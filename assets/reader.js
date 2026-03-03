@@ -1034,8 +1034,8 @@ export class ReaderController {
     // これにより既存の「横幅」の感覚を維持します
     const hPad = Math.max(16, Math.round(width * 0.04), Math.round(height * 0.05));
 
-    // 縦: 画面環境の95%を利用 -> 余白は合計5% (上下それぞれ2.5%)
-    const vPad = Math.max(16, Math.round(height * 0.025));
+    // 縦: 画面環境の99%を利用 -> 余白は合計1% (上下それぞれ0.5%)
+    const vPad = Math.max(16, Math.round(height * 0.005));
 
     return { hPad, vPad };
   }
