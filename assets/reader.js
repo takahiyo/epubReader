@@ -246,6 +246,10 @@ export class ReaderController {
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
 
+    // [New] Scroll position caching for Android/mobile backgrounding stability
+    this._lastValidScrollLocation = null;
+    this._lastValidScrollRatio = 0;
+
     // Bind global pan events
     this.bindPanEvents();
     this.bindZoomEvents();
