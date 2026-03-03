@@ -361,6 +361,8 @@ export class ReaderController {
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
     this._isInitialReadyCalled = false;
+    this._lastValidScrollLocation = null;
+    this._lastValidScrollRatio = 0;
     this.toc = [];
     if (this.paginator?.destroy) {
       this.paginator.destroy();
@@ -1356,7 +1358,19 @@ export class ReaderController {
 
     if (this.epubViewMode === "scroll" && this.pageContainer && this.currentPageIndex === pageIndex) {
       // スクロールモードの場合、表示中のスクロール位置から現在見ているセグメントを逆算する
-      const segmentIndex = this._getCurrentScrollSegment(this.pageContainer);
+      let segmentIndex = this._getCurrentScrollSegment(this.pageContainer);
+
+      // [修正] Androidのバックグラウンド移行時などの計測失敗対策。
+      // セグメント取得に失敗した、あるいは強制的に0（先頭）に戻ってしまった場合、
+      // 同じ章であれば最後に確認された有効な位置を優先する。
+      if (segmentIndex === null || segmentIndex === 0) {
+        if (this._lastValidScrollLocation && this._lastValidScrollLocation.spineIndex === page.spineIndex) {
+          if (segmentIndex === null || this._lastValidScrollLocation.segmentIndex > 0) {
+            segmentIndex = this._lastValidScrollLocation.segmentIndex;
+          }
+        }
+      }
+
       if (segmentIndex !== null) {
         const locator = { spineIndex: page.spineIndex, segmentIndex };
         // 位置復元用に、現在表示されているテキストの断片を保存する
@@ -2199,6 +2213,15 @@ export class ReaderController {
         const maxScroll = Math.abs(this.viewer.scrollHeight - this.viewer.clientHeight);
         scrollRatio = maxScroll > 0 ? (Math.abs(this.viewer.scrollTop) / maxScroll) : 0;
       }
+
+      // [修正] Androidバックグラウンド移行時の計測失敗（0リセット）対策
+      if (scrollRatio === 0 && this._lastValidScrollRatio > 0) {
+        // pagehide等の特殊なタイミングでは前回の比率を維持
+        scrollRatio = this._lastValidScrollRatio;
+      } else if (scrollRatio > 0) {
+        this._lastValidScrollRatio = scrollRatio;
+      }
+
       currentIndex = Math.min(this.currentPageIndex + scrollRatio, totalPages - 1);
     }
 
@@ -2211,6 +2234,12 @@ export class ReaderController {
     const percentage = this._calculateCurrentPercentage(totalPages);
 
     const locator = this.getPageLocator(this.currentPageIndex);
+
+    // 有効な（章の先頭ではない）位置を取得できた場合はキャッシュに保存
+    if (locator && (locator.segmentIndex > 0 || this.currentPageIndex > 0)) {
+      this._lastValidScrollLocation = { ...locator };
+    }
+
     const fallbackLocator = locator ? null : this.getFallbackLocator();
     this.onProgress?.({
       location: locator ?? fallbackLocator ?? null,
