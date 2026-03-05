@@ -2067,7 +2067,8 @@ function applyUiLanguage(nextLanguage) {
       uiLanguage,
     );
   }
-  if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsFirebaseTitle;
+  if (elements.settingsSyncTitle) elements.settingsSyncTitle.textContent = strings.settingsSyncTitle;
+  if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsSyncTitle;
   if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
   if (elements.firebaseAuthDomainLabel) {
     elements.firebaseAuthDomainLabel.textContent = strings.firebaseAuthDomainLabel;

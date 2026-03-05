@@ -67,12 +67,14 @@ export class CloudSync {
     return uid;
   }
 
-  // Workerのエンドポイント取得 (設定名はfirebaseEndpointのまま互換維持)
+  // Workerのエンドポイント取得 (設定名は d1Endpoint を優先)
   getWorkerEndpoint(settings = this.storage.getSettings()) {
     return (
+      settings?.d1Endpoint ||
       settings?.firebaseEndpoint ||
       settings?.firebaseSyncEndpoint ||
-      (typeof window !== "undefined" && window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT) ||
+      (typeof window !== "undefined" &&
+        (window.APP_CONFIG?.D1_SYNC_ENDPOINT || window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT)) ||
       WORKERS_CONFIG.SYNC_ENDPOINT ||
       ""
     );
@@ -127,7 +129,7 @@ export class CloudSync {
     throw new Error(t("cloudSyncWorkersFailed"));
   }
 
-  async getFirebaseIdToken() {
+  async getIdToken() {
     const info = await getIdTokenInfo();
     if (!info?.idToken) return null;
     // GISトークンでもFirebaseトークンでも、Worker側で検証するためそのまま返す
@@ -156,7 +158,7 @@ export class CloudSync {
     if (!endpoint) {
       throw new Error(t("cloudSyncNoEndpoint"));
     }
-    const idToken = await this.getFirebaseIdToken();
+    const idToken = await this.getIdToken();
     if (!idToken) {
       throw new Error(t("cloudSyncNoIdToken"));
     }

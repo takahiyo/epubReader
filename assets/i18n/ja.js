@@ -97,7 +97,7 @@ export const UI_STRINGS_JA = Object.freeze({
   deviceColorLabel: "デバイスカラー",
   deviceNameLabel: "デバイス名",
   syncHint: "※ 同期がうまく行かない場合は、広告ブロック機能をこのサイトで「無効」に設定してください。",
-  settingsFirebaseTitle: "Firebase",
+  settingsSyncTitle: "Cloudflare D1 (Workers)",
   googleLoginLabel: "Googleログイン",
   googleLogoutLabel: "ログオフ",
   googleLoginStatusSignedOut: "未ログイン",
@@ -212,13 +212,13 @@ export const UI_STRINGS_JA = Object.freeze({
   syncNowButton: "今すぐ同期",
   syncBlocked: "通信がブロックされました",
   syncBlockedDetail:
-    "広告ブロック等の拡張機能をOFFにして再試行してください。\\n(Firebaseへの接続が遮断されています)",
+    "広告ブロック等の拡張機能をOFFにして再試行してください。",
   syncPermissionError: "権限エラー",
   syncPermissionDetail: "ログインし直してください。",
 
   // クラウド同期メッセージ
   cloudSyncAuthRequired: "ログインが必要です。設定からログインしてください。",
-  cloudSyncNoEndpoint: "Workers のエンドポイントが設定されていません",
+  cloudSyncNoEndpoint: "同期用エンドポイントが設定されていません",
   cloudSyncNoIdToken: "ID トークンが取得できません",
   cloudSyncOneDriveAuthRequired: "OneDrive の認証が必要です",
   cloudSyncPCloudConfigRequired: "pCloud の設定が必要です",

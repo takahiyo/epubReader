@@ -59,6 +59,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   lastIndexSyncAt: null, // SSOT: D1インデックス同期の最終時刻
   apiKey: "<必要ならキー>",
   endpoint: "",
+  d1Endpoint: "", // Cloudflare D1 (Workers) エンドポイント
   source: STORAGE_SOURCE_DEFAULT,
   saveDestination: STORAGE_SOURCE_DEFAULT,
   onedriveClientId: "",

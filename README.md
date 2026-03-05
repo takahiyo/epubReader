@@ -1,74 +1,180 @@
-# AI Coding Guidelines
+# 📖 BookReader
 
-AIによるコーディング作業において、コードの品質と安全性を確保するための汎用ガイドライン集です。
+**ブラウザで動く軽量な EPUB / 画像アーカイブリーダー**
 
-## 目的
+サーバー不要・インストール不要。ブラウザでファイルを開くだけで、EPUB や画像書庫（ZIP/RAR）をすぐに読めるPWAアプリです。
 
-- **SSOT（Single Source of Truth）の徹底** - 定数の重複を防ぎ、保守性を確保
-- **モジュール化とコメントの完備** - 機能追加や分割時の破壊を防止
-- **ガイドラインの整備** - 以降の開発をスムーズに行うための基盤
+> **デモ**: [https://takahiyo.github.io/epubReader/](https://takahiyo.github.io/epubReader/)
 
-## 使い方
+---
 
-### 新規プロジェクトへの導入
+## ✨ 主要機能
 
-1. このリポジトリの内容（README.md以外）を**プロジェクトのルートにコピー**
-2. プロジェクト固有の調整があれば各ガイドに追記
+### 対応フォーマット
 
-### AIへの指示
+| 種別 | 拡張子 |
+|------|--------|
+| EPUB | `.epub` |
+| 画像アーカイブ | `.cbz` `.zip` `.rar` `.cbr` |
 
-開発セッション開始時：
+アーカイブ内の画像形式: PNG, JPG, GIF, WebP, BMP, AVIF, JFIF, HEIC, HEIF, TIFF
+
+### 閲覧モード
+
+- **ページめくり / シームレススクロール** — EPUB の表示方式を切り替え可能
+- **縦書き（`vertical-rl`）/ 横書き（`horizontal-tb`）** — 日本語コンテンツに最適化
+- **単ページ / 見開き** — 画像書庫の表示方式を切り替え可能
+- **RTL / LTR** — 読み進める方向を切り替え可能
+
+### UI 機能
+
+- 🌙 **ダーク / ライトテーマ** の切り替え
+- 🔤 **フォントサイズ調整**（12px 〜 28px）
+- 🔍 **ピンチ & ホイールズーム**（スライダー付き）
+- 🔖 **しおり**（ブックマーク管理・進捗バー上にマーカー表示）
+- 🔎 **テキスト検索**（EPUB 内全文検索・ハイライト表示）
+- 📑 **目次ナビゲーション**
+- 📚 **ライブラリ管理**（グリッド / リスト表示・検索・削除）
+- 📜 **閲覧履歴**
+- 📊 **進捗バー**（ページ番号 / パーセント表示切り替え）
+- 📂 **ドラッグ＆ドロップ** でファイルを開く
+- 🖥️ **フルスクリーン** 対応
+- 📱 **レスポンシブデザイン**（モバイル・タブレット・デスクトップ）
+
+### 多言語対応
+
+- 🇯🇵 日本語 / 🇺🇸 英語 の切り替え（UI 全体が動的に切り替わります）
+
+### PWA（Progressive Web App）
+
+- **オフライン対応** — Service Worker による全アセットキャッシュ
+- **インストール可能** — ホーム画面に追加してネイティブアプリのように利用可能
+
+### クラウド同期
+
+- **Firebase Authentication** による Google ログイン
+- **Cloudflare Workers**（KV / D1）による読書進捗・しおりのクラウド同期
+- 複数デバイス間で読書状態を自動同期
+- デバイスごとの識別・競合解決
+
+### Notion 連携
+
+- Notion OAuth を通じた読書データの連携
+
+### ローカルストレージ
+
+- **IndexedDB** — ファイルデータの永続化
+- **OPFS**（Origin Private File System）— 大容量ファイルの効率的な保存
+- **LocalStorage** — 設定・進捗・履歴の保存
+
+---
+
+## 🛠️ 技術スタック
+
+| カテゴリ | 技術 |
+|----------|------|
+| フロントエンド | Vanilla JavaScript（ES Modules） |
+| スタイリング | CSS 変数ベースのデザインシステム（20 レイヤー構成） |
+| EPUB パーサー | [EPUB.js](https://github.com/futurepress/epub.js) |
+| ZIP 展開 | [JSZip](https://stuk.github.io/jszip/) |
+| RAR 展開 | [unrar.js](https://github.com/nickthedude/unrar.js)（WASM） |
+| アニメーション | [Lottie](https://airbnb.design/lottie/) |
+| 認証 | Firebase Authentication |
+| バックエンド | Cloudflare Workers（KV + D1） |
+| ホスティング | GitHub Pages / Cloudflare Pages |
+
+---
+
+## 📁 プロジェクト構成
+
 ```
-まず CORE_PRINCIPLES.md を読んでください。
-その後、このプロジェクトの構造を確認し、既存パターンを把握してから作業を開始してください。
-```
-
-## ドキュメント構成
-
-| ファイル | 内容 | 読むタイミング |
-|----------|------|----------------|
-| [INDEX.md](./INDEX.md) | 目次・運用説明 | 最初に |
-| [CORE_PRINCIPLES.md](./CORE_PRINCIPLES.md) | **基本原則（最重要）** | 毎回の作業開始時 |
-| [SSOT_GUIDE.md](./SSOT_GUIDE.md) | 定数管理・SSOT実践 | 定数追加時 |
-| [MODULE_GUIDE.md](./MODULE_GUIDE.md) | モジュール化・依存注入 | 機能追加時 |
-| [COMMENT_GUIDE.md](./COMMENT_GUIDE.md) | コメント・ドキュメント規約 | 常時 |
-| [REFACTOR_GUIDE.md](./REFACTOR_GUIDE.md) | 分割・リファクタリング全般 | コード整理時 |
-| [CSS_GUIDE.md](./CSS_GUIDE.md) | CSS分割の詳細規則 | CSS改修時 |
-
-## 基本原則（概要）
-
-詳細は [CORE_PRINCIPLES.md](./CORE_PRINCIPLES.md) を参照。
-
-### 絶対遵守事項
-
-1. **SSOT の厳守** - 定数をコード内に直接記述しない
-2. **既存構造の保護** - モジュール構造・初期化順序を破壊しない
-3. **コメントによる意図の明示** - コメントなしでコードを追加しない
-4. **変更前の確認義務** - 影響範囲を確認してから変更する
-
-## プロジェクトへの適用例
-
-導入後のプロジェクト構成（ルート配置）：
-
-```
-your-project/
-├── CORE_PRINCIPLES.md     ← AIが最初に発見しやすい
-├── INDEX.md
-├── SSOT_GUIDE.md
-├── MODULE_GUIDE.md
-├── COMMENT_GUIDE.md
-├── REFACTOR_GUIDE.md
-├── CSS_GUIDE.md
-├── src/
+epubReader/
+├── index.html              … メインエントリーポイント
+├── manifest.json           … PWA マニフェスト
+├── sw.js                   … Service Worker
 ├── assets/
-└── README.md              ← プロジェクト固有の説明
+│   ├── app.js              … メインアプリケーション
+│   ├── reader.js           … リーダーコントローラー
+│   ├── storage.js          … ローカルストレージ管理
+│   ├── cloudSync.js        … クラウド同期ロジック
+│   ├── fileStore.js        … IndexedDB / OPFS ファイル管理
+│   ├── auth.js             … Firebase 認証
+│   ├── ui.js               … UI ヘルパー
+│   ├── config.js            … 設定の初期化
+│   ├── constants/          … 定数定義（SSOT）
+│   │   ├── app-info.js     … アプリ情報
+│   │   ├── reader.js       … リーダー設定
+│   │   ├── formats.js      … 対応フォーマット
+│   │   ├── storage.js      … ストレージ設定
+│   │   ├── ui.js           … UI 定数
+│   │   └── ...
+│   ├── i18n/               … 多言語リソース（ja / en）
+│   ├── css/                … CSS レイヤー（01-tokens 〜 20-drag-drop）
+│   ├── js/
+│   │   ├── core/           … ファイルハンドラー・同期ロジック
+│   │   └── ui/             … レンダラー・要素管理
+│   └── vendor/             … サードパーティライブラリ
+├── src/
+│   └── reader/
+│       └── epubPaginator.js … EPUB ページネーション
+├── workers/                … Cloudflare Workers（バックエンド API）
+│   ├── src/index.js        … Worker エントリーポイント
+│   ├── wrangler.toml       … Wrangler 設定
+│   └── migrations/         … D1 マイグレーション
+└── docs/                   … 開発ドキュメント
 ```
 
-**ルート配置を推奨する理由**：
-- AIがプロジェクト構造を確認する際、最初に目に入る
-- 「CORE_PRINCIPLES.md を読んで」という指示が簡潔
-- 毎回読ませるファイルは発見しやすい場所に置くべき
+---
 
-## ライセンス
+## 🚀 セットアップ
 
-このガイドラインは自由に利用・改変できます。
+### ローカル開発
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/takahiyo/epubReader.git
+cd epubReader
+
+# 任意のHTTPサーバーで起動（ES Modules を使用しているためファイル直開きは不可）
+npx serve .
+# または
+python -m http.server 8000
+```
+
+ブラウザで `http://localhost:3000`（または `http://localhost:8000`）にアクセスしてください。
+
+### デプロイ
+
+- **GitHub Pages**: [GITHUB_PAGES_SETUP.md](./GITHUB_PAGES_SETUP.md) を参照
+- **Cloudflare Pages**: リポジトリを接続し、ビルドコマンドなし・出力ディレクトリを `/` に設定
+
+### Cloudflare Workers（バックエンド）
+
+```bash
+cd workers
+npm install
+npx wrangler dev    # ローカル開発
+npx wrangler deploy # 本番デプロイ
+```
+
+---
+
+## 📄 開発ガイドライン
+
+AI コーディングガイドライン・設計原則については以下のドキュメントを参照してください。
+
+| ファイル | 内容 |
+|----------|------|
+| [CORE_PRINCIPLES.md](./CORE_PRINCIPLES.md) | 基本原則（SSOT・モジュール化） |
+| [INDEX.md](./INDEX.md) | 目次・運用説明 |
+| [MODULE_GUIDE.md](./MODULE_GUIDE.md) | モジュール化・依存注入 |
+| [SSOT_GUIDE.md](./SSOT_GUIDE.md) | 定数管理・SSOT 実践 |
+| [CSS_GUIDE.md](./CSS_GUIDE.md) | CSS 分割の詳細規則 |
+| [COMMENT_GUIDE.md](./COMMENT_GUIDE.md) | コメント・ドキュメント規約 |
+| [REFACTOR_GUIDE.md](./REFACTOR_GUIDE.md) | 分割・リファクタリング |
+
+---
+
+## 📝 ライセンス
+
+このプロジェクトは個人利用を目的としています。

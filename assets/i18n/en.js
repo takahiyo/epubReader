@@ -97,7 +97,7 @@ export const UI_STRINGS_EN = Object.freeze({
   deviceColorLabel: "Device color",
   deviceNameLabel: "Device Name",
   syncHint: "If sync fails, disable ad blockers for this site.",
-  settingsFirebaseTitle: "Firebase",
+  settingsSyncTitle: "Cloudflare D1 (Workers)",
   googleLoginLabel: "Sign in with Google",
   googleLogoutLabel: "Sign out",
   googleLoginStatusSignedOut: "Signed out",
@@ -213,13 +213,13 @@ export const UI_STRINGS_EN = Object.freeze({
   syncNowButton: "Sync now",
   syncBlocked: "Connection blocked",
   syncBlockedDetail:
-    "Please disable ad blockers and try again.\\n(Firebase connection is blocked)",
+    "Please disable ad blockers and try again.",
   syncPermissionError: "Permission error",
   syncPermissionDetail: "Please sign in again.",
 
   // Cloud sync messages
   cloudSyncAuthRequired: "Login is required. Please sign in from settings.",
-  cloudSyncNoEndpoint: "Workers endpoint is not configured",
+  cloudSyncNoEndpoint: "Sync endpoint is not configured",
   cloudSyncNoIdToken: "ID token is not available",
   cloudSyncOneDriveAuthRequired: "OneDrive authentication is required",
   cloudSyncPCloudConfigRequired: "pCloud configuration is required",

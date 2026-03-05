@@ -209,6 +209,11 @@ export class StorageService {
           lastIndexSyncAt: normalizedSettings.lastIndexSyncAt ?? defaultData.settings.lastIndexSyncAt, // SSOT: D1インデックス同期時刻
           apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
           endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
+          d1Endpoint:
+            normalizedSettings.d1Endpoint ||
+            normalizedSettings.firebaseEndpoint ||
+            normalizedSettings.firebaseSyncEndpoint ||
+            defaultData.settings.d1Endpoint,
           source: normalizedSource || defaultData.settings.source,
           saveDestination:
             normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
@@ -446,6 +451,11 @@ export class StorageService {
           lastIndexSyncAt: normalizedSettings.lastIndexSyncAt ?? defaultData.settings.lastIndexSyncAt, // SSOT: D1インデックス同期時刻
           apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
           endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
+          d1Endpoint:
+            normalizedSettings.d1Endpoint ||
+            normalizedSettings.firebaseEndpoint ||
+            normalizedSettings.firebaseSyncEndpoint ||
+            defaultData.settings.d1Endpoint,
           source: normalizedSource || defaultData.settings.source,
           saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
           onedriveClientId: normalizedSettings.onedriveClientId || defaultData.settings.onedriveClientId,
