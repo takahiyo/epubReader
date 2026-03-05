@@ -1492,6 +1492,7 @@ export class ReaderController {
       }
     }
 
+    // 方法2: 検索テキストがない、または失敗した場合はセグメントインデックスから探す
     if (!targetElement && (segmentIndex > 0 || (targetSpineIndex != null && targetContainer !== container))) {
       console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
@@ -1507,6 +1508,7 @@ export class ReaderController {
 
       let currentSegment = 0;
       let node = walker.nextNode();
+      let lastValidNode = node; // フォールバック用に最後に評価したノードを保持
 
       while (node) {
         const text = node.textContent || "";
@@ -1517,13 +1519,20 @@ export class ReaderController {
           break;
         }
         currentSegment += segmentsInNode;
+        lastValidNode = node;
         node = walker.nextNode();
       }
 
+      // 章の末尾を超えたなど、正確な位置が見つからなかった場合のフォールバック
+      if (!targetElement && lastValidNode) {
+        console.warn("[ジャンプデバッグ] 正確なインデックス位置が見つからなかったため、章の末尾付近へフォールバックします");
+        targetElement = lastValidNode.parentElement || lastValidNode;
+      }
+
       if (targetElement) {
-        console.log("[ジャンプデバッグ] インデックスによる位置特定に成功しました", { targetElement });
+        console.log("[ジャンプデバッグ] インデックスによる位置特定に成功(または近似位置へフォールバック)しました", { targetElement });
       } else {
-        console.warn("[ジャンプデバッグ] インデックスによる位置特定に失敗しました (章の末尾を超えた可能性があります)");
+        console.warn("[ジャンプデバッグ] インデックスによる位置特定に完全に失敗しました");
       }
     }
 
@@ -1537,11 +1546,12 @@ export class ReaderController {
     }
 
     // 検索テキストがある場合は一時的に強調表示（モード問わず実行。フラグが有効な場合のみ）
+    // ※ `matchDataArray`がない場合（フォールバック時）はハイライトできない
     if (searchQuery && matchDataArray && shouldHighlight) {
       this._applyTemporaryHighlight(matchDataArray, searchQuery);
     }
 
-    // スクロールモードで対象が見つからなかった場合のフォールバック
+    // スクロールモードで対象が見つからなかった場合（コンテナ自体が空など）の最終フォールバック
     if (!targetElement && this.epubViewMode === "scroll") {
       console.warn("[ジャンプデバッグ] 最終的なターゲットが見つからなかったため、章の先頭へフォールバックします");
       this._scrollTargetNode = null;
@@ -1762,13 +1772,22 @@ export class ReaderController {
     for (let index = 0; index < nodePositions.length; index++) {
       const pos = nodePositions[index];
       // マッチ範囲とノード範囲が重なっているか判定
+      // 重なり判定: ノードの終了位置がマッチ開始より後 ＆＆ ノードの開始位置がマッチ終了より前
+      // タグまたぎで一部だけ引っかかるケースも拾う
       if (pos.end > matchIndex && pos.start < matchEndIndex) {
-        matchingNodes.push({
-          node: pos.node,
-          // ノード内でのマッチ開始位置と終了位置
-          matchStart: Math.max(0, matchIndex - pos.start),
-          matchEnd: Math.min(pos.node.textContent.length, matchEndIndex - pos.start)
-        });
+        // マッチが全体テキストのどこからどこまでかを、現在のノード内のローカルインデックスに変換
+        const localStart = Math.max(0, matchIndex - pos.start);
+        // ノードの長さか、マッチがこのノードで終わる位置か、小さい方を終了位置とする
+        const localEnd = Math.min(pos.node.textContent.length, matchEndIndex - pos.start);
+
+        // 空文字にならない場合のみ追加
+        if (localStart < localEnd) {
+          matchingNodes.push({
+            node: pos.node,
+            matchStart: localStart,
+            matchEnd: localEnd
+          });
+        }
       }
     }
 
