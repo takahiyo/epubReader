@@ -9,7 +9,7 @@ export class WebNovelProvider {
     constructor(options = {}) {
         // オプション（プロキシURLなど）
         this.options = {
-            corsProxy: 'https://api.allorigins.win/raw?url=',
+            corsProxy: 'https://api.codetabs.com/v1/proxy?quest=',
             ...options
         };
     }

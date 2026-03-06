@@ -3413,7 +3413,7 @@ function init() {
   updateFullscreenButtonLabel();
 
   // WebNovel UI初期化
-  setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal: window.confirm });
+  setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal: window.confirm, ui });
 
   console.log("Epub Reader initialized");
 }

@@ -1,7 +1,7 @@
 import { NarouProvider, KakuyomuProvider } from "../core/web-novel-provider.js";
 import { UI_CLASSES } from "../../constants/ui.js";
 
-export function setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal }) {
+export function setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal, ui }) {
     const providers = {
         narou: new NarouProvider(),
         kakuyomu: new KakuyomuProvider()
@@ -13,13 +13,17 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
 
     // 開くボタンのイベントリスナー
     const openSearchModal = () => {
-        if (elements.floatOverlay && !elements.floatOverlay.classList.contains(UI_CLASSES.HIDDEN)) {
-            elements.floatOverlay.classList.remove(UI_CLASSES.ACTIVE);
-            setTimeout(() => elements.floatOverlay.classList.add(UI_CLASSES.HIDDEN), 300);
-        }
-        if (elements.leftMenu) {
-            elements.leftMenu.classList.remove(UI_CLASSES.ACTIVE);
-            if (elements.leftMenuBackdrop) elements.leftMenuBackdrop.classList.remove(UI_CLASSES.ACTIVE);
+        if (ui && typeof ui.closeAllMenus === 'function') {
+            ui.closeAllMenus();
+        } else {
+            if (elements.floatOverlay && !elements.floatOverlay.classList.contains(UI_CLASSES.HIDDEN)) {
+                elements.floatOverlay.classList.remove(UI_CLASSES.ACTIVE);
+                setTimeout(() => elements.floatOverlay.classList.add(UI_CLASSES.HIDDEN), 300);
+            }
+            if (elements.leftMenu) {
+                elements.leftMenu.classList.remove(UI_CLASSES.ACTIVE);
+                if (elements.leftMenuBackdrop) elements.leftMenuBackdrop.classList.remove(UI_CLASSES.ACTIVE);
+            }
         }
         openExclusiveMenu(elements.webNovelSearchModal);
     };
