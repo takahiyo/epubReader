@@ -71,6 +71,9 @@
     <!-- EPUB ビューア -->
     <div id="viewer" class="viewer"></div>
 
+    <!-- Web小説ビューア -->
+    <div id="webNovelViewer" class="viewer hidden"></div>
+
     <!-- クリック検知用オーバーレイ -->
     <div id="clickOverlay" class="click-overlay"></div>
 
@@ -124,6 +127,10 @@
       </button>
       <button id="menuSearch" class="menu-item">
         <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuWebNovel" class="menu-item">
+        <span class="menu-icon">🌐📝</span>
         <span></span>
       </button>
       <button id="menuBookmarks" class="menu-item">
@@ -281,6 +288,42 @@
           </div>
           <div id="libraryGrid" class="library-grid"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web小説モーダル -->
+  <div id="webNovelSearchModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="webNovelSearchModalTitle">Web小説を探す</h3>
+        <button id="closeWebNovelSearchModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div class="search-input-container">
+          <input type="text" id="webNovelSearchInput" class="search-input" placeholder="作品名や作者名で検索（なろう・カクヨム）" />
+          <button id="webNovelSearchBtn" class="search-btn">検索</button>
+        </div>
+        <div id="webNovelSearchResults" class="library-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web小説目次モーダル -->
+  <div id="webNovelTocModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="webNovelTocModalTitle">目次</h3>
+        <button id="closeWebNovelTocModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 1rem;">
+          <h4 id="webNovelTocAuthor" style="font-weight:normal; color:var(--text-secondary);"></h4>
+          <button id="webNovelAddToLibraryBtn" class="primary-btn" style="margin-top:0.5rem;">ライブラリに追加</button>
+        </div>
+        <ul id="webNovelTocList" class="history-list"></ul>
       </div>
     </div>
   </div>
@@ -446,6 +489,7 @@
 
         <button id="floatLibrary" type="button"></button>
         <button id="floatSearch" type="button"></button>
+        <button id="floatWebNovel" type="button">🌐📝</button>
         <button id="floatBookmarks" type="button"></button>
         <button id="floatHistory" type="button"></button>
       </div>

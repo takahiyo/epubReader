@@ -26,6 +26,7 @@ import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentag
 import * as syncLogic from "./js/core/sync-logic.js";
 import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
+import { setupWebNovelUI } from "./js/ui/web-novel-ui.js";
 import {
   APP_INFO,
   ERROR_CODES,
@@ -3411,6 +3412,9 @@ function init() {
   // 全画面ボタンの初期ラベルを設定
   updateFullscreenButtonLabel();
 
+  // WebNovel UI初期化
+  setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal: window.confirm });
+
   console.log("Epub Reader initialized");
 }
 
@@ -3438,6 +3442,52 @@ function registerServiceWorker() {
 function startApp() {
   init();
 }
+
+// 外部公開用 WebNovel読込関数
+async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
+  elements.emptyState?.classList.add(UI_CLASSES.HIDDEN);
+
+  currentBookId = novelInfo.id;
+  currentBookInfo = {
+    id: novelInfo.id,
+    title: novelInfo.title,
+    author: novelInfo.author,
+    url: novelInfo.url,
+    providerName: novelInfo.providerName,
+    type: BOOK_TYPES.WEB_NOVEL
+  };
+
+  closeModal(elements.webNovelTocModal);
+  closeModal(elements.webNovelSearchModal);
+  closeModal(elements.leftMenu);
+
+  showLoading("読込中...");
+
+  try {
+    await reader.openWebNovel(novelInfo, episodes, provider, episodeIndex);
+    renderers.updateBookInfo(novelInfo.title, novelInfo.author || "");
+
+    // ライブラリ/履歴用にスタブ情報を保存
+    const stubFile = new File(["webnovel_stub"], `webnovel_${novelInfo.id}.txt`, { type: MIME_TYPES.WEB_NOVEL });
+    await saveFile(stubFile, currentBookId, {
+      title: novelInfo.title,
+      author: novelInfo.author,
+      type: BOOK_TYPES.WEB_NOVEL,
+      novelUrl: novelInfo.url,
+      provider: novelInfo.providerName
+    });
+    renderers.renderHistory();
+  } catch (e) {
+    console.error(e);
+    alert("エラー: " + e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+// グローバルに公開（web-novel-ui.jsから呼べるようにする）
+window.app = window.app || {};
+window.app.loadWebNovel = loadWebNovel;
 
 function startAfterDomReady() {
   registerServiceWorker();

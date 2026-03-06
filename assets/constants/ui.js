@@ -134,6 +134,7 @@ export const UI_TIMING_CONFIG = Object.freeze({
 export const DOM_IDS = Object.freeze({
   FULLSCREEN_READER: "fullscreenReader",
   VIEWER: "viewer",
+  WEB_NOVEL_VIEWER: "webNovelViewer",
   IMAGE_VIEWER: "imageViewer",
   PAGE_IMAGE: "pageImage",
   EMPTY_STATE_ICON: "emptyStateIcon",
@@ -305,6 +306,21 @@ export const DOM_IDS = Object.freeze({
   CLICK_OVERLAY: "clickOverlay",
   ZOOM_SLIDER: "zoomSlider",
   INSTALL_BUTTON: "installButton",
+  // Web Novel UI
+  WEB_NOVEL_SEARCH_MODAL: "webNovelSearchModal",
+  WEB_NOVEL_SEARCH_MODAL_TITLE: "webNovelSearchModalTitle",
+  CLOSE_WEB_NOVEL_SEARCH_MODAL: "closeWebNovelSearchModal",
+  WEB_NOVEL_SEARCH_INPUT: "webNovelSearchInput",
+  WEB_NOVEL_SEARCH_BTN: "webNovelSearchBtn",
+  WEB_NOVEL_SEARCH_RESULTS: "webNovelSearchResults",
+  WEB_NOVEL_TOC_MODAL: "webNovelTocModal",
+  WEB_NOVEL_TOC_MODAL_TITLE: "webNovelTocModalTitle",
+  CLOSE_WEB_NOVEL_TOC_MODAL: "closeWebNovelTocModal",
+  WEB_NOVEL_TOC_AUTHOR: "webNovelTocAuthor",
+  WEB_NOVEL_ADD_TO_LIBRARY_BTN: "webNovelAddToLibraryBtn",
+  WEB_NOVEL_TOC_LIST: "webNovelTocList",
+  FLOAT_WEB_NOVEL: "floatWebNovel",
+  MENU_WEB_NOVEL: "menuWebNovel",
 });
 
 export const DOM_SELECTORS = Object.freeze({

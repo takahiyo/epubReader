@@ -26,6 +26,7 @@ import {
 } from "./constants.js";
 import { createArchiveHandler } from "./js/core/archive-handler.js";
 import { calculateProgressPercentage } from "./js/core/progress-utils.js";
+import { WebNovelViewer } from "./js/core/web-novel-viewer.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 const getMemoryStrategy = () => {
@@ -170,6 +171,7 @@ class PageController {
 export class ReaderController {
   constructor({
     viewerId,
+    webNovelViewerId,
     imageViewerId,
     imageElementId,
     pageIndicatorId,
@@ -181,6 +183,7 @@ export class ReaderController {
     onRepaginationEnd,
   }) {
     this.viewer = document.getElementById(viewerId);
+    this.webNovelViewerContainer = document.getElementById(webNovelViewerId || DOM_IDS.WEB_NOVEL_VIEWER);
     this.imageViewer = document.getElementById(imageViewerId);
     this.imageElement = document.getElementById(imageElementId);
     this.pageIndicator = document.getElementById(pageIndicatorId);
@@ -228,6 +231,14 @@ export class ReaderController {
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
     this.resizeTimer = null;
+
+    // WebNovelViewer 初期化
+    this.webNovelViewer = new WebNovelViewer({
+      containerId: webNovelViewerId || DOM_IDS.WEB_NOVEL_VIEWER,
+      onProgress: (info) => {
+        if (this.onProgress) this.onProgress(info);
+      }
+    });
 
     // [New] Zoom State
     this.zoomScale = 1.0;
@@ -344,7 +355,7 @@ export class ReaderController {
     }
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "image"
+    this.type = null; // "epub" | "image" | "web_novel"
     this.archiveHandler = null;
     this.revokeImagePages();
     this.imagePages = [];
@@ -404,6 +415,10 @@ export class ReaderController {
       if (slider) slider.value = this.getZoomConfig().min;
     }
     this.updateTransform();
+
+    if (this.webNovelViewer) {
+      this.webNovelViewer.destroy();
+    }
   }
 
   revokeImagePages() {
@@ -667,6 +682,55 @@ export class ReaderController {
       script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
       document.head.appendChild(script);
     });
+  }
+
+  /**
+   * Web小説を開く
+   * @param {Object} novelInfo {id, title, author}
+   * @param {Array} episodes [{id, title, url}]
+   * @param {WebNovelProvider} provider NarouProvider etc.
+   * @param {Object|number} startLocation {location: episodeIndex, percentage}
+   */
+  async openWebNovel(novelInfo, episodes, provider, startLocation = 0) {
+    this.resetReaderState();
+    this.type = BOOK_TYPES.WEB_NOVEL;
+
+    // 表示状態の初期化
+    if (this.viewer) this.viewer.classList.add(UI_CLASSES.HIDDEN);
+    if (this.imageViewer) this.imageViewer.classList.add(UI_CLASSES.HIDDEN);
+    if (this.webNovelViewerContainer) {
+      this.webNovelViewerContainer.classList.remove(UI_CLASSES.HIDDEN);
+    }
+
+    // WebNovelViewer に設定を適用
+    if (this.webNovelViewer) {
+      this.webNovelViewer.setWritingMode(this.writingMode === WRITING_MODES.VERTICAL ? 'vertical-rl' : 'horizontal-tb');
+    }
+
+    this.book = novelInfo; // book オブジェクトの代わりに情報を持たせる
+
+    let episodeIndex = 0;
+    let percentage = 0;
+    if (typeof startLocation === 'object' && startLocation !== null) {
+      episodeIndex = startLocation.location || 0;
+      percentage = startLocation.percentage || 0;
+    } else if (typeof startLocation === 'number') {
+      episodeIndex = startLocation;
+    }
+
+    try {
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.EPUB_INIT, // 汎用名称として扱う
+        status: READER_LOADING_STATUSES.CALCULATING_LAYOUT
+      });
+
+      await this.webNovelViewer.renderEpisode(novelInfo, episodes, episodeIndex, provider, percentage);
+
+      this.onReady?.();
+    } catch (e) {
+      console.error("Failed to open web novel:", e);
+      throw new Error("Web小説の読み込みに失敗しました。");
+    }
   }
 
   async openEpub(file, options = {}) {
@@ -3206,6 +3270,15 @@ export class ReaderController {
   async prev(step) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
+    // Web小説の場合
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      const isEpisodeChanged = await this.webNovelViewer.prevEpisode();
+      if (!isEpisodeChanged) {
+        this.webNovelViewer.prev(); // スクロールのみ
+      }
+      return;
+    }
+
     // EPUBの場合はPageControllerを使用
     if (this.type === BOOK_TYPES.EPUB) {
       if (this.epubViewMode === "scroll") {
@@ -3310,6 +3383,15 @@ export class ReaderController {
   async next(step) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
+    // Web小説の場合
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      const isEpisodeChanged = await this.webNovelViewer.nextEpisode();
+      if (!isEpisodeChanged) {
+        this.webNovelViewer.next(); // スクロールのみ
+      }
+      return;
+    }
+
     // EPUBの場合はPageControllerを使用
     if (this.type === BOOK_TYPES.EPUB) {
       if (this.epubViewMode === "scroll") {
@@ -3342,6 +3424,34 @@ export class ReaderController {
   }
 
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
+    // Web小説の場合
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      if (!this.webNovelViewer || !this.webNovelViewer.episodes) return null;
+      const episodeIndex = this.webNovelViewer.currentEpisodeIndex;
+      const percentage = this.webNovelViewer.getScrollPercentage();
+
+      const locator = {
+        location: episodeIndex,
+        percentage: percentage
+      };
+
+      const ep = this.webNovelViewer.episodes[episodeIndex];
+      const visibleText = ep ? ep.title : "Web Novel Bookmark";
+
+      const bookmark = {
+        label,
+        location: locator,
+        visibleText,
+        cfi: `wn:${episodeIndex}:${percentage}`,
+        percentage: calculateProgressPercentage(episodeIndex, this.webNovelViewer.episodes.length),
+        createdAt: Date.now(),
+        bookType: BOOK_TYPES.WEB_NOVEL,
+      };
+      if (deviceId !== undefined) bookmark.deviceId = deviceId;
+      if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
+      return bookmark;
+    }
+
     if (this.type === BOOK_TYPES.EPUB) {
       if (!this.pagination?.pages?.length) return null;
       // [BEFORE] const percentage = calculateProgressPercentage(this.currentPageIndex, this.pagination.pages.length);
@@ -3484,6 +3594,12 @@ export class ReaderController {
     if (this.viewer) {
       this.viewer.style.fontSize = `${fontSize}px`;
     }
+    if (this.webNovelViewer) {
+      this.webNovelViewer.setFontSize(`${fontSize}px`);
+    }
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      return;
+    }
     if (this.type !== BOOK_TYPES.EPUB) {
       return;
     }
@@ -3526,6 +3642,13 @@ export class ReaderController {
     if (writingMode) {
       this.writingMode = writingMode;
       this.preferredWritingMode = writingMode;
+    }
+
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      if (this.webNovelViewer) {
+        this.webNovelViewer.setWritingMode(this.writingMode === WRITING_MODES.VERTICAL ? 'vertical-rl' : 'horizontal-tb');
+      }
+      return;
     }
 
     if (this.type !== BOOK_TYPES.EPUB) {

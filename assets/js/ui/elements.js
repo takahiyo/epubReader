@@ -211,4 +211,20 @@ export const elements = {
     dropText: getById(DOM_IDS.DROP_TEXT),
     installButton: getById(DOM_IDS.INSTALL_BUTTON),
     installContainer: getById("installContainer"),
+
+    // Web Novel UI
+    webNovelSearchModal: getById(DOM_IDS.WEB_NOVEL_SEARCH_MODAL),
+    webNovelSearchModalTitle: getById(DOM_IDS.WEB_NOVEL_SEARCH_MODAL_TITLE),
+    closeWebNovelSearchModal: getById(DOM_IDS.CLOSE_WEB_NOVEL_SEARCH_MODAL),
+    webNovelSearchInput: getById(DOM_IDS.WEB_NOVEL_SEARCH_INPUT),
+    webNovelSearchBtn: getById(DOM_IDS.WEB_NOVEL_SEARCH_BTN),
+    webNovelSearchResults: getById(DOM_IDS.WEB_NOVEL_SEARCH_RESULTS),
+    webNovelTocModal: getById(DOM_IDS.WEB_NOVEL_TOC_MODAL),
+    webNovelTocModalTitle: getById(DOM_IDS.WEB_NOVEL_TOC_MODAL_TITLE),
+    closeWebNovelTocModal: getById(DOM_IDS.CLOSE_WEB_NOVEL_TOC_MODAL),
+    webNovelTocAuthor: getById(DOM_IDS.WEB_NOVEL_TOC_AUTHOR),
+    webNovelAddToLibraryBtn: getById(DOM_IDS.WEB_NOVEL_ADD_TO_LIBRARY_BTN),
+    webNovelTocList: getById(DOM_IDS.WEB_NOVEL_TOC_LIST),
+    floatWebNovel: getById(DOM_IDS.FLOAT_WEB_NOVEL),
+    menuWebNovel: getById(DOM_IDS.MENU_WEB_NOVEL),
 };
