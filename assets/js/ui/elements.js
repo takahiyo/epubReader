@@ -225,6 +225,9 @@ export const elements = {
     webNovelTocAuthor: getById(DOM_IDS.WEB_NOVEL_TOC_AUTHOR),
     webNovelAddToLibraryBtn: getById(DOM_IDS.WEB_NOVEL_ADD_TO_LIBRARY_BTN),
     webNovelTocList: getById(DOM_IDS.WEB_NOVEL_TOC_LIST),
+    webNovelSourceNarou: getById("webNovelSourceNarou"),
+    webNovelSourceKakuyomu: getById("webNovelSourceKakuyomu"),
+    backToWebNovelSearch: getById("backToWebNovelSearch"),
     floatWebNovel: getById(DOM_IDS.FLOAT_WEB_NOVEL),
     menuWebNovel: getById(DOM_IDS.MENU_WEB_NOVEL),
 };

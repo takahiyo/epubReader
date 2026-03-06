@@ -49,21 +49,34 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
             const query = elements.webNovelSearchInput.value.trim();
             if (!query) return;
 
+            const useNarou = elements.webNovelSourceNarou ? elements.webNovelSourceNarou.checked : true;
+            const useKakuyomu = elements.webNovelSourceKakuyomu ? elements.webNovelSourceKakuyomu.checked : true;
+
+            if (!useNarou && !useKakuyomu) {
+                alert("検索対象を選択してください。");
+                return;
+            }
+
             elements.webNovelSearchBtn.disabled = true;
             elements.webNovelSearchBtn.textContent = "検索中...";
             elements.webNovelSearchResults.innerHTML = "<p>検索しています...</p>";
 
             try {
-                // 両方のプロバイダーで検索（並列）
-                const [narouResults, kakuyomuResults] = await Promise.all([
-                    providers.narou.search(query).catch(e => { console.error(e); return []; }),
-                    providers.kakuyomu.search(query).catch(e => { console.error(e); return []; })
-                ]);
+                // プロバイダーで検索（必要に応じて並列）
+                const searchTasks = [];
+                if (useNarou) searchTasks.push(providers.narou.search(query).catch(e => { console.error(e); return []; }));
+                if (useKakuyomu) searchTasks.push(providers.kakuyomu.search(query).catch(e => { console.error(e); return []; }));
 
-                const combined = [
-                    ...narouResults.map(r => ({ ...r, provider: 'narou', providerName: '小説家になろう' })),
-                    ...kakuyomuResults.map(r => ({ ...r, provider: 'kakuyomu', providerName: 'カクヨム' }))
-                ];
+                const results = await Promise.all(searchTasks);
+
+                let combined = [];
+                let taskIdx = 0;
+                if (useNarou) {
+                    combined = [...combined, ...results[taskIdx++].map(r => ({ ...r, provider: 'narou', providerName: '小説家になろう' }))];
+                }
+                if (useKakuyomu) {
+                    combined = [...combined, ...results[taskIdx++].map(r => ({ ...r, provider: 'kakuyomu', providerName: 'カクヨム' }))];
+                }
 
                 renderSearchResults(combined);
             } catch (err) {
@@ -102,6 +115,7 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
                 <div class="library-item-info">
                     <h5 class="library-item-title">${novel.title}</h5>
                     <p class="library-item-meta">${novel.author}</p>
+                    ${novel.rating ? `<p class="library-item-meta" style="color:var(--accent-color); font-weight:bold;">★ ${Number(novel.rating).toLocaleString()} pt ${novel.reviewCount ? `(${Number(novel.reviewCount).toLocaleString()} reviews)` : ''}</p>` : ''}
                 </div>
             `;
 
@@ -154,6 +168,14 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
                 }
             });
             elements.webNovelTocList.appendChild(li);
+        });
+    }
+
+    // 戻るボタンのイベントリスナー
+    if (elements.backToWebNovelSearch) {
+        elements.backToWebNovelSearch.addEventListener("click", () => {
+            closeModal(elements.webNovelTocModal);
+            openModal(elements.webNovelSearchModal);
         });
     }
 

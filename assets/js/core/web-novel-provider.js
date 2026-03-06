@@ -111,7 +111,8 @@ export class NarouProvider extends WebNovelProvider {
     async search(query) {
         console.log(`[NarouProvider] Searching for: ${query}`);
         // なろうAPI (https://dev.syosetu.com/man/api/) を使用して検索
-        const url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20`;
+        // order=totalpoint: 総合評価の高い順
+        const url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=totalpoint`;
         try {
             const res = await fetch(url);
             const text = await res.text();
@@ -127,7 +128,9 @@ export class NarouProvider extends WebNovelProvider {
                     id: item.ncode.toLowerCase(),
                     title: item.title,
                     author: item.writer,
-                    url: `https://ncode.syosetu.com/${item.ncode.toLowerCase()}/`
+                    url: `https://ncode.syosetu.com/${item.ncode.toLowerCase()}/`,
+                    rating: item.global_point,
+                    reviewCount: item.all_hyoka_cnt
                 }));
             } catch (parseError) {
                 console.error("[NarouProvider] Failed to parse JSON (direct):", text.substring(0, 100));
@@ -151,7 +154,9 @@ export class NarouProvider extends WebNovelProvider {
                     id: item.ncode.toLowerCase(),
                     title: item.title,
                     author: item.writer,
-                    url: `https://ncode.syosetu.com/${item.ncode.toLowerCase()}/`
+                    url: `https://ncode.syosetu.com/${item.ncode.toLowerCase()}/`,
+                    rating: item.global_point,
+                    reviewCount: item.all_hyoka_cnt
                 }));
             } catch (parseError) {
                 console.error("[NarouProvider] Failed to parse JSON (proxy):", text.substring(0, 100));
@@ -167,7 +172,7 @@ export class NarouProvider extends WebNovelProvider {
             const doc = this.parseHtml(html);
 
             const titleEl = doc.querySelector('.novel_title') || doc.querySelector('.p-novel__title');
-            const authorEl = doc.querySelector('.novel_writername') || doc.querySelector('.p-novel__author');
+            const authorEl = doc.querySelector('.novel_writername') || doc.querySelector('.p-novel__author') || doc.querySelector('.p-novel__author a');
 
             const title = titleEl ? titleEl.textContent.trim() : 'Unknown Title';
             const author = authorEl ? authorEl.textContent.replace('作者：', '').trim() : 'Unknown Author';
@@ -175,12 +180,16 @@ export class NarouProvider extends WebNovelProvider {
 
             const episodes = [];
             // pc版旧レイアウトと新レイアウト両対応
-            const episodeNodes = doc.querySelectorAll('.subtitle, .p-eplist__sublist');
+            // 旧: .subtitle
+            // 新: .p-eplist__subtitle
+            const episodeNodes = doc.querySelectorAll('.subtitle, .p-eplist__subtitle, .p-eplist__sublist');
 
             episodeNodes.forEach(node => {
-                const linkEl = node.querySelector('a');
+                const linkEl = node.tagName === 'A' ? node : node.querySelector('a');
                 if (linkEl) {
                     const href = linkEl.getAttribute('href');
+                    if (!href || href.includes('javascript:')) return;
+
                     const epTitle = linkEl.textContent.trim();
                     const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
 
@@ -188,14 +197,16 @@ export class NarouProvider extends WebNovelProvider {
                     const match = href.match(/\/([^/]+)\/(\d+)\/?/);
                     const epId = match ? `${match[1]}-${match[2]}` : href;
 
-                    episodes.push({
-                        id: epId,
-                        title: epTitle,
-                        url: fullUrl
-                    });
+                    // 重複排除 (同じエピソードが複数回ヒットすることを防ぐ)
+                    if (!episodes.find(e => e.url === fullUrl)) {
+                        episodes.push({
+                            id: epId,
+                            title: epTitle,
+                            url: fullUrl
+                        });
+                    }
                 }
             });
-
             console.log(`[NarouProvider] Found ${episodes.length} episodes.`);
             return { title, author, episodes };
         } catch (error) {
@@ -248,11 +259,16 @@ export class KakuyomuProvider extends WebNovelProvider {
         try {
             const url = `https://kakuyomu.jp/search?q=${encodeURIComponent(query)}`;
             const html = await this.fetchHtml(url);
+            console.log(`[KakuyomuProvider] Fetched HTML length: ${html.length}`);
+            if (html.length < 1000) {
+                console.warn(`[KakuyomuProvider] HTML content suspicious (too short):`, html);
+            }
             const doc = this.parseHtml(html);
 
             const results = [];
             // カクヨムの検索結果のカード
-            const cards = doc.querySelectorAll('.widget-workCard');
+            // 最近のデザイン変更に対応するため、複数のセレクタを試す
+            const cards = doc.querySelectorAll('.widget-workCard, [class*="WorkCard"], article');
             console.log(`[KakuyomuProvider] Found ${cards.length} work cards.`);
 
             cards.forEach(card => {
