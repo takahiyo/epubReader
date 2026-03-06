@@ -38,26 +38,46 @@ export class WebNovelProvider {
      */
     async fetchHtml(url) {
         console.log(`[WebNovelProvider] Fetching HTML from: ${url}`);
+
+        // プロキシリスト（フォールバック用）
+        const proxies = [
+            'https://api.allorigins.win/raw?url=',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://corsproxy.io/?url='
+        ];
+
         try {
-            // 1. 直接取得を試みる
+            // 1. 直接取得を試みる (ブックマークなどで同一オリジンや拡張機能環境の場合)
             const res = await fetch(url);
             if (res.ok) {
                 console.log(`[WebNovelProvider] Direct fetch successful for: ${url}`);
                 return await res.text();
             }
-            throw new Error(`Direct fetch failed with status: ${res.status}`);
         } catch (error) {
-            console.warn(`[WebNovelProvider] Direct fetch failed for ${url}. Trying proxy...`, error);
-            // 2. プロキシ経由で取得
-            const proxyUrl = this.options.corsProxy + encodeURIComponent(url);
-            console.log(`[WebNovelProvider] Using proxy: ${proxyUrl}`);
-            const res = await fetch(proxyUrl);
-            if (res.ok) {
-                console.log(`[WebNovelProvider] Proxy fetch successful for: ${url}`);
-                return await res.text();
-            }
-            throw new Error(`Proxy fetch failed for ${url} with status: ${res.status}`);
+            console.warn(`[WebNovelProvider] Direct fetch failed for ${url}. Trying proxies...`);
         }
+
+        // 2. プロキシ経由で順次試行
+        for (const proxyBase of proxies) {
+            const proxyUrl = proxyBase + encodeURIComponent(url);
+            console.log(`[WebNovelProvider] Trying proxy: ${proxyUrl}`);
+            try {
+                const res = await fetch(proxyUrl);
+                if (res.ok) {
+                    const text = await res.text();
+                    // 403 Forbidden などのテキストが含まれていないかチェック
+                    if (text.length > 500 || !text.includes('403 Forbidden')) {
+                        console.log(`[WebNovelProvider] Proxy fetch successful with: ${proxyBase}`);
+                        return text;
+                    }
+                    console.warn(`[WebNovelProvider] Proxy ${proxyBase} returned error or suspicious content.`);
+                }
+            } catch (err) {
+                console.warn(`[WebNovelProvider] Proxy ${proxyBase} failed:`, err.message);
+            }
+        }
+
+        throw new Error(`Failed to fetch ${url} even through multiple proxies.`);
     }
 
     /**
@@ -165,17 +185,22 @@ export class NarouProvider extends WebNovelProvider {
         }
     }
 
-    async getTableOfContents(novelUrl) {
+    /**
+     * 目次とメタ情報を取得
+     * @param {string} novelUrl 
+     * @param {object} novelInfo 検索結果からの追加情報（タイトル、作者などのフォールバック用）
+     */
+    async getTableOfContents(novelUrl, novelInfo = {}) {
         console.log(`[NarouProvider] Getting TOC for: ${novelUrl}`);
         try {
             const html = await this.fetchHtml(novelUrl);
             const doc = this.parseHtml(html);
 
-            const titleEl = doc.querySelector('.novel_title') || doc.querySelector('.p-novel__title');
-            const authorEl = doc.querySelector('.novel_writername') || doc.querySelector('.p-novel__author') || doc.querySelector('.p-novel__author a');
+            const titleEl = doc.querySelector('.novel_title') || doc.querySelector('#novel_title') || doc.querySelector('.p-novel__title');
+            const authorEl = doc.querySelector('.novel_writername') || doc.querySelector('.p-novel__author') || doc.querySelector('.p-novel__author a') || doc.querySelector('#novel_writername');
 
-            const title = titleEl ? titleEl.textContent.trim() : 'Unknown Title';
-            const author = authorEl ? authorEl.textContent.replace('作者：', '').trim() : 'Unknown Author';
+            const title = titleEl ? titleEl.textContent.trim() : (novelInfo.title || 'Unknown Title');
+            const author = authorEl ? authorEl.textContent.replace('作者：', '').trim() : (novelInfo.author || 'Unknown Author');
             console.log(`[NarouProvider] Parsed TOC title: "${title}", author: "${author}"`);
 
             const episodes = [];
@@ -300,7 +325,7 @@ export class KakuyomuProvider extends WebNovelProvider {
         }
     }
 
-    async getTableOfContents(novelUrl) {
+    async getTableOfContents(novelUrl, novelInfo = {}) {
         console.log(`[KakuyomuProvider] Getting TOC for: ${novelUrl}`);
         try {
             const html = await this.fetchHtml(novelUrl);
@@ -309,8 +334,8 @@ export class KakuyomuProvider extends WebNovelProvider {
             const titleEl = doc.querySelector('#workTitle');
             const authorEl = doc.querySelector('#workAuthor a');
 
-            const title = titleEl ? titleEl.textContent.trim() : 'Unknown Title';
-            const author = authorEl ? authorEl.textContent.trim() : 'Unknown Author';
+            const title = titleEl ? titleEl.textContent.trim() : (novelInfo.title || 'Unknown Title');
+            const author = authorEl ? authorEl.textContent.trim() : (novelInfo.author || 'Unknown Author');
             console.log(`[KakuyomuProvider] Parsed TOC title: "${title}", author: "${author}"`);
 
             const episodes = [];

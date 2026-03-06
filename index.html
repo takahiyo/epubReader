@@ -306,11 +306,20 @@
           <button id="webNovelSearchBtn" class="search-btn">検索</button>
         </div>
         <div class="search-filters"
-          style="margin: 0.5rem 0 1rem 0; display: flex; gap: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+          style="margin: 0.5rem 0 1rem 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.9rem; color: var(--text-secondary); align-items: center;">
           <label style="cursor:pointer; display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
               id="webNovelSourceNarou" checked> 小説家になろう</label>
           <label style="cursor:pointer; display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
               id="webNovelSourceKakuyomu" checked> カクヨム</label>
+          <div style="display:flex; align-items:center; gap:0.3rem; margin-left: auto;">
+            <label for="webNovelSort">ソート:</label>
+            <select id="webNovelSort"
+              style="background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); padding:2px 5px; border-radius:4px;">
+              <option value="rating">評価順</option>
+              <option value="title">五十音順</option>
+              <option value="site">サイト別</option>
+            </select>
+          </div>
         </div>
         <div id="webNovelSearchResults" class="library-grid"></div>
       </div>

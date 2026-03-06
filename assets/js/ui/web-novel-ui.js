@@ -78,6 +78,8 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
                     combined = [...combined, ...results[taskIdx++].map(r => ({ ...r, provider: 'kakuyomu', providerName: 'カクヨム' }))];
                 }
 
+                // 現在の結果を保存してソート可能にする
+                elements.webNovelSearchResults.dataset.currentResults = JSON.stringify(combined);
                 renderSearchResults(combined);
             } catch (err) {
                 console.error("Search failed:", err);
@@ -95,16 +97,39 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
         });
     }
 
+    if (elements.webNovelSort) {
+        elements.webNovelSort.addEventListener("change", () => {
+            const currentResults = elements.webNovelSearchResults.dataset.currentResults;
+            if (currentResults) {
+                renderSearchResults(JSON.parse(currentResults));
+            }
+        });
+    }
+
     function renderSearchResults(results) {
         if (!elements.webNovelSearchResults) return;
+
+        // ソート適用
+        const sortMode = elements.webNovelSort ? elements.webNovelSort.value : 'rating';
+        const sorted = [...results].sort((a, b) => {
+            if (sortMode === 'rating') {
+                return (b.rating || 0) - (a.rating || 0);
+            } else if (sortMode === 'title') {
+                return a.title.localeCompare(b.title, 'ja');
+            } else if (sortMode === 'site') {
+                return a.provider.localeCompare(b.provider);
+            }
+            return 0;
+        });
+
         elements.webNovelSearchResults.innerHTML = "";
 
-        if (results.length === 0) {
+        if (sorted.length === 0) {
             elements.webNovelSearchResults.innerHTML = "<p>見つかりませんでした。</p>";
             return;
         }
 
-        results.forEach(novel => {
+        sorted.forEach(novel => {
             const card = document.createElement("div");
             card.className = "library-item"; // 再利用
             card.innerHTML = `
@@ -133,7 +158,17 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
 
         const provider = providers[novel.provider];
         try {
-            const tocData = await provider.getTableOfContents(novel.url);
+            const tocData = await provider.getTableOfContents(novel.url, novel);
+
+            // 取得に成功したがエピソードが0件の場合
+            if (tocData.episodes.length === 0) {
+                elements.webNovelTocList.innerHTML = `
+                    <p style="color:var(--text-secondary); padding:1rem;">エピソードが見つかりません。作品が削除されているか、プロキシによってアクセスが制限されている可能性があります。</p>
+                    <button class="primary-btn retry-btn" style="margin-top:1rem;">再試行</button>
+                `;
+                elements.webNovelTocList.querySelector('.retry-btn')?.addEventListener('click', () => openToc(novel));
+                return;
+            }
 
             currentNovelInfo = { id: novel.id, title: tocData.title, author: tocData.author, url: novel.url };
             currentEpisodes = tocData.episodes;
@@ -142,7 +177,11 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
             renderTocList(tocData.episodes);
         } catch (err) {
             console.error("Failed to load TOC:", err);
-            elements.webNovelTocList.innerHTML = "<p>目次の取得に失敗しました。</p>";
+            elements.webNovelTocList.innerHTML = `
+                <p style="color:var(--text-secondary); padding:1rem;">目次の取得に失敗しました。<br><small>${err.message}</small></p>
+                <button class="primary-btn retry-btn" style="margin-top:1rem;">再試行</button>
+            `;
+            elements.webNovelTocList.querySelector('.retry-btn')?.addEventListener('click', () => openToc(novel));
         }
     }
 
