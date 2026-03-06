@@ -131,8 +131,8 @@ export class NarouProvider extends WebNovelProvider {
     async search(query) {
         console.log(`[NarouProvider] Searching for: ${query}`);
         // なろうAPI (https://dev.syosetu.com/man/api/) を使用して検索
-        // order=totalpoint: 総合評価の高い順
-        const url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=totalpoint`;
+        // order=hyoka: 総合評価の高い順 (totalpointは無効なパラメータだったため修正)
+        const url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=hyoka`;
         try {
             const res = await fetch(url);
             const text = await res.text();
@@ -232,6 +232,20 @@ export class NarouProvider extends WebNovelProvider {
                     }
                 }
             });
+
+            // 短編（目次がなく直接本文のページ）の対応
+            if (episodes.length === 0) {
+                const honbun = doc.querySelector('#novel_honbun') || doc.querySelector('.p-novel__body');
+                if (honbun) {
+                    console.log(`[NarouProvider] No TOC found but honbun exists. Treating as a short story.`);
+                    episodes.push({
+                        id: 'short',
+                        title: title || '本編',
+                        url: novelUrl
+                    });
+                }
+            }
+
             console.log(`[NarouProvider] Found ${episodes.length} episodes.`);
             return { title, author, episodes };
         } catch (error) {
@@ -291,23 +305,32 @@ export class KakuyomuProvider extends WebNovelProvider {
             const doc = this.parseHtml(html);
 
             const results = [];
-            // カクヨムの検索結果のカード
-            // 最近のデザイン変更に対応するため、複数のセレクタを試す
-            const cards = doc.querySelectorAll('.widget-workCard, [class*="WorkCard"], article');
-            console.log(`[KakuyomuProvider] Found ${cards.length} work cards.`);
+            // カクヨムの検索結果のデザインが変わったため（Next.js移行後など）、タイトルリンクを直接探す
+            const titleLinks = doc.querySelectorAll('h3 a[href^="/works/"], .widget-workCard-title a');
+            console.log(`[KakuyomuProvider] Found ${titleLinks.length} title links.`);
 
-            cards.forEach(card => {
-                const titleEl = card.querySelector('.widget-workCard-title a');
-                const authorEl = card.querySelector('.widget-workCard-authorLabel a') || card.querySelector('a[href^="/users/"]');
+            titleLinks.forEach(titleEl => {
+                const title = titleEl.textContent.trim();
+                const href = titleEl.getAttribute('href'); // e.g. /works/1177354054897486829
 
-                if (titleEl) {
-                    const title = titleEl.textContent.trim();
-                    const author = authorEl ? authorEl.textContent.trim() : 'Unknown Author';
-                    const href = titleEl.getAttribute('href'); // e.g. /works/1177354054897486829
+                // 親要素をたどって作者のリンクを探す
+                let authorEl = null;
+                const parentH3 = titleEl.closest('h3');
+                const parentCard = titleEl.closest('.widget-workCard, [class*="WorkCard"], article');
 
-                    const match = href.match(/\/works\/(\d+)/);
-                    if (match) {
-                        const id = match[1];
+                if (parentH3 && parentH3.parentElement) {
+                    authorEl = parentH3.parentElement.querySelector('a[href^="/users/"]');
+                } else if (parentCard) {
+                    authorEl = parentCard.querySelector('.widget-workCard-authorLabel a, a[href^="/users/"]');
+                }
+
+                const author = authorEl ? authorEl.textContent.trim() : 'Unknown Author';
+
+                const match = href.match(/\/works\/(\d+)/);
+                if (match) {
+                    const id = match[1];
+                    // 重複追加の防止
+                    if (!results.find(r => r.id === id)) {
                         results.push({
                             id,
                             title,
