@@ -6,15 +6,19 @@
 
 特定の EPUB（特に KADOKAWA 系など `item/` フォルダ構成を持つもの）において、目次が機能せず全章が連結表示される問題を修正する。
 
-- **ステータス**: 完了
+- **ステータス**: 完了（第2回修正: 初回テストで判明した3つの追加問題も解決）
 - **成功の境界線**: `0468.epub` のような階層構造を持つ EPUB で、目次が正しく表示され、各章が個別にロードされ、画像が正常に表示されること。
-- **失敗の事象**: `EPUB.js` が標準では目次取得に失敗し、パス解決が不十分なために 404 エラーが発生して全テキストが結合表示された。
-- **失敗の根本原因**: `container.xml` からの OPF パス特定が動的でなく、OPF ファイルのディレクトリを基準とした相対パス計算が実装されていなかったため。
-- **実装内容**:
-    1. `archive-handler.js` に `EpubArchiveHandler` を実装。`container.xml` の解析、OPF の特定、EPUB 3 Nav/NCX の手動解析、パス正規化ロジックを追加。
-    2. `reader.js` の `openEpub` を修正し、`EpubArchiveHandler` の目次情報で補完。
-    3. `buildPagination` 内の `resourceLoader` を強化。`archiveHandler.resolvePath` を使用し、アーカイブ内の絶対パスを正確に特定してリソースをロード。
-- **次のアプローチ**: ユーザーによる実機検証。
+- **失敗の事象（初回テスト時）**:
+  1. `this.archiveHandler` が `ReaderController` で未設定のため、全ての `archiveHandler` ベースのロジックが動作しなかった。
+  2. EPUB.js が不完全ながら2件の目次を返したため、補完条件 `toc.length === 0` が成立せず、`EpubArchiveHandler` の完全な目次が使用されなかった。
+  3. EPUB 3 Nav の XHTML を `text/html` でパースしていたため、名前空間付き属性 `epub:type="toc"` が認識されなかった。
+- **失敗の根本原因**: (1) `openEpub` 内で `EpubArchiveHandler` を初期化する処理がなかった (2) 補完条件が「0件時のみ」と限定的だった (3) XML 名前空間の扱いを考慮していなかった。
+- **実装内容（第2回修正）**:
+    1. `openEpub` 内で `new EpubArchiveHandler(file)` を直接初期化し、`this.archiveHandler` にセット。
+    2. 目次補完条件を `archiveToc.length > toc.length` に変更（より多い方を使用）。
+    3. EPUB 3 Nav 解析を `application/xhtml+xml` パーサーに変更し、`getAttributeNS` で名前空間付き属性を正しく取得。
+    4. `buildPagination` の `resourceLoader` 先頭に `archiveHandler.getFileBlob` による高精度リソース取得を追加。
+- **次のアプローチ**: ユーザーによる実機再検証。
 
 ### セルフチェックリスト
 

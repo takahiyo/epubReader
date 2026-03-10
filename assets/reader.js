@@ -24,7 +24,7 @@ import {
   READER_LOADING_PHASES,
   READER_LOADING_STATUSES,
 } from "./constants.js";
-import { createArchiveHandler } from "./js/core/archive-handler.js";
+import { createArchiveHandler, EpubArchiveHandler } from "./js/core/archive-handler.js";
 import { calculateProgressPercentage } from "./js/core/progress-utils.js";
 import { WebNovelViewer } from "./js/core/web-novel-viewer.js";
 
@@ -866,6 +866,22 @@ export class ReaderController {
     await this.book.ready;
     console.log("Book ready");
 
+    // [追加] EPUB 独自解析ハンドラの初期化
+    // OPF パスの正確な特定と EPUB 3 Navigation Document の手動解析を行う
+    try {
+      this.archiveHandler = new EpubArchiveHandler(file);
+      await this.archiveHandler.init();
+      console.log("[openEpub] EpubArchiveHandler initialized:", {
+        rootPath: this.archiveHandler.rootPath,
+        opfPath: this.archiveHandler.opfPath,
+        spineCount: this.archiveHandler.spine.length,
+        tocCount: this.archiveHandler.toc.length,
+      });
+    } catch (err) {
+      console.warn("[openEpub] EpubArchiveHandler の初期化に失敗しました（従来ロジックで継続）:", err);
+      this.archiveHandler = null;
+    }
+
     // 目次を取得
     let toc = [];
     try {
@@ -876,10 +892,12 @@ export class ReaderController {
       console.warn("EPUB.js による目次の取得に失敗しました:", err);
     }
 
-    // [修正] EpubArchiveHandler が目次を持っていれば、不足分を補完または代替する
-    if ((!toc || toc.length === 0) && this.archiveHandler?.toc?.length > 0) {
-      console.log("EpubArchiveHandler から目次を補完します:", this.archiveHandler.toc.length, "items");
-      toc = this.archiveHandler.toc.map(item => ({
+    // [修正] EpubArchiveHandler がより完全な目次を持っていれば補完・代替する
+    const archiveToc = this.archiveHandler?.toc ?? [];
+    if (archiveToc.length > toc.length) {
+      console.log("EpubArchiveHandler から目次を補完します:",
+        `EPUB.js: ${toc.length} items → EpubArchiveHandler: ${archiveToc.length} items`);
+      toc = archiveToc.map(item => ({
         label: item.label,
         href: item.href
       }));
@@ -2477,6 +2495,23 @@ export class ReaderController {
       this.resourceLoader = (async (url, spineItem) => {
         if (!url) return url;
         if (/^(https?:|data:|blob:)/i.test(url)) return url;
+
+        // [修正] EpubArchiveHandler が利用可能な場合、OPF ベースのパス解決を優先
+        if (this.archiveHandler?.resolvePath) {
+          const archivePath = this.archiveHandler.resolvePath(url, spineItem?.href);
+          if (this.resourceUrlCache.has(archivePath)) return this.resourceUrlCache.get(archivePath);
+          try {
+            const blob = await this.archiveHandler.getFileBlob(archivePath);
+            if (blob) {
+              const blobUrl = URL.createObjectURL(blob);
+              this.resourceUrlCache.set(archivePath, blobUrl);
+              return blobUrl;
+            }
+          } catch (e) {
+            // archiveHandler で見つからない場合は従来ロジックへフォールバック
+          }
+        }
+
         const resolvedUrl = normalizeResourceKey(url, spineItem, this.book);
         if (this.resourceUrlCache.has(resolvedUrl)) return this.resourceUrlCache.get(resolvedUrl);
 

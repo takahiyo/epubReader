@@ -783,11 +783,43 @@ export class EpubArchiveHandler extends ZipHandler {
       try {
         const navBlob = await this.getFileBlob(navItem.fullPath);
         const navText = await navBlob.text();
-        const navDom = new DOMParser().parseFromString(navText, "text/html");
-        const navPoints = navDom.querySelectorAll("nav[epub\\:type='toc'] li, nav[type='toc'] li");
+
+        // EPUB 3 Nav は XHTML (XML) のため、まず XML として解析を試みる
+        let navDom;
+        let navElements = [];
+        try {
+          navDom = new DOMParser().parseFromString(navText, "application/xhtml+xml");
+          // XML 名前空間のセレクターを直接走査
+          const allNavs = navDom.getElementsByTagName("nav");
+          for (const nav of allNavs) {
+            // epub:type="toc" の判定（名前空間あり・なし両対応）
+            const epubType = nav.getAttributeNS("http://www.idpf.org/2007/ops", "type")
+              || nav.getAttribute("epub:type")
+              || nav.getAttribute("type")
+              || "";
+            if (epubType === "toc") {
+              // 最上位の li のみを取得（ネストされた li は除外し重複を防ぐ）
+              const ols = nav.getElementsByTagName("ol");
+              if (ols.length > 0) {
+                // 最初の ol の直下の li のみ
+                for (const child of ols[0].children) {
+                  if (child.tagName.toLowerCase() === "li") {
+                    navElements.push(child);
+                  }
+                }
+              }
+              break;
+            }
+          }
+        } catch (xmlErr) {
+          // XML パースに失敗した場合は HTML パースにフォールバック
+          navDom = new DOMParser().parseFromString(navText, "text/html");
+          const navPoints = navDom.querySelectorAll("nav[epub\\:type='toc'] > ol > li, nav[type='toc'] > ol > li");
+          navElements = Array.from(navPoints);
+        }
         
         const toc = [];
-        navPoints.forEach(li => {
+        navElements.forEach(li => {
           const a = li.querySelector("a");
           if (a) {
             const label = a.textContent.trim();
