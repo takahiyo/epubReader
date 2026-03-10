@@ -871,9 +871,18 @@ export class ReaderController {
     try {
       await this.book.loaded.navigation;
       toc = this.book.navigation?.toc ?? [];
-      console.log("TOC loaded:", toc.length, "items");
+      console.log("TOC loaded from EPUB.js:", toc.length, "items");
     } catch (err) {
-      console.warn("目次の取得に失敗しました:", err);
+      console.warn("EPUB.js による目次の取得に失敗しました:", err);
+    }
+
+    // [修正] EpubArchiveHandler が目次を持っていれば、不足分を補完または代替する
+    if ((!toc || toc.length === 0) && this.archiveHandler?.toc?.length > 0) {
+      console.log("EpubArchiveHandler から目次を補完します:", this.archiveHandler.toc.length, "items");
+      toc = this.archiveHandler.toc.map(item => ({
+        label: item.label,
+        href: item.href
+      }));
     }
     this.toc = toc;
 
@@ -2193,9 +2202,7 @@ export class ReaderController {
 
         if (this.epubViewMode === "scroll") {
           this.injectScrollNavigationButtons(this.pageContainer, clampedIndex, pagination.pages.length);
-
-          // 画像の遅延ロードなどでDOMサイズが変わったときにスクロール位置を維持する
-          if (this._resizeObserver) {
+      if (this._resizeObserver) {
             this._resizeObserver.disconnect();
           }
           this._resizeObserver = new ResizeObserver(() => {

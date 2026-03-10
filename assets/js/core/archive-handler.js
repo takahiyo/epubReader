@@ -693,12 +693,188 @@ export class RarHandler extends ArchiveHandler {
 }
 
 /**
+ * EPUB 形式のアーカイブを専門に扱うハンドラ。
+ * OPF パスの特定、マニフェスト、Spine、EPUB 3 Navigation の解析を行います。
+ */
+export class EpubArchiveHandler extends ZipHandler {
+  constructor(file) {
+    super(file);
+    this.type = BOOK_TYPES.EPUB;
+    this.rootPath = ""; // OPF ファイルのディレクトリパス
+    this.opfPath = "";  // OPF ファイル自体のパス
+    this.metadata = null;
+    this.manifest = new Map();
+    this.spine = [];
+    this.toc = [];
+  }
+
+  async init() {
+    await super.init();
+    await this._parseEpubStructure();
+    return this;
+  }
+
+  /**
+   * EPUB の基本構造（OPFパス、マニフェスト、Spineなど）を解析します。
+   */
+  async _parseEpubStructure() {
+    try {
+      // 1. container.xml から OPF のパスを取得
+      const containerBlob = await this.getFileBlob("META-INF/container.xml");
+      const containerText = await containerBlob.text();
+      const containerDom = new DOMParser().parseFromString(containerText, "text/xml");
+      const rootfile = containerDom.querySelector("rootfile");
+      this.opfPath = rootfile?.getAttribute("full-path") || "";
+      if (!this.opfPath) return;
+
+      const parts = this.opfPath.split("/");
+      this.rootPath = parts.slice(0, -1).join("/");
+
+      // 2. OPF ファイルの解析
+      const opfBlob = await this.getFileBlob(this.opfPath);
+      const opfText = await opfBlob.text();
+      const opfDom = new DOMParser().parseFromString(opfText, "text/xml");
+
+      // マニフェストの抽出
+      const manifests = opfDom.querySelectorAll("manifest > item");
+      manifests.forEach(item => {
+        const id = item.getAttribute("id");
+        const href = item.getAttribute("href");
+        const mediaType = item.getAttribute("media-type");
+        const properties = item.getAttribute("properties") || "";
+        if (id && href) {
+          const fullPath = this.resolvePath(href);
+          this.manifest.set(id, { id, href, fullPath, mediaType, properties });
+        }
+      });
+
+      // Spine の抽出
+      const spineItems = opfDom.querySelectorAll("spine > itemref");
+      spineItems.forEach(item => {
+        const idref = item.getAttribute("idref");
+        const info = this.manifest.get(idref);
+        if (info) {
+          this.spine.push(info);
+        }
+      });
+
+      // 3. 目次の解析 (EPUB 3 Nav または NCX)
+      await this._parseToc(opfDom);
+
+    } catch (error) {
+      console.warn("[EpubArchiveHandler] EPUB structure parsing failed:", error);
+    }
+  }
+
+  /**
+   * 目次情報を抽出します。
+   */
+  async _parseToc(opfDom) {
+    // EPUB 3 Navigation Document を探す
+    let navItem = null;
+    for (const item of this.manifest.values()) {
+      if (item.properties.includes("nav")) {
+        navItem = item;
+        break;
+      }
+    }
+
+    if (navItem) {
+      try {
+        const navBlob = await this.getFileBlob(navItem.fullPath);
+        const navText = await navBlob.text();
+        const navDom = new DOMParser().parseFromString(navText, "text/html");
+        const navPoints = navDom.querySelectorAll("nav[epub\\:type='toc'] li, nav[type='toc'] li");
+        
+        const toc = [];
+        navPoints.forEach(li => {
+          const a = li.querySelector("a");
+          if (a) {
+            const label = a.textContent.trim();
+            const href = a.getAttribute("href");
+            if (label && href) {
+              toc.push({ label, href: this.resolvePath(href, navItem.fullPath) });
+            }
+          }
+        });
+        if (toc.length > 0) {
+          this.toc = toc;
+          return;
+        }
+      } catch (e) {
+        console.warn("[EpubArchiveHandler] Failed to parse EPUB 3 Nav:", e);
+      }
+    }
+
+    // NCX (EPUB 2) のフォールバック
+    const tocId = opfDom.querySelector("spine")?.getAttribute("toc");
+    const ncxItem = this.manifest.get(tocId);
+    if (ncxItem) {
+      try {
+        const ncxBlob = await this.getFileBlob(ncxItem.fullPath);
+        const ncxText = await ncxBlob.text();
+        const ncxDom = new DOMParser().parseFromString(ncxText, "text/xml");
+        const navPoints = ncxDom.querySelectorAll("navPoint");
+        
+        const toc = [];
+        navPoints.forEach(point => {
+          const label = point.querySelector("navLabel text")?.textContent;
+          const src = point.querySelector("content")?.getAttribute("src");
+          if (label && src) {
+            toc.push({ label, href: this.resolvePath(src, ncxItem.fullPath) });
+          }
+        });
+        this.toc = toc;
+      } catch (e) {
+        console.warn("[EpubArchiveHandler] Failed to parse NCX:", e);
+      }
+    }
+  }
+
+  /**
+   * リソースの絶対パス（アーカイブ内）を解決します。
+   * @param {string} relativePath 解決したい相対パス
+   * @param {string} [basePath] 基準となるパス（省略時は rootPath）
+   */
+  resolvePath(relativePath, basePath = null) {
+    if (!relativePath) return "";
+    if (/^(https?:|data:|blob:)/i.test(relativePath)) return relativePath;
+
+    const base = basePath ? basePath.split("/").slice(0, -1).join("/") : this.rootPath;
+    const combined = base ? `${base}/${relativePath}` : relativePath;
+
+    // パスの正規化（../ などを処理）
+    const parts = combined.split("/");
+    const stack = [];
+    for (const part of parts) {
+      if (part === ".." && stack.length > 0) {
+        stack.pop();
+      } else if (part !== "." && part !== "") {
+        stack.push(part);
+      }
+    }
+    return stack.join("/");
+  }
+
+  getArchiveLabel() {
+    return "EPUB";
+  }
+}
+
+/**
  * @param {File|Blob} file
  * @param {{ forceStreaming?: boolean }} [options]
  * @returns {Promise<ArchiveHandler|import("./streaming-zip-handler.js").StreamingZipHandler>}
  */
 export async function createArchiveHandler(file, options = {}) {
   const type = await detectArchiveType(file);
+
+  // EPUB 形式への特化
+  if (type === BOOK_TYPES.EPUB) {
+    const handler = new EpubArchiveHandler(file);
+    await handler.init();
+    return handler;
+  }
 
   // ストリーミングモード: ZIP 形式かつ明示的に要求された場合のみ
   if (options.forceStreaming && type === BOOK_TYPES.ZIP) {
