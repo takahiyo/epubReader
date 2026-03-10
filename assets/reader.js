@@ -895,12 +895,13 @@ export class ReaderController {
     // [修正] EpubArchiveHandler がより完全な目次を持っていれば補完・代替する
     const archiveToc = this.archiveHandler?.toc ?? [];
     if (archiveToc.length > toc.length) {
-      console.log("EpubArchiveHandler から目次を補完します:",
-        `EPUB.js: ${toc.length} items → EpubArchiveHandler: ${archiveToc.length} items`);
+      console.log(`[openEpub] EpubArchiveHandler から目次を補完します: EPUB.js(${toc.length}) → EpubArchiveHandler(${archiveToc.length})`);
       toc = archiveToc.map(item => ({
         label: item.label,
         href: item.href
       }));
+    } else {
+      console.log(`[openEpub] EPUB.js の目次を優先します (${toc.length} items)`);
     }
     this.toc = toc;
 
@@ -2038,18 +2039,13 @@ export class ReaderController {
     // NOTE:
     //   サブ目次（subitems）には「挿絵」「節」など章境界ではない項目が含まれることがある。
     //   それを章区切りに使うと、挿絵ページで章が切れてしまうため、まずはトップレベルを優先する。
-    const tocEntries = [];
-    const nestedTocEntries = [];
+    // 目次項目を全階層から抽出
+    const allEntries = [];
     const traverseToc = (items, depth = 0) => {
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
-          const entry = { title: item.label, spineIndex };
-          if (depth === 0) {
-            tocEntries.push(entry);
-          } else {
-            nestedTocEntries.push(entry);
-          }
+          allEntries.push({ title: item.label, spineIndex, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
@@ -2058,10 +2054,7 @@ export class ReaderController {
     };
     traverseToc(this.toc, 0);
 
-    // トップレベルが取れないEPUBだけ、後方互換としてネスト項目を使う
-    if (tocEntries.length === 0 && nestedTocEntries.length > 0) {
-      tocEntries.push(...nestedTocEntries);
-    }
+    const tocEntries = allEntries;
 
     // 重複を削除し、インデックス順にソート
     const sortedToc = tocEntries
@@ -2505,6 +2498,7 @@ export class ReaderController {
             if (blob) {
               const blobUrl = URL.createObjectURL(blob);
               this.resourceUrlCache.set(archivePath, blobUrl);
+              console.log(`[resourceLoader] Resolved via archiveHandler: ${url} -> ${archivePath}`);
               return blobUrl;
             }
           } catch (e) {
@@ -2514,6 +2508,8 @@ export class ReaderController {
 
         const resolvedUrl = normalizeResourceKey(url, spineItem, this.book);
         if (this.resourceUrlCache.has(resolvedUrl)) return this.resourceUrlCache.get(resolvedUrl);
+
+        console.log(`[resourceLoader] Attempting complex fallback for: ${url} (resolved: ${resolvedUrl})`);
 
         try {
           const filename = url.split("/").pop();

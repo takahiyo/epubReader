@@ -781,55 +781,63 @@ export class EpubArchiveHandler extends ZipHandler {
 
     if (navItem) {
       try {
+        console.log(`[EpubArchiveHandler] Parsing EPUB 3 Nav: ${navItem.fullPath}`);
         const navBlob = await this.getFileBlob(navItem.fullPath);
         const navText = await navBlob.text();
 
         // EPUB 3 Nav は XHTML (XML) のため、まず XML として解析を試みる
         let navDom;
-        let navElements = [];
+        let navPoints = [];
         try {
           navDom = new DOMParser().parseFromString(navText, "application/xhtml+xml");
-          // XML 名前空間のセレクターを直接走査
-          const allNavs = navDom.getElementsByTagName("nav");
-          for (const nav of allNavs) {
-            // epub:type="toc" の判定（名前空間あり・なし両対応）
+          
+          // 名前空間を考慮して nav を探す
+          const navElements = Array.from(navDom.getElementsByTagName("nav"));
+          const tocNav = navElements.find(nav => {
             const epubType = nav.getAttributeNS("http://www.idpf.org/2007/ops", "type")
               || nav.getAttribute("epub:type")
-              || nav.getAttribute("type")
-              || "";
-            if (epubType === "toc") {
-              // 最上位の li のみを取得（ネストされた li は除外し重複を防ぐ）
-              const ols = nav.getElementsByTagName("ol");
-              if (ols.length > 0) {
-                // 最初の ol の直下の li のみ
-                for (const child of ols[0].children) {
-                  if (child.tagName.toLowerCase() === "li") {
-                    navElements.push(child);
-                  }
-                }
+              || nav.getAttribute("type");
+            return epubType === "toc";
+          }) || navElements[0]; // 見つからない場合は最初の nav
+
+          if (tocNav) {
+            // 再帰的にすべての a タグ（目次項目）を抽出
+            const links = tocNav.getElementsByTagName("a");
+            console.log(`[EpubArchiveHandler] Found ${links.length} potential links in EPUB 3 Nav`);
+            for (const a of links) {
+              const label = a.textContent.trim();
+              const href = a.getAttribute("href");
+              if (label && href) {
+                navPoints.push({ label, href });
               }
-              break;
             }
           }
         } catch (xmlErr) {
-          // XML パースに失敗した場合は HTML パースにフォールバック
+          console.warn("[EpubArchiveHandler] XML parse failed, falling back to HTML:", xmlErr);
           navDom = new DOMParser().parseFromString(navText, "text/html");
-          const navPoints = navDom.querySelectorAll("nav[epub\\:type='toc'] > ol > li, nav[type='toc'] > ol > li");
-          navElements = Array.from(navPoints);
+          const tocNav = navDom.querySelector("nav[epub\\:type='toc'], nav[type='toc'], nav");
+          if (tocNav) {
+            const links = tocNav.querySelectorAll("a");
+            for (const a of links) {
+              const label = a.textContent.trim();
+              const href = a.getAttribute("href");
+              if (label && href) {
+                navPoints.push({ label, href });
+              }
+            }
+          }
         }
         
         const toc = [];
-        navElements.forEach(li => {
-          const a = li.querySelector("a");
-          if (a) {
-            const label = a.textContent.trim();
-            const href = a.getAttribute("href");
-            if (label && href) {
-              toc.push({ label, href: this.resolvePath(href, navItem.fullPath) });
-            }
-          }
+        navPoints.forEach(point => {
+          toc.push({ 
+            label: point.label, 
+            href: this.resolvePath(point.href, navItem.fullPath) 
+          });
         });
+
         if (toc.length > 0) {
+          console.log(`[EpubArchiveHandler] EPUB 3 TOC extracted: ${toc.length} items`);
           this.toc = toc;
           return;
         }
@@ -839,26 +847,37 @@ export class EpubArchiveHandler extends ZipHandler {
     }
 
     // NCX (EPUB 2) のフォールバック
-    const tocId = opfDom.querySelector("spine")?.getAttribute("toc");
-    const ncxItem = this.manifest.get(tocId);
-    if (ncxItem) {
-      try {
-        const ncxBlob = await this.getFileBlob(ncxItem.fullPath);
-        const ncxText = await ncxBlob.text();
-        const ncxDom = new DOMParser().parseFromString(ncxText, "text/xml");
-        const navPoints = ncxDom.querySelectorAll("navPoint");
-        
-        const toc = [];
-        navPoints.forEach(point => {
-          const label = point.querySelector("navLabel text")?.textContent;
-          const src = point.querySelector("content")?.getAttribute("src");
-          if (label && src) {
-            toc.push({ label, href: this.resolvePath(src, ncxItem.fullPath) });
+    const spine = opfDom.querySelector("spine");
+    const tocId = spine?.getAttribute("toc");
+    if (tocId) {
+      const ncxItem = this.manifest.get(tocId);
+      if (ncxItem) {
+        try {
+          console.log(`[EpubArchiveHandler] Parsing NCX: ${ncxItem.fullPath}`);
+          const ncxBlob = await this.getFileBlob(ncxItem.fullPath);
+          const ncxText = await ncxBlob.text();
+          const ncxDom = new DOMParser().parseFromString(ncxText, "text/xml");
+          
+          const navPoints = Array.from(ncxDom.querySelectorAll("navPoint"));
+          console.log(`[EpubArchiveHandler] Found ${navPoints.length} navPoints in NCX`);
+          
+          const toc = [];
+          navPoints.forEach(point => {
+            const label = point.querySelector("navLabel text")?.textContent?.trim();
+            const src = point.querySelector("content")?.getAttribute("src");
+            if (label && src) {
+              toc.push({ label, href: this.resolvePath(src, ncxItem.fullPath) });
+            }
+          });
+          
+          if (toc.length > 0) {
+            console.log(`[EpubArchiveHandler] NCX TOC extracted: ${toc.length} items`);
+            this.toc = toc;
+            return;
           }
-        });
-        this.toc = toc;
-      } catch (e) {
-        console.warn("[EpubArchiveHandler] Failed to parse NCX:", e);
+        } catch (e) {
+          console.warn("[EpubArchiveHandler] Failed to parse NCX:", e);
+        }
       }
     }
   }
