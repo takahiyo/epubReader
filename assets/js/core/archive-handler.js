@@ -839,46 +839,63 @@ export class EpubArchiveHandler extends ZipHandler {
         if (toc.length > 0) {
           console.log(`[EpubArchiveHandler] EPUB 3 TOC extracted: ${toc.length} items`);
           this.toc = toc;
-          return;
         }
       } catch (e) {
         console.warn("[EpubArchiveHandler] Failed to parse EPUB 3 Nav:", e);
       }
     }
 
-    // NCX (EPUB 2) のフォールバック
-    const spine = opfDom.querySelector("spine");
-    const tocId = spine?.getAttribute("toc");
-    if (tocId) {
-      const ncxItem = this.manifest.get(tocId);
-      if (ncxItem) {
-        try {
-          console.log(`[EpubArchiveHandler] Parsing NCX: ${ncxItem.fullPath}`);
-          const ncxBlob = await this.getFileBlob(ncxItem.fullPath);
-          const ncxText = await ncxBlob.text();
-          const ncxDom = new DOMParser().parseFromString(ncxText, "text/xml");
-          
-          const navPoints = Array.from(ncxDom.querySelectorAll("navPoint"));
-          console.log(`[EpubArchiveHandler] Found ${navPoints.length} navPoints in NCX`);
-          
-          const toc = [];
-          navPoints.forEach(point => {
-            const label = point.querySelector("navLabel text")?.textContent?.trim();
-            const src = point.querySelector("content")?.getAttribute("src");
-            if (label && src) {
-              toc.push({ label, href: this.resolvePath(src, ncxItem.fullPath) });
+    // NCX (EPUB 2) のフォールバック (目次がまだ見つかっていない場合のみ)
+    if (this.toc.length === 0) {
+      const spine = opfDom.querySelector("spine");
+      const tocId = spine?.getAttribute("toc");
+      if (tocId) {
+        const ncxItem = this.manifest.get(tocId);
+        if (ncxItem) {
+          try {
+            console.log(`[EpubArchiveHandler] Parsing NCX: ${ncxItem.fullPath}`);
+            const ncxBlob = await this.getFileBlob(ncxItem.fullPath);
+            const ncxText = await ncxBlob.text();
+            const ncxDom = new DOMParser().parseFromString(ncxText, "text/xml");
+            
+            const navPoints = Array.from(ncxDom.querySelectorAll("navPoint"));
+            console.log(`[EpubArchiveHandler] Found ${navPoints.length} navPoints in NCX`);
+            
+            const toc = [];
+            navPoints.forEach(point => {
+              const label = point.querySelector("navLabel text")?.textContent?.trim();
+              const src = point.querySelector("content")?.getAttribute("src");
+              if (label && src) {
+                toc.push({ label, href: this.resolvePath(src, ncxItem.fullPath) });
+              }
+            });
+            
+            if (toc.length > 0) {
+              console.log(`[EpubArchiveHandler] NCX TOC extracted: ${toc.length} items`);
+              this.toc = toc;
             }
-          });
-          
-          if (toc.length > 0) {
-            console.log(`[EpubArchiveHandler] NCX TOC extracted: ${toc.length} items`);
-            this.toc = toc;
-            return;
+          } catch (e) {
+            console.warn("[EpubArchiveHandler] Failed to parse NCX:", e);
           }
-        } catch (e) {
-          console.warn("[EpubArchiveHandler] Failed to parse NCX:", e);
         }
       }
+    }
+
+    // [追加] 目次が極端に少ない場合のフォールバック (Spine ベース補完)
+    // 0468.epub のように、目次ドキュメントに「表紙」「奥付」しかないケースに対応
+    if (this.spine.length > 5 && this.toc.length < this.spine.length / 3) {
+      console.log(`[EpubArchiveHandler] TOC is sparse (${this.toc.length} items for ${this.spine.length} spine items). Falling back to spine-based TOC.`);
+      const spineToc = this.spine.map((s, i) => {
+        // ファイル名から「p-001」などのラベルを推測。なければ index
+        const filename = s.href.split('/').pop()?.split('.')[0] || `Section ${i + 1}`;
+        return {
+          label: s.title || filename,
+          href: s.fullPath
+        };
+      });
+      // 既存の目次がある場合でも、分割を優先するために Spine ベースで上書き、またはマージを検討
+      // ユーザーの「章分けされていない」不満を解消するため、ここでは Spine 全体を優先して採用
+      this.toc = spineToc;
     }
   }
 

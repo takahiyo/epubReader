@@ -6,18 +6,13 @@
 
 特定の EPUB（特に KADOKAWA 系など `item/` フォルダ構成を持つもの）において、目次が機能せず全章が連結表示される問題を修正する。
 
-- **ステータス**: 完了（第2回修正: 初回テストで判明した3つの追加問題も解決）
-- **成功の境界線**: `0468.epub` のような階層構造を持つ EPUB で、目次が正しく表示され、各章が個別にロードされ、画像が正常に表示されること。
-- **失敗の事象（初回テスト時）**:
-  1. `this.archiveHandler` が `ReaderController` で未設定のため、全ての `archiveHandler` ベースのロジックが動作しなかった。
-  2. EPUB.js が不完全ながら2件の目次を返したため、補完条件 `toc.length === 0` が成立せず、`EpubArchiveHandler` の完全な目次が使用されなかった。
-  3. EPUB 3 Nav の XHTML を `text/html` でパースしていたため、名前空間付き属性 `epub:type="toc"` が認識されなかった。
-- **失敗の根本原因**: (1) `openEpub` 内で `EpubArchiveHandler` を初期化する処理がなかった (2) 補完条件が「0件時のみ」と限定的だった (3) XML 名前空間の扱いを考慮していなかった。
-- **実装内容（第2回修正）**:
-    1. `openEpub` 内で `new EpubArchiveHandler(file)` を直接初期化し、`this.archiveHandler` にセット。
-    2. 目次補完条件を `archiveToc.length > toc.length` に変更（より多い方を使用）。
-    3. EPUB 3 Nav 解析を `application/xhtml+xml` パーサーに変更し、`getAttributeNS` で名前空間付き属性を正しく取得。
-    4. `buildPagination` の `resourceLoader` 先頭に `archiveHandler.getFileBlob` による高精度リソース取得を追加。
+- **ステータス**: 完了（第4回修正: 早期リターンによる補完スキップの修正）
+- **成功の境界線**: `0468.epub` で 18 章すべてが目次に列挙され、独立して表示されること。
+- **失敗の事象（第3回修正後）**: 修正コードを投入したにも関わらず、依然として目次が 2 件しか認識されない。
+- **失敗の根本原因**: `archive-handler.js` の `_parseToc` において、目次が 1 件でも見つかると `return` 処理が走り、末尾に追加した「Spine ベースの補完ロジック」まで到達していなかった。
+- **実装内容（第4回修正）**:
+    1. `archive-handler.js`: `_parseToc` 内の早期 `return` を削除し、スパース判定（目次不足判定）が必ず実行されるように修正。
+    2. 目次が 0 件の場合のみ NCX を試行するよう条件を厳格化。
 - **次のアプローチ**: ユーザーによる実機再検証。
 
 ### セルフチェックリスト
