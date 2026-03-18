@@ -496,6 +496,11 @@ export class ReaderController {
           currentLocator.segmentIndex
         );
         if (newIndex >= 0) {
+          if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && currentLocator.segmentIndex > 0) {
+            this._pendingScrollToSegment = currentLocator.segmentIndex;
+            this._pendingScrollSearchQuery = currentLocator.visibleText || null;
+            this._pendingScrollHighlight = false; // リサイズ時はハイライトさせない
+          }
           this.pageController.goTo(newIndex);
         }
       }
