@@ -6,6 +6,7 @@ export const BOOK_TYPES = Object.freeze({
   ZIP: "zip",
   RAR: "rar",
   IMAGE: "image",
+  WEB_NOVEL: "web_novel",
 });
 
 export const WRITING_MODES = Object.freeze({

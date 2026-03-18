@@ -349,6 +349,11 @@ export class UIController {
 
     if (!this.isBookOpen()) return;
 
+    // 全モード共通: シームレススクロール時はエリアタップによるページ送りを無効化 (SSOT)
+    if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+      return;
+    }
+
     const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
 
     // 画像書庫または縦書き
@@ -382,11 +387,6 @@ export class UIController {
           return;
         }
       }
-      return;
-    }
-
-    // 全モード共通: シームレススクロール時はエリアタップによるページ送りを無効化 (SSOT)
-    if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
       return;
     }
 

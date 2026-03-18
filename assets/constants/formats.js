@@ -20,6 +20,7 @@ export const SUPPORTED_FORMATS = Object.freeze({
   EPUB: [".epub"],
   IMAGE_ARCHIVE: [".cbz", ".zip", ".rar", ".cbr"],
   IMAGES: SUPPORTED_IMAGE_EXTENSIONS,
+  WEB_NOVEL: [".txt", ".html"], // Web小説スタブ用
 });
 
 // ============================================
@@ -41,6 +42,7 @@ export const MIME_TYPES = Object.freeze({
   HEIC: "image/heic",
   HEIF: "image/heif",
   TIFF: "image/tiff",
+  WEB_NOVEL: "text/x-web-novel",
 });
 
 // ============================================

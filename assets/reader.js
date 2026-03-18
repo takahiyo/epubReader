@@ -24,8 +24,9 @@ import {
   READER_LOADING_PHASES,
   READER_LOADING_STATUSES,
 } from "./constants.js";
-import { createArchiveHandler } from "./js/core/archive-handler.js";
+import { createArchiveHandler, EpubArchiveHandler } from "./js/core/archive-handler.js";
 import { calculateProgressPercentage } from "./js/core/progress-utils.js";
+import { WebNovelViewer } from "./js/core/web-novel-viewer.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
 const getMemoryStrategy = () => {
@@ -170,6 +171,7 @@ class PageController {
 export class ReaderController {
   constructor({
     viewerId,
+    webNovelViewerId,
     imageViewerId,
     imageElementId,
     pageIndicatorId,
@@ -181,6 +183,7 @@ export class ReaderController {
     onRepaginationEnd,
   }) {
     this.viewer = document.getElementById(viewerId);
+    this.webNovelViewerContainer = document.getElementById(webNovelViewerId || DOM_IDS.WEB_NOVEL_VIEWER);
     this.imageViewer = document.getElementById(imageViewerId);
     this.imageElement = document.getElementById(imageElementId);
     this.pageIndicator = document.getElementById(pageIndicatorId);
@@ -228,6 +231,14 @@ export class ReaderController {
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
     this.resizeTimer = null;
+
+    // WebNovelViewer 初期化
+    this.webNovelViewer = new WebNovelViewer({
+      containerId: webNovelViewerId || DOM_IDS.WEB_NOVEL_VIEWER,
+      onProgress: (info) => {
+        if (this.onProgress) this.onProgress(info);
+      }
+    });
 
     // [New] Zoom State
     this.zoomScale = 1.0;
@@ -344,7 +355,7 @@ export class ReaderController {
     }
     this.rendition = null;
     this.book = null;
-    this.type = null; // "epub" | "image"
+    this.type = null; // "epub" | "image" | "web_novel"
     this.archiveHandler = null;
     this.revokeImagePages();
     this.imagePages = [];
@@ -404,6 +415,10 @@ export class ReaderController {
       if (slider) slider.value = this.getZoomConfig().min;
     }
     this.updateTransform();
+
+    if (this.webNovelViewer) {
+      this.webNovelViewer.destroy();
+    }
   }
 
   revokeImagePages() {
@@ -481,6 +496,11 @@ export class ReaderController {
           currentLocator.segmentIndex
         );
         if (newIndex >= 0) {
+          if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && currentLocator.segmentIndex > 0) {
+            this._pendingScrollToSegment = currentLocator.segmentIndex;
+            this._pendingScrollSearchQuery = currentLocator.visibleText || null;
+            this._pendingScrollHighlight = false; // リサイズ時はハイライトさせない
+          }
           this.pageController.goTo(newIndex);
         }
       }
@@ -669,6 +689,55 @@ export class ReaderController {
     });
   }
 
+  /**
+   * Web小説を開く
+   * @param {Object} novelInfo {id, title, author}
+   * @param {Array} episodes [{id, title, url}]
+   * @param {WebNovelProvider} provider NarouProvider etc.
+   * @param {Object|number} startLocation {location: episodeIndex, percentage}
+   */
+  async openWebNovel(novelInfo, episodes, provider, startLocation = 0) {
+    this.resetReaderState();
+    this.type = BOOK_TYPES.WEB_NOVEL;
+
+    // 表示状態の初期化
+    if (this.viewer) this.viewer.classList.add(UI_CLASSES.HIDDEN);
+    if (this.imageViewer) this.imageViewer.classList.add(UI_CLASSES.HIDDEN);
+    if (this.webNovelViewerContainer) {
+      this.webNovelViewerContainer.classList.remove(UI_CLASSES.HIDDEN);
+    }
+
+    // WebNovelViewer に設定を適用
+    if (this.webNovelViewer) {
+      this.webNovelViewer.setWritingMode(this.writingMode === WRITING_MODES.VERTICAL ? 'vertical-rl' : 'horizontal-tb');
+    }
+
+    this.book = novelInfo; // book オブジェクトの代わりに情報を持たせる
+
+    let episodeIndex = 0;
+    let percentage = 0;
+    if (typeof startLocation === 'object' && startLocation !== null) {
+      episodeIndex = startLocation.location || 0;
+      percentage = startLocation.percentage || 0;
+    } else if (typeof startLocation === 'number') {
+      episodeIndex = startLocation;
+    }
+
+    try {
+      this.emitLoadingUpdate({
+        phase: READER_LOADING_PHASES.EPUB_INIT, // 汎用名称として扱う
+        status: READER_LOADING_STATUSES.CALCULATING_LAYOUT
+      });
+
+      await this.webNovelViewer.renderEpisode(novelInfo, episodes, episodeIndex, provider, percentage);
+
+      this.onReady?.();
+    } catch (e) {
+      console.error("Failed to open web novel:", e);
+      throw new Error("Web小説の読み込みに失敗しました。");
+    }
+  }
+
   async openEpub(file, options = {}) {
     this.resetReaderState();
     this.type = BOOK_TYPES.EPUB;
@@ -802,14 +871,42 @@ export class ReaderController {
     await this.book.ready;
     console.log("Book ready");
 
+    // [追加] EPUB 独自解析ハンドラの初期化
+    // OPF パスの正確な特定と EPUB 3 Navigation Document の手動解析を行う
+    try {
+      this.archiveHandler = new EpubArchiveHandler(file);
+      await this.archiveHandler.init();
+      console.log("[openEpub] EpubArchiveHandler initialized:", {
+        rootPath: this.archiveHandler.rootPath,
+        opfPath: this.archiveHandler.opfPath,
+        spineCount: this.archiveHandler.spine.length,
+        tocCount: this.archiveHandler.toc.length,
+      });
+    } catch (err) {
+      console.warn("[openEpub] EpubArchiveHandler の初期化に失敗しました（従来ロジックで継続）:", err);
+      this.archiveHandler = null;
+    }
+
     // 目次を取得
     let toc = [];
     try {
       await this.book.loaded.navigation;
       toc = this.book.navigation?.toc ?? [];
-      console.log("TOC loaded:", toc.length, "items");
+      console.log("TOC loaded from EPUB.js:", toc.length, "items");
     } catch (err) {
-      console.warn("目次の取得に失敗しました:", err);
+      console.warn("EPUB.js による目次の取得に失敗しました:", err);
+    }
+
+    // [修正] EpubArchiveHandler がより完全な目次を持っていれば補完・代替する
+    const archiveToc = this.archiveHandler?.toc ?? [];
+    if (archiveToc.length > toc.length) {
+      console.log(`[openEpub] EpubArchiveHandler から目次を補完します: EPUB.js(${toc.length}) → EpubArchiveHandler(${archiveToc.length})`);
+      toc = archiveToc.map(item => ({
+        label: item.label,
+        href: item.href
+      }));
+    } else {
+      console.log(`[openEpub] EPUB.js の目次を優先します (${toc.length} items)`);
     }
     this.toc = toc;
 
@@ -1492,6 +1589,7 @@ export class ReaderController {
       }
     }
 
+    // 方法2: 検索テキストがない、または失敗した場合はセグメントインデックスから探す
     if (!targetElement && (segmentIndex > 0 || (targetSpineIndex != null && targetContainer !== container))) {
       console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
@@ -1507,6 +1605,7 @@ export class ReaderController {
 
       let currentSegment = 0;
       let node = walker.nextNode();
+      let lastValidNode = node; // フォールバック用に最後に評価したノードを保持
 
       while (node) {
         const text = node.textContent || "";
@@ -1517,13 +1616,20 @@ export class ReaderController {
           break;
         }
         currentSegment += segmentsInNode;
+        lastValidNode = node;
         node = walker.nextNode();
       }
 
+      // 章の末尾を超えたなど、正確な位置が見つからなかった場合のフォールバック
+      if (!targetElement && lastValidNode) {
+        console.warn("[ジャンプデバッグ] 正確なインデックス位置が見つからなかったため、章の末尾付近へフォールバックします");
+        targetElement = lastValidNode.parentElement || lastValidNode;
+      }
+
       if (targetElement) {
-        console.log("[ジャンプデバッグ] インデックスによる位置特定に成功しました", { targetElement });
+        console.log("[ジャンプデバッグ] インデックスによる位置特定に成功(または近似位置へフォールバック)しました", { targetElement });
       } else {
-        console.warn("[ジャンプデバッグ] インデックスによる位置特定に失敗しました (章の末尾を超えた可能性があります)");
+        console.warn("[ジャンプデバッグ] インデックスによる位置特定に完全に失敗しました");
       }
     }
 
@@ -1537,11 +1643,12 @@ export class ReaderController {
     }
 
     // 検索テキストがある場合は一時的に強調表示（モード問わず実行。フラグが有効な場合のみ）
+    // ※ `matchDataArray`がない場合（フォールバック時）はハイライトできない
     if (searchQuery && matchDataArray && shouldHighlight) {
       this._applyTemporaryHighlight(matchDataArray, searchQuery);
     }
 
-    // スクロールモードで対象が見つからなかった場合のフォールバック
+    // スクロールモードで対象が見つからなかった場合（コンテナ自体が空など）の最終フォールバック
     if (!targetElement && this.epubViewMode === "scroll") {
       console.warn("[ジャンプデバッグ] 最終的なターゲットが見つからなかったため、章の先頭へフォールバックします");
       this._scrollTargetNode = null;
@@ -1762,13 +1869,22 @@ export class ReaderController {
     for (let index = 0; index < nodePositions.length; index++) {
       const pos = nodePositions[index];
       // マッチ範囲とノード範囲が重なっているか判定
+      // 重なり判定: ノードの終了位置がマッチ開始より後 ＆＆ ノードの開始位置がマッチ終了より前
+      // タグまたぎで一部だけ引っかかるケースも拾う
       if (pos.end > matchIndex && pos.start < matchEndIndex) {
-        matchingNodes.push({
-          node: pos.node,
-          // ノード内でのマッチ開始位置と終了位置
-          matchStart: Math.max(0, matchIndex - pos.start),
-          matchEnd: Math.min(pos.node.textContent.length, matchEndIndex - pos.start)
-        });
+        // マッチが全体テキストのどこからどこまでかを、現在のノード内のローカルインデックスに変換
+        const localStart = Math.max(0, matchIndex - pos.start);
+        // ノードの長さか、マッチがこのノードで終わる位置か、小さい方を終了位置とする
+        const localEnd = Math.min(pos.node.textContent.length, matchEndIndex - pos.start);
+
+        // 空文字にならない場合のみ追加
+        if (localStart < localEnd) {
+          matchingNodes.push({
+            node: pos.node,
+            matchStart: localStart,
+            matchEnd: localEnd
+          });
+        }
       }
     }
 
@@ -1928,18 +2044,13 @@ export class ReaderController {
     // NOTE:
     //   サブ目次（subitems）には「挿絵」「節」など章境界ではない項目が含まれることがある。
     //   それを章区切りに使うと、挿絵ページで章が切れてしまうため、まずはトップレベルを優先する。
-    const tocEntries = [];
-    const nestedTocEntries = [];
+    // 目次項目を全階層から抽出
+    const allEntries = [];
     const traverseToc = (items, depth = 0) => {
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
-          const entry = { title: item.label, spineIndex };
-          if (depth === 0) {
-            tocEntries.push(entry);
-          } else {
-            nestedTocEntries.push(entry);
-          }
+          allEntries.push({ title: item.label, spineIndex, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
@@ -1948,10 +2059,7 @@ export class ReaderController {
     };
     traverseToc(this.toc, 0);
 
-    // トップレベルが取れないEPUBだけ、後方互換としてネスト項目を使う
-    if (tocEntries.length === 0 && nestedTocEntries.length > 0) {
-      tocEntries.push(...nestedTocEntries);
-    }
+    const tocEntries = allEntries;
 
     // 重複を削除し、インデックス順にソート
     const sortedToc = tocEntries
@@ -2110,9 +2218,7 @@ export class ReaderController {
 
         if (this.epubViewMode === "scroll") {
           this.injectScrollNavigationButtons(this.pageContainer, clampedIndex, pagination.pages.length);
-
-          // 画像の遅延ロードなどでDOMサイズが変わったときにスクロール位置を維持する
-          if (this._resizeObserver) {
+      if (this._resizeObserver) {
             this._resizeObserver.disconnect();
           }
           this._resizeObserver = new ResizeObserver(() => {
@@ -2387,8 +2493,28 @@ export class ReaderController {
       this.resourceLoader = (async (url, spineItem) => {
         if (!url) return url;
         if (/^(https?:|data:|blob:)/i.test(url)) return url;
+
+        // [修正] EpubArchiveHandler が利用可能な場合、OPF ベースのパス解決を優先
+        if (this.archiveHandler?.resolvePath) {
+          const archivePath = this.archiveHandler.resolvePath(url, spineItem?.href);
+          if (this.resourceUrlCache.has(archivePath)) return this.resourceUrlCache.get(archivePath);
+          try {
+            const blob = await this.archiveHandler.getFileBlob(archivePath);
+            if (blob) {
+              const blobUrl = URL.createObjectURL(blob);
+              this.resourceUrlCache.set(archivePath, blobUrl);
+              console.log(`[resourceLoader] Resolved via archiveHandler: ${url} -> ${archivePath}`);
+              return blobUrl;
+            }
+          } catch (e) {
+            // archiveHandler で見つからない場合は従来ロジックへフォールバック
+          }
+        }
+
         const resolvedUrl = normalizeResourceKey(url, spineItem, this.book);
         if (this.resourceUrlCache.has(resolvedUrl)) return this.resourceUrlCache.get(resolvedUrl);
+
+        console.log(`[resourceLoader] Attempting complex fallback for: ${url} (resolved: ${resolvedUrl})`);
 
         try {
           const filename = url.split("/").pop();
@@ -3187,6 +3313,15 @@ export class ReaderController {
   async prev(step) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
+    // Web小説の場合
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      const isEpisodeChanged = await this.webNovelViewer.prevEpisode();
+      if (!isEpisodeChanged) {
+        this.webNovelViewer.prev(); // スクロールのみ
+      }
+      return;
+    }
+
     // EPUBの場合はPageControllerを使用
     if (this.type === BOOK_TYPES.EPUB) {
       if (this.epubViewMode === "scroll") {
@@ -3291,6 +3426,15 @@ export class ReaderController {
   async next(step) {
     if (this.imageZoomed) return; // ズーム中はページめくり無効
 
+    // Web小説の場合
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      const isEpisodeChanged = await this.webNovelViewer.nextEpisode();
+      if (!isEpisodeChanged) {
+        this.webNovelViewer.next(); // スクロールのみ
+      }
+      return;
+    }
+
     // EPUBの場合はPageControllerを使用
     if (this.type === BOOK_TYPES.EPUB) {
       if (this.epubViewMode === "scroll") {
@@ -3323,6 +3467,34 @@ export class ReaderController {
   }
 
   addBookmark(label = "しおり", { deviceId, deviceColor } = {}) {
+    // Web小説の場合
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      if (!this.webNovelViewer || !this.webNovelViewer.episodes) return null;
+      const episodeIndex = this.webNovelViewer.currentEpisodeIndex;
+      const percentage = this.webNovelViewer.getScrollPercentage();
+
+      const locator = {
+        location: episodeIndex,
+        percentage: percentage
+      };
+
+      const ep = this.webNovelViewer.episodes[episodeIndex];
+      const visibleText = ep ? ep.title : "Web Novel Bookmark";
+
+      const bookmark = {
+        label,
+        location: locator,
+        visibleText,
+        cfi: `wn:${episodeIndex}:${percentage}`,
+        percentage: calculateProgressPercentage(episodeIndex, this.webNovelViewer.episodes.length),
+        createdAt: Date.now(),
+        bookType: BOOK_TYPES.WEB_NOVEL,
+      };
+      if (deviceId !== undefined) bookmark.deviceId = deviceId;
+      if (deviceColor !== undefined) bookmark.deviceColor = deviceColor;
+      return bookmark;
+    }
+
     if (this.type === BOOK_TYPES.EPUB) {
       if (!this.pagination?.pages?.length) return null;
       // [BEFORE] const percentage = calculateProgressPercentage(this.currentPageIndex, this.pagination.pages.length);
@@ -3465,6 +3637,12 @@ export class ReaderController {
     if (this.viewer) {
       this.viewer.style.fontSize = `${fontSize}px`;
     }
+    if (this.webNovelViewer) {
+      this.webNovelViewer.setFontSize(`${fontSize}px`);
+    }
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      return;
+    }
     if (this.type !== BOOK_TYPES.EPUB) {
       return;
     }
@@ -3507,6 +3685,13 @@ export class ReaderController {
     if (writingMode) {
       this.writingMode = writingMode;
       this.preferredWritingMode = writingMode;
+    }
+
+    if (this.type === BOOK_TYPES.WEB_NOVEL) {
+      if (this.webNovelViewer) {
+        this.webNovelViewer.setWritingMode(this.writingMode === WRITING_MODES.VERTICAL ? 'vertical-rl' : 'horizontal-tb');
+      }
+      return;
     }
 
     if (this.type !== BOOK_TYPES.EPUB) {
