@@ -1002,6 +1002,8 @@ async function handleFile(file) {
       }
       if (elements.fullscreenReader) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        elements.fullscreenReader.classList.remove('show-mode-indicator');
       }
       showLoading();
       console.time('[handleFile] openEpub');
@@ -1341,6 +1343,8 @@ async function openFromLibrary(bookId, options = {}) {
       }
       if (elements.fullscreenReader) {
         elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        elements.fullscreenReader.classList.remove('show-mode-indicator');
       }
 
       showLoading();

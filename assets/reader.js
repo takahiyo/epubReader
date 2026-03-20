@@ -411,6 +411,12 @@ export class ReaderController {
     this.pinchStartScale = 1.0;
     if (typeof document !== 'undefined') {
       document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      const container = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+      if (container) {
+        container.classList.remove(UI_CLASSES.EPUB_SCROLL);
+        container.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        container.classList.remove('show-mode-indicator');
+      }
       const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
       if (slider) slider.value = this.getZoomConfig().min;
     }
