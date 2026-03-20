@@ -3262,13 +3262,61 @@ function setupEvents() {
           reader.next();
         }
         break;
+// [BEFORE]
+//      case 'ArrowUp':
+//        if (isEpubScroll) return;
+//        reader.prev();
+//        break;
+//      case 'ArrowDown':
+//        if (isEpubScroll) return;
+//        reader.next();
+//        break;
+// [AFTER]
+// [BEFORE]
+//      case 'ArrowUp':
+//        if (isEpubScroll) return;
+//        // 画像書庫の見開き表示時は単ページ進め/戻し（ズレ調整）
+//        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+//          if (reader.imageReadingDirection === READING_DIRECTIONS.RTL) {
+//            reader.next(1); // 右開きなら上で進む
+//          } else {
+//            reader.prev(1); // 左開きなら上で戻る
+//          }
+//        } else {
+//          reader.prev();
+//        }
+//        break;
+//      case 'ArrowDown':
+//        if (isEpubScroll) return;
+//        // 画像書庫の見開き表示時は単ページ進め/戻し（ズレ調整）
+//        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+//          if (reader.imageReadingDirection === READING_DIRECTIONS.RTL) {
+//            reader.prev(1); // 右開きなら下で戻る
+//          } else {
+//            reader.next(1); // 左開きなら下で進む
+//          }
+//        } else {
+//          reader.next();
+//        }
+//        break;
+// [AFTER]
       case 'ArrowUp':
         if (isEpubScroll) return;
-        reader.prev();
+        // 画像書庫の見開き表示時は単ページ戻り（ズレ調整）
+        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+          reader.prev(1);
+        } else {
+          reader.prev();
+        }
         break;
       case 'ArrowDown':
         if (isEpubScroll) return;
-        reader.next();
+        // 画像書庫の見開き表示時は単ページ進め（ズレ調整）
+        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+          reader.next(1);
+        } else {
+          reader.next();
+        }
         break;
       case 'Enter':
         // 書籍を閲覧中のみ全画面を切り替える
