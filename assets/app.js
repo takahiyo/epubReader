@@ -124,6 +124,16 @@ const NOTION_STATUS_LABEL_KEYS = Object.freeze({
 // 初期化実行（非同期Lottie読み込み対応）
 document.addEventListener('DOMContentLoaded', async () => {
   await initLoadingAnimation();
+  
+  // Quest 3 Horizon OS対策: PWA実行時にウィンドウサイズを強制し、システムによる縦固定バグをバイパスする
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    try {
+      window.resizeTo(1920, 1080);
+    } catch (e) {
+      console.warn("[app] OS Resize Blocked", e);
+    }
+  }
+
   // ズームスライダーの初期化をDOM準備後に行う
   if (reader && typeof reader.setupZoomSlider === 'function') {
     reader.setupZoomSlider();

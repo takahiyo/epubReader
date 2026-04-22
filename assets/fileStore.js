@@ -155,6 +155,41 @@ function shouldUseOPFS(data) {
   return isOPFSAvailable() && size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
 }
 
+/**
+ * OPFSに書き込むためのWritableStreamを生成する
+ * 展開プロセスでのストリーミング出力用
+ * @param {string} id - 書籍ID等のユニークキー
+ * @param {object} meta - メタデータ
+ * @returns {Promise<{writable: FileSystemWritableFileStream, fileHandle: FileSystemFileHandle, dir: FileSystemDirectoryHandle}>}
+ */
+export async function createOPFSWritableStream(id, meta) {
+  if (!isOPFSAvailable()) {
+    throw new Error("OPFS is not natively supported in this environment.");
+  }
+  const dir = await getOPFSBookDir();
+  const fileHandle = await dir.getFileHandle(id, { create: true });
+  const writable = await fileHandle.createWritable();
+  
+  // ストリーム生成時にメタデータのみ先行登録
+  await withStore("readwrite", (store) => {
+    store.put({ id, meta: meta || {}, storedIn: "opfs", updatedAt: Date.now() });
+  });
+  
+  return { writable, fileHandle, dir };
+}
+
+/**
+ * 安全にOPFSのWritableStreamをクローズし保持オブジェクトを破棄する
+ */
+export async function closeOPFSStream(writable) {
+  if (!writable) return;
+  try {
+    await writable.close();
+  } catch (err) {
+    console.warn("[fileStore] OPFS stream close error:", err);
+  }
+}
+
 // ========================================
 // IndexedDB
 // ========================================

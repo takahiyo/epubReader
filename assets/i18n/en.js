@@ -177,6 +177,7 @@ export const UI_STRINGS_EN = Object.freeze({
   archiveWarningTitle: "RAR notices",
   rarWarningNoStream: "RAR cannot be streamed, so the entire file is loaded into memory.",
   rarWarningSolidFullExtract: "Solid RAR archives require full extraction from the beginning, even for mid-pages.",
+  largeFileDistantMode: "Due to a large file size and OS bugs, resizing may fail. If the layout is broken, please go to [Quick Settings] -> [Switch View] and select [Distant].",
 
   // Cloud
   libraryCloudMissingBadge: "Not on this device",
