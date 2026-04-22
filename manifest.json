@@ -3,8 +3,19 @@
     "name": "BookReader",
     "short_name": "BookReader",
     "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "lang": "ja",
+    "categories": [
+        "books",
+        "utilities"
+    ],
     "start_url": "./index.html",
     "display": "standalone",
+    "display_override": [
+        "window-controls-overlay",
+        "standalone",
+        "minimal-ui"
+    ],
+    "orientation": "any",
     "background_color": "#ffffff",
     "theme_color": "#2c3e50",
     "icons": [
@@ -21,4 +32,4 @@
             "purpose": "any maskable"
         }
     ]
-}
+}
