@@ -38,8 +38,19 @@
     "name": "BookReader",
     "short_name": "BookReader",
     "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "lang": "ja",
+    "categories": [
+        "books",
+        "utilities"
+    ],
     "start_url": "./index.html",
     "display": "standalone",
+    "display_override": [
+        "window-controls-overlay",
+        "standalone",
+        "minimal-ui"
+    ],
+    "orientation": "any",
     "background_color": "#ffffff",
     "theme_color": "#2c3e50",
     "icons": [
@@ -156,7 +167,7 @@ self.addEventListener('fetch', (event) => {
 
 ```html
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 
 <head>
   <meta charset="UTF-8" />
@@ -1147,6 +1158,16 @@ const NOTION_STATUS_LABEL_KEYS = Object.freeze({
 // 初期化実行（非同期Lottie読み込み対応）
 document.addEventListener('DOMContentLoaded', async () => {
   await initLoadingAnimation();
+  
+  // Quest 3 Horizon OS対策: PWA実行時にウィンドウサイズを強制し、システムによる縦固定バグをバイパスする
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    try {
+      window.resizeTo(1920, 1080);
+    } catch (e) {
+      console.warn("[app] OS Resize Blocked", e);
+    }
+  }
+
   // ズームスライダーの初期化をDOM準備後に行う
   if (reader && typeof reader.setupZoomSlider === 'function') {
     reader.setupZoomSlider();
