@@ -2519,24 +2519,12 @@ function ensureLegacyFileInput() {
 }
 
 async function openFileDialog() {
-
-  const openLegacyFileInput = () => {
-    const input = ensureLegacyFileInput();
-    if (!input) return;
-    if (typeof input.showPicker === 'function') {
-      try {
-        input.showPicker();
-        return;
-      } catch (e) {
-        console.warn('showPicker failed, falling back to click:', e);
-      }
-    }
-    input.click();
-  };
-
-  // Windows等で showOpenFilePicker がフリーズするバグがあるため、
-  // 常にレガシーな input を使用する
-  openLegacyFileInput();
+  const input = ensureLegacyFileInput();
+  if (!input) return;
+  // showPicker / showOpenFilePicker はWindowsのChromium系ブラウザで
+  // OSのファイルダイアログをフリーズさせるバグがある。
+  // 最も確実な input.click() のみを使用する。
+  input.click();
 }
 
 /**
