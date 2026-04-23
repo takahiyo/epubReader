@@ -21,6 +21,47 @@
   user-select: none;
 }
 
+/* 画像解凍・読み込み中のインジケーター */
+.image-viewer-loader {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+/* スピナー自体のスタイル（シンプルな円） */
+.image-viewer-loader::after {
+  content: "";
+  display: block;
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: image-spinner 0.8s linear infinite;
+}
+
+@keyframes image-spinner {
+  to { transform: rotate(360deg); }
+}
+
+.image-viewer.is-loading .image-viewer-loader {
+  display: block;
+}
+
+/* 読み込み中は画像自体を透過させて残像や壊れたアイコンのチラつきを防ぐ */
+.image-viewer.is-loading img,
+.image-viewer.is-loading .spread-container {
+  opacity: 0 !important;
+}
+
+.image-viewer img,
+.image-viewer .spread-container {
+  transition: opacity 0.2s ease-in-out;
+}
+
 /* =====================================
 [REF]
 - HTML: #pageImage（画像ビューア内 img）
