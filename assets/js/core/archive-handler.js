@@ -693,8 +693,11 @@ export class RarHandler extends ArchiveHandler {
     const { createOPFSWritableStream, closeOPFSStream, isOPFSAvailable } = await import("../../fileStore.js");
     const cacheId = `RAR_CHUNK_${btoa(unescape(encodeURIComponent(path))).replace(/[=+\/]/g, '')}`;
 
-    // OPFSが利用可能な場合はオフロード（Quest 3等のメモリ制限対策）
-    if (isOPFSAvailable()) {
+    // 画像のサイズ（展開後）が 20MB 以下なら OPFS を使わずメモリ上で Blob 化して返す
+    const isVeryLargeImage = dataBuffer.byteLength > 20 * 1024 * 1024;
+
+    // OPFSが利用可能かつ巨大な画像の場合のみオフロードを行う
+    if (isOPFSAvailable() && isVeryLargeImage) {
       let fileHandleObj;
       let writableStream;
       try {
@@ -702,11 +705,9 @@ export class RarHandler extends ArchiveHandler {
         writableStream = opfs.writable;
         fileHandleObj = opfs.fileHandle;
         
-        // Blobを経由せずにUint8Array等のバッファを直接ストリームに書き込む
         await writableStream.write(dataBuffer);
         await closeOPFSStream(writableStream);
         
-        // GCの強制誘導: オフロード完了後に参照を完全に絶ち、setTimeoutでブラウザへ解放を促す
         dataBuffer = null;
         await new Promise(resolve => setTimeout(resolve, 0));
         
@@ -717,9 +718,9 @@ export class RarHandler extends ArchiveHandler {
       }
     }
 
-    // OPFS非対応または失敗時のフォールバック
+    // 通常の展開: 直接 Blob に変換（メモリ消費は一時的）
     const blob = new Blob([dataBuffer], { type: mimeType });
-    dataBuffer = null;
+    dataBuffer = null; // 即座に参照を切り離して GC を促す
     return blob;
   }
 

@@ -63,8 +63,21 @@ async function ensureZipJs() {
         if (typeof window.zip?.BlobReader !== "function") {
             throw new Error("zip.js が正しく読み込まれませんでした");
         }
-        // WebWorkerを無効化（メインスレッドで解凍、ハング防止）
-        window.zip.configure({ useWebWorkers: false });
+        // WebWorkerを有効化（メインスレッドのブロッキングを回避）
+        try {
+            // Blob URL を使ってクロスドメイン制限を回避して Worker を起動可能にする
+            const workerCode = `importScripts("${CDN_URLS.ZIPJS}");`;
+            const workerBlob = new Blob([workerCode], { type: "application/javascript" });
+            const workerUrl = URL.createObjectURL(workerBlob);
+            window.zip.configure({ 
+                useWebWorkers: true,
+                workerScripts: { deflate: [workerUrl], inflate: [workerUrl] }
+            });
+            console.log("[StreamingZip] WebWorkers enabled via Blob proxy");
+        } catch (e) {
+            console.warn("[StreamingZip] Failed to enable WebWorkers, using main thread fallback", e);
+            window.zip.configure({ useWebWorkers: false });
+        }
         return window.zip;
     })().catch((error) => {
         // 失敗時はキャッシュをリセットして次回再試行を許可
@@ -272,8 +285,11 @@ export class StreamingZipHandler {
         
         const { createOPFSWritableStream, closeOPFSStream, isOPFSAvailable } = await import("../../fileStore.js");
         
-        // OPFSが利用可能な場合はストリーム直接書き込み（巨大ファイル時のOOM防止）
-        if (isOPFSAvailable()) {
+        const isVeryLargeImage = entry.uncompressedSize > 20 * 1024 * 1024; // 20MB以上ならOPFS検討
+        
+        // OPFSが利用可能かつ、画像自体が巨大な場合にのみディスクオフロードを使用
+        // 通常の画像（数MB以下）は BlobWriter でメモリ展開する方が圧倒的に高速かつ安定
+        if (isOPFSAvailable() && isVeryLargeImage) {
             // パス名から安全なIDを生成
             const cacheId = `ZIP_CHUNK_${btoa(unescape(encodeURIComponent(path))).replace(/[=+\/]/g, '')}`;
             
@@ -284,34 +300,28 @@ export class StreamingZipHandler {
                 writableStream = opfs.writable;
                 fileHandleObj = opfs.fileHandle;
                 
-                // zip.js の WritableStreamWriter を用いて直接 OPFS にストリーム展開する
                 let writer;
                 if (zipLib.WritableStreamWriter) {
                     writer = new zipLib.WritableStreamWriter(writableStream);
                 } else {
-                     console.warn("[StreamingZip] WritableStreamWriter not found, falling back to BlobWriter inside OPFS wrapper");
                      writer = new zipLib.BlobWriter(mimeType);
                 }
                 
-                // 個別画像の展開にタイムアウトを設定（大容量ファイル向けに閾値を緩和）
-                const timeoutMs = this.file.size > 1024 * 1024 * 1024 ? 120000 : 60000;
-                const compressionMethod = entry.compressionMethod === 0 ? "STORE" : "DEFLATE";
-                console.log(`[StreamingZip] starting extraction: ${fileName}, size=${entry.uncompressedSize}, method=${compressionMethod}, timeout=${timeoutMs/1000}s`);
+                const timeoutMs = 120000;
+                console.log(`[StreamingZip] OPFS high-memory offload: ${fileName}, size=${entry.uncompressedSize}`);
 
                 let data = await withTimeout(
                     entry.getData(writer),
                     timeoutMs,
-                    `画像の展開 (${fileName})`
+                    `画像の巨大展開 (${fileName})`
                 );
                 
-                // Fallback: WritableStreamWriterが無い場合はBlobが得られるので書き込む
                 if (!zipLib.WritableStreamWriter && data instanceof Blob) {
                      await writableStream.write(data);
                 }
 
                 await closeOPFSStream(writableStream);
                 
-                // GC誘導：チャンク書き込み後に参照を明示的にクリア
                 data = null;
                 writer = null;
                 await new Promise(resolve => setTimeout(resolve, 0));
@@ -322,16 +332,15 @@ export class StreamingZipHandler {
             } catch (error) {
                 if (writableStream) await closeOPFSStream(writableStream).catch(()=>{});
                 console.warn("[StreamingZip] OPFS extraction failed, falling back to BlobWriter", error);
-                // 失敗時はBlobWriterへフォールバック
             }
         }
 
-        // OPFS非対応または失敗時のフォールバック (従来のメモリ展開)
-        const fallbackTimeoutMs = this.file.size > 1024 * 1024 * 1024 ? 120000 : 60000;
+        // 通常の展開パス (メモリ展開): 20MB以下の画像はこちらを通る
+        const fallbackTimeoutMs = 60000;
         const blob = await withTimeout(
             entry.getData(new zipLib.BlobWriter(mimeType)),
             fallbackTimeoutMs,
-            `画像の展開 (${fileName} - fallback)`
+            `画像の展開 (${fileName})`
         );
         console.timeEnd(`[StreamingZip] extract: ${fileName}`);
         return blob;
