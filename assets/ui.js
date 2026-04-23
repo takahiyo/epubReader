@@ -276,7 +276,8 @@ export class UIController {
 
       if (this.isBookOpen() && this.isPageNavigationEnabled()) {
         // [START] EPUBスクロールモード時はスワイプでのページ移動を無効化 (SSOT)
-        if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+        // [修正] 画像書庫（ZIP/CBZ）の場合はスクロールモード設定に関わらずスワイプを有効にする
+        if (!this.isImageBook() && this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
           this.touchStartX = null;
           this.touchStartY = null;
           return;
@@ -350,7 +351,8 @@ export class UIController {
     if (!this.isBookOpen()) return;
 
     // 全モード共通: シームレススクロール時はエリアタップによるページ送りを無効化 (SSOT)
-    if (this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+    // [修正] 画像書庫（ZIP/CBZ）の場合はスクロールモード設定に関わらずエリアタップを有効にする
+    if (!this.isImageBook() && this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
       return;
     }
 

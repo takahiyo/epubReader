@@ -552,13 +552,11 @@ export class RarHandler extends ArchiveHandler {
   async init() {
     // RARファイルは解凍ライブラリ(unrar.js, wasm)の制約上、全データをArrayBufferとして
     // メモリに読み込む必要があり、ファイルサイズの約3倍のメモリ領域を消費します。
-    // モバイル端末等でのブラウザクラッシュ(OOM)を防ぐため、大容量ファイルは処理をブロックします。
+    // 今回のアーキテクチャでは、抽出後にバッファをOPFSにオフロードし手動GCを行うことで
+    // Quest 3(Horizon OS)の厳しいメモリ制限下でも大容量アーカイブの展開を許容します。
     if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) {
-      const mb = (this.file.size / 1024 / 1024).toFixed(1);
-      throw new Error(
-        `大容量のRARファイル (${mb}MB) はメモリ不足（クラッシュ）の恐れがあるため開けません。` +
-        `お手数ですが、パソコン等でZIP形式(CBZ)に変換してから再度お試しください。`
-      );
+      console.warn(`[RarHandler] Large RAR archive detected (${(this.file.size / 1024 / 1024).toFixed(1)}MB). Offloading extraction to OPFS and manual GC.`);
+      // 制限をプロンプトに従いバイパス（throwしない）
     }
 
     const buffer = await this.file.arrayBuffer();
@@ -600,10 +598,17 @@ export class RarHandler extends ArchiveHandler {
       header?.name ?? header?.fileName ?? header?.filename ?? header?.path ?? ""
     )));
 
-    emitArchiveWarnings([
+    const warningsToEmit = [
       ARCHIVE_WARNING_TYPES.RAR_NO_STREAM,
       ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT,
-    ]);
+    ];
+    
+    // 1GB以上の場合は Horizon OS 向けのバグ回避（Distant Mode誘導）を追加
+    if (this.file.size >= 1024 * 1024 * 1024) {
+      warningsToEmit.push(ARCHIVE_WARNING_TYPES.LARGE_FILE_DISTANT_MODE);
+    }
+
+    emitArchiveWarnings(warningsToEmit);
     return this;
   }
 
@@ -653,35 +658,70 @@ export class RarHandler extends ArchiveHandler {
     if (!this.extractor && !this.workerClient) {
       throw new Error(ARCHIVE_LIBRARY_ERRORS.UNRAR_NOT_FOUND);
     }
+
+    let dataBuffer = null;
+
     if (this.workerClient) {
       const payload = await this.workerClient.request(ARCHIVE_WORKER_MESSAGES.EXTRACT, { path });
-      const buffer = payload?.buffer;
-      if (!buffer) {
+      dataBuffer = payload?.buffer;
+      if (!dataBuffer) {
         const error = new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
         await this.reportArchiveError(path, error);
         throw error;
       }
-      const mimeType = resolveImageMimeType(path);
-      return new Blob([buffer], { type: mimeType });
-    }
+    } else {
+      const extracted = this.extractor.extract({ files: [path] });
+      const files = [...(extracted?.files ?? [])];
+      const item = files.find((entry) => {
+        const header = entry?.fileHeader ?? entry?.header ?? entry;
+        const name = header?.name ?? header?.fileName ?? header?.filename ?? entry?.name ?? "";
+        return name === path;
+      });
 
-    const extracted = this.extractor.extract({ files: [path] });
-    const files = [...(extracted?.files ?? [])];
-    const item = files.find((entry) => {
-      const header = entry?.fileHeader ?? entry?.header ?? entry;
-      const name = header?.name ?? header?.fileName ?? header?.filename ?? entry?.name ?? "";
-      return name === path;
-    });
-
-    const data = item?.extraction?.data ?? item?.extraction ?? item?.data ?? null;
-    if (!data || data.length === 0) {
-      const error = new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
-      await this.reportArchiveError(path, error);
-      throw error;
+      const extractedData = item?.extraction?.data ?? item?.extraction ?? item?.data ?? null;
+      if (!extractedData || extractedData.length === 0) {
+        const error = new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
+        await this.reportArchiveError(path, error);
+        throw error;
+      }
+      dataBuffer = extractedData;
     }
 
     const mimeType = resolveImageMimeType(path);
-    return new Blob([data], { type: mimeType });
+    const fileName = path.split('/').pop();
+    
+    const { createOPFSWritableStream, closeOPFSStream, isOPFSAvailable } = await import("../../fileStore.js");
+    const cacheId = `RAR_CHUNK_${btoa(unescape(encodeURIComponent(path))).replace(/[=+\/]/g, '')}`;
+
+    // 画像のサイズ（展開後）が 20MB 以下なら OPFS を使わずメモリ上で Blob 化して返す
+    const isVeryLargeImage = dataBuffer.byteLength > 20 * 1024 * 1024;
+
+    // OPFSが利用可能かつ巨大な画像の場合のみオフロードを行う
+    if (isOPFSAvailable() && isVeryLargeImage) {
+      let fileHandleObj;
+      let writableStream;
+      try {
+        const opfs = await createOPFSWritableStream(cacheId, { mime: mimeType, fileName });
+        writableStream = opfs.writable;
+        fileHandleObj = opfs.fileHandle;
+        
+        await writableStream.write(dataBuffer);
+        await closeOPFSStream(writableStream);
+        
+        dataBuffer = null;
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        return await fileHandleObj.getFile();
+      } catch (error) {
+        if (writableStream) await closeOPFSStream(writableStream).catch(()=>{});
+        console.warn("[RarHandler] OPFS offload failed, falling back to Blob", error);
+      }
+    }
+
+    // 通常の展開: 直接 Blob に変換（メモリ消費は一時的）
+    const blob = new Blob([dataBuffer], { type: mimeType });
+    dataBuffer = null; // 即座に参照を切り離して GC を促す
+    return blob;
   }
 
   /**

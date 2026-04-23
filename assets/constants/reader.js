@@ -45,11 +45,13 @@ export const FILE_EXTENSIONS = Object.freeze({
 export const ARCHIVE_WARNING_TYPES = Object.freeze({
   RAR_NO_STREAM: "rar_no_stream",
   RAR_SOLID_FULL_EXTRACT: "rar_solid_full_extract",
+  LARGE_FILE_DISTANT_MODE: "large_file_distant_mode",
 });
 
 export const ARCHIVE_WARNING_I18N_KEYS = Object.freeze({
   [ARCHIVE_WARNING_TYPES.RAR_NO_STREAM]: "rarWarningNoStream",
   [ARCHIVE_WARNING_TYPES.RAR_SOLID_FULL_EXTRACT]: "rarWarningSolidFullExtract",
+  [ARCHIVE_WARNING_TYPES.LARGE_FILE_DISTANT_MODE]: "largeFileDistantMode",
 });
 
 export const ARCHIVE_WARNING_EVENT = "archive-warning";

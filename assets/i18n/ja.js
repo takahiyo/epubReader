@@ -176,6 +176,7 @@ export const UI_STRINGS_JA = Object.freeze({
   archiveWarningTitle: "RARの注意点",
   rarWarningNoStream: "RARはストリーミング読み込みできないため、全体をメモリ展開します。",
   rarWarningSolidFullExtract: "solid RARの場合、途中ページ抽出でも先頭から全展開が必要です。",
+  largeFileDistantMode: "大容量ファイルのため、OSバグによりリサイズ不可になる場合があります。表示がおかしい場合は[Quick Settings]から[Switch View] > [Distant]に変更してください。",
 
   // クラウド
   libraryCloudMissingBadge: "この端末に未保存",

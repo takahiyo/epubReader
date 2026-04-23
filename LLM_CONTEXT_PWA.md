@@ -1,3 +1,1037 @@
+# LLM向け PWA・コンテキスト 
+
+本ドキュメントは **NotebookLM・外部LLM** がリポジトリを横断解析するための**単一ソース**です。
+前半に要約、後半に**現行アプリの全ソース全文**を含みます。
+
+## 結合に含まれるファイル一覧
+- `manifest.json`
+- `sw.js`
+- `index.html`
+- `assets/sw-cache-config.json`
+- `assets/constants.js`
+- `assets/config.js`
+- `assets/constants/pwa.js`
+- `assets/constants/app-info.js`
+- `assets/constants/runtime-config.js`
+- `assets/app.js`
+- `assets/ui.js`
+- `assets/storage.js`
+- `docs/CORE_PRINCIPLES.md`
+- `FULLSCREEN_REPAGINATION_DEBUG.md`
+
+## 後半: 全ソースコード
+以下、各ファイルは `### 相対パス` の見出しの直後にコードブロックで**全文**を記載する。
+
+---
+
+
+> [!NOTE]
+> このファイルはPWAおよび画面制御（リサイズ/全画面）に関連するコードのみを抽出した軽量版です。
+
+---
+
+### manifest.json
+
+```json
+{
+    "id": "/",
+    "name": "BookReader",
+    "short_name": "BookReader",
+    "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "lang": "ja",
+    "categories": [
+        "books",
+        "utilities"
+    ],
+    "start_url": "./index.html",
+    "display": "standalone",
+    "display_override": [
+        "window-controls-overlay",
+        "standalone",
+        "minimal-ui"
+    ],
+    "orientation": "any",
+    "background_color": "#ffffff",
+    "theme_color": "#2c3e50",
+    "icons": [
+        {
+            "src": "assets/icon_BookReader_192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "assets/icon_BookReader_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
+```
+
+### sw.js
+
+```javascript
+/**
+ * sw.js - Service Worker
+ *
+ * PWA オフラインサポート用 Service Worker
+ *
+ * 注意: Service Worker は ES Modules をサポートしないため、
+ * constants.js から直接 import できません。
+ * 設定変更時は constants.js と同期してください。
+ *
+ * SSOT 参照元: assets/constants.js
+ * - PWA_CONFIG.CACHE_NAME
+ * - CDN_URLS.*
+ * - SW_CACHE_ASSETS
+ *
+ * 生成物: assets/sw-cache-config.json
+ */
+
+const CONFIG_URL = "./assets/sw-cache-config.json";
+let configPromise;
+
+const loadConfig = () => {
+    if (!configPromise) {
+        configPromise = fetch(CONFIG_URL, { cache: "no-store" }).then((response) => {
+            if (!response.ok) {
+                throw new Error(`Failed to load ${CONFIG_URL}`);
+            }
+            return response.json();
+        });
+    }
+    return configPromise;
+};
+
+// インストール時にファイルをキャッシュ（HTTPキャッシュをバイパスして最新版を取得）
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        loadConfig().then((config) =>
+            caches.open(config.cacheName).then((cache) =>
+                Promise.all(
+                    config.assets.map((url) =>
+                        fetch(url, { cache: "no-cache" })
+                            .then((response) => cache.put(url, response))
+                            .catch((err) => {
+                                console.warn(`[SW] Failed to cache: ${url}`, err);
+                            })
+                    )
+                )
+            )
+        )
+    );
+    self.skipWaiting();
+});
+
+// 古いキャッシュを削除 + 即座にページを制御
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        loadConfig().then((config) =>
+            caches.keys().then((keys) =>
+                Promise.all(
+                    keys
+                        .filter((key) => key !== config.cacheName)
+                        .map((key) => caches.delete(key))
+                )
+            )
+        ).then(() => self.clients.claim())
+    );
+});
+
+// ネットワーク優先（ローカルアセットはHTTPキャッシュをバイパス）
+self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+    const isLocal = url.origin === self.location.origin;
+    const isLocalAsset = isLocal && /\.(js|css|json|html)$/.test(url.pathname);
+    const isNavigation = event.request.mode === 'navigate';
+
+    if (isLocalAsset || isNavigation) {
+        // ローカルアセット / ページナビゲーション: HTTPキャッシュバイパス + SW キャッシュフォールバック
+        event.respondWith(
+            fetch(event.request, { cache: 'no-cache' })
+                .catch(() => caches.match(event.request))
+        );
+    } else {
+        // CDN等の外部リソース / 画像等: 従来のネットワーク優先
+        event.respondWith(
+            fetch(event.request).catch(() => caches.match(event.request))
+        );
+    }
+});
+
+```
+
+### index.html
+
+```html
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#2c3e50">
+  <link rel="apple-touch-icon" href="assets/icon_BookReader_512.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon_BookReader_192.png">
+  <title>BookReader</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="./assets/css/01-tokens.css" />
+  <link rel="stylesheet" href="./assets/css/02-reset.css" />
+  <link rel="stylesheet" href="./assets/css/03-base.css" />
+  <link rel="stylesheet" href="./assets/css/04-reader.css" />
+  <link rel="stylesheet" href="./assets/css/05-float-ui.css" />
+  <link rel="stylesheet" href="./assets/css/06-reader-extras.css" />
+  <link rel="stylesheet" href="./assets/css/07-menu.css" />
+  <link rel="stylesheet" href="./assets/css/08-progress.css" />
+  <link rel="stylesheet" href="./assets/css/09-bookmark.css" />
+  <link rel="stylesheet" href="./assets/css/10-modal.css" />
+  <link rel="stylesheet" href="./assets/css/11-library.css" />
+  <link rel="stylesheet" href="./assets/css/12-history.css" />
+  <link rel="stylesheet" href="./assets/css/13-search.css" />
+  <link rel="stylesheet" href="./assets/css/14-settings.css" />
+  <link rel="stylesheet" href="./assets/css/15-responsive.css" />
+  <link rel="stylesheet" href="./assets/css/16-candidate.css" />
+  <link rel="stylesheet" href="./assets/css/17-loading.css" />
+  <link rel="stylesheet" href="./assets/css/18-float-lang.css" />
+  <link rel="stylesheet" href="./assets/css/19-zoom.css" />
+  <link rel="stylesheet" href="./assets/css/20-drag-drop.css" />
+  <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+  <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js" crossorigin="anonymous"></script>
+  <!-- JSZipとePubがグローバルに設定されていることを確認 -->
+  <script>
+    // EPUB.jsが必要とするグローバル変数を確実に設定
+    (function () {
+      // JSZipの確認と設定
+      if (typeof JSZip !== 'undefined') {
+        window.JSZip = JSZip;
+        console.log('[Init] JSZip loaded and set to window.JSZip');
+      } else {
+        console.error('[Init] JSZip NOT loaded from CDN!');
+      }
+
+      // ePubの確認と設定
+      if (typeof ePub !== 'undefined') {
+        window.ePub = ePub;
+        console.log('[Init] ePub loaded and set to window.ePub');
+      } else {
+        console.error('[Init] ePub NOT loaded from CDN!');
+      }
+
+      // デバッグ情報
+      console.log('[Init] Library status:', {
+        JSZip: typeof JSZip !== 'undefined' ? 'loaded' : 'missing',
+        'window.JSZip': typeof window.JSZip !== 'undefined' ? 'available' : 'missing',
+        ePub: typeof ePub !== 'undefined' ? 'loaded' : 'missing',
+        'window.ePub': typeof window.ePub !== 'undefined' ? 'available' : 'missing'
+      });
+    })();
+  </script>
+</head>
+
+<body>
+  <!-- 全画面リーダー -->
+  <div id="fullscreenReader" class="fullscreen-reader">
+    <!-- EPUB ビューア -->
+    <div id="viewer" class="viewer"></div>
+
+    <!-- Web小説ビューア -->
+    <div id="webNovelViewer" class="viewer hidden"></div>
+
+    <!-- クリック検知用オーバーレイ -->
+    <div id="clickOverlay" class="click-overlay"></div>
+
+    <!-- 画像ビューア -->
+    <div id="imageViewer" class="image-viewer hidden">
+      <img id="pageImage" alt="" />
+    </div>
+
+    <!-- アーカイブ警告バナー -->
+    <div id="archiveWarningBanner" class="archive-warning hidden" role="status" aria-live="polite">
+      <div class="archive-warning-body">
+        <p id="archiveWarningTitle" class="archive-warning-title"></p>
+        <ul id="archiveWarningList" class="archive-warning-list"></ul>
+      </div>
+      <button id="archiveWarningClose" class="archive-warning-close" type="button"></button>
+    </div>
+
+    <!-- 空の状態（本が未選択） -->
+    <div id="emptyState" class="empty-state">
+      <img id="emptyStateIcon" src="assets/bookreader.png" class="empty-book-icon" alt="" />
+      <h2></h2>
+      <p></p>
+      <div id="cloudEmptyState" class="cloud-empty hidden">
+        <p id="cloudEmptyTitle" class="cloud-empty-title"></p>
+        <p id="cloudEmptyMeta" class="cloud-empty-meta"></p>
+        <button id="cloudAttachButton" class="secondary-btn" type="button"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ファイル選択（非表示） -->
+  <input type="file" id="fileInput" accept=".epub,.cbz,.zip,.rar,.cbr" class="file-input-hidden" />
+
+  <!-- 左サイドメニューバックドロップ -->
+  <div id="leftMenuBackdrop" class="menu-backdrop"></div>
+
+  <!-- 左サイドメニュー -->
+  <div id="leftMenu" class="left-menu">
+    <div class="menu-header">
+      <img id="menuTitleImage" src="assets/bookreader.png" alt="" class="menu-title-image" />
+    </div>
+
+    <nav class="menu-nav">
+      <button id="menuOpen" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuLibrary" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuSearch" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuWebNovel" class="menu-item">
+        <span class="menu-icon">🌐📝</span>
+        <span></span>
+      </button>
+      <button id="menuBookmarks" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuHistory" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuSettings" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+    </nav>
+
+    <div class="menu-language">
+      <button id="langJa" class="lang-btn" type="button"></button>
+      <button id="langEn" class="lang-btn" type="button"></button>
+    </div>
+
+    <div id="tocSection" class="toc-section hidden">
+      <h3 id="tocSectionTitle" class="toc-title"></h3>
+      <ul id="tocList" class="toc-list"></ul>
+    </div>
+
+  </div>
+
+  <!-- 進捗バーバックドロップ -->
+  <div id="progressBarBackdrop" class="menu-backdrop"></div>
+
+  <!-- 進捗バーパネル -->
+  <div id="progressBarPanel" class="progress-bar-panel">
+    <div class="progress-container">
+      <div class="progress-bar-wrapper">
+        <button id="progressPrev" class="progress-arrow hidden">◀</button>
+        <div class="progress-track">
+          <div id="progressFill" class="progress-fill"></div>
+          <div id="progressThumb" class="progress-thumb"></div>
+          <!-- しおりマーカーはJSで動的に追加 -->
+        </div>
+        <button id="progressNext" class="progress-arrow hidden">▶</button>
+      </div>
+      <div class="progress-info">
+        <div class="page-numbers">
+          <input id="currentPageInput" type="number" class="current-page-input" value="1" min="1" />
+          <span>/</span>
+          <span id="totalPages" class="total-pages">0</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- しおりメニュー（モーダル） -->
+  <div id="bookmarkMenu" class="bookmark-menu">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="bookmarkMenuTitle"></h3>
+        <button id="addBookmarkBtn" class="add-bookmark-btn"></button>
+        <button id="closeBookmarkMenu" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <ul id="bookmarkList" class="bookmark-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- テキスト検索モーダル（EPUB用） -->
+  <div id="searchModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="searchModalTitle"></h3>
+        <button id="closeSearchModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div class="search-input-container">
+          <input type="text" id="searchInput" class="search-input" placeholder="" />
+          <button id="searchBtn" class="search-btn"></button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 目次モーダル -->
+  <div id="tocModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="tocModalTitle"></h3>
+        <button id="closeTocModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <ul id="tocModalList" class="toc-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 候補書籍選択モーダル -->
+  <div id="candidateModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="candidateModalTitle"></h2>
+        <button id="closeCandidateModal" class="close-btn" aria-label=""></button>
+      </div>
+      <div class="modal-body">
+        <p id="candidateModalMessage"></p>
+        <div id="candidateList" class="candidate-list">
+          <!-- 候補リストがここに挿入されます -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="candidateUseLocal" class="sync-action-btn" style="margin-top: 1rem;"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 同期モーダル -->
+  <div id="syncModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="syncModalTitle"></h3>
+      </div>
+      <div class="modal-body">
+        <p id="syncModalMessage" class="sync-message"></p>
+        <div class="sync-actions">
+          <button id="syncUseRemote" class="sync-action-btn primary" type="button"></button>
+          <button id="syncUseLocal" class="sync-action-btn" type="button"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ファイル選択モーダル -->
+  <div id="openFileModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="openFileModalTitle"></h3>
+        <button id="closeFileModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div id="librarySection" class="library-section">
+          <div class="library-controls">
+            <h4 id="librarySectionTitle"></h4>
+            <input type="text" id="library-search-input" class="library-search-input" placeholder="" />
+            <div class="library-view-toggle">
+              <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="">🔲</button>
+              <button id="libraryViewList" class="library-view-btn" type="button" aria-label="">📄</button>
+            </div>
+          </div>
+          <div id="libraryGrid" class="library-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web小説モーダル -->
+  <div id="webNovelSearchModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="webNovelSearchModalTitle">Web小説を探す</h3>
+        <button id="closeWebNovelSearchModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div class="search-input-container">
+          <input type="text" id="webNovelSearchInput" class="search-input" placeholder="作品名や作者名で検索（なろう・カクヨム）" />
+          <button id="webNovelSearchBtn" class="search-btn">検索</button>
+        </div>
+        <div class="search-filters"
+          style="margin: 0.5rem 0 1rem 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.9rem; color: var(--text-secondary); align-items: center;">
+          <label style="cursor:pointer; display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
+              id="webNovelSourceNarou" checked> 小説家になろう</label>
+          <label style="cursor:pointer; display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
+              id="webNovelSourceKakuyomu" checked> カクヨム</label>
+          <div style="display:flex; align-items:center; gap:0.3rem; margin-left: auto;">
+            <label for="webNovelSort">ソート:</label>
+            <select id="webNovelSort"
+              style="background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); padding:2px 5px; border-radius:4px;">
+              <option value="rating">評価順</option>
+              <option value="title">五十音順</option>
+              <option value="site">サイト別</option>
+            </select>
+          </div>
+        </div>
+        <div id="webNovelSearchResults" class="library-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web小説目次モーダル -->
+  <div id="webNovelTocModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <button id="backToWebNovelSearch" class="back-btn"
+          style="margin-right: 0.5rem; border:none; background:none; cursor:pointer; font-size:1.2rem; color:var(--text-primary);">←</button>
+        <h3 id="webNovelTocModalTitle">目次</h3>
+        <button id="closeWebNovelTocModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 1rem;">
+          <h4 id="webNovelTocAuthor" style="font-weight:normal; color:var(--text-secondary);"></h4>
+          <button id="webNovelAddToLibraryBtn" class="primary-btn" style="margin-top:0.5rem;">ライブラリに追加</button>
+        </div>
+        <ul id="webNovelTocList" class="history-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 履歴モーダル -->
+  <div id="historyModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="historyModalTitle"></h3>
+        <button id="closeHistoryModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <ul id="historyList" class="history-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設定モーダル -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="settingsModalTitle"></h3>
+        <button id="closeSettingsModal" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h4 id="settingsDisplayTitle"></h4>
+          <div class="setting-item">
+            <label for="progressDisplayMode" id="progressDisplayModeLabel"></label>
+            <select id="progressDisplayMode">
+              <option value="page"></option>
+              <option value="percentage"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsEpubViewMode" id="settingsEpubViewModeLabel"></label>
+            <select id="settingsEpubViewMode">
+              <option value="paginated"></option>
+              <option value="scroll"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsDefaultWritingMode" id="settingsDefaultWritingModeLabel"></label>
+            <select id="settingsDefaultWritingMode">
+              <option value="horizontal-tb"></option>
+              <option value="vertical-rl"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsDefaultPageDirection" id="settingsDefaultPageDirectionLabel"></label>
+            <select id="settingsDefaultPageDirection">
+              <option value="rtl"></option>
+              <option value="ltr"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsDefaultImageViewMode" id="settingsDefaultImageViewModeLabel"></label>
+            <select id="settingsDefaultImageViewMode">
+              <option value="single"></option>
+              <option value="spread"></option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="settingsOneBookmarkPerBook" id="settingsOneBookmarkPerBookLabel"></label>
+            <input type="checkbox" id="settingsOneBookmarkPerBook" />
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4 id="settingsDeviceTitle"></h4>
+          <div class="setting-item">
+            <label for="deviceId" id="deviceIdLabel"></label>
+            <input id="deviceId" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label for="deviceColor" id="deviceColorLabel"></label>
+            <input id="deviceColor" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label for="deviceName" id="deviceNameLabel"></label>
+            <input id="deviceName" type="text" readonly />
+          </div>
+          <!-- PWA Install Button -->
+          <div class="setting-item hidden" id="installContainer">
+            <button id="installButton" class="secondary-btn" type="button"></button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4 id="settingsAccountTitle"></h4>
+          <div class="setting-item">
+            <div class="setting-actions">
+              <button id="googleLoginButton" class="secondary-btn" type="button"></button>
+              <button id="manualSyncButton" class="secondary-btn" type="button" style="margin-left: 10px;"></button>
+            </div>
+            <p id="userInfo" class="setting-hint"></p>
+            <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
+            <p id="syncHint" class="setting-hint" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem;">
+            </p>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h4 id="settingsNotionTitle"></h4>
+          <div class="setting-item">
+            <label id="notionStatusLabel" for="notionStatus"></label>
+            <p id="notionStatus" class="setting-hint"></p>
+          </div>
+          <div class="setting-item">
+            <label id="notionOauthUrlLabel" for="notionOauthUrl"></label>
+            <input id="notionOauthUrl" type="text" />
+          </div>
+          <div class="setting-item">
+            <label id="notionWorkspaceLabel" for="notionWorkspace"></label>
+            <input id="notionWorkspace" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label id="notionParentPageLabel" for="notionParentPage"></label>
+            <input id="notionParentPage" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <label id="notionDatabaseLabel" for="notionDatabase"></label>
+            <input id="notionDatabase" type="text" readonly />
+          </div>
+          <div class="setting-item">
+            <div class="setting-actions">
+              <button id="notionConnectButton" class="secondary-btn" type="button"></button>
+              <button id="notionDisconnectButton" class="secondary-btn" type="button"></button>
+            </div>
+            <p id="notionHelpText" class="setting-hint"></p>
+          </div>
+        </div>
+
+
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 画像拡大モーダル -->
+  <div id="imageModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button id="closeImageModal" class="close-btn"></button>
+      <img id="modalImage" alt="" />
+    </div>
+  </div>
+
+  <!-- フロートオーバーレイ -->
+  <div id="floatOverlay">
+    <div class="float-backdrop"></div>
+
+    <div class="float-title">
+      <img id="floatTitleImage" src="assets/bookreader.png" alt="" />
+    </div>
+
+    <div class="float-buttons">
+      <div class="float-main-menu">
+        <button id="openToc" type="button"></button>
+        <button id="floatOpen" type="button"></button>
+
+        <button id="floatLibrary" type="button"></button>
+        <button id="floatSearch" type="button"></button>
+        <button id="floatWebNovel" type="button">🌐📝</button>
+        <button id="floatBookmarks" type="button"></button>
+        <button id="floatHistory" type="button"></button>
+      </div>
+
+      <button id="floatSettings" class="float-settings" type="button"></button>
+
+      <!-- 右上 -->
+      <div class="float-top-right">
+        <button id="toggleReadingDirectionEpub" class="hidden" type="button"></button>
+        <button id="toggleReadingDirectionImage" class="hidden" type="button"></button>
+        <button id="toggleWritingMode" type="button"></button>
+        <button id="toggleSpreadMode" class="hidden" type="button"></button>
+      </div>
+
+      <!-- 右下 -->
+      <div class="font-buttons">
+        <button id="fontPlus" type="button"></button>
+        <button id="fontMinus" type="button"></button>
+      </div>
+
+      <!-- 右中央 -->
+      <button id="toggleTheme" type="button"></button>
+      <button id="toggleZoom" class="hidden" type="button"></button>
+      <button id="toggleFullscreen" type="button"></button>
+
+      <!-- 【追加】ズームスライダー用コンテナ -->
+      <div id="zoomSliderContainer" class="zoom-slider-container">
+        <input type="range" id="zoomSlider" min="1.0" max="5.0" step="0.1" value="1.0">
+      </div>
+
+      <!-- 左下 (言語メニュー) -->
+      <button id="openLangMenu" class="float-lang-toggle" type="button"></button>
+    </div>
+
+    <div id="floatProgress">
+      <div id="floatProgressPercent">0%</div>
+      <div id="floatProgressTrack" class="progress-track">
+        <div id="floatProgressMarks"></div>
+        <div id="floatProgressFill"></div>
+        <div id="floatProgressThumb"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 言語選択メニュー（フロート用・地球儀ボタン横） -->
+  <div id="floatLangMenu" class="float-lang-menu hidden">
+    <button id="floatLangJa" class="lang-option-btn">
+      <img src="assets/Flag_Japan.svg" alt="" />
+    </button>
+    <button id="floatLangEn" class="lang-option-btn">
+      <img src="assets/Flag_America.svg" alt="" />
+    </button>
+  </div>
+
+  <!-- ローディングオーバーレイ -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div id="lottie-loader" class="loading-animation"></div>
+    <p id="loadingText" class="loading-text"></p>
+  </div>
+
+  <!-- D&Dオーバーレイ -->
+  <div id="dropOverlay" class="drop-overlay">
+    <div class="drop-message">
+      <span class="drop-icon">📂</span>
+      <p id="dropText"></p>
+    </div>
+  </div>
+
+  <div id="modalOverlay"></div>
+
+  <!-- config.js は ES module として constants.js を参照 -->
+  <script type="module" src="./assets/config.js"></script>
+  <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
+  <script type="module" src="./assets/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.error('Service Worker registration failed', err));
+      });
+    }
+  </script>
+</body>
+
+</html>
+```
+
+### assets/sw-cache-config.json
+
+```json
+{
+  "cacheName": "bookreader-v8",
+  "assets": [
+    "./",
+    "./index.html",
+    "./manifest.json",
+    "./assets/sw-cache-config.json",
+    "./assets/css/01-tokens.css",
+    "./assets/css/02-reset.css",
+    "./assets/css/03-base.css",
+    "./assets/css/04-reader.css",
+    "./assets/css/05-float-ui.css",
+    "./assets/css/06-reader-extras.css",
+    "./assets/css/07-menu.css",
+    "./assets/css/08-progress.css",
+    "./assets/css/09-bookmark.css",
+    "./assets/css/10-modal.css",
+    "./assets/css/11-library.css",
+    "./assets/css/12-history.css",
+    "./assets/css/13-search.css",
+    "./assets/css/14-settings.css",
+    "./assets/css/15-responsive.css",
+    "./assets/css/16-candidate.css",
+    "./assets/css/17-loading.css",
+    "./assets/css/18-float-lang.css",
+    "./assets/css/19-zoom.css",
+    "./assets/login.css",
+    "./assets/app.js",
+    "./assets/constants.js",
+    "./assets/i18n.js",
+    "./assets/i18n/index.js",
+    "./assets/i18n/ja.js",
+    "./assets/i18n/en.js",
+    "./assets/config.js",
+    "./assets/ui.js",
+    "./assets/reader.js",
+    "./assets/storage.js",
+    "./assets/auth.js",
+    "./assets/cloudSync.js",
+    "./assets/fileStore.js",
+    "./assets/firebaseConfig.js",
+    "./assets/onedriveAuth.js",
+    "./assets/bookreader.png",
+    "./assets/BookReader_Titlle.png",
+    "./assets/menu-title.svg",
+    "./assets/Flag_Japan.svg",
+    "./assets/Flag_America.svg",
+    "./assets/icon_BookReader_192.png",
+    "./assets/icon_BookReader_512.png",
+    "./assets/vendor/jszip.min.js",
+    "./assets/vendor/unrar.js",
+    "./assets/vendor/unrar.wasm",
+    "./assets/animations/loader_book.json",
+    "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js",
+    "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+    "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
+    "https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js",
+    "https://esm.sh/node-unrar-js@2.0.2",
+    "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm",
+    "https://cdn.jsdelivr.net/npm/@zip.js/zip.js/dist/zip.min.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+  ]
+}
+
+```
+
+### assets/constants.js
+
+```javascript
+/**
+ * constants.js - Single Source of Truth (SSOT)
+ *
+ * すべての設定値・定数をカテゴリ別に分割し、ここで再エクスポートします。
+ * 既存の import 互換性を保つためのバレルファイルです。
+ */
+
+export * from "./constants/app-info.js";
+export * from "./constants/runtime-config.js";
+export * from "./constants/storage.js";
+export * from "./constants/sync.js";
+export * from "./constants/progress.js";
+export * from "./constants/ui.js";
+export * from "./constants/reader.js";
+export * from "./constants/interaction.js";
+export * from "./constants/assets.js";
+export * from "./constants/errors.js";
+export * from "./constants/formats.js";
+export * from "./constants/pwa.js";
+export * from "./constants/timing.js";
+export * from "./constants/global.js";
+export * from "./constants/notion.js";
+
+```
+
+### assets/config.js
+
+```javascript
+/**
+ * config.js - グローバル設定公開
+ * 
+ * constants.js から設定を読み込み、window オブジェクトに公開します。
+ * 非モジュール環境（Service Worker等）との互換性を維持します。
+ */
+
+// constants.js がモジュールとして読み込まれる前に実行される可能性があるため、
+// 直接値を参照せず、constants.js で定義された値と同期させる
+import { GOOGLE_AUTH_CONFIG, WORKERS_CONFIG, MEMORY_STRATEGY } from "./constants.js";
+
+// 既存の設定を保持しつつ、SSOT から値を設定
+window.EPUB_READER_CONFIG = window.EPUB_READER_CONFIG || {};
+window.EPUB_READER_CONFIG.googleClientId =
+  window.EPUB_READER_CONFIG.googleClientId || GOOGLE_AUTH_CONFIG.CLIENT_ID;
+window.EPUB_READER_CONFIG.MEMORY_STRATEGY =
+  window.EPUB_READER_CONFIG.MEMORY_STRATEGY || MEMORY_STRATEGY;
+
+// アプリ共通設定（SSOT参照）
+// 既存の window.APP_CONFIG を上書きせずマージし、外部注入設定を保持する。
+window.APP_CONFIG = {
+  ...(window.APP_CONFIG || {}),
+  D1_SYNC_ENDPOINT:
+    window.APP_CONFIG?.D1_SYNC_ENDPOINT ||
+    window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT ||
+    WORKERS_CONFIG.SYNC_ENDPOINT,
+  // 互換性維持
+  FIREBASE_SYNC_ENDPOINT:
+    window.APP_CONFIG?.D1_SYNC_ENDPOINT ||
+    window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT ||
+    WORKERS_CONFIG.SYNC_ENDPOINT,
+  API_BASE_URL:
+    window.APP_CONFIG?.API_BASE_URL ||
+    window.APP_CONFIG?.D1_SYNC_ENDPOINT ||
+    window.APP_CONFIG?.FIREBASE_SYNC_ENDPOINT ||
+    WORKERS_CONFIG.SYNC_ENDPOINT,
+};
+
+```
+
+### assets/constants/pwa.js
+
+```javascript
+// ============================================
+// PWA / Service Worker 設定
+// ============================================
+export const PWA_CONFIG = Object.freeze({
+  CACHE_NAME: "bookreader-v8",
+  THEME_COLOR: "#2c3e50",
+  BACKGROUND_COLOR: "#ffffff",
+});
+
+// ============================================
+// Service Worker キャッシュ対象アセット
+// ============================================
+export const SW_CACHE_ASSETS = Object.freeze([
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./assets/sw-cache-config.json",
+  "./assets/css/01-tokens.css",
+  "./assets/css/02-reset.css",
+  "./assets/css/03-base.css",
+  "./assets/css/04-reader.css",
+  "./assets/css/05-float-ui.css",
+  "./assets/css/06-reader-extras.css",
+  "./assets/css/07-menu.css",
+  "./assets/css/08-progress.css",
+  "./assets/css/09-bookmark.css",
+  "./assets/css/10-modal.css",
+  "./assets/css/11-library.css",
+  "./assets/css/12-history.css",
+  "./assets/css/13-search.css",
+  "./assets/css/14-settings.css",
+  "./assets/css/15-responsive.css",
+  "./assets/css/16-candidate.css",
+  "./assets/css/17-loading.css",
+  "./assets/css/18-float-lang.css",
+  "./assets/css/19-zoom.css",
+  "./assets/login.css",
+  "./assets/app.js",
+  "./assets/constants.js",
+  "./assets/i18n.js",
+  "./assets/i18n/index.js",
+  "./assets/i18n/ja.js",
+  "./assets/i18n/en.js",
+  "./assets/config.js",
+  "./assets/ui.js",
+  "./assets/reader.js",
+  "./assets/storage.js",
+  "./assets/auth.js",
+  "./assets/cloudSync.js",
+  "./assets/fileStore.js",
+  "./assets/firebaseConfig.js",
+  "./assets/onedriveAuth.js",
+  "./assets/bookreader.png",
+  "./assets/BookReader_Titlle.png",
+  "./assets/menu-title.svg",
+  "./assets/Flag_Japan.svg",
+  "./assets/Flag_America.svg",
+  "./assets/icon_BookReader_192.png",
+  "./assets/icon_BookReader_512.png",
+  "./assets/vendor/jszip.min.js",
+  "./assets/vendor/unrar.js",
+  "./assets/vendor/unrar.wasm",
+  "./assets/animations/loader_book.json",
+]);
+
+```
+
+### assets/constants/app-info.js
+
+```javascript
+/**
+ * アプリケーション情報 (SSOT)
+ */
+export const APP_INFO = Object.freeze({
+  NAME: "BookReader",
+  SHORT_NAME: "BookReader",
+  DESCRIPTION: "ブラウザで動く軽量なEPUB/画像リーダー",
+  VERSION: "1.0.0",
+  DOCUMENT_TITLE: "Epub Reader",
+});
+
+```
+
+### assets/constants/runtime-config.js
+
+```javascript
+/**
+ * 実行時/ビルド時のランタイム設定 (SSOT)
+ *
+ * - ビルド時: ここで定義したデフォルト値を使用します。
+ * - 実行時: window.APP_CONFIG などで注入された値で上書きします。
+ *   例) index.html やサーバー側テンプレートで
+ *       window.APP_CONFIG = {
+ *         firebase: {...},
+ *         googleAuth: {...},
+ *         workers: {...}
+ *       };
+ *   例) assets/config.js から window.APP_CONFIG に注入
+ */
+export const FIREBASE_CONFIG = Object.freeze({
+  apiKey: "AIzaSyD2xMk1bbez1Y2crBcgzxUhghU9bFnU1gI",
+  authDomain: "bookreader-1d3a3.firebaseapp.com",
+  projectId: "bookreader-1d3a3",
+  storageBucket: "bookreader-1d3a3.firebasestorage.app",
+  messagingSenderId: "920141070828",
+  appId: "1:920141070828:web:619c658ec726be091c00c9",
+  measurementId: "G-V68746259D",
+});
+
+export const WORKERS_CONFIG = Object.freeze({
+  SYNC_ENDPOINT: "https://bookreader-dev.taka-hiyo.workers.dev",
+});
+
+export const GOOGLE_AUTH_CONFIG = Object.freeze({
+  CLIENT_ID:
+    "672654349618-h1252pqs19d076dkf3uteme7upau16kp.apps.googleusercontent.com",
+});
+
+```
+
+### assets/app.js
+
+```javascript
 /**
  * app.js - メインアプリケーション
  * 
@@ -870,7 +1904,7 @@ async function handleFile(file) {
     const type = fileHandler.detectFileType(header) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
-      alert(translate('errorFileLoadFailed', uiLanguage));
+      alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
       return;
     }
     console.log(`Detected file type: ${type}`);
@@ -886,23 +1920,6 @@ async function handleFile(file) {
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
     if (useStreaming) {
       showStreamingNotice();
-    }
-
-    // Quest 3 OSバグ（リサイズハンドル消失）対策: 1GB超の場合はDistant Modeへの変更を促す
-    if (isArchiveBook && file.size > 1024 * 1024 * 1024) {
-      const isQuest = /Quest|Oculus/i.test(navigator.userAgent);
-      if (isQuest) {
-        alert(translate('largeFileDistantMode', uiLanguage));
-      }
-    }
-
-    // 巨大RAR警告: モバイル等で巨大なRAR(非ストリーミング)は展開不能な可能性がある
-    if (type === BOOK_TYPES.RAR && file.size > 500 * 1024 * 1024) {
-      const env = fileHandler.detectEnvironment();
-      if (env.isLowEnd || /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-         console.warn("[RarHandler] Large RAR on mobile detected.");
-         // 重要：RARは現状ストリーミング非対応のため500MB超は非常に不安定
-      }
     }
 
     // 3. ハッシュ計算（リトライ付き）
@@ -3588,3 +4605,1688 @@ if (document.readyState === "loading") {
 } else {
   startAfterDomReady();
 }
+
+```
+
+### assets/ui.js
+
+```javascript
+import {
+  DEBUG_GRID_CONFIG,
+  INTERACTION_AREA_CODES,
+  INTERACTION_AREA_LABELS,
+  INTERACTION_GRID_CONFIG,
+  TIMING_CONFIG,
+  TOUCH_CONFIG,
+  UI_CLASSES,
+  UI_TIMING_CONFIG,
+  DOM_IDS,
+  DOM_SELECTORS,
+  WRITING_MODES,
+  READING_DIRECTIONS,
+  EPUB_VIEW_MODES,
+} from "./constants.js";
+
+// UI制御モジュール：エリア判定、メニュー表示、進捗バー等
+
+const getById = (id) => document.getElementById(id);
+
+/**
+ * 画面を15エリアに分割して判定
+ * 
+ * グリッド構造（下10%は進捗バー専用で除外）:
+ * ┌─────┬─────┬─────┬─────┬─────┐
+ * │ U1  │ U2  │ U3  │ U4  │ U5  │  ← 上30% (0-30%)
+ * ├─────┼─────┼─────┼─────┼─────┤
+ * │ M1  │ M2  │ M3  │ M4  │ M5  │  ← 中30% (30-60%)
+ * ├─────┼─────┼─────┼─────┼─────┤
+ * │ B1  │ B2  │ B3  │ B4  │ B5  │  ← 下30% (60-90%)
+ * ├─────┴─────┴─────┴─────┴─────┤
+ * │      進捗バー専用エリア       │  ← 最下10% (90-100%)
+ * └─────────────────────────────┘
+ *   20%   20%   20%   20%   20%
+ * 
+ * メニュー表示: M3（中央）
+ * 縦書き時ページ移動: M1/M2(前), M4/M5(次) + 横スワイプ
+ * 横書き時ページ移動: U3(前), B3(次) + 縦スワイプ
+ */
+
+export class UIController {
+  constructor(options = {}) {
+    this.onLeftMenu = options.onLeftMenu;
+    this.onProgressBar = options.onProgressBar;
+    this.onBookmarkMenu = options.onBookmarkMenu;
+    this.onPagePrev = options.onPagePrev;
+    this.onPageNext = options.onPageNext;
+    this.onFloatToggle = options.onFloatToggle;
+    this.onResize = options.onResize;  // リサイズコールバック追加
+    this.isBookOpen = options.isBookOpen || (() => false);
+    this.isPageNavigationEnabled = options.isPageNavigationEnabled || (() => false);
+    this.isProgressBarAvailable = options.isProgressBarAvailable || (() => false);
+    this.getWritingMode = options.getWritingMode || (() => WRITING_MODES.HORIZONTAL);
+    this.isFloatVisible = options.isFloatVisible || (() => false);
+    this.isImageBook = options.isImageBook || (() => false);
+    this.isSpreadMode = options.isSpreadMode || (() => false);
+    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
+    this.getEpubViewMode = options.getEpubViewMode || (() => EPUB_VIEW_MODES.PAGINATED);
+
+    this.leftMenuVisible = false;
+    this.progressBarVisible = false;
+    this.progressBarPinned = false;
+    this.bookmarkMenuVisible = false;
+    this.touchStartX = null;
+    this.touchStartY = null;
+
+    this.setupClickHandler();
+    this.setupTouchHandlers();
+    this.setupResizeHandler();
+    this.setupZoomExitHandlers();
+  }
+
+  /**
+   * リサイズハンドラーをセットアップ
+   */
+  setupResizeHandler() {
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
+        // リサイズコールバックを呼び出し
+        this.onResize?.();
+      }, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
+    });
+  }
+
+  /**
+   * ズーム中の「閉じる/戻る」操作をズーム解除に置き換える
+   */
+  setupZoomExitHandlers() {
+    const zoomExitSelectors = [
+      `#${DOM_IDS.MENU_LIBRARY}`,
+      `#${DOM_IDS.FLOAT_LIBRARY}`,
+    ];
+    const selector = zoomExitSelectors.join(",");
+    if (!selector) return;
+
+    document.addEventListener('click', (e) => {
+      if (!document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        return;
+      }
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target || !target.closest(selector)) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const zoomToggle = getById(DOM_IDS.TOGGLE_ZOOM);
+      zoomToggle?.click();
+    }, true);
+  }
+
+  /**
+   * クリック座標からエリアを判定
+   * 下10%は進捗バー専用エリアとして除外
+   */
+  getClickArea(x, y, baseElement, viewport = window.visualViewport) {
+    if (!baseElement || typeof baseElement.getBoundingClientRect !== "function") {
+      return null;
+    }
+    const rect = baseElement.getBoundingClientRect();
+    const areaRect = rect
+      ? {
+        left: rect.left + (viewport?.offsetLeft ?? 0),
+        top: rect.top + (viewport?.offsetTop ?? 0),
+        width: viewport?.width ?? rect.width,
+        height: viewport?.height ?? rect.height
+      }
+      : {
+        left: 0,
+        top: 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight
+      };
+
+    const xPercent = ((x - areaRect.left) / areaRect.width) * 100;
+    const yPercent = ((y - areaRect.top) / areaRect.height) * 100;
+
+    console.log(`Area size: ${areaRect.width}x${areaRect.height}, Click: (${x}, ${y}) = (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`);
+
+    // 下10%は進捗バー専用エリア（クリック処理しない）
+    if (yPercent > INTERACTION_GRID_CONFIG.PROGRESS_BAR_EXCLUDE_FROM) {
+      console.log('Progress bar area - ignoring click');
+      return null;
+    }
+
+    // 縦方向: U(0-30%), M(30-60%), B(60-90%)
+    let vArea = 'U';
+    if (yPercent >= INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.TOP
+      && yPercent < INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.MIDDLE) {
+      vArea = 'M';
+    } else if (yPercent >= INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.MIDDLE
+      && yPercent < INTERACTION_GRID_CONFIG.VERTICAL_BREAKPOINTS.BOTTOM) {
+      vArea = 'B';
+    }
+
+    // 横方向: 20%ずつ5分割
+    const segmentWidth = 100 / INTERACTION_GRID_CONFIG.HORIZONTAL_SEGMENTS;
+    const hArea = Math.min(
+      INTERACTION_GRID_CONFIG.HORIZONTAL_SEGMENTS,
+      Math.floor(xPercent / segmentWidth) + 1
+    );
+
+    return `${vArea}${hArea}`;
+  }
+
+  /**
+   * クリックハンドラーをセットアップ
+   */
+  setupClickHandler() {
+    let isProcessing = false;  // 連続クリックを防ぐフラグ
+
+    // 統一されたクリックハンドラー
+    const clickHandler = (e) => {
+      if (document.body.classList.contains(UI_CLASSES.GOOGLE_AUTH_ACTIVE)) {
+        return;
+      }
+      // ズーム中は一切のクリック操作を無効化（ボタン以外）
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        // 例外: ズームボタンなど特定要素は許可したいが、それはイベントバブリングで
+        // ここに来る前に処理済みか、あるいはここで target チェックが必要。
+        // ただし、style.css で pointer-events を制御しているので、
+        // ここに来るイベントは基本的に「許可された要素」か「無効化漏れ」
+        // 念のため、明確に許可リスト（ズームボタン等）以外は弾くのが安全
+        if (!e.target.closest(DOM_SELECTORS.ZOOM_ALLOWED_TARGETS)) {
+          return;
+        }
+      }
+      // メニューやボタン内のクリックは無視
+      if (e.target.closest(DOM_SELECTORS.CLICK_EXCLUDE_ALL)) {
+        return;
+      }
+
+      // 処理中なら無視（連続クリックを防ぐ）
+      if (isProcessing) {
+        console.log('Click event ignored (already processing)');
+        return;
+      }
+
+      isProcessing = true;
+
+      const baseElement = getById(DOM_IDS.FULLSCREEN_READER);
+      try {
+        const area = this.getClickArea(e.clientX, e.clientY, baseElement);
+        if (!area) {
+          isProcessing = false;
+          return;
+        }
+        console.log('Clicked area:', area, 'at', e.clientX, e.clientY);
+
+        this.handleAreaClick(area, e);
+      } catch (error) {
+        console.error('Error handling click:', error);
+      } finally {
+        // 処理完了後、フラグをリセット
+        setTimeout(() => {
+          isProcessing = false;
+        }, UI_TIMING_CONFIG.CLICK_PROCESS_RESET_MS);
+      }
+    };
+
+    document.addEventListener('click', clickHandler);
+    console.log('Click handler attached to document');
+  }
+
+  /**
+   * タッチスワイプハンドラーをセットアップ
+   */
+  setupTouchHandlers() {
+    const reader = getById(DOM_IDS.FULLSCREEN_READER);
+    if (!reader) {
+      return;
+    }
+
+    const minSwipeDistance = TOUCH_CONFIG.MIN_SWIPE_DISTANCE;
+    const axisDifference = TOUCH_CONFIG.AXIS_DIFFERENCE;
+
+    reader.addEventListener('touchstart', (e) => {
+      if (this.isAnyMenuVisible()) {
+        return;
+      }
+      // ズーム中はスワイプ無効
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        return;
+      }
+
+      const touch = e.touches[0];
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+    }, { passive: true });
+
+    reader.addEventListener('touchend', (e) => {
+      if (this.isAnyMenuVisible()) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      // ズーム中はスワイプ無効
+      if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        this.touchStartX = null;
+        this.touchStartY = null;
+        return;
+      }
+
+      if (this.touchStartX === null || this.touchStartY === null) {
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - this.touchStartX;
+      const deltaY = touch.clientY - this.touchStartY;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+
+      if (this.isBookOpen() && this.isPageNavigationEnabled()) {
+        // [START] EPUBスクロールモード時はスワイプでのページ移動を無効化 (SSOT)
+        // [修正] 画像書庫（ZIP/CBZ）の場合はスクロールモード設定に関わらずスワイプを有効にする
+        if (!this.isImageBook() && this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+          this.touchStartX = null;
+          this.touchStartY = null;
+          return;
+        }
+        // [END]
+
+        const mode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
+        // 画像書庫または縦書きモードなら横スワイプ
+        if (mode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
+          const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
+          if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+            if (deltaX > 0) {
+              // 右方向へのスワイプ
+              if (direction === READING_DIRECTIONS.LTR) {
+                this.onPagePrev?.(); // LTRなら「右スワイプ」で戻る
+              } else {
+                this.onPageNext?.(); // RTLなら「右スワイプ」で進む
+              }
+            } else {
+              // 左方向へのスワイプ
+              if (direction === READING_DIRECTIONS.LTR) {
+                this.onPageNext?.(); // LTRなら「左スワイプ」で進む
+              } else {
+                this.onPagePrev?.(); // RTLなら「左スワイプ」で戻る
+              }
+            }
+          }
+        } else if (absDeltaY >= minSwipeDistance && (absDeltaY - absDeltaX) >= axisDifference) {
+          if (deltaY > 0) {
+            this.onPagePrev?.();
+          } else {
+            this.onPageNext?.();
+          }
+        }
+      }
+
+      this.touchStartX = null;
+      this.touchStartY = null;
+    }, { passive: true });
+  }
+
+  isAnyMenuVisible() {
+    return this.leftMenuVisible || this.bookmarkMenuVisible || (this.progressBarVisible && !this.progressBarPinned);
+  }
+
+  /**
+   * エリアクリックを処理
+   */
+  handleAreaClick(area, event) {
+    // ズーム中は操作無効（ドラッグ優先）
+    if (document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+      return;
+    }
+
+    // フローティングメニューが表示されている場合
+    if (this.isFloatVisible?.()) {
+      // 機能なしエリア、またはM3（メニュー開閉）ならフローティングを閉じる
+      const label = this.getFunctionLabel(area);
+      if (!label || area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
+        this.onFloatToggle?.();
+      }
+      return;
+    }
+
+    // M3でメニュー表示
+    if (area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
+      this.onFloatToggle?.();
+      return;
+    }
+
+    if (!this.isBookOpen()) return;
+
+    // 全モード共通: シームレススクロール時はエリアタップによるページ送りを無効化 (SSOT)
+    // [修正] 画像書庫（ZIP/CBZ）の場合はスクロールモード設定に関わらずエリアタップを有効にする
+    if (!this.isImageBook() && this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL) {
+      return;
+    }
+
+    const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
+
+    // 画像書庫または縦書き
+    if (writingMode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
+      const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.PREV.includes(area)) {
+        if (direction === READING_DIRECTIONS.LTR) {
+          this.onPagePrev?.(); // LTRなら左で戻る
+        } else {
+          this.onPageNext?.(); // RTLなら左で進む
+        }
+      } else if (INTERACTION_AREA_CODES.VERTICAL_NAV.NEXT.includes(area)) {
+        if (direction === READING_DIRECTIONS.LTR) {
+          this.onPageNext?.(); // LTRなら右で進む
+        } else {
+          this.onPagePrev?.(); // RTLなら右で戻る
+        }
+      }
+
+      // 画像書庫かつ見開きモードの場合、U3/B3で1ページ移動（綴じ方向に依存しない）
+      if (this.isImageBook?.() && this.isSpreadMode?.()) {
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
+          console.log('Spread adjustment: Prev 1 page');
+          // U3 (上中央) -> 常に1ページ戻る
+          this.onPagePrev?.(1);
+          return;
+        } else if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
+          console.log('Spread adjustment: Next 1 page');
+          // B3 (下中央) -> 常に1ページ進む
+          this.onPageNext?.(1);
+          return;
+        }
+      }
+      return;
+    }
+
+    if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
+      this.onPagePrev?.();
+    } else if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
+      this.onPageNext?.();
+    }
+  }
+
+  /**
+   * 左メニューを表示
+   */
+  showLeftMenu() {
+    console.log('showLeftMenu called');
+    this.leftMenuVisible = true;
+    this.onLeftMenu?.('show');
+
+    const menu = getById(DOM_IDS.LEFT_MENU);
+    const backdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
+
+    console.log('leftMenu element:', menu);
+    if (menu) {
+      menu.classList.add(UI_CLASSES.VISIBLE);
+      console.log('Added visible class to leftMenu');
+    } else {
+      console.error('leftMenu element not found!');
+    }
+
+    // バックドロップを表示
+    if (backdrop) {
+      backdrop.classList.add(UI_CLASSES.VISIBLE);
+      // バックドロップクリックでメニューを閉じる
+      backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
+      console.log('Showed menu backdrop');
+    }
+
+    // オーバーレイを無効化
+    if (overlay) {
+      overlay.style.pointerEvents = 'none';
+      console.log('Disabled overlay pointer events');
+    }
+  }
+
+  /**
+   * 進捗バーを表示
+   */
+  showProgressBar(options = {}) {
+    return this.showProgressBarWithOptions(options);
+  }
+
+  showProgressBarWithOptions(options = {}) {
+    const { persistent = false } = options;
+    console.log('showProgressBar called');
+    this.progressBarPinned = this.progressBarPinned || persistent;
+    this.progressBarVisible = !persistent;
+    this.onProgressBar?.('show');
+
+    const bar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const backdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
+
+    console.log('progressBarPanel element:', bar);
+    if (bar) {
+      bar.classList.add(UI_CLASSES.VISIBLE);
+      console.log('Added visible class to progressBarPanel');
+    } else {
+      console.error('progressBarPanel element not found!');
+    }
+
+    if (!persistent) {
+      // バックドロップを表示
+      if (backdrop) {
+        backdrop.classList.add(UI_CLASSES.VISIBLE);
+        // バックドロップクリックで進捗バーを閉じる
+        backdrop.addEventListener('click', () => this.closeAllMenus(), { once: true });
+        console.log('Showed progress bar backdrop');
+      }
+
+      // オーバーレイを無効化
+      if (overlay) {
+        overlay.style.pointerEvents = 'none';
+        console.log('Disabled overlay pointer events');
+      }
+    } else {
+      if (backdrop) {
+        backdrop.classList.remove(UI_CLASSES.VISIBLE);
+      }
+    }
+  }
+
+  /**
+   * しおりメニューを表示
+   */
+  showBookmarkMenu() {
+    console.log('showBookmarkMenu called');
+    this.bookmarkMenuVisible = true;
+    this.onBookmarkMenu?.('show');
+
+    const menu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
+
+    console.log('bookmarkMenu element:', menu);
+    if (menu) {
+      menu.classList.add(UI_CLASSES.VISIBLE);
+      console.log('Added visible class to bookmarkMenu');
+    } else {
+      console.error('bookmarkMenu element not found!');
+    }
+
+    // オーバーレイを無効化
+    if (overlay) {
+      overlay.style.pointerEvents = 'none';
+      console.log('Disabled overlay pointer events');
+    }
+  }
+
+  /**
+   * 全てのメニューを閉じる
+   */
+  closeAllMenus() {
+    this.leftMenuVisible = false;
+    this.progressBarVisible = false;
+    this.bookmarkMenuVisible = false;
+
+    const leftMenu = getById(DOM_IDS.LEFT_MENU);
+    const leftMenuBackdrop = getById(DOM_IDS.LEFT_MENU_BACKDROP);
+    const progressBar = getById(DOM_IDS.PROGRESS_BAR_PANEL);
+    const progressBarBackdrop = getById(DOM_IDS.PROGRESS_BAR_BACKDROP);
+    const bookmarkMenu = getById(DOM_IDS.BOOKMARK_MENU);
+    const overlay = getById(DOM_IDS.CLICK_OVERLAY);
+
+    if (leftMenu) leftMenu.classList.remove(UI_CLASSES.VISIBLE);
+    if (leftMenuBackdrop) leftMenuBackdrop.classList.remove(UI_CLASSES.VISIBLE);
+    if (!this.progressBarPinned) {
+      if (progressBar) progressBar.classList.remove(UI_CLASSES.VISIBLE);
+      if (progressBarBackdrop) progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
+    } else if (progressBarBackdrop) {
+      progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
+    }
+    if (bookmarkMenu) bookmarkMenu.classList.remove(UI_CLASSES.VISIBLE);
+
+    // オーバーレイを再度有効化（スクロールモード時はCSSで無効化されているため除外）
+    if (overlay) {
+      const isScrollMode = document.querySelector('.fullscreen-reader.epub-scroll-mode');
+      if (!isScrollMode) {
+        overlay.style.pointerEvents = 'auto';
+        console.log('Re-enabled overlay pointer events');
+      } else {
+        // スクロールモード時はインラインスタイルをクリアしてCSSに委任
+        overlay.style.pointerEvents = '';
+      }
+    }
+
+    this.onLeftMenu?.('hide');
+    this.onProgressBar?.('hide');
+    this.onBookmarkMenu?.('hide');
+  }
+
+  /**
+   * 進捗表示を更新
+   */
+  updateProgress(current, total, percentageOverride = null) {
+    // 数値型に強制変換（オブジェクトが渡された場合の対策）
+    const currentIndex = (typeof current === 'object' && current !== null) ? (current.index ?? current.pageIndex ?? 0) : Number(current || 0);
+    const totalCount = (typeof total === 'object' && total !== null) ? (total.length ?? total.totalPages ?? 0) : Number(total || 0);
+
+    // 1. ページ番号表示更新
+    const currentInput = getById(DOM_IDS.CURRENT_PAGE_INPUT);
+    const totalSpan = getById(DOM_IDS.TOTAL_PAGES);
+
+    // ページ番号は章の番号なので、小数点以下は切り捨てる
+    if (currentInput) currentInput.value = Math.floor(currentIndex) + 1; // 1-based
+
+    // totalPages が undefined の場合や 0 の場合のガード
+    const validTotal = (typeof totalCount === 'number' && totalCount > 0) ? totalCount : 0;
+    if (totalSpan) totalSpan.textContent = isNaN(validTotal) ? 0 : validTotal;
+
+    // 2. プログレスバー更新
+    let percentage = 0;
+    if (Number.isFinite(percentageOverride)) {
+      percentage = percentageOverride;
+    } else if (validTotal > 1) {
+      percentage = (Math.min(currentIndex, validTotal - 1) / (validTotal - 1)) * 100;
+    } else if (validTotal === 1) {
+      percentage = 100;
+    }
+
+    if (isNaN(percentage)) percentage = 0;
+
+    const fill = getById(DOM_IDS.PROGRESS_FILL);
+    const thumb = getById(DOM_IDS.PROGRESS_THUMB);
+
+    if (fill) fill.style.width = `${percentage}%`;
+    if (thumb) thumb.style.left = `${percentage}%`;
+
+    // 3. フローティングプログレスバー更新
+    const floatFill = getById(DOM_IDS.FLOAT_PROGRESS_FILL);
+    const floatThumb = getById(DOM_IDS.FLOAT_PROGRESS_THUMB);
+    const floatPercent = getById(DOM_IDS.FLOAT_PROGRESS_PERCENT);
+
+    if (floatFill) floatFill.style.width = `${percentage}%`;
+    if (floatThumb) floatThumb.style.left = `${percentage}%`;
+    if (floatPercent) floatPercent.textContent = `${Math.round(percentage)}%`;
+  }
+
+  /**
+   * エリアのデバッグ表示（開発用）
+   */
+  showDebugGrid() {
+    const overlay = document.createElement('div');
+    overlay.id = 'debug-grid';
+    overlay.className = UI_CLASSES.DEBUG_GRID;
+
+    // グリッド線を描画
+    const lines = [
+      ...DEBUG_GRID_CONFIG.HORIZONTAL_LINES.map((percent) => ({
+        type: WRITING_MODES.HORIZONTAL,
+        percent,
+        label: `${percent}%`,
+      })),
+      ...DEBUG_GRID_CONFIG.VERTICAL_LINES.map((percent) => ({
+        type: WRITING_MODES.VERTICAL,
+        percent,
+        label: `${percent}%`,
+      })),
+    ];
+
+    lines.forEach(line => {
+      const el = document.createElement('div');
+      el.className = UI_CLASSES.DEBUG_GRID_LINE;
+      el.style.position = 'absolute';
+      if (line.type === WRITING_MODES.HORIZONTAL) {
+        el.style.top = `${line.percent}%`;
+        el.style.left = '0';
+        el.style.right = '0';
+        el.style.height = `${DEBUG_GRID_CONFIG.LINE_THICKNESS_PX}px`;
+      } else {
+        el.style.left = `${line.percent}%`;
+        el.style.top = '0';
+        el.style.bottom = '0';
+        el.style.width = `${DEBUG_GRID_CONFIG.LINE_THICKNESS_PX}px`;
+      }
+      overlay.appendChild(el);
+
+      // ラベル
+      const label = document.createElement('div');
+      label.textContent = line.label;
+      label.className = UI_CLASSES.DEBUG_GRID_LABEL;
+      label.style.position = 'absolute';
+      if (line.type === WRITING_MODES.HORIZONTAL) {
+        label.style.top = `${line.percent}%`;
+        label.style.left = '50%';
+      } else {
+        label.style.left = `${line.percent}%`;
+        label.style.top = '50%';
+      }
+      label.style.transform = 'translate(-50%, -50%)';
+      overlay.appendChild(label);
+    });
+
+    document.body.appendChild(overlay);
+
+    // 10秒後に自動削除
+    setTimeout(() => overlay.remove(), UI_TIMING_CONFIG.DEBUG_GRID_AUTO_HIDE_MS);
+  }
+
+  /**
+   * エリアの機能ラベルを取得
+   */
+  getFunctionLabel(area) {
+    if (area === INTERACTION_AREA_CODES.MENU_TOGGLE) {
+      return INTERACTION_AREA_LABELS.MENU_TOGGLE;
+    }
+
+    const writingMode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
+    const isImage = this.isImageBook?.();
+    const isSpread = this.isSpreadMode?.();
+
+    // 縦書き or 画像
+    if (writingMode === WRITING_MODES.VERTICAL || isImage) {
+      const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.PREV.includes(area)) {
+        return direction === READING_DIRECTIONS.LTR
+          ? INTERACTION_AREA_LABELS.PAGE_PREV
+          : INTERACTION_AREA_LABELS.PAGE_NEXT;
+      }
+      if (INTERACTION_AREA_CODES.VERTICAL_NAV.NEXT.includes(area)) {
+        return direction === READING_DIRECTIONS.LTR
+          ? INTERACTION_AREA_LABELS.PAGE_NEXT
+          : INTERACTION_AREA_LABELS.PAGE_PREV;
+      }
+      if (isSpread) {
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.PREV_SINGLE) {
+          return INTERACTION_AREA_LABELS.PAGE_PREV_SINGLE;
+        }
+        if (area === INTERACTION_AREA_CODES.SPREAD_ADJUST.NEXT_SINGLE) {
+          return INTERACTION_AREA_LABELS.PAGE_NEXT_SINGLE;
+        }
+      }
+    } else {
+      // 横書き
+      if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.PREV) {
+        return INTERACTION_AREA_LABELS.PAGE_PREV;
+      }
+      if (area === INTERACTION_AREA_CODES.HORIZONTAL_NAV.NEXT) {
+        return INTERACTION_AREA_LABELS.PAGE_NEXT;
+      }
+    }
+    return null;
+  }
+
+}
+
+/**
+ * 進捗バー用のドラッグハンドラー
+ */
+export class ProgressBarHandler {
+  constructor(options = {}) {
+    this.container = options.container;
+    this.thumb = options.thumb;
+    this.onSeek = options.onSeek;
+    this.getIsRtl = options.getIsRtl || (() => false);
+
+    this.isDragging = false;
+    this.setupDragHandlers();
+  }
+
+  setupDragHandlers() {
+    if (!this.thumb || !this.container) return;
+
+    // ツマミのドラッグ
+    this.thumb.addEventListener('mousedown', this.handleDragStart.bind(this));
+    document.addEventListener('mousemove', this.handleDragMove.bind(this));
+    document.addEventListener('mouseup', this.handleDragEnd.bind(this));
+
+    // タッチ対応
+    this.thumb.style.touchAction = 'none';
+    this.thumb.addEventListener('touchstart', this.handleDragStart.bind(this), { passive: false });
+    document.addEventListener('touchmove', this.handleDragMove.bind(this), { passive: false });
+    document.addEventListener('touchend', this.handleDragEnd.bind(this), { passive: false });
+
+    // 進捗トラックをクリックでジャンプ
+    this.container.addEventListener('click', (e) => {
+      // ツマミをクリックした場合は無視
+      if (e.target === this.thumb) return;
+
+      const rect = this.container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      let percentage = (x / rect.width) * 100;
+
+      // RTLなら反転
+      if (this.getIsRtl()) {
+        percentage = 100 - percentage;
+      }
+
+      console.log('Track clicked at', percentage.toFixed(2) + '%');
+      this.updatePosition(percentage);
+      this.onSeek?.(percentage);
+    });
+  }
+
+  handleDragStart(e) {
+    e.preventDefault();
+    this.isDragging = true;
+    this.thumb.classList.add(UI_CLASSES.DRAGGING);
+    console.log('Drag started');
+  }
+
+  handleDragMove(e) {
+    if (!this.isDragging) return;
+
+    e.preventDefault(); // スクロールを防ぐ
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const rect = this.container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    let percentage = (x / rect.width) * 100;
+
+    if (this.getIsRtl()) {
+      percentage = 100 - percentage;
+    }
+
+    this.updatePosition(percentage);
+    // ドラッグ中はシークしない（updatePositionのみ）
+  }
+
+  handleDragEnd(e) {
+    if (!this.isDragging) return;
+
+    e.preventDefault();
+
+    // ドラッグ終了時に最終位置でシーク
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const rect = this.container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    let percentage = (x / rect.width) * 100;
+
+    if (this.getIsRtl()) {
+      percentage = 100 - percentage;
+    }
+
+    console.log('Drag ended at', percentage.toFixed(2) + '%');
+    this.onSeek?.(percentage);
+
+    this.isDragging = false;
+    this.thumb.classList.remove(UI_CLASSES.DRAGGING);
+  }
+
+  updatePosition(percentage) {
+    if (this.thumb) {
+      this.thumb.style.left = `${percentage}%`;
+    }
+  }
+}
+
+```
+
+### assets/storage.js
+
+```javascript
+/**
+ * storage.js - ローカルストレージ管理
+ * 
+ * 読書データの永続化とデータマージ機能を提供します。
+ * 設定値は constants.js (SSOT) から参照します。
+ */
+
+import {
+  STORAGE_CONFIG,
+  STORAGE_SOURCE_ALIASES,
+  STORAGE_SOURCE_DEFAULT,
+  DEVICE_COLOR_PALETTE,
+  DEFAULT_SETTINGS,
+  DEFAULT_DATA_SHAPE,
+  NOTION_DEFAULT_SETTINGS,
+  NOTION_INTEGRATION_STATUS,
+  BOOK_TYPES,
+} from "./constants.js";
+
+const STORAGE_KEY = STORAGE_CONFIG.KEY;
+const MAX_HISTORY_ENTRIES = STORAGE_CONFIG.MAX_HISTORY_ENTRIES;
+const MAX_BOOKMARKS_PER_BOOK = STORAGE_CONFIG.MAX_BOOKMARKS_PER_BOOK;
+
+const normalizeStorageSource = (source) => {
+  if (!source) return null;
+  return STORAGE_SOURCE_ALIASES[source] ?? source;
+};
+
+const generateDeviceId = () => {
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const randomPart = Math.random().toString(36).slice(2);
+  const timePart = Date.now().toString(36);
+  return `device-${timePart}-${randomPart}`;
+};
+
+/**
+ * UserAgent を解析して OS/ブラウザ名を返す
+ * @returns {string} "OS名 / ブラウザ名" 形式の文字列
+ */
+const getDeviceInfo = () => {
+  if (typeof navigator === "undefined" || !navigator.userAgent) {
+    return "Unknown";
+  }
+
+  const ua = navigator.userAgent;
+
+  // OS判定
+  let os = "Unknown OS";
+  if (/Windows NT 10/.test(ua)) {
+    os = "Windows 10/11";
+  } else if (/Windows NT 6\.3/.test(ua)) {
+    os = "Windows 8.1";
+  } else if (/Windows NT 6\.2/.test(ua)) {
+    os = "Windows 8";
+  } else if (/Windows NT 6\.1/.test(ua)) {
+    os = "Windows 7";
+  } else if (/Windows/.test(ua)) {
+    os = "Windows";
+  } else if (/Mac OS X/.test(ua)) {
+    os = "macOS";
+  } else if (/iPhone|iPad|iPod/.test(ua)) {
+    os = "iOS";
+  } else if (/Android/.test(ua)) {
+    os = "Android";
+  } else if (/Linux/.test(ua)) {
+    os = "Linux";
+  } else if (/CrOS/.test(ua)) {
+    os = "Chrome OS";
+  }
+
+  // ブラウザ判定（順序重要: より特定的なものを先に）
+  let browser = "Unknown Browser";
+  if (/Edg\//.test(ua)) {
+    browser = "Edge";
+  } else if (/OPR\/|Opera/.test(ua)) {
+    browser = "Opera";
+  } else if (/Vivaldi/.test(ua)) {
+    browser = "Vivaldi";
+  } else if (/Brave/.test(ua)) {
+    browser = "Brave";
+  } else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) {
+    browser = "Chrome";
+  } else if (/Firefox\//.test(ua)) {
+    browser = "Firefox";
+  } else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) {
+    browser = "Safari";
+  } else if (/MSIE|Trident/.test(ua)) {
+    browser = "Internet Explorer";
+  }
+
+  return `${os} / ${browser}`;
+};
+
+const selectDeviceColor = (deviceId) => {
+  if (!deviceId) return DEVICE_COLOR_PALETTE[0];
+  let hash = 0;
+  for (let i = 0; i < deviceId.length; i += 1) {
+    hash = (hash * 31 + deviceId.charCodeAt(i)) % 1000000007;
+  }
+  const index = Math.abs(hash) % DEVICE_COLOR_PALETTE.length;
+  return DEVICE_COLOR_PALETTE[index];
+};
+
+const ensureDeviceSettings = (settings) => {
+  let updated = false;
+  let deviceId = settings.deviceId;
+  if (!deviceId) {
+    deviceId = generateDeviceId();
+    updated = true;
+  }
+  let deviceColor = settings.deviceColor;
+  if (!deviceColor) {
+    deviceColor = selectDeviceColor(deviceId);
+    updated = true;
+  }
+  return {
+    updated,
+    settings: {
+      ...settings,
+      deviceId,
+      deviceColor,
+    },
+  };
+};
+
+const getBookmarkUpdatedAt = (bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0;
+
+const getBookmarkType = (bookmark) => bookmark?.bookType ?? bookmark?.type ?? null;
+
+const getBookmarkKey = (bookmark) => {
+  const bookmarkType = getBookmarkType(bookmark);
+  const cfi = bookmark?.cfi;
+  if (bookmarkType === BOOK_TYPES.EPUB && cfi) return `cfi:${cfi}`;
+
+  const location = bookmark?.location;
+  if (typeof location === "number") return `location:${location}`;
+
+  const index = bookmark?.index;
+  if (typeof index === "number") return `index:${index}`;
+
+  if (cfi) return `cfi:${cfi}`;
+  return null;
+};
+
+const pickNewerBookmark = (existing, incoming) => {
+  if (!existing) return incoming;
+  const incomingUpdatedAt = getBookmarkUpdatedAt(incoming);
+  const existingUpdatedAt = getBookmarkUpdatedAt(existing);
+  if (incomingUpdatedAt > existingUpdatedAt) return incoming;
+  if (incomingUpdatedAt < existingUpdatedAt) return existing;
+  if (!existing.label && incoming?.label) return incoming;
+  return existing;
+};
+
+// デフォルトデータ構造（設定はSSOTから参照）
+const defaultData = {
+  ...DEFAULT_DATA_SHAPE,
+  settings: { ...DEFAULT_SETTINGS },
+};
+
+// デバイス情報取得関数をエクスポート
+export { getDeviceInfo };
+
+export class StorageService {
+  constructor(key = STORAGE_KEY) {
+    this.key = key;
+    this.data = this.load();
+  }
+
+  load() {
+    try {
+      const raw = localStorage.getItem(this.key);
+      if (!raw) return { ...defaultData };
+      const parsed = JSON.parse(raw);
+      const settings = {
+        ...defaultData.settings,
+        ...(parsed.settings ?? {}),
+      };
+      const deviceNormalized = ensureDeviceSettings(settings);
+      const normalizedSettings = deviceNormalized.settings;
+
+      const normalizedSource = normalizeStorageSource(settings.source) ?? STORAGE_SOURCE_DEFAULT;
+      const normalizedDestination = normalizeStorageSource(settings.saveDestination);
+      const notionIntegration = {
+        ...NOTION_DEFAULT_SETTINGS,
+        ...(settings.notionIntegration ?? {}),
+      };
+      const normalizedNotionStatus =
+        Object.values(NOTION_INTEGRATION_STATUS).includes(notionIntegration.status)
+          ? notionIntegration.status
+          : NOTION_DEFAULT_SETTINGS.status;
+      const data = {
+        ...defaultData,
+        ...parsed,
+        library: parsed.library ?? {},
+        bookmarks: parsed.bookmarks ?? {},
+        progress: parsed.progress ?? {},
+        history: parsed.history ?? [],
+        cloudIndex: parsed.cloudIndex ?? {},
+        cloudStates: parsed.cloudStates ?? {},
+        cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
+        bookLinkMap: parsed.bookLinkMap ?? {},
+        settings: {
+          ...normalizedSettings,
+          syncEnabled: normalizedSettings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: normalizedSettings.lastSyncAt ?? defaultData.settings.lastSyncAt,
+          lastIndexSyncAt: normalizedSettings.lastIndexSyncAt ?? defaultData.settings.lastIndexSyncAt, // SSOT: D1インデックス同期時刻
+          apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
+          endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
+          d1Endpoint:
+            normalizedSettings.d1Endpoint ||
+            normalizedSettings.firebaseEndpoint ||
+            normalizedSettings.firebaseSyncEndpoint ||
+            defaultData.settings.d1Endpoint,
+          source: normalizedSource || defaultData.settings.source,
+          saveDestination:
+            normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
+          onedriveClientId: normalizedSettings.onedriveClientId || defaultData.settings.onedriveClientId,
+          onedriveRedirectUri: normalizedSettings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
+          onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
+          onedriveFileId: normalizedSettings.onedriveFileId || defaultData.settings.onedriveFileId,
+          onedriveToken: normalizedSettings.onedriveToken || defaultData.settings.onedriveToken,
+          notionIntegration: {
+            ...NOTION_DEFAULT_SETTINGS,
+            ...notionIntegration,
+            status: normalizedNotionStatus,
+          },
+
+          autoSyncEnabled: normalizedSettings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
+        },
+      };
+      if (deviceNormalized.updated) {
+        localStorage.setItem(this.key, JSON.stringify(data));
+      }
+      return data;
+    } catch (error) {
+      console.error("ストレージの読み込みに失敗しました", error);
+      return { ...defaultData };
+    }
+  }
+
+  save() {
+    localStorage.setItem(this.key, JSON.stringify(this.data));
+  }
+
+  upsertBook(book) {
+    const existing = this.data.library[book.id] ?? {};
+    this.data.library[book.id] = {
+      ...existing,
+      ...book,
+      contentHash: book.contentHash ?? existing.contentHash,
+      updatedAt: Date.now(),
+    };
+    this.addHistory(book.id);
+    this.save();
+  }
+
+  addHistory(bookId) {
+    this.data.history = [
+      { bookId, openedAt: Date.now() },
+      ...this.data.history.filter((item) => item.bookId !== bookId),
+    ].slice(0, MAX_HISTORY_ENTRIES);
+    this.save();
+  }
+
+  addBookmark(bookId, bookmark) {
+    let list = this.data.bookmarks[bookId] ?? [];
+    const settings = this.getSettings();
+
+    if (settings.oneBookmarkPerBook) {
+      // 1冊につき1しおり設定が有効な場合は既存をクリア
+      list = [];
+    }
+
+    const incomingKey = getBookmarkKey(bookmark);
+    let updated = false;
+
+    // 同一箇所のしおりがあるか確認して更新
+    let newList = list.map((existing) => {
+      const existingKey = getBookmarkKey(existing);
+      if (incomingKey && existingKey === incomingKey) {
+        updated = true;
+        return pickNewerBookmark(existing, bookmark);
+      }
+      return existing;
+    });
+
+    if (!updated) {
+      // 新規追加
+      newList = [bookmark, ...newList];
+    }
+
+    this.data.bookmarks[bookId] = newList
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, MAX_BOOKMARKS_PER_BOOK);
+    this.save();
+  }
+
+  setBookmarks(bookId, bookmarks) {
+    this.data.bookmarks[bookId] = Array.isArray(bookmarks) ? bookmarks : [];
+    this.save();
+  }
+
+  mergeBookmarks(bookId, incomingList) {
+    if (!Array.isArray(incomingList)) return;
+
+    const currentList = this.data.bookmarks[bookId] ?? [];
+    const map = new Map();
+
+    // 既存と新規をマージ（位置キーで重複排除、updatedAt を最優先で採用）
+    [...currentList, ...incomingList].forEach((bookmark) => {
+      const key = getBookmarkKey(bookmark);
+      if (!key) return;
+      const existing = map.get(key);
+      map.set(key, pickNewerBookmark(existing, bookmark));
+    });
+
+    const mergedList = Array.from(map.values())
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, MAX_BOOKMARKS_PER_BOOK);
+
+    console.log(`[Storage] Merged bookmarks for ${bookId}: ${currentList.length} -> ${mergedList.length}`);
+    this.data.bookmarks[bookId] = mergedList;
+    this.save();
+  }
+
+  getBookmarks(bookId) {
+    return this.data.bookmarks[bookId] ?? [];
+  }
+
+  setProgress(bookId, progress) {
+    this.data.progress[bookId] = {
+      ...(this.data.progress[bookId] ?? {}),
+      ...progress,
+      // 指定がなければ現在時刻を使用、あればそれを尊重（クラウド同期用）
+      updatedAt: progress.updatedAt ?? Date.now(),
+    };
+    this.save();
+  }
+
+  getProgress(bookId) {
+    return this.data.progress[bookId];
+  }
+
+  removeBookmark(bookId, createdAt) {
+    const list = this.data.bookmarks[bookId] ?? [];
+    this.data.bookmarks[bookId] = list.filter((b) => b.createdAt !== createdAt);
+    this.save();
+  }
+
+  removeHistory(bookId) {
+    this.data.history = this.data.history.filter((item) => item.bookId !== bookId);
+    this.save();
+  }
+
+  /**
+   * ライブラリから書籍を削除（メタデータ、進捗、しおり、履歴も削除）
+   * @param {string} bookId - 削除する書籍のID
+   */
+  removeBook(bookId) {
+    if (!bookId) return;
+
+    // リンクされたクラウドIDを取得
+    const cloudBookId = this.data.bookLinkMap[bookId];
+
+    // ライブラリから削除
+    delete this.data.library[bookId];
+    // 進捗を削除
+    delete this.data.progress[bookId];
+    // しおりを削除
+    delete this.data.bookmarks[bookId];
+    // 履歴から削除
+    this.data.history = this.data.history.filter((item) => item.bookId !== bookId);
+    // bookLinkMapから削除
+    delete this.data.bookLinkMap[bookId];
+
+    // クラウドデータも削除
+    if (cloudBookId) {
+      this.removeCloudData(cloudBookId);
+    }
+
+    this.save();
+  }
+
+  /**
+   * クラウドインデックスから書籍情報を削除
+   * @param {string} cloudBookId 
+   */
+  removeCloudData(cloudBookId) {
+    if (!cloudBookId) return;
+    delete this.data.cloudIndex[cloudBookId];
+    delete this.data.cloudStates[cloudBookId];
+    this.save();
+  }
+
+  setHistoryEntries(bookId, entries) {
+    const filtered = this.data.history.filter((item) => item.bookId !== bookId);
+    const normalized = Array.isArray(entries)
+      ? entries.map((entry) => ({ bookId, openedAt: entry?.openedAt ?? Date.now() }))
+      : [];
+    this.data.history = [...normalized, ...filtered].slice(0, MAX_HISTORY_ENTRIES);
+    this.save();
+  }
+
+  setSettings(settings) {
+    this.data.settings = { ...this.data.settings, ...settings };
+    this.save();
+  }
+
+  getSettings() {
+    return this.data.settings;
+  }
+
+  exportData() {
+    return JSON.stringify(this.data, null, 2);
+  }
+
+  snapshot() {
+    return JSON.parse(JSON.stringify(this.data));
+  }
+
+  importData(json) {
+    try {
+      const parsed = JSON.parse(json);
+      const settings = {
+        ...defaultData.settings,
+        ...(parsed.settings ?? {}),
+      };
+      const deviceNormalized = ensureDeviceSettings(settings);
+      const normalizedSettings = deviceNormalized.settings;
+
+      const normalizedSource = settings.source === "drive" ? "local" : settings.source;
+      const normalizedDestination = settings.saveDestination === "drive" ? "local" : settings.saveDestination;
+      this.data = {
+        ...defaultData,
+        ...parsed,
+        library: parsed.library ?? {},
+        bookmarks: parsed.bookmarks ?? {},
+        progress: parsed.progress ?? {},
+        history: parsed.history ?? [],
+        cloudIndex: parsed.cloudIndex ?? {},
+        cloudStates: parsed.cloudStates ?? {},
+        cloudIndexUpdatedAt: parsed.cloudIndexUpdatedAt ?? null,
+        bookLinkMap: parsed.bookLinkMap ?? {},
+        settings: {
+          ...normalizedSettings,
+          syncEnabled: normalizedSettings.syncEnabled ?? defaultData.settings.syncEnabled,
+          lastSyncAt: normalizedSettings.lastSyncAt ?? defaultData.settings.lastSyncAt,
+          lastIndexSyncAt: normalizedSettings.lastIndexSyncAt ?? defaultData.settings.lastIndexSyncAt, // SSOT: D1インデックス同期時刻
+          apiKey: normalizedSettings.apiKey || defaultData.settings.apiKey,
+          endpoint: normalizedSettings.endpoint || defaultData.settings.endpoint,
+          d1Endpoint:
+            normalizedSettings.d1Endpoint ||
+            normalizedSettings.firebaseEndpoint ||
+            normalizedSettings.firebaseSyncEndpoint ||
+            defaultData.settings.d1Endpoint,
+          source: normalizedSource || defaultData.settings.source,
+          saveDestination: normalizedDestination || normalizedSource || defaultData.settings.saveDestination,
+          onedriveClientId: normalizedSettings.onedriveClientId || defaultData.settings.onedriveClientId,
+          onedriveRedirectUri: normalizedSettings.onedriveRedirectUri || defaultData.settings.onedriveRedirectUri,
+          onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
+          onedriveFileId: normalizedSettings.onedriveFileId || defaultData.settings.onedriveFileId,
+          onedriveToken: normalizedSettings.onedriveToken || defaultData.settings.onedriveToken,
+
+          autoSyncEnabled: normalizedSettings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
+        },
+      };
+      this.save();
+    } catch (error) {
+      throw new Error("JSON の読み込みに失敗しました");
+    }
+  }
+
+  mergeData(incoming) {
+    const parsed = typeof incoming === "string" ? JSON.parse(incoming) : incoming;
+    const normalized = {
+      ...defaultData,
+      ...parsed,
+      library: parsed?.library ?? {},
+      bookmarks: parsed?.bookmarks ?? {},
+      progress: parsed?.progress ?? {},
+      history: parsed?.history ?? [],
+      cloudIndex: parsed?.cloudIndex ?? {},
+      cloudStates: parsed?.cloudStates ?? {},
+      cloudIndexUpdatedAt: parsed?.cloudIndexUpdatedAt ?? null,
+      bookLinkMap: parsed?.bookLinkMap ?? {},
+    };
+
+    const mergedLibrary = { ...this.data.library };
+    Object.entries(normalized.library).forEach(([id, book]) => {
+      const existing = mergedLibrary[id];
+      const incomingUpdatedAt = book?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedLibrary[id] = { ...existing, ...book };
+      } else {
+        mergedLibrary[id] = { ...book, ...existing };
+      }
+    });
+
+    const mergedBookmarks = { ...this.data.bookmarks };
+    Object.entries(normalized.bookmarks).forEach(([bookId, incomingList]) => {
+      const currentList = mergedBookmarks[bookId] ?? [];
+      const map = new Map();
+      [...incomingList, ...currentList].forEach((bookmark) => {
+        const key = getBookmarkKey(bookmark);
+        if (!key) return;
+        const existing = map.get(key);
+        map.set(key, pickNewerBookmark(existing, bookmark));
+      });
+      const mergedList = Array.from(map.values())
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+        .slice(0, STORAGE_CONFIG.MAX_BOOKMARKS_PER_BOOK);
+      mergedBookmarks[bookId] = mergedList;
+    });
+
+    const mergedHistoryMap = new Map();
+    [...(this.data.history ?? []), ...(normalized.history ?? [])].forEach((entry) => {
+      if (!entry?.bookId) return;
+      const existing = mergedHistoryMap.get(entry.bookId);
+      if (!existing || (entry.openedAt ?? 0) > (existing.openedAt ?? 0)) {
+        mergedHistoryMap.set(entry.bookId, entry);
+      }
+    });
+    const mergedHistory = Array.from(mergedHistoryMap.values()).sort(
+      (a, b) => (b.openedAt ?? 0) - (a.openedAt ?? 0),
+    );
+
+    const mergedProgress = { ...this.data.progress };
+    Object.entries(normalized.progress).forEach(([bookId, incomingProgress]) => {
+      const existing = mergedProgress[bookId];
+      const incomingUpdatedAt = incomingProgress?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedProgress[bookId] = { ...existing, ...incomingProgress };
+      } else {
+        mergedProgress[bookId] = { ...incomingProgress, ...existing };
+      }
+    });
+
+    const mergedCloudIndex = { ...this.data.cloudIndex };
+    Object.entries(normalized.cloudIndex ?? {}).forEach(([cloudBookId, incomingMeta]) => {
+      const existing = mergedCloudIndex[cloudBookId];
+      const incomingUpdatedAt = incomingMeta?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedCloudIndex[cloudBookId] = { ...existing, ...incomingMeta };
+      } else {
+        mergedCloudIndex[cloudBookId] = { ...incomingMeta, ...existing };
+      }
+    });
+
+    const mergedCloudStates = { ...this.data.cloudStates };
+    Object.entries(normalized.cloudStates ?? {}).forEach(([cloudBookId, incomingState]) => {
+      const existing = mergedCloudStates[cloudBookId];
+      const incomingUpdatedAt = incomingState?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        mergedCloudStates[cloudBookId] = { ...existing, ...incomingState };
+      } else {
+        mergedCloudStates[cloudBookId] = { ...incomingState, ...existing };
+      }
+    });
+
+    const mergedBookLinkMap = { ...this.data.bookLinkMap, ...normalized.bookLinkMap };
+
+    this.data = {
+      ...this.data,
+      library: mergedLibrary,
+      bookmarks: mergedBookmarks,
+      progress: mergedProgress,
+      history: mergedHistory,
+      cloudIndex: mergedCloudIndex,
+      cloudStates: mergedCloudStates,
+      cloudIndexUpdatedAt: normalized.cloudIndexUpdatedAt ?? this.data.cloudIndexUpdatedAt,
+      bookLinkMap: mergedBookLinkMap,
+      settings: this.data.settings,
+    };
+    const deviceNormalized = ensureDeviceSettings(this.data.settings ?? defaultData.settings);
+    if (deviceNormalized.updated) {
+      this.data.settings = deviceNormalized.settings;
+    }
+    this.save();
+  }
+
+  getCloudBookId(localBookId) {
+    return this.data.bookLinkMap?.[localBookId] ?? null;
+  }
+
+  setBookLink(localBookId, cloudBookId) {
+    if (!localBookId || !cloudBookId) return;
+    this.data.bookLinkMap = {
+      ...(this.data.bookLinkMap ?? {}),
+      [localBookId]: cloudBookId,
+    };
+    this.save();
+  }
+
+  mergeCloudIndex(index, updatedAt = null) {
+    if (!index || typeof index !== "object") return;
+    const merged = { ...(this.data.cloudIndex ?? {}) };
+    Object.entries(index).forEach(([cloudBookId, meta]) => {
+      const existing = merged[cloudBookId];
+      const incomingUpdatedAt = meta?.updatedAt ?? 0;
+      const existingUpdatedAt = existing?.updatedAt ?? 0;
+      if (!existing || incomingUpdatedAt > existingUpdatedAt) {
+        merged[cloudBookId] = { ...existing, ...meta };
+      } else {
+        merged[cloudBookId] = { ...meta, ...existing };
+      }
+    });
+    this.data.cloudIndex = merged;
+    if (updatedAt) {
+      this.data.cloudIndexUpdatedAt = updatedAt;
+    }
+    this.save();
+  }
+
+  setCloudIndexUpdatedAt(updatedAt) {
+    if (!updatedAt) return;
+    this.data.cloudIndexUpdatedAt = updatedAt;
+    this.save();
+  }
+
+  setCloudState(cloudBookId, state) {
+    if (!cloudBookId || !state) return;
+    const existing = this.data.cloudStates?.[cloudBookId];
+    const incomingUpdatedAt = state?.updatedAt ?? 0;
+    const existingUpdatedAt = existing?.updatedAt ?? 0;
+    if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+      this.data.cloudStates = {
+        ...(this.data.cloudStates ?? {}),
+        [cloudBookId]: state,
+      };
+      this.save();
+    }
+  }
+
+  getCloudState(cloudBookId) {
+    return this.data.cloudStates?.[cloudBookId] ?? null;
+  }
+}
+
+```
+
+### docs/CORE_PRINCIPLES.md
+
+```markdown
+# AIコーディング基本原則
+
+本ドキュメントは、AIによるコーディング作業において**常に遵守すべき基本原則**を定める。
+すべての開発作業の開始時に本ドキュメントを読み込み、作業中も常に意識すること。
+
+---
+
+## 絶対遵守事項
+
+以下の規則は**いかなる場合も違反してはならない**。
+
+### 1. SSOT（Single Source of Truth）の厳守
+
+**あなたは設定値・定数・識別子をコード内に直接記述してはならない。**
+
+- 定数は専用ファイル（`constants/` 等）に集約しなければならない
+- 同じ値が2箇所以上に存在してはならない
+- 既存の定数定義を確認せずに新しい値を追加してはならない
+
+**違反時の影響**: 値の変更時に修正漏れが発生し、動作不整合やバグの原因となる
+
+### 2. 既存構造の保護
+
+**あなたは既存のモジュール構造・初期化順序・依存関係を破壊してはならない。**
+
+- 新規コードは既存のパターンに従って追加しなければならない
+- 依存注入（`init(config)`等）のパターンが存在する場合、それを維持しなければならない
+- ファイルの読み込み順序に依存する処理を変更してはならない
+
+**違反時の影響**: 初期化エラー、未定義参照、機能の完全な破壊
+
+### 3. コメントによる意図の明示
+
+**あなたはコメントなしでコードを追加・変更してはならない。**
+
+- 新規関数には目的・引数・戻り値を記述しなければならない
+- 複雑なロジックには「なぜそうするのか」を記述しなければならない
+- 既存コメントと矛盾する変更を行う場合、コメントも更新しなければならない
+
+**違反時の影響**: 後続の修正で意図が伝わらず、誤った変更が行われる
+
+### 4. 変更前の確認義務
+
+**あなたはコードを変更する前に、その影響範囲を確認しなければならない。**
+
+- 変更対象が他のファイルから参照されているか確認すること
+- 関数のシグネチャを変更する場合、すべての呼び出し元を確認すること
+- 定数やクラス名を変更する場合、全ファイルを検索すること
+
+**違反時の影響**: 参照切れ、未定義エラー、予期しない動作
+
+---
+
+## 作業開始時の必須手順
+
+新しい作業を開始する前に、以下を必ず実行すること。
+
+### 1. プロジェクト構造の把握
+
+```bash
+# ディレクトリ構成を確認
+ls -la
+ls -la src/ assets/ # 等、主要ディレクトリ
+
+# ドキュメントを確認
+cat README.md
+cat docs/ai-coding/*.md  # 本ガイドライン群
+```
+
+### 2. 既存パターンの確認
+
+- 定数管理の方式（`constants/` の構成）
+- モジュールの初期化パターン（`init()` の有無）
+- コメントの書式（JSDoc、セクション区切り等）
+
+### 3. 関連ガイドラインの参照
+
+作業内容に応じて、以下の詳細ガイドを参照すること。
+
+| 作業内容 | 参照ドキュメント |
+|----------|------------------|
+| 定数・設定値の追加 | [SSOT_GUIDE.md](./SSOT_GUIDE.md) |
+| 新機能の追加 | [MODULE_GUIDE.md](./MODULE_GUIDE.md) |
+| コメント・ドキュメント | [COMMENT_GUIDE.md](./COMMENT_GUIDE.md) |
+| コード分割・リファクタリング | [REFACTOR_GUIDE.md](./REFACTOR_GUIDE.md) |
+
+---
+
+## 禁止事項チェックリスト
+
+作業完了時に以下を確認すること。
+
+- [ ] マジックナンバー・ハードコーディングを追加していないか
+- [ ] 既存の定数を参照せず、同じ値を新規に書いていないか
+- [ ] 関数・変数の目的を示すコメントを書いたか
+- [ ] 既存の初期化順序・依存関係を壊していないか
+- [ ] 変更した箇所の参照元をすべて確認したか
+
+---
+
+## 例外の取り扱い
+
+原則に従えない正当な理由がある場合：
+
+1. **理由をコメントで明記**すること
+2. **将来の修正方針**を記述すること
+3. ユーザーに**例外である旨を報告**すること
+
+```javascript
+// TODO: 暫定的なハードコーディング
+// 理由: APIの仕様確定待ち
+// 方針: 仕様確定後にconstants/api.jsへ移動
+const TEMP_ENDPOINT = "https://example.com/api";
+```
+
+---
+
+## 本原則の位置づけ
+
+- 本ドキュメントは**最上位の規則**である
+- 他のガイドラインと矛盾する場合、本原則が優先される
+- 不明点がある場合は、作業前にユーザーに確認すること
+
+```
+
+### FULLSCREEN_REPAGINATION_DEBUG.md
+
+```markdown
+# 全画面切替時のリペジネーション修正 - トラブルシューティング記録
+
+## 問題
+全画面（Fullscreen API）切替時にEPUBの文章量再計算（リペジネーション）が失敗する。
+
+## 試行 1: fullscreenchange で debouncedResizeHandler() を呼ぶ (commit 330a5f0)
+
+### 変更内容
+```javascript
+document.addEventListener('fullscreenchange', () => {
+  updateFullscreenButtonLabel();
+  debouncedResizeHandler();
+});
+```
+
+### 結果: 失敗 — PaginationCancelledError
+
+### 原因分析
+`fullscreenchange` はビューポート変更**前**に発火する。そのため:
+
+1. T=0ms: `fullscreenchange` 発火 → `debouncedResizeHandler()` 呼び出し（タイマー開始）
+2. T=0+ε: `window.resize` 発火 → `ui.js` デバウンス開始 (250ms)
+3. T=250ms: debouncedResizeHandler タイマー発火 → `handleResize(requestId=1)` 開始
+4. T=250+ε: ui.js デバウンス発火 → `onResize` → `debouncedResizeHandler()` 再呼び出し（タイマーリセット）
+5. T=500ms: debouncedResizeHandler タイマー発火 → `handleResize(requestId=2)` 開始 → requestId=1 をキャンセル
+
+2重トリガーにより、先のリペジネーションが必ずキャンセルされる。
+
+### コンソール証跡
+```
+// Enter fullscreen:
+app.js:495 [onResize] handleResize (debounced 250ms)              ← fullscreenchange経由
+reader.js:399 handleResize: リペジネーション開始 (requestId=1)
+ui.js:79 Window resized: 2005x1440                                 ← window.resize発火
+app.js:495 [onResize] handleResize (debounced 250ms)               ← window.resize経由
+reader.js:399 handleResize: リペジネーション開始 (requestId=2)       ← requestId=1キャンセル
+reader.js:444 handleResize: リペジネーション失敗 PaginationCancelledError
+
+// Exit fullscreen:
+app.js:495 [onResize] handleResize (debounced 250ms)
+reader.js:399 handleResize: リペジネーション開始 (requestId=3)       ← requestId=2キャンセル
+reader.js:444 handleResize: リペジネーション失敗 PaginationCancelledError
+ui.js:79 Window resized: 713x578
+app.js:495 [onResize] handleResize (debounced 250ms)
+reader.js:399 handleResize: リペジネーション開始 (requestId=4)       ← requestId=3キャンセル
+reader.js:444 handleResize: リペジネーション失敗 PaginationCancelledError
+```
+
+### 調査結果
+- [x] `updateEpubTheme` は `repaginate()` を呼ばない（CSS適用のみ）
+- [x] `EpubPaginator.runPagination()` が前の実行を `cancelled=true` でキャンセルする仕組み
+- [x] `fullscreenchange` からの呼び出しは有害（`window.resize`と2重トリガーになる）
+- [x] 解決策: `fullscreenchange`では`window.resize`未発火時のみフォールバック
+
+---
+
+## 試行 2: requestAnimationFrame + resize未発火フォールバック
+
+### 変更内容
+```javascript
+let prevInnerWidth = window.innerWidth;
+let prevInnerHeight = window.innerHeight;
+document.addEventListener('fullscreenchange', () => {
+  updateFullscreenButtonLabel();
+  requestAnimationFrame(() => {
+    const widthChanged = window.innerWidth !== prevInnerWidth;
+    const heightChanged = window.innerHeight !== prevInnerHeight;
+    prevInnerWidth = window.innerWidth;
+    prevInnerHeight = window.innerHeight;
+    if (widthChanged || heightChanged) {
+      return; // window.resize が発火するはず → そちらに任せる
+    }
+    debouncedResizeHandler(); // resize 未発火時のフォールバック
+  });
+});
+```
+
+### 方針
+- `window.resize` が発火する（ビューポートサイズ変更あり）場合: 既存の ui.js → onResize → debouncedResizeHandler パスに任せる
+- `window.resize` が発火しない場合のみ: フォールバックとして debouncedResizeHandler を呼ぶ
+- `requestAnimationFrame` でビューポート変更確定後にチェック
+
+### 結果: (テスト待ち)
+
+---
+
+```
+

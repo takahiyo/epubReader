@@ -253,6 +253,11 @@ export class ReaderController {
     this.transformFrame = null;
     this.pendingTransform = false;
 
+    if (this.imageElement) {
+      this.imageElement.onload = () => this.showImageLoading(false);
+      this.imageElement.onerror = () => this.showImageLoading(false);
+    }
+
     this._pendingScrollToSegment = null;
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
@@ -266,6 +271,21 @@ export class ReaderController {
     this.bindZoomEvents();
     this.bindEpubScrollEvents();
     this.setupZoomSlider();
+  }
+
+  showImageLoading(isLoading) {
+    if (!this.imageViewer) return;
+    if (isLoading) {
+      this.imageViewer.classList.add("is-loading");
+      if (this.imageElement && this.imageViewMode === IMAGE_VIEW_MODES.SINGLE) {
+        this.imageElement.style.opacity = '0';
+      }
+    } else {
+      this.imageViewer.classList.remove("is-loading");
+      if (this.imageElement) {
+        this.imageElement.style.opacity = '';
+      }
+    }
   }
 
   bindEpubScrollEvents() {
@@ -411,6 +431,12 @@ export class ReaderController {
     this.pinchStartScale = 1.0;
     if (typeof document !== 'undefined') {
       document.body.classList.remove(UI_CLASSES.IS_ZOOMED);
+      const container = document.getElementById(DOM_IDS.FULLSCREEN_READER);
+      if (container) {
+        container.classList.remove(UI_CLASSES.EPUB_SCROLL);
+        container.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        container.classList.remove('show-mode-indicator');
+      }
       const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
       if (slider) slider.value = this.getZoomConfig().min;
     }
@@ -2915,7 +2941,8 @@ export class ReaderController {
       return objectUrl;
     } catch (error) {
       const pageNumber = index + 1;
-      const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）`;
+      const detail = error?.message || String(error);
+      const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）\n\n詳細: ${detail}`;
       console.error(message, error);
       this.imagePageErrors[index] = message;
       this.emitLoadingUpdate({
@@ -2989,6 +3016,8 @@ export class ReaderController {
     // 横長判定: プリロードされた画像データから判定するのは難しいが、
     // Imageオブジェクトを一時生成してチェックするか、キャッシュ済みの情報を利用する。
     // ここでは描画時に判定して動的にモード切替相当の処理を行うアプローチをとる。
+
+    this.showImageLoading(true);
 
     // 見開きモードの場合
     if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD && this.imageViewer) {
@@ -3080,8 +3109,15 @@ export class ReaderController {
 
   renderSinglePageWithStyle(index, isWideSpread = false) {
     if (!this.imageElement) return;
+    this.showImageLoading(true);
 
-    this.imageElement.src = this.imagePages[index] || "";
+    if (this.imagePages[index]) {
+      this.imageElement.src = this.imagePages[index];
+    } else {
+      // 未完了時に空文字を設定するとonerrorが即時発火してローディングが消えるのを防ぐ
+      this.imageElement.removeAttribute("src");
+    }
+    
     this.imageElement.style.display = '';
 
     // 単ページでも画像書庫ならクリック無効化
@@ -3164,6 +3200,10 @@ export class ReaderController {
     if (isWide) {
       // --- ワイド画像 (1枚表示) ---
       const img = document.createElement('img');
+      img.onload = () => {
+        if (targetIndex === this.imageIndex) this.showImageLoading(false);
+      };
+      img.onerror = () => this.showImageLoading(false);
       img.src = page1Src;
       img.className = 'spread-page wide'; //.wide -> max-width: 100%
       if (this.type !== BOOK_TYPES.EPUB) img.style.pointerEvents = "none";
@@ -3201,21 +3241,37 @@ export class ReaderController {
         const leftImgSrc = page1Src;
         const rightImgSrc = page2Src;
 
-        const leftImg = document.createElement('img');
-        leftImg.src = leftImgSrc;
-        leftImg.className = 'spread-page spread-left';
-        if (this.type !== BOOK_TYPES.EPUB) leftImg.style.pointerEvents = "none";
-        container.appendChild(leftImg);
+          const leftImg = document.createElement('img');
+          const rightImg = document.createElement('img');
+          let loadedCount = 0;
+          const onAnyLoad = () => {
+            loadedCount++;
+            if (loadedCount >= 2 && targetIndex === this.imageIndex) {
+              this.showImageLoading(false);
+            }
+          };
+          leftImg.onload = onAnyLoad;
+          rightImg.onload = onAnyLoad;
+          leftImg.onerror = () => this.showImageLoading(false);
+          rightImg.onerror = () => this.showImageLoading(false);
 
-        const rightImg = document.createElement('img');
-        rightImg.src = rightImgSrc;
-        rightImg.className = 'spread-page spread-right';
-        if (this.type !== BOOK_TYPES.EPUB) rightImg.style.pointerEvents = "none";
-        container.appendChild(rightImg);
+          leftImg.src = leftImgSrc;
+          leftImg.className = 'spread-page spread-left';
+          if (this.type !== BOOK_TYPES.EPUB) leftImg.style.pointerEvents = "none";
+          container.appendChild(leftImg);
+
+          rightImg.src = rightImgSrc;
+          rightImg.className = 'spread-page spread-right';
+          if (this.type !== BOOK_TYPES.EPUB) rightImg.style.pointerEvents = "none";
+          container.appendChild(rightImg);
 
       } else {
         // 1枚表示（ペア相手がいない、または次がワイド）
         const img1 = document.createElement('img');
+        img1.onload = () => {
+          if (targetIndex === this.imageIndex) this.showImageLoading(false);
+        };
+        img1.onerror = () => this.showImageLoading(false);
         img1.src = page1Src;
         img1.className = 'spread-page single-view';
         if (this.type !== BOOK_TYPES.EPUB) img1.style.pointerEvents = "none";
@@ -3300,7 +3356,12 @@ export class ReaderController {
 
     // エラー済みの場合もリトライを試みる（一時的なエラーの可能性があるため）
     const objectUrl = await this.convertImageAtIndex(index, { reportError: true, retry: true });
-    if (!objectUrl) return;
+    if (!objectUrl) {
+      if (currentToken === this.imageLoadToken) {
+        this.showImageLoading(false);
+      }
+      return;
+    }
     if (currentToken === this.imageLoadToken) {
       this.imageElement.src = objectUrl;
       this.imageElement.alt = "ページ画像";
