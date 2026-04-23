@@ -293,10 +293,14 @@ export class StreamingZipHandler {
                      writer = new zipLib.BlobWriter(mimeType);
                 }
                 
-                // 個別画像の展開にタイムアウトを設定（1枚あたり最大30秒）
+                // 個別画像の展開にタイムアウトを設定（大容量ファイル向けに閾値を緩和）
+                const timeoutMs = this.file.size > 1024 * 1024 * 1024 ? 120000 : 60000;
+                const compressionMethod = entry.compressionMethod === 0 ? "STORE" : "DEFLATE";
+                console.log(`[StreamingZip] starting extraction: ${fileName}, size=${entry.uncompressedSize}, method=${compressionMethod}, timeout=${timeoutMs/1000}s`);
+
                 let data = await withTimeout(
                     entry.getData(writer),
-                    30000,
+                    timeoutMs,
                     `画像の展開 (${fileName})`
                 );
                 
@@ -323,9 +327,10 @@ export class StreamingZipHandler {
         }
 
         // OPFS非対応または失敗時のフォールバック (従来のメモリ展開)
+        const fallbackTimeoutMs = this.file.size > 1024 * 1024 * 1024 ? 120000 : 60000;
         const blob = await withTimeout(
             entry.getData(new zipLib.BlobWriter(mimeType)),
-            30000,
+            fallbackTimeoutMs,
             `画像の展開 (${fileName} - fallback)`
         );
         console.timeEnd(`[StreamingZip] extract: ${fileName}`);
