@@ -690,31 +690,37 @@ export class RarHandler extends ArchiveHandler {
     const mimeType = resolveImageMimeType(path);
     const fileName = path.split('/').pop();
     
-    // OPFSへオフロードし、メインメモリの消費を抑える
-    const { createOPFSWritableStream, closeOPFSStream } = await import("../../fileStore.js");
+    const { createOPFSWritableStream, closeOPFSStream, isOPFSAvailable } = await import("../../fileStore.js");
     const cacheId = `RAR_CHUNK_${btoa(unescape(encodeURIComponent(path))).replace(/[=+\/]/g, '')}`;
 
-    let fileHandleObj;
-    let writableStream;
-    try {
-      const opfs = await createOPFSWritableStream(cacheId, { mime: mimeType, fileName });
-      writableStream = opfs.writable;
-      fileHandleObj = opfs.fileHandle;
-      
-      // Blobを経由せずにUint8Array等のバッファを直接ストリームに書き込む
-      await writableStream.write(dataBuffer);
-      await closeOPFSStream(writableStream);
-      
-      // GCの強制誘導: オフロード完了後に参照を完全に絶ち、setTimeoutでブラウザへ解放を促す
-      dataBuffer = null;
-      await new Promise(resolve => setTimeout(resolve, 0));
-      
-    } catch (error) {
-      if (writableStream) await closeOPFSStream(writableStream).catch(()=>{});
-      throw error;
+    // OPFSが利用可能な場合はオフロード（Quest 3等のメモリ制限対策）
+    if (isOPFSAvailable()) {
+      let fileHandleObj;
+      let writableStream;
+      try {
+        const opfs = await createOPFSWritableStream(cacheId, { mime: mimeType, fileName });
+        writableStream = opfs.writable;
+        fileHandleObj = opfs.fileHandle;
+        
+        // Blobを経由せずにUint8Array等のバッファを直接ストリームに書き込む
+        await writableStream.write(dataBuffer);
+        await closeOPFSStream(writableStream);
+        
+        // GCの強制誘導: オフロード完了後に参照を完全に絶ち、setTimeoutでブラウザへ解放を促す
+        dataBuffer = null;
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        return await fileHandleObj.getFile();
+      } catch (error) {
+        if (writableStream) await closeOPFSStream(writableStream).catch(()=>{});
+        console.warn("[RarHandler] OPFS offload failed, falling back to Blob", error);
+      }
     }
 
-    return await fileHandleObj.getFile();
+    // OPFS非対応または失敗時のフォールバック
+    const blob = new Blob([dataBuffer], { type: mimeType });
+    dataBuffer = null;
+    return blob;
   }
 
   /**

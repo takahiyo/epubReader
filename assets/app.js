@@ -870,7 +870,7 @@ async function handleFile(file) {
     const type = fileHandler.detectFileType(header) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
-      alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
+      alert(translate('errorFileLoadFailed', uiLanguage));
       return;
     }
     console.log(`Detected file type: ${type}`);
@@ -886,6 +886,23 @@ async function handleFile(file) {
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
     if (useStreaming) {
       showStreamingNotice();
+    }
+
+    // Quest 3 OSバグ（リサイズハンドル消失）対策: 1GB超の場合はDistant Modeへの変更を促す
+    if (isArchiveBook && file.size > 1024 * 1024 * 1024) {
+      const isQuest = /Quest|Oculus/i.test(navigator.userAgent);
+      if (isQuest) {
+        alert(translate('largeFileDistantMode', uiLanguage));
+      }
+    }
+
+    // 巨大RAR警告: モバイル等で巨大なRAR(非ストリーミング)は展開不能な可能性がある
+    if (type === BOOK_TYPES.RAR && file.size > 500 * 1024 * 1024) {
+      const env = fileHandler.detectEnvironment();
+      if (env.isLowEnd || /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+         console.warn("[RarHandler] Large RAR on mobile detected.");
+         // 重要：RARは現状ストリーミング非対応のため500MB超は非常に不安定
+      }
     }
 
     // 3. ハッシュ計算（リトライ付き）

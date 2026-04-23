@@ -2921,7 +2921,8 @@ export class ReaderController {
       return objectUrl;
     } catch (error) {
       const pageNumber = index + 1;
-      const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）`;
+      const detail = error?.message || String(error);
+      const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）\n\n詳細: ${detail}`;
       console.error(message, error);
       this.imagePageErrors[index] = message;
       this.emitLoadingUpdate({
