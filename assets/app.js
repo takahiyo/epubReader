@@ -2534,26 +2534,8 @@ async function openFileDialog() {
     input.click();
   };
 
-  if (typeof window.showOpenFilePicker === 'function') {
-    try {
-      const fileHandles = await window.showOpenFilePicker(buildFilePickerOptions());
-      if (fileHandles.length === 0) return;
-
-      const fileHandle = fileHandles[0];
-      const file = await fileHandle.getFile();
-
-      if (file) {
-        await handleFile(file);
-      }
-      return;
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        return;
-      }
-      console.warn('showOpenFilePicker failed, falling back to legacy input:', error);
-    }
-  }
-
+  // Windows等で showOpenFilePicker がフリーズするバグがあるため、
+  // 常にレガシーな input を使用する
   openLegacyFileInput();
 }
 
