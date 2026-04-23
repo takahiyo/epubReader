@@ -72,6 +72,7 @@ let currentBookId = null;
 let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
+let isSyncResolving = false;
 let pendingCloudBookId = null;
 
 let theme = settings.theme ?? UI_DEFAULTS.theme;
@@ -359,7 +360,7 @@ function shouldPersistLocalProgress(percentage) {
 
 function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
-  if (!currentBookId || isBookLoading) return;
+  if (!currentBookId || isBookLoading || isSyncResolving) return;
 
   // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
   if (getCurrentTotalPages() <= 0) return;
@@ -848,11 +849,12 @@ function updateFullscreenButtonLabel() {
 // ファイル処理
 // ========================================
 
-async function handleFile(file) {
+async function handleFile(file, overrideBookId = null) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
   showLoading();
   userOverrodeDirection = false;
+  isSyncResolving = true; // ロック開始
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
@@ -943,6 +945,12 @@ async function handleFile(file) {
         const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
         await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
       }
+    }
+
+    // スタブ再選択時は overrideBookId を優先
+    if (overrideBookId && id !== overrideBookId) {
+      console.log(`[handleFile] Forcing id from ${id} to ${overrideBookId} due to stub reselect`);
+      id = overrideBookId;
     }
 
     // type: "epub" | "zip" | "rar" として正式に保存
@@ -1089,7 +1097,9 @@ async function handleFile(file) {
     if (floatVisible) {
       toggleFloatOverlay(false);
     }
+    isSyncResolving = false; // ジャンプ完了後にロック解除
   } catch (error) {
+    isSyncResolving = false; // エラー時もロック解除
     console.error("Error in handleFile:", error);
     console.error("Error stack:", error.stack);
     const resolvedCode = resolveErrorCode(error);
@@ -1276,17 +1286,6 @@ async function openFromLibrary(bookId, options = {}) {
       }
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
-
-      // 軽量ハッシュで同一ファイルか検証（リトライ付き）
-      const reHash = await fileHandler.readFileWithRetry(file,
-        () => fileHandler.buildArchiveFingerprint(file));
-
-      if (reHash !== info.contentHash) {
-        hideLoading();
-        alert(translate('stubHashMismatch', uiLanguage) ||
-          "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。");
-        return;
-      }
 
       // スタブファイルが正しく再選択された場合、以後の振る舞いを
       // 全て通常の「ファイルを開く」フローへ委譲し、動作を完全に統一する
