@@ -74,6 +74,7 @@ let currentCloudBookId = null;
 let isBookLoading = false;
 let isSyncResolving = false;
 let pendingCloudBookId = null;
+let deferredPrompt = null;
 
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
