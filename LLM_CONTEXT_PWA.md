@@ -37,7 +37,7 @@
     "id": "/",
     "name": "BookReader",
     "short_name": "BookReader",
-    "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "description": "ブラウザで動く軽量なEPUB/画像書庫リーダー",
     "lang": "ja",
     "categories": [
         "books",
@@ -247,6 +247,7 @@ self.addEventListener('fetch', (event) => {
 
     <!-- 画像ビューア -->
     <div id="imageViewer" class="image-viewer hidden">
+      <div class="image-viewer-loader"></div>
       <img id="pageImage" alt="" />
     </div>
 
@@ -272,8 +273,8 @@ self.addEventListener('fetch', (event) => {
     </div>
   </div>
 
-  <!-- ファイル選択（非表示） -->
-  <input type="file" id="fileInput" accept=".epub,.cbz,.zip,.rar,.cbr" class="file-input-hidden" />
+  <!-- ファイル選択（非表示） accept属性はWindowsでフリーズを引き起こすため設定しない -->
+  <input type="file" id="fileInput" class="file-input-hidden" />
 
   <!-- 左サイドメニューバックドロップ -->
   <div id="leftMenuBackdrop" class="menu-backdrop"></div>
@@ -1106,7 +1107,9 @@ let currentBookId = null;
 let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
+let isSyncResolving = false;
 let pendingCloudBookId = null;
+let deferredPrompt = null;
 
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
@@ -1393,7 +1396,7 @@ function shouldPersistLocalProgress(percentage) {
 
 function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
-  if (!currentBookId || isBookLoading) return;
+  if (!currentBookId || isBookLoading || isSyncResolving) return;
 
   // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
   if (getCurrentTotalPages() <= 0) return;
@@ -1882,11 +1885,12 @@ function updateFullscreenButtonLabel() {
 // ファイル処理
 // ========================================
 
-async function handleFile(file) {
+async function handleFile(file, overrideBookId = null) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
   showLoading();
   userOverrodeDirection = false;
+  isSyncResolving = true; // ロック開始
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
@@ -1904,7 +1908,7 @@ async function handleFile(file) {
     const type = fileHandler.detectFileType(header) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
-      alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
+      alert(translate('errorFileLoadFailed', uiLanguage));
       return;
     }
     console.log(`Detected file type: ${type}`);
@@ -1920,6 +1924,23 @@ async function handleFile(file) {
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
     if (useStreaming) {
       showStreamingNotice();
+    }
+
+    // Quest 3 OSバグ（リサイズハンドル消失）対策: 1GB超の場合はDistant Modeへの変更を促す
+    if (isArchiveBook && file.size > 1024 * 1024 * 1024) {
+      const isQuest = /Quest|Oculus/i.test(navigator.userAgent);
+      if (isQuest) {
+        alert(translate('largeFileDistantMode', uiLanguage));
+      }
+    }
+
+    // 巨大RAR警告: モバイル等で巨大なRAR(非ストリーミング)は展開不能な可能性がある
+    if (type === BOOK_TYPES.RAR && file.size > 500 * 1024 * 1024) {
+      const env = fileHandler.detectEnvironment();
+      if (env.isLowEnd || /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+         console.warn("[RarHandler] Large RAR on mobile detected.");
+         // 重要：RARは現状ストリーミング非対応のため500MB超は非常に不安定
+      }
     }
 
     // 3. ハッシュ計算（リトライ付き）
@@ -1960,6 +1981,12 @@ async function handleFile(file) {
         const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
         await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
       }
+    }
+
+    // スタブ再選択時は overrideBookId を優先
+    if (overrideBookId && id !== overrideBookId) {
+      console.log(`[handleFile] Forcing id from ${id} to ${overrideBookId} due to stub reselect`);
+      id = overrideBookId;
     }
 
     // type: "epub" | "zip" | "rar" として正式に保存
@@ -2106,7 +2133,9 @@ async function handleFile(file) {
     if (floatVisible) {
       toggleFloatOverlay(false);
     }
+    isSyncResolving = false; // ジャンプ完了後にロック解除
   } catch (error) {
+    isSyncResolving = false; // エラー時もロック解除
     console.error("Error in handleFile:", error);
     console.error("Error stack:", error.stack);
     const resolvedCode = resolveErrorCode(error);
@@ -2293,17 +2322,6 @@ async function openFromLibrary(bookId, options = {}) {
       }
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
-
-      // 軽量ハッシュで同一ファイルか検証（リトライ付き）
-      const reHash = await fileHandler.readFileWithRetry(file,
-        () => fileHandler.buildArchiveFingerprint(file));
-
-      if (reHash !== info.contentHash) {
-        hideLoading();
-        alert(translate('stubHashMismatch', uiLanguage) ||
-          "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。");
-        return;
-      }
 
       // スタブファイルが正しく再選択された場合、以後の振る舞いを
       // 全て通常の「ファイルを開く」フローへ委譲し、動作を完全に統一する
@@ -3497,13 +3515,15 @@ function buildFilePickerOptions() {
 }
 
 function ensureLegacyFileInput() {
-  const acceptValue = FILE_INPUT_ACCEPT.join(",");
   const existing = elements.fileInput ?? document.getElementById(DOM_IDS.LEGACY_FILE_INPUT);
   if (existing) {
-    existing.accept = acceptValue;
+    // Windowsのファイルピッカーフリーズ対策: accept属性によるOS側ファイルスキャンを抑制する
+    existing.removeAttribute('accept');
+    console.log('[openFileDialog] ensureLegacyFileInput: using existing element', existing.id);
     if (existing !== elements.fileInput && existing.dataset.listenerAttached !== "true") {
       existing.addEventListener("change", (e) => {
         const file = e.target.files?.[0];
+        console.log('[openFileDialog] file selected via existing input:', file?.name, file?.type, file?.size);
         if (file) {
           handleFile(file);
         } else {
@@ -3516,13 +3536,16 @@ function ensureLegacyFileInput() {
     return existing;
   }
 
+  console.log('[openFileDialog] ensureLegacyFileInput: creating new input element');
   const input = document.createElement("input");
   input.type = "file";
   input.id = DOM_IDS.LEGACY_FILE_INPUT;
-  input.accept = acceptValue;
+  // Windowsのファイルピッカーフリーズ対策: accept属性を設定しない
+  // (accept属性はWindowsがディレクトリ内ファイルを全スキャンしフリーズを引き起こす)
   input.style.display = "none";
   input.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
+    console.log('[openFileDialog] file selected via new input:', file?.name, file?.type, file?.size);
     if (file) {
       handleFile(file);
     } else {
@@ -3536,42 +3559,18 @@ function ensureLegacyFileInput() {
 }
 
 async function openFileDialog() {
-
-  const openLegacyFileInput = () => {
-    const input = ensureLegacyFileInput();
-    if (!input) return;
-    if (typeof input.showPicker === 'function') {
-      try {
-        input.showPicker();
-        return;
-      } catch (e) {
-        console.warn('showPicker failed, falling back to click:', e);
-      }
-    }
-    input.click();
-  };
-
-  if (typeof window.showOpenFilePicker === 'function') {
-    try {
-      const fileHandles = await window.showOpenFilePicker(buildFilePickerOptions());
-      if (fileHandles.length === 0) return;
-
-      const fileHandle = fileHandles[0];
-      const file = await fileHandle.getFile();
-
-      if (file) {
-        await handleFile(file);
-      }
-      return;
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        return;
-      }
-      console.warn('showOpenFilePicker failed, falling back to legacy input:', error);
-    }
+  console.log('[openFileDialog] called');
+  const input = ensureLegacyFileInput();
+  if (!input) {
+    console.error('[openFileDialog] Failed to get/create input element');
+    return;
   }
-
-  openLegacyFileInput();
+  console.log('[openFileDialog] calling input.click(), accept=', input.getAttribute('accept') ?? '(none)');
+  // showPicker / showOpenFilePicker はWindowsのChromium系ブラウザで
+  // OSのファイルダイアログをフリーズさせるバグがある。
+  // accept属性も同様にWindowsでフリーズを引き起こすため設定しない。
+  input.click();
+  console.log('[openFileDialog] input.click() returned (waiting for user selection...)');
 }
 
 /**
