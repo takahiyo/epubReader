@@ -2,7 +2,7 @@
     "id": "/",
     "name": "BookReader",
     "short_name": "BookReader",
-    "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "description": "ブラウザで動く軽量なEPUB/画像書庫リーダー",
     "lang": "ja",
     "categories": [
         "books",
@@ -32,4 +32,4 @@
             "purpose": "any maskable"
         }
     ]
-}
+}
