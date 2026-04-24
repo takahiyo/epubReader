@@ -1213,23 +1213,74 @@ export class ReaderController {
     return /^(https?:|mailto:|tel:|data:|blob:|ftp:)/i.test(href) || href.startsWith("//");
   }
 
+  resolveRelativePath(basePath, relativePath) {
+    if (!relativePath || this.isExternalLink(relativePath)) return relativePath;
+    // フラグメントのみの場合はそのまま返す
+    if (relativePath.startsWith("#")) return relativePath;
+    // 絶対パス風（/開始）の場合は / を取るだけ
+    if (relativePath.startsWith("/")) return relativePath.substring(1);
+
+    const baseParts = (basePath || "").split("/");
+    baseParts.pop(); // 最後の要素（ファイル名）を削除
+
+    const relParts = relativePath.split("/");
+    for (const part of relParts) {
+      if (part === "..") {
+        if (baseParts.length > 0) baseParts.pop();
+      } else if (part === "." || part === "") {
+        // 何もしない
+      } else {
+        baseParts.push(part);
+      }
+    }
+    return baseParts.join("/");
+  }
+
   normalizeHrefPath(path) {
     if (!path) return "";
+    // クエリパラメータとフラグメントを削除し、前後の空白を除去
     const cleaned = path.split("?")[0].split("#")[0].trim();
-    return cleaned.replace(/^\.\//, "");
+    // 先頭の ./ や / を正規化
+    return cleaned.replace(/^\.\//, "").replace(/^\//, "");
   }
 
   resolveSpineIndexFromHref(href, fallbackSpineIndex = 0) {
     if (!href) return fallbackSpineIndex;
+
+    // フラグメントのみの場合は現在の spineIndex を維持するのが基本だが、
+    // navigateToHref 側で fallbackSpineIndex が渡されているはずなのでそれを使う
+    if (href.startsWith("#")) return fallbackSpineIndex;
+
     const [pathPart] = href.split("#");
     const normalized = this.normalizeHrefPath(pathPart);
     if (!normalized) return fallbackSpineIndex;
-    const directIndex = this.spineItems.findIndex((item) => item.href === normalized);
-    if (directIndex >= 0) return directIndex;
-    const matchIndex = this.spineItems.findIndex((item) =>
-      item.href?.endsWith(`/${normalized}`) || item.href?.endsWith(normalized)
+
+    // 1. 完全一致 (SSOT)
+    let index = this.spineItems.findIndex((item) => item.href === normalized);
+    if (index >= 0) return index;
+
+    // 2. 正規化されたパスでの一致（どちらかが / を含んでいたりいなかったりする場合）
+    const norm2 = normalized.replace(/\\/g, "/");
+    index = this.spineItems.findIndex((item) => (item.href || "").replace(/\\/g, "/") === norm2);
+    if (index >= 0) return index;
+
+    // 3. 末尾一致 (EndsWith)
+    index = this.spineItems.findIndex((item) =>
+      item.href?.endsWith(`/${normalized}`) || item.href === normalized
     );
-    return matchIndex >= 0 ? matchIndex : fallbackSpineIndex;
+    if (index >= 0) return index;
+
+    // 4. ファイル名のみでの一致（最終手段）
+    const filename = normalized.split("/").pop();
+    if (filename) {
+      index = this.spineItems.findIndex((item) => {
+        const itemFile = item.href?.split("/").pop();
+        return itemFile === filename;
+      });
+      if (index >= 0) return index;
+    }
+
+    return fallbackSpineIndex;
   }
 
   getPaddings() {
@@ -2332,7 +2383,7 @@ export class ReaderController {
         }
         return {
           label: label,
-          href: a.getAttribute('href'),
+          href: this.resolveRelativePath(tocPath, a.getAttribute('href')),
           subitems: []
         };
       }).filter(entry => entry.label.length > 1 && !entry.label.includes('http')); // 短すぎるものやURLは除外
