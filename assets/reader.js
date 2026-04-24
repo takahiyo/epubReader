@@ -1767,7 +1767,9 @@ export class ReaderController {
     }
 
     // 方法2: 検索テキストがない、または失敗した場合はセグメントインデックスから探す
-    if (!targetElement && (segmentIndex > 0 || (targetSpineIndex != null && targetContainer !== container))) {
+    // targetSpineIndex が指定されている（=Join Mode でのグループ内ジャンプ）場合は
+    // segmentIndex=0 でも対象章の先頭へスクロールするために実行する
+    if (!targetElement && (segmentIndex > 0 || targetSpineIndex != null)) {
       console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
         targetContainer,
@@ -2128,6 +2130,7 @@ export class ReaderController {
     }, 5000);
   }
 
+
   navigateToHref(href, fallbackSpineIndex = 0) {
     if (!href || !this.pagination?.pages?.length) return;
     const [pathPart, fragPart] = href.split("#");
@@ -2143,22 +2146,37 @@ export class ReaderController {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
 
+    // [修正] Join Mode対応: spineIndex がグループ内に結合されている場合、
+    // そのグループの先頭 spine を持つページを探す
+    if (pageIndex < 0 && Array.isArray(this._spineGroups)) {
+      const group = this._spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end);
+      if (group) {
+        console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
+        pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
+        if (pageIndex >= 0) {
+          // グループ内ジャンプ: 対象 spine と segmentIndex を予約してレンダリング後にスクロール
+          this._pendingScrollTargetSpineIndex = spineIndex;
+          this._pendingScrollToSegment = segmentIndex;
+          // fragPart はテキストではなくIDなので searchQuery に入れない（segmentIndex で処理済み）
+          this._pendingScrollSearchQuery = null;
+        }
+      }
+    }
+
     if (pageIndex >= 0) {
       if (pageIndex === this.currentPageIndex && this.pageContainer) {
-        // [修正] すでに同じページ（スクロールブロック）にいる場合、DOM内スクロールを直接実行
-        console.log(`[Reader] Already on page ${pageIndex}, scrolling to segment ${segmentIndex}`);
-        this._scrollToPositionInDOM(this.pageContainer, segmentIndex, fragPart, true, spineIndex);
+        // すでに同じページ（スクロールブロック）にいる場合、DOM内スクロールを直接実行
+        console.log(`[Reader] Already on page ${pageIndex}, scrolling to spineIndex=${spineIndex} segment=${segmentIndex}`);
+        this._scrollToPositionInDOM(this.pageContainer, segmentIndex, null, true, spineIndex);
       } else {
-        // 別のページへ移動
-        // スクロール先を予約
-        this._pendingScrollToSegment = segmentIndex;
-        this._pendingScrollSearchQuery = fragPart;
+        // 別のページへ移動（予約したスクロール先は renderEpubPage → requestAnimationFrame で実行される）
         this.pageController.goTo(pageIndex);
       }
     } else {
-      console.warn(`[Reader] Could not find page for spineIndex: ${spineIndex}`);
+      console.warn(`[Reader] navigateToHref: Could not find page for spineIndex: ${spineIndex}`);
     }
   }
+
 
   interceptInternalLinks(container, page) {
     if (!container) return;
@@ -2600,10 +2618,12 @@ export class ReaderController {
         if (pendingSegment != null || pendingSearchQuery) {
           const shouldHighlight = this._pendingScrollHighlight;
           // [修正] Join Mode 時に正しい章へ飛ぶよう spineIndex を渡す
-          const targetSpineIndex = page?.spineIndex;
+          // _pendingScrollTargetSpineIndex が設定されている場合（グループ内ジャンプ）を優先する
+          const targetSpineIndex = this._pendingScrollTargetSpineIndex ?? page?.spineIndex;
           this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery, shouldHighlight, targetSpineIndex);
           this._pendingScrollToSegment = null;
           this._pendingScrollSearchQuery = null;
+          this._pendingScrollTargetSpineIndex = null; // リセット
           this._pendingScrollHighlight = true; // デフォルトに戻す
         } else {
           this._scrollTargetNode = null;
