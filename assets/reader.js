@@ -2100,17 +2100,25 @@ export class ReaderController {
     // 目次項目を全階層から抽出
     const allEntries = [];
     const traverseToc = (items, depth = 0) => {
+      if (!Array.isArray(items)) return;
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label, spineIndex, depth });
+          allEntries.push({ title: item.label || "", spineIndex, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
         }
       });
     };
-    traverseToc(this.toc, 0);
+
+    try {
+      if (this.toc) {
+        traverseToc(this.toc, 0);
+      }
+    } catch (e) {
+      console.warn('[JoinMode] Failed to traverse TOC:', e);
+    }
 
     const tocEntries = allEntries;
     const spineLength = this.book.spine.length;
@@ -2118,9 +2126,20 @@ export class ReaderController {
     // --- [修正] スクロールモード時は最小深度（章レベル）のみを境界とする ---
     let filteredToc = tocEntries;
     if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && tocEntries.length > 0) {
-      const minDepth = Math.min(...tocEntries.map(e => e.depth));
-      filteredToc = tocEntries.filter(e => e.depth === minDepth);
-      console.log(`[JoinMode] スクロールモード：最小深度 ${minDepth} の目次項目 (${filteredToc.length}件) を使用します`);
+      try {
+        let minDepth = Infinity;
+        for (const e of tocEntries) {
+          if (typeof e.depth === 'number' && e.depth < minDepth) {
+            minDepth = e.depth;
+          }
+        }
+        if (minDepth !== Infinity) {
+          filteredToc = tocEntries.filter(e => e.depth === minDepth);
+          console.log(`[JoinMode] スクロールモード：最小深度 ${minDepth} の目次項目 (${filteredToc.length}件) を使用します`);
+        }
+      } catch (e) {
+        console.warn('[JoinMode] Failed to filter TOC by depth:', e);
+      }
     }
 
     // 重複を削除し、インデックス順にソート
@@ -2171,48 +2190,54 @@ export class ReaderController {
 
     let adjusted = [...groups];
 
-    // ステップ1: 章扉の移動（後ろへ結合）
-    // 章の直前にある画像のみのSpineは、その章のタイトルページである可能性が高いため、次のグループに含める
-    for (let i = 0; i < adjusted.length - 1; i++) {
-      const current = adjusted[i];
-      const next = adjusted[i + 1];
-      const lastSpine = this.spineItems[current.end];
+    try {
+      // ステップ1: 章扉の移動（後ろへ結合）
+      for (let i = 0; i < adjusted.length - 1; i++) {
+        const current = adjusted[i];
+        const next = adjusted[i + 1];
+        if (!current || !next) continue;
+        const lastSpine = this.spineItems?.[current.end];
 
-      if (lastSpine?.isIllustrationOnly && current.start < current.end) {
-        // 現在のグループの末尾が画像。これを次のグループの先頭に付け替える
-        console.log(`[JoinMode] 章扉の可能性：Spine ${current.end} を次のグループ [${next.start}-${next.end}] に移動`);
-        next.start = current.end;
-        current.end--;
-      }
-    }
-
-    // ステップ2: 独立した挿絵グループの解消
-    const merged = [];
-    let current = { ...adjusted[0] };
-
-    for (let i = 1; i < adjusted.length; i++) {
-      const next = { ...adjusted[i] };
-
-      // 次のグループ全体が画像のみなら、現在のグループに結合（挿絵ページ）
-      const isNextIllustrationOnly = () => {
-        for (let j = next.start; j <= next.end; j++) {
-          if (!this.spineItems[j]?.isIllustrationOnly) return false;
+        if (lastSpine?.isIllustrationOnly && current.start < current.end) {
+          console.log(`[JoinMode] 章扉の可能性：Spine ${current.end} を次のグループ [${next.start}-${next.end}] に移動`);
+          next.start = current.end;
+          current.end--;
         }
-        return true;
-      };
-
-      if (isNextIllustrationOnly()) {
-        console.log(`[JoinMode] 挿絵グループを結合: [${next.start}-${next.end}]`);
-        current.end = next.end;
-      } else {
-        merged.push(current);
-        current = next;
       }
-    }
-    merged.push(current);
 
-    console.log('[JoinMode] Adjusted Spine Groups:', merged);
-    return merged;
+      // ステップ2: 独立した挿絵グループの解消
+      const merged = [];
+      let current = adjusted[0] ? { ...adjusted[0] } : null;
+      if (!current) return groups;
+
+      for (let i = 1; i < adjusted.length; i++) {
+        const next = { ...adjusted[i] };
+
+        // 次のグループ全体が画像のみなら、現在のグループに結合（挿絵ページ）
+        const isNextIllustrationOnly = () => {
+          if (next.start === undefined || next.end === undefined) return false;
+          for (let j = next.start; j <= next.end; j++) {
+            if (!this.spineItems?.[j]?.isIllustrationOnly) return false;
+          }
+          return true;
+        };
+
+        if (isNextIllustrationOnly()) {
+          console.log(`[JoinMode] 挿絵グループを結合: [${next.start}-${next.end}]`);
+          current.end = next.end;
+        } else {
+          merged.push(current);
+          current = next;
+        }
+      }
+      merged.push(current);
+
+      console.log('[JoinMode] Adjusted Spine Groups:', merged);
+      return merged;
+    } catch (e) {
+      console.error('[JoinMode] Error in adjustSpineGroupsForIllustrations:', e);
+      return groups;
+    }
   }
 
   /**
