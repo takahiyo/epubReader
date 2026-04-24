@@ -36,6 +36,33 @@ const getMemoryStrategy = () => {
   return MEMORY_STRATEGY;
 };
 const getReaderLineHeight = () => READER_CONFIG.lineHeight ?? READER_CONFIG.DEFAULT_LINE_HEIGHT;
+
+/**
+ * SpineのHTMLコンテンツを解析し、挿絵のみのページかどうかを判定する。
+ * テキストが極めて少なく（閾値以下）、画像要素が1つ以上含まれる場合に true を返す。
+ * @param {string} htmlString - SpineのHTML文字列
+ * @param {number} [textThreshold=30] - テキスト文字数の閾値
+ * @returns {boolean}
+ */
+const isIllustrationOnlySpine = (htmlString, textThreshold = 30) => {
+  if (!htmlString) return false;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const body = doc.body;
+    if (!body) return false;
+
+    // テキストコンテンツ（空白除去）の文字数
+    const textLength = (body.textContent || '').replace(/\s+/g, '').length;
+
+    // 画像要素の数（img, svg, svg内image）
+    const imageCount = body.querySelectorAll('img, svg, image').length;
+
+    return textLength <= textThreshold && imageCount >= 1;
+  } catch (e) {
+    return false;
+  }
+};
 const normalizeRelativePath = (path) => {
   if (!path) return path;
   const normalized = path.replace(/\\/g, "/");
@@ -230,6 +257,9 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
+    this.logicToc = [];    // [追加] 標準の論理目次
+    this.enhancedToc = []; // [追加] 本文から抽出した目次
+    this.useEnhancedToc = false; // [追加] 現在どちらを使っているか
     this.resizeTimer = null;
 
     // WebNovelViewer 初期化
@@ -934,7 +964,53 @@ export class ReaderController {
     } else {
       console.log(`[openEpub] EPUB.js の目次を優先します (${toc.length} items)`);
     }
+    this.logicToc = toc;
     this.toc = toc;
+    this.enhancedToc = [];
+    this.useEnhancedToc = false;
+
+    // [試作] 本文内HTMLからの目次抽出を試行
+    try {
+      const betterToc = await this.tryExtractBetterTocFromHtml();
+      if (betterToc && betterToc.length > 0) {
+        this.enhancedToc = betterToc;
+
+        // --- 目次の質を判定するヒューリスティック ---
+        const logicLabels = this.logicToc.map(t => (t.label || "").trim());
+        const enhancedLabels = this.enhancedToc.map(t => (t.label || "").trim());
+
+        // 1. 機械的なパターンの検出 (p-cover, p-001, spine-xxx, Page 1 等)
+        const mechanicalRegex = /^(p-|spine-|page\s|chapter_|\d+$|cover$|title$)/i;
+        const mechanicalCount = logicLabels.filter(l => mechanicalRegex.test(l)).length;
+        const isMostlyMechanical = logicLabels.length > 0 && (mechanicalCount / logicLabels.length) > 0.5;
+
+        // 2. 項目数の比較 (標準が極端に少なく、抽出が多い場合)
+        const hasSignificantCountDiff = this.enhancedToc.length > this.logicToc.length * 2 && this.logicToc.length < 5;
+
+        // 3. ラベルの具体性 (漢字やカタカナ、特定のキーワードを含むか)
+        const humanKeywordRegex = /[一-龠ぁ-んァ-ヶ]|第.章|プロローグ|エピローグ|目次|Contents/i;
+        const enhancedHasHumanLabels = enhancedLabels.some(l => humanKeywordRegex.test(l));
+        const logicHasHumanLabels = logicLabels.some(l => humanKeywordRegex.test(l));
+
+        console.log('[JoinMode] TOC Quality Analysis:', {
+          logicCount: this.logicToc.length,
+          enhancedCount: this.enhancedToc.length,
+          mechanicalCount,
+          isMostlyMechanical,
+          enhancedHasHumanLabels,
+          logicHasHumanLabels
+        });
+
+        // 判定: 標準が機械的、もしくは項目が不足しており、かつ抽出側が人間味のあるラベルを持っている場合
+        if ((isMostlyMechanical || hasSignificantCountDiff || !logicHasHumanLabels) && enhancedHasHumanLabels) {
+          console.log('[JoinMode] 拡張目次の方が適切と判断されました。自動切り替えを実行します。');
+          this.toc = betterToc;
+          this.useEnhancedToc = true;
+        }
+      }
+    } catch (e) {
+      console.error('[JoinMode] Error during better TOC extraction:', e);
+    }
 
     // 縦書き・横書きを自動判別
     const detectedReading = await this.detectReadingDirectionFromBook();
@@ -978,6 +1054,7 @@ export class ReaderController {
         this.onReady?.({
           metadata: this.book.package?.metadata,
           toc: this.toc,
+          isEnhanced: this.useEnhancedToc
         });
       }
 
@@ -1136,23 +1213,97 @@ export class ReaderController {
     return /^(https?:|mailto:|tel:|data:|blob:|ftp:)/i.test(href) || href.startsWith("//");
   }
 
+  resolveRelativePath(basePath, relativePath) {
+    if (!relativePath || this.isExternalLink(relativePath)) return relativePath;
+    // フラグメントのみの場合はそのまま返す
+    if (relativePath.startsWith("#")) return relativePath;
+    // 絶対パス風（/開始）の場合は / を取るだけ
+    if (relativePath.startsWith("/")) return relativePath.substring(1);
+
+    const baseParts = (basePath || "").split("/");
+    baseParts.pop(); // 最後の要素（ファイル名）を削除
+
+    const relParts = relativePath.split("/");
+    for (const part of relParts) {
+      if (part === "..") {
+        if (baseParts.length > 0) baseParts.pop();
+      } else if (part === "." || part === "") {
+        // 何もしない
+      } else {
+        baseParts.push(part);
+      }
+    }
+    return baseParts.join("/");
+  }
+
   normalizeHrefPath(path) {
     if (!path) return "";
+    // クエリパラメータとフラグメントを削除し、前後の空白を除去
     const cleaned = path.split("?")[0].split("#")[0].trim();
-    return cleaned.replace(/^\.\//, "");
+    // 先頭の ./ や / を正規化
+    return cleaned.replace(/^\.\//, "").replace(/^\//, "");
   }
 
   resolveSpineIndexFromHref(href, fallbackSpineIndex = 0) {
-    if (!href) return fallbackSpineIndex;
+    if (!href) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Empty href, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
+    // フラグメントのみ（#anchor）の場合は現在の spineIndex を維持
+    if (href.startsWith("#")) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Fragment only ${href}, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
     const [pathPart] = href.split("#");
     const normalized = this.normalizeHrefPath(pathPart);
-    if (!normalized) return fallbackSpineIndex;
-    const directIndex = this.spineItems.findIndex((item) => item.href === normalized);
-    if (directIndex >= 0) return directIndex;
-    const matchIndex = this.spineItems.findIndex((item) =>
-      item.href?.endsWith(`/${normalized}`) || item.href?.endsWith(normalized)
+    if (!normalized) {
+      console.log(`[Reader] resolveSpineIndexFromHref: No path part in ${href}, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
+    console.log(`[Reader] resolveSpineIndexFromHref: Searching for "${normalized}" (fallback: ${fallbackSpineIndex})`);
+
+    // 1. 完全一致 (SSOT)
+    let index = this.spineItems.findIndex((item) => item.href === normalized);
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Direct match at index ${index}`);
+      return index;
+    }
+
+    // 2. 正規化されたパスでの一致（どちらかが / を含んでいたりいなかったりする場合）
+    const norm2 = normalized.replace(/\\/g, "/");
+    index = this.spineItems.findIndex((item) => (item.href || "").replace(/\\/g, "/") === norm2);
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Normalized path match at index ${index}`);
+      return index;
+    }
+
+    // 3. 末尾一致 (EndsWith)
+    index = this.spineItems.findIndex((item) =>
+      item.href?.endsWith(`/${normalized}`) || item.href === normalized
     );
-    return matchIndex >= 0 ? matchIndex : fallbackSpineIndex;
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: EndsWith match at index ${index}`);
+      return index;
+    }
+
+    // 4. ファイル名のみでの一致（最終手段）
+    const filename = normalized.split("/").pop();
+    if (filename) {
+      index = this.spineItems.findIndex((item) => {
+        const itemFile = item.href?.split("/").pop();
+        return itemFile === filename;
+      });
+      if (index >= 0) {
+        console.log(`[Reader] resolveSpineIndexFromHref: Filename match ("${filename}") at index ${index}`);
+        return index;
+      }
+    }
+
+    console.warn(`[Reader] resolveSpineIndexFromHref: No match found for "${normalized}", returning fallback ${fallbackSpineIndex}`);
+    return fallbackSpineIndex;
   }
 
   getPaddings() {
@@ -1597,6 +1748,11 @@ export class ReaderController {
       if (joinedItem) {
         targetContainer = joinedItem;
         console.log(`[ジャンプデバッグ] 対象の章コンテナを特定しました: spineIndex=${targetSpineIndex}`);
+        // セグメント指定なし（章先頭へのジャンプ）の場合、コンテナ自体をターゲットにする
+        // （Walkerが画像のみのコンテナでテキストを見つけられず失敗することを防ぐ）
+        if (!searchQuery && segmentIndex === 0) {
+          targetElement = joinedItem;
+        }
       }
     }
 
@@ -1616,7 +1772,9 @@ export class ReaderController {
     }
 
     // 方法2: 検索テキストがない、または失敗した場合はセグメントインデックスから探す
-    if (!targetElement && (segmentIndex > 0 || (targetSpineIndex != null && targetContainer !== container))) {
+    // targetSpineIndex が指定されている（=Join Mode でのグループ内ジャンプ）場合は
+    // segmentIndex=0 でも対象章の先頭へスクロールするために実行する
+    if (!targetElement && (segmentIndex > 0 || targetSpineIndex != null)) {
       console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
         targetContainer,
@@ -1977,6 +2135,7 @@ export class ReaderController {
     }, 5000);
   }
 
+
   navigateToHref(href, fallbackSpineIndex = 0) {
     if (!href || !this.pagination?.pages?.length) return;
     const [pathPart, fragPart] = href.split("#");
@@ -1991,10 +2150,47 @@ export class ReaderController {
     if (pageIndex < 0) {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
+
+    // [修正] Join Mode対応: spineIndex がグループ内に結合されている場合、
+    // そのグループの先頭 spine を持つページを探す
+    if (pageIndex < 0 && Array.isArray(this._spineGroups)) {
+      const group = this._spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end);
+      if (group) {
+        console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
+        pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
+        if (pageIndex >= 0) {
+          // 直前の spine が扉絵（isIllustrationOnly）で、かつ同グループ内にある場合は扉絵を表示する
+          const prevIdx = spineIndex - 1;
+          const prevSpineItem = this.spineItems?.[prevIdx];
+          const prevInGroup = prevIdx >= group.start && prevIdx <= group.end;
+          if (prevInGroup && prevSpineItem?.isIllustrationOnly) {
+            // 扉絵が本文の直前にある → 扉絵の位置へ飛ぶ
+            this._pendingScrollTargetSpineIndex = prevIdx;
+            console.log(`[Reader] 扉絵へジャンプ: spine ${prevIdx}`);
+          } else {
+            // 扉絵なし → 指定 spine（本文先頭）へ飛ぶ
+            this._pendingScrollTargetSpineIndex = spineIndex;
+          }
+          this._pendingScrollToSegment = 0;
+          this._pendingScrollSearchQuery = null;
+        }
+      }
+    }
+
     if (pageIndex >= 0) {
-      this.pageController.goTo(pageIndex);
+      if (pageIndex === this.currentPageIndex && this.pageContainer) {
+        // すでに同じページ（スクロールブロック）にいる場合、DOM内スクロールを直接実行
+        console.log(`[Reader] Already on page ${pageIndex}, scrolling to spineIndex=${spineIndex} segment=${segmentIndex}`);
+        this._scrollToPositionInDOM(this.pageContainer, segmentIndex, null, true, spineIndex);
+      } else {
+        // 別のページへ移動（予約したスクロール先は renderEpubPage → requestAnimationFrame で実行される）
+        this.pageController.goTo(pageIndex);
+      }
+    } else {
+      console.warn(`[Reader] navigateToHref: Could not find page for spineIndex: ${spineIndex}`);
     }
   }
+
 
   interceptInternalLinks(container, page) {
     if (!container) return;
@@ -2009,9 +2205,14 @@ export class ReaderController {
 
         // [修正] Join Mode への対応: リンクが含まれるコンテナから spineIndex を特定
         const parentSpineContainer = anchor.closest('.joined-spine-item');
-        const spineIndexContext = parentSpineContainer
+        let spineIndexContext = parentSpineContainer
           ? parseInt(parentSpineContainer.getAttribute('data-spine-index'), 10)
-          : (page?.spineIndex ?? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0);
+          : (page?.spineIndex ?? -1);
+        
+        // 取得できない場合の最終フォールバック
+        if (isNaN(spineIndexContext) || spineIndexContext < 0) {
+           spineIndexContext = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0;
+        }
 
         this.navigateToHref(href, spineIndexContext);
       });
@@ -2073,29 +2274,53 @@ export class ReaderController {
     // 目次項目を全階層から抽出
     const allEntries = [];
     const traverseToc = (items, depth = 0) => {
+      if (!Array.isArray(items)) return;
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label, spineIndex, depth });
+          allEntries.push({ title: item.label || "", spineIndex, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
         }
       });
     };
-    traverseToc(this.toc, 0);
 
-    const tocEntries = allEntries;
+    try {
+      if (this.toc) {
+        traverseToc(this.toc, 0);
+      }
+    } catch (e) {
+      console.warn('[JoinMode] Failed to traverse TOC:', e);
+    }
+
+    // --- [修正] スクロールモード時は最小深度（章レベル）のみを境界とする ---
+    let filteredToc = allEntries;
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && allEntries.length > 0) {
+      try {
+        let minDepth = Infinity;
+        for (const e of allEntries) {
+          if (typeof e.depth === 'number' && e.depth < minDepth) {
+            minDepth = e.depth;
+          }
+        }
+        if (minDepth !== Infinity) {
+          filteredToc = allEntries.filter(e => e.depth === minDepth);
+          console.log(`[JoinMode] スクロールモード：最小深度 ${minDepth} の目次項目 (${filteredToc.length}件) を使用します`);
+        }
+      } catch (e) {
+        console.warn('[JoinMode] Failed to filter TOC by depth:', e);
+      }
+    }
 
     // 重複を削除し、インデックス順にソート
-    const sortedToc = tocEntries
+    const sortedToc = filteredToc
       .sort((a, b) => a.spineIndex - b.spineIndex)
       .filter((entry, index, self) =>
         index === 0 || entry.spineIndex !== self[index - 1].spineIndex
       );
 
     if (sortedToc.length === 0) {
-      // 目次がない場合は全章を一つのグループにする（以前の挙動）
       return [{ start: 0, end: spineLength - 1 }];
     }
 
@@ -2106,18 +2331,213 @@ export class ReaderController {
         ? sortedToc[i + 1].spineIndex - 1
         : spineLength - 1;
 
-      // start > end になるケース（同じファイルに複数の目次がある等）は無視
       if (start <= end) {
         groups.push({ start, end });
       }
     }
 
-    // 最初の目次項目より前の spine items がある場合、それもグループ化する（表紙など）
+    // 最初の目次項目より前の spine items がある場合、それもグループ化する
     if (groups.length > 0 && groups[0].start > 0) {
       groups.unshift({ start: 0, end: groups[0].start - 1 });
     }
 
-    console.log('[JoinMode] Spine Groups generated from TOC:', groups);
+    // 挿絵や章扉による境界の微調整
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
+      return this.adjustSpineGroupsForIllustrations(groups);
+    }
+
+    console.log('[JoinMode] Spine Groups generated:', groups);
+    return groups;
+  }
+
+  adjustSpineGroupsForIllustrations(groups) {
+    if (!Array.isArray(groups) || groups.length <= 1) return groups;
+    if (!Array.isArray(this.spineItems) || !this.spineItems.length) return groups;
+
+    const adjusted = groups.map(g => ({ ...g }));
+
+    try {
+      const merged = [];
+      let current = { ...adjusted[0] };
+
+      for (let i = 1; i < adjusted.length; i++) {
+        const next = { ...adjusted[i] };
+        
+        const lastOfCurrent = this.spineItems?.[current.end];
+        
+        // 判定基準: 
+        // 1. 今のグループ全体が画像のみ（扉絵など。次の章の先頭として扱う）
+        // 2. 今のグループの末尾が画像（挿絵。次の本文と繋げる）
+        // これにより、[第1章] | [第2章扉絵] | [第2章本文] は
+        // [第1章] | [第2章扉絵+本文] になり、章の区切りが維持される。
+        const isCurrentEndsWithImage = lastOfCurrent?.isIllustrationOnly;
+        const isCurrentIllustrationOnly = () => {
+          for (let j = current.start; j <= current.end; j++) {
+            if (!this.spineItems?.[j]?.isIllustrationOnly) return false;
+          }
+          return true;
+        };
+
+        if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
+          console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
+          current.end = next.end;
+        } else {
+          merged.push(current);
+          current = next;
+        }
+      }
+      merged.push(current);
+
+      console.log('[JoinMode] Adjusted Spine Groups (Forward-Merge Priority):', merged);
+      return merged;
+    } catch (e) {
+      console.error('[JoinMode] Error in adjustSpineGroupsForIllustrations:', e);
+      return groups;
+    }
+  }
+
+  /**
+   * 挿絵のみで構成されるSpineを検出し、前のグループに吸収する。
+   * (廃止：adjustSpineGroupsForIllustrations に統合されました)
+   */
+  /**
+   * 本文内のHTML目次ページから、より適切なラベルとリンクのリストを抽出することを試みる。
+   * 論理目次（NCX/NAV）が p-cover 等の機械的な名前である場合の救済措置。
+   */
+  async tryExtractBetterTocFromHtml() {
+    let tocPath = null;
+
+    // 1. 目次ページの特定
+    // Landmarks (EPUB 3) から探す
+    const landmarks = this.book.navigation.landmarks;
+    if (Array.isArray(landmarks)) {
+      const tocLandmark = landmarks.find(l => l.type === 'toc' || l.label?.toLowerCase()?.includes('目次') || l.label?.toLowerCase()?.includes('contents'));
+      if (tocLandmark) tocPath = tocLandmark.href;
+    }
+
+    // Guide (EPUB 2) から探す
+    if (!tocPath && Array.isArray(this.book.package.guide)) {
+      const tocGuide = this.book.package.guide.find(g => g.type === 'toc');
+      if (tocGuide) tocPath = tocGuide.href;
+    }
+
+    // ファイル名から推測
+    if (!tocPath) {
+      for (let i = 0; i < this.book.spine.length; i++) {
+        const item = this.book.spine.get(i);
+        const href = item.href.toLowerCase();
+        if (href.includes('toc') || href.includes('contents') || href.includes('nav')) {
+          tocPath = item.href;
+          break;
+        }
+      }
+    }
+
+    if (!tocPath) return null;
+
+    try {
+      // 2. 目次ページの内容をロードして解析
+      const item = this.book.spine.get(tocPath);
+      if (!item) return null;
+
+      await item.load(this.book.load.bind(this.book));
+      const doc = item.document || item.contents?.document;
+      if (!doc) return null;
+
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+      if (anchors.length < 3) return null;
+
+      const extractedToc = anchors.map(a => {
+        let label = a.textContent.trim().replace(/\s+/g, ' ');
+        // ラベルが空の場合、子要素のalt属性などから探す
+        if (!label) {
+          const img = a.querySelector('img');
+          if (img) label = img.getAttribute('alt') || img.getAttribute('title') || "";
+        }
+        return {
+          label: label,
+          href: this.resolveRelativePath(tocPath, a.getAttribute('href')),
+          subitems: []
+        };
+      }).filter(entry => entry.label.length > 1 && !entry.label.includes('http')); // 短すぎるものやURLは除外
+
+      if (extractedToc.length < 3) return null;
+
+      // 3. 現在の目次が機械的かどうか判定
+      const currentLabels = [];
+      const collectLabels = (items) => {
+        items.forEach(it => {
+          currentLabels.push(it.label || "");
+          if (it.subitems) collectLabels(it.subitems);
+        });
+      };
+      collectLabels(this.toc || []);
+
+      const isCurrentMechanical = currentLabels.some(l => /^p-\d+/i.test(l) || /^cover$/i.test(l) || /^spine/i.test(l));
+      const isExtractedBetter = extractedToc.some(l => l.label.length > 3 && !/^p-\d+/i.test(l.label));
+
+      if (isCurrentMechanical && isExtractedBetter) {
+        console.log(`[JoinMode] 本文内目次 (${extractedToc.length}件) に差し替えます。パス: ${tocPath}`);
+        return extractedToc;
+      }
+    } catch (e) {
+      console.warn('[JoinMode] Failed to extract better TOC from HTML:', e);
+    }
+    return null;
+  }
+
+  /**
+   * 目次ソースを切り替え、章区切りを再計算する
+   */
+  async toggleTocSource(useEnhanced) {
+    if (this.useEnhancedToc === useEnhanced) return;
+    this.useEnhancedToc = useEnhanced;
+    
+    const targetToc = useEnhanced ? this.enhancedToc : this.logicToc;
+    if (!targetToc || targetToc.length === 0) {
+      console.warn('[JoinMode] 切り替え先の目次が空です');
+      return;
+    }
+
+    console.log(`[JoinMode] 目次ソースを切り替えます: ${useEnhanced ? '本文内抽出' : '論理目次'}`);
+    this.toc = targetToc;
+
+    // EPUBかつスクロールモードの場合は、章区切りの再計算が必要
+    if (this.type === BOOK_TYPES.EPUB) {
+      // 現在の位置情報をテキストとして退避（位置維持のため）
+      const currentSpineIndex = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex;
+      const visibleText = this.getCurrentVisibleText(50);
+
+      // パジネーションをリセットして再計算
+      this.pagination = null;
+      this._spineGroups = null; // これをクリアすることで generateSpineGroupsFromToc が新しい目次で動く
+      
+      this.onRepaginationStart?.();
+      await this.buildPagination();
+      
+      // 全チャプター完了を待機（スクロール位置復元のため）
+      if (this.paginationPromise) {
+        await this.paginationPromise;
+      }
+
+      // 位置復元
+      if (currentSpineIndex != null) {
+        const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "toggleTocSource") ?? 0;
+        this.goToSegment(currentSpineIndex, segmentIndex, null, false);
+      }
+      
+      this.onRepaginationEnd?.();
+
+      // UI側に目次の更新を通知
+      this.onReady?.({
+        metadata: this.book.package?.metadata,
+        toc: this.toc,
+        isEnhanced: this.useEnhancedToc
+      });
+    }
+  }
+
+  mergeIllustrationSpinesIntoGroups(groups) {
     return groups;
   }
 
@@ -2212,10 +2632,12 @@ export class ReaderController {
         if (pendingSegment != null || pendingSearchQuery) {
           const shouldHighlight = this._pendingScrollHighlight;
           // [修正] Join Mode 時に正しい章へ飛ぶよう spineIndex を渡す
-          const targetSpineIndex = page?.spineIndex;
+          // _pendingScrollTargetSpineIndex が設定されている場合（グループ内ジャンプ）を優先する
+          const targetSpineIndex = this._pendingScrollTargetSpineIndex ?? page?.spineIndex;
           this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery, shouldHighlight, targetSpineIndex);
           this._pendingScrollToSegment = null;
           this._pendingScrollSearchQuery = null;
+          this._pendingScrollTargetSpineIndex = null; // リセット
           this._pendingScrollHighlight = true; // デフォルトに戻す
         } else {
           this._scrollTargetNode = null;
@@ -2685,6 +3107,7 @@ export class ReaderController {
                 id: item.idref || item.id || `spine-${spineIndex}`,
                 href: item.href,
                 htmlString,
+                isIllustrationOnly: isIllustrationOnlySpine(htmlString),
               };
               this.spineItems.push(newItem);
               this.paginator.spineItems.push(newItem);
@@ -2743,6 +3166,24 @@ export class ReaderController {
 
       // 中断チェック
       if (run.cancelled) return null;
+
+      // [挿絵統一] スクロールモード時: 挿絵や章扉を適切に結合
+      if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && this._spineGroups) {
+        const adjustedGroups = this.adjustSpineGroupsForIllustrations(this._spineGroups);
+        if (adjustedGroups !== this._spineGroups) {
+          this._spineGroups = adjustedGroups;
+          if (this.paginator) {
+            this.paginator.settings.spineGroups = adjustedGroups;
+          }
+          if (this.paginator && !run.cancelled) {
+            console.log('[JoinMode] グループ再計算によるリパジネーション開始');
+            await this.paginator.repaginate(this.paginator.settings);
+            this.pagination = { pages: this.paginator.pages };
+            this.pageController.setTotalPages(this.pagination.pages.length);
+            this.renderEpubPage(this.currentPageIndex, this.pagination);
+          }
+        }
+      }
 
       if (!isFirstChapterDone) {
         firstPageResolver(this.pagination);

@@ -10,11 +10,6 @@
     ],
     "start_url": "./index.html",
     "display": "standalone",
-    "display_override": [
-        "window-controls-overlay",
-        "standalone",
-        "minimal-ui"
-    ],
     "orientation": "any",
     "background_color": "#ffffff",
     "theme_color": "#2c3e50",
