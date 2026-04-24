@@ -257,6 +257,9 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
+    this.logicToc = [];    // [追加] 標準の論理目次
+    this.enhancedToc = []; // [追加] 本文から抽出した目次
+    this.useEnhancedToc = false; // [追加] 現在どちらを使っているか
     this.resizeTimer = null;
 
     // WebNovelViewer 初期化
@@ -961,7 +964,53 @@ export class ReaderController {
     } else {
       console.log(`[openEpub] EPUB.js の目次を優先します (${toc.length} items)`);
     }
+    this.logicToc = toc;
     this.toc = toc;
+    this.enhancedToc = [];
+    this.useEnhancedToc = false;
+
+    // [試作] 本文内HTMLからの目次抽出を試行
+    try {
+      const betterToc = await this.tryExtractBetterTocFromHtml();
+      if (betterToc && betterToc.length > 0) {
+        this.enhancedToc = betterToc;
+
+        // --- 目次の質を判定するヒューリスティック ---
+        const logicLabels = this.logicToc.map(t => (t.label || "").trim());
+        const enhancedLabels = this.enhancedToc.map(t => (t.label || "").trim());
+
+        // 1. 機械的なパターンの検出 (p-cover, p-001, spine-xxx, Page 1 等)
+        const mechanicalRegex = /^(p-|spine-|page\s|chapter_|\d+$|cover$|title$)/i;
+        const mechanicalCount = logicLabels.filter(l => mechanicalRegex.test(l)).length;
+        const isMostlyMechanical = logicLabels.length > 0 && (mechanicalCount / logicLabels.length) > 0.5;
+
+        // 2. 項目数の比較 (標準が極端に少なく、抽出が多い場合)
+        const hasSignificantCountDiff = this.enhancedToc.length > this.logicToc.length * 2 && this.logicToc.length < 5;
+
+        // 3. ラベルの具体性 (漢字やカタカナ、特定のキーワードを含むか)
+        const humanKeywordRegex = /[一-龠ぁ-んァ-ヶ]|第.章|プロローグ|エピローグ|目次|Contents/i;
+        const enhancedHasHumanLabels = enhancedLabels.some(l => humanKeywordRegex.test(l));
+        const logicHasHumanLabels = logicLabels.some(l => humanKeywordRegex.test(l));
+
+        console.log('[JoinMode] TOC Quality Analysis:', {
+          logicCount: this.logicToc.length,
+          enhancedCount: this.enhancedToc.length,
+          mechanicalCount,
+          isMostlyMechanical,
+          enhancedHasHumanLabels,
+          logicHasHumanLabels
+        });
+
+        // 判定: 標準が機械的、もしくは項目が不足しており、かつ抽出側が人間味のあるラベルを持っている場合
+        if ((isMostlyMechanical || hasSignificantCountDiff || !logicHasHumanLabels) && enhancedHasHumanLabels) {
+          console.log('[JoinMode] 拡張目次の方が適切と判断されました。自動切り替えを実行します。');
+          this.toc = betterToc;
+          this.useEnhancedToc = true;
+        }
+      }
+    } catch (e) {
+      console.error('[JoinMode] Error during better TOC extraction:', e);
+    }
 
     // 縦書き・横書きを自動判別
     const detectedReading = await this.detectReadingDirectionFromBook();
@@ -1005,6 +1054,7 @@ export class ReaderController {
         this.onReady?.({
           metadata: this.book.package?.metadata,
           toc: this.toc,
+          isEnhanced: this.useEnhancedToc
         });
       }
 
@@ -2226,6 +2276,143 @@ export class ReaderController {
    * 挿絵のみで構成されるSpineを検出し、前のグループに吸収する。
    * (廃止：adjustSpineGroupsForIllustrations に統合されました)
    */
+  /**
+   * 本文内のHTML目次ページから、より適切なラベルとリンクのリストを抽出することを試みる。
+   * 論理目次（NCX/NAV）が p-cover 等の機械的な名前である場合の救済措置。
+   */
+  async tryExtractBetterTocFromHtml() {
+    let tocPath = null;
+
+    // 1. 目次ページの特定
+    // Landmarks (EPUB 3) から探す
+    const landmarks = this.book.navigation.landmarks;
+    if (Array.isArray(landmarks)) {
+      const tocLandmark = landmarks.find(l => l.type === 'toc' || l.label?.toLowerCase()?.includes('目次') || l.label?.toLowerCase()?.includes('contents'));
+      if (tocLandmark) tocPath = tocLandmark.href;
+    }
+
+    // Guide (EPUB 2) から探す
+    if (!tocPath && Array.isArray(this.book.package.guide)) {
+      const tocGuide = this.book.package.guide.find(g => g.type === 'toc');
+      if (tocGuide) tocPath = tocGuide.href;
+    }
+
+    // ファイル名から推測
+    if (!tocPath) {
+      for (let i = 0; i < this.book.spine.length; i++) {
+        const item = this.book.spine.get(i);
+        const href = item.href.toLowerCase();
+        if (href.includes('toc') || href.includes('contents') || href.includes('nav')) {
+          tocPath = item.href;
+          break;
+        }
+      }
+    }
+
+    if (!tocPath) return null;
+
+    try {
+      // 2. 目次ページの内容をロードして解析
+      const item = this.book.spine.get(tocPath);
+      if (!item) return null;
+
+      await item.load(this.book.load.bind(this.book));
+      const doc = item.document || item.contents?.document;
+      if (!doc) return null;
+
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+      if (anchors.length < 3) return null;
+
+      const extractedToc = anchors.map(a => {
+        let label = a.textContent.trim().replace(/\s+/g, ' ');
+        // ラベルが空の場合、子要素のalt属性などから探す
+        if (!label) {
+          const img = a.querySelector('img');
+          if (img) label = img.getAttribute('alt') || img.getAttribute('title') || "";
+        }
+        return {
+          label: label,
+          href: a.getAttribute('href'),
+          subitems: []
+        };
+      }).filter(entry => entry.label.length > 1 && !entry.label.includes('http')); // 短すぎるものやURLは除外
+
+      if (extractedToc.length < 3) return null;
+
+      // 3. 現在の目次が機械的かどうか判定
+      const currentLabels = [];
+      const collectLabels = (items) => {
+        items.forEach(it => {
+          currentLabels.push(it.label || "");
+          if (it.subitems) collectLabels(it.subitems);
+        });
+      };
+      collectLabels(this.toc || []);
+
+      const isCurrentMechanical = currentLabels.some(l => /^p-\d+/i.test(l) || /^cover$/i.test(l) || /^spine/i.test(l));
+      const isExtractedBetter = extractedToc.some(l => l.label.length > 3 && !/^p-\d+/i.test(l.label));
+
+      if (isCurrentMechanical && isExtractedBetter) {
+        console.log(`[JoinMode] 本文内目次 (${extractedToc.length}件) に差し替えます。パス: ${tocPath}`);
+        return extractedToc;
+      }
+    } catch (e) {
+      console.warn('[JoinMode] Failed to extract better TOC from HTML:', e);
+    }
+    return null;
+  }
+
+  /**
+   * 目次ソースを切り替え、章区切りを再計算する
+   */
+  async toggleTocSource(useEnhanced) {
+    if (this.useEnhancedToc === useEnhanced) return;
+    this.useEnhancedToc = useEnhanced;
+    
+    const targetToc = useEnhanced ? this.enhancedToc : this.logicToc;
+    if (!targetToc || targetToc.length === 0) {
+      console.warn('[JoinMode] 切り替え先の目次が空です');
+      return;
+    }
+
+    console.log(`[JoinMode] 目次ソースを切り替えます: ${useEnhanced ? '本文内抽出' : '論理目次'}`);
+    this.toc = targetToc;
+
+    // EPUBかつスクロールモードの場合は、章区切りの再計算が必要
+    if (this.type === BOOK_TYPES.EPUB) {
+      // 現在の位置情報をテキストとして退避（位置維持のため）
+      const currentSpineIndex = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex;
+      const visibleText = this.getCurrentVisibleText(50);
+
+      // パジネーションをリセットして再計算
+      this.pagination = null;
+      this._spineGroups = null; // これをクリアすることで generateSpineGroupsFromToc が新しい目次で動く
+      
+      this.onRepaginationStart?.();
+      await this.buildPagination();
+      
+      // 全チャプター完了を待機（スクロール位置復元のため）
+      if (this.paginationPromise) {
+        await this.paginationPromise;
+      }
+
+      // 位置復元
+      if (currentSpineIndex != null) {
+        const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "toggleTocSource") ?? 0;
+        this.goToSegment(currentSpineIndex, segmentIndex, null, false);
+      }
+      
+      this.onRepaginationEnd?.();
+
+      // UI側に目次の更新を通知
+      this.onReady?.({
+        metadata: this.book.package?.metadata,
+        toc: this.toc,
+        isEnhanced: this.useEnhancedToc
+      });
+    }
+  }
+
   mergeIllustrationSpinesIntoGroups(groups) {
     return groups;
   }

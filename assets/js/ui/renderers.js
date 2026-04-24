@@ -960,6 +960,36 @@ export function renderToc(tocItems = []) {
     }
 
     elements.tocSection?.classList.remove(UI_CLASSES.HIDDEN);
+
+    // [追加] 目次ソース切り替えトグル
+    if (_reader?.enhancedToc?.length > 0) {
+        const toggleHeader = document.createElement("div");
+        toggleHeader.className = "toc-toggle-header";
+        toggleHeader.style.cssText = "padding: 8px 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; background: var(--bg-color-alt);";
+
+        const label = document.createElement("span");
+        label.textContent = _reader.useEnhancedToc ? "本文内目次を使用中" : "標準目次を使用中";
+        label.style.fontWeight = "bold";
+        label.style.color = "var(--primary-color)";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "toc-source-toggle-btn";
+        toggleBtn.textContent = _reader.useEnhancedToc ? "標準に戻す" : "拡張目次に切替";
+        toggleBtn.style.cssText = "padding: 4px 12px; border-radius: 20px; background: var(--primary-color); color: white; border: none; cursor: pointer; font-size: 0.75rem; transition: all 0.2s ease;";
+        
+        toggleBtn.onclick = async (e) => {
+            e.stopPropagation();
+            toggleBtn.disabled = true;
+            toggleBtn.style.opacity = "0.5";
+            await _reader.toggleTocSource(!_reader.useEnhancedToc);
+            // reader.toggleTocSource の中で onReady -> renderToc が再度呼ばれるため、ここでは何もしない
+        };
+
+        toggleHeader.append(label, toggleBtn);
+        elements.tocModalList.appendChild(toggleHeader);
+    }
+
     renderTocEntries(tocArray, elements.tocModalList, 0);
 }
 
