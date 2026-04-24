@@ -38794,4 +38794,45 @@ export default {
 };
 
 ```
+```
+
+---
+
+## 更新履歴 — 2026-04-24 (TOCナビゲーション修正セッション)
+
+### 対象ファイル
+- `assets/reader.js`
+
+### 実装した変更
+
+#### 1. `resolveRelativePath(basePath, relativePath)` メソッドの追加
+- EPUB 内の相対パス（`../Text/prologue.xhtml` 等）を、基準となるファイルのパスを元に絶対パスへ解決するメソッドを実装。
+- `normalizeHrefPath` の先頭 `/` の除去も強化。
+
+#### 2. `resolveSpineIndexFromHref` の強化
+- 完全一致 → バックスラッシュ正規化一致 → 末尾一致 → ファイル名のみ一致の4段階フォールバックを実装。
+- デバッグログを追加し、どのルートでマッチしたかをコンソールで確認可能にした。
+
+#### 3. `tryExtractBetterTocFromHtml` での相対パス解決
+- HTML目次から抽出した `href` を `resolveRelativePath(tocPath, href)` で解決するよう修正。
+- これにより `toc.xhtml` 内の相対リンクが正しい spineItems のパスと照合可能になった。
+
+#### 4. `navigateToHref` の Join Mode 対応
+- **根本原因の特定**: スクロールモード（Join Mode）では、複数の spine が1つのページグループに結合される。目次リンク先の spine がグループ内に結合されている場合、`pagination.pages` にそのエントリが存在せず、ジャンプが失敗していた。
+- **修正内容**:
+  - `_spineGroups` を逆引きし、`spineIndex` が属するグループの先頭 spine を持つページを探すロジックを追加。
+  - `fragPart`（HTMLの id 属性文字列）を `searchQuery` に渡すのをやめた。`fragPart` はテキストではないため DOM テキスト検索で必ず失敗していた。
+  - 直前の spine が `isIllustrationOnly`（扉絵）で同グループ内にある場合は扉絵の spine をスクロールターゲットにする。扉絵がなければ指定された spine（本文先頭）を使う。
+
+#### 5. `_scrollToPositionInDOM` の修正
+- `targetSpineIndex` が指定され、`segmentIndex = 0` かつ `searchQuery` なしの場合（＝章先頭へのジャンプ）は、Walker でテキストを探さずに `joinedItem` コンテナ自体を `targetElement` として直接 `scrollIntoView` する。
+- これにより、画像のみで構成される扉絵 spine（テキストノードなし）でもスクロールジャンプが成功するようになった。
+
+### 修正された不具合
+- TRPGモジュール等で「序章」だけ目次ジャンプが失敗する問題を解決。
+  - 原因: 序章(spine 9)が挿絵(spine 8)と同じ Join Mode グループ([0-10])に属しており、ページエントリが spine 9 ではなく spine 0 として登録されていた。
+
+### 注意事項（既知の制約）
+- `spineItems[i].isIllustrationOnly` プロパティが正しく設定されている前提でロジックが動く。このプロパティは `adjustSpineGroupsForIllustrations` 内で参照されているが、設定箇所は `buildPagination` の spine ロード処理側にある。
+- `_spineGroups` は `buildPagination` 完了後にのみ有効。ナビゲーションは必ず pagination 完了後に呼ばれることを前提としている。
 
