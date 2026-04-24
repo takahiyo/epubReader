@@ -1245,30 +1245,49 @@ export class ReaderController {
   }
 
   resolveSpineIndexFromHref(href, fallbackSpineIndex = 0) {
-    if (!href) return fallbackSpineIndex;
+    if (!href) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Empty href, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
 
-    // フラグメントのみの場合は現在の spineIndex を維持するのが基本だが、
-    // navigateToHref 側で fallbackSpineIndex が渡されているはずなのでそれを使う
-    if (href.startsWith("#")) return fallbackSpineIndex;
+    // フラグメントのみ（#anchor）の場合は現在の spineIndex を維持
+    if (href.startsWith("#")) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Fragment only ${href}, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
 
     const [pathPart] = href.split("#");
     const normalized = this.normalizeHrefPath(pathPart);
-    if (!normalized) return fallbackSpineIndex;
+    if (!normalized) {
+      console.log(`[Reader] resolveSpineIndexFromHref: No path part in ${href}, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
+    console.log(`[Reader] resolveSpineIndexFromHref: Searching for "${normalized}" (fallback: ${fallbackSpineIndex})`);
 
     // 1. 完全一致 (SSOT)
     let index = this.spineItems.findIndex((item) => item.href === normalized);
-    if (index >= 0) return index;
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Direct match at index ${index}`);
+      return index;
+    }
 
     // 2. 正規化されたパスでの一致（どちらかが / を含んでいたりいなかったりする場合）
     const norm2 = normalized.replace(/\\/g, "/");
     index = this.spineItems.findIndex((item) => (item.href || "").replace(/\\/g, "/") === norm2);
-    if (index >= 0) return index;
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Normalized path match at index ${index}`);
+      return index;
+    }
 
     // 3. 末尾一致 (EndsWith)
     index = this.spineItems.findIndex((item) =>
       item.href?.endsWith(`/${normalized}`) || item.href === normalized
     );
-    if (index >= 0) return index;
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: EndsWith match at index ${index}`);
+      return index;
+    }
 
     // 4. ファイル名のみでの一致（最終手段）
     const filename = normalized.split("/").pop();
@@ -1277,9 +1296,13 @@ export class ReaderController {
         const itemFile = item.href?.split("/").pop();
         return itemFile === filename;
       });
-      if (index >= 0) return index;
+      if (index >= 0) {
+        console.log(`[Reader] resolveSpineIndexFromHref: Filename match ("${filename}") at index ${index}`);
+        return index;
+      }
     }
 
+    console.warn(`[Reader] resolveSpineIndexFromHref: No match found for "${normalized}", returning fallback ${fallbackSpineIndex}`);
     return fallbackSpineIndex;
   }
 
@@ -2119,8 +2142,21 @@ export class ReaderController {
     if (pageIndex < 0) {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
+
     if (pageIndex >= 0) {
-      this.pageController.goTo(pageIndex);
+      if (pageIndex === this.currentPageIndex && this.pageContainer) {
+        // [修正] すでに同じページ（スクロールブロック）にいる場合、DOM内スクロールを直接実行
+        console.log(`[Reader] Already on page ${pageIndex}, scrolling to segment ${segmentIndex}`);
+        this._scrollToPositionInDOM(this.pageContainer, segmentIndex, fragPart, true, spineIndex);
+      } else {
+        // 別のページへ移動
+        // スクロール先を予約
+        this._pendingScrollToSegment = segmentIndex;
+        this._pendingScrollSearchQuery = fragPart;
+        this.pageController.goTo(pageIndex);
+      }
+    } else {
+      console.warn(`[Reader] Could not find page for spineIndex: ${spineIndex}`);
     }
   }
 
@@ -2137,9 +2173,14 @@ export class ReaderController {
 
         // [修正] Join Mode への対応: リンクが含まれるコンテナから spineIndex を特定
         const parentSpineContainer = anchor.closest('.joined-spine-item');
-        const spineIndexContext = parentSpineContainer
+        let spineIndexContext = parentSpineContainer
           ? parseInt(parentSpineContainer.getAttribute('data-spine-index'), 10)
-          : (page?.spineIndex ?? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0);
+          : (page?.spineIndex ?? -1);
+        
+        // 取得できない場合の最終フォールバック
+        if (isNaN(spineIndexContext) || spineIndexContext < 0) {
+           spineIndexContext = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0;
+        }
 
         this.navigateToHref(href, spineIndexContext);
       });
