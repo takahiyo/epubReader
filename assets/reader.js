@@ -2113,16 +2113,24 @@ export class ReaderController {
     traverseToc(this.toc, 0);
 
     const tocEntries = allEntries;
+    const spineLength = this.book.spine.length;
+
+    // --- [修正] スクロールモード時は最小深度（章レベル）のみを境界とする ---
+    let filteredToc = tocEntries;
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && tocEntries.length > 0) {
+      const minDepth = Math.min(...tocEntries.map(e => e.depth));
+      filteredToc = tocEntries.filter(e => e.depth === minDepth);
+      console.log(`[JoinMode] スクロールモード：最小深度 ${minDepth} の目次項目 (${filteredToc.length}件) を使用します`);
+    }
 
     // 重複を削除し、インデックス順にソート
-    const sortedToc = tocEntries
+    const sortedToc = filteredToc
       .sort((a, b) => a.spineIndex - b.spineIndex)
       .filter((entry, index, self) =>
         index === 0 || entry.spineIndex !== self[index - 1].spineIndex
       );
 
     if (sortedToc.length === 0) {
-      // 目次がない場合は全章を一つのグループにする（以前の挙動）
       return [{ start: 0, end: spineLength - 1 }];
     }
 
@@ -2133,67 +2141,86 @@ export class ReaderController {
         ? sortedToc[i + 1].spineIndex - 1
         : spineLength - 1;
 
-      // start > end になるケース（同じファイルに複数の目次がある等）は無視
       if (start <= end) {
         groups.push({ start, end });
       }
     }
 
-    // 最初の目次項目より前の spine items がある場合、それもグループ化する（表紙など）
+    // 最初の目次項目より前の spine items がある場合、それもグループ化する
     if (groups.length > 0 && groups[0].start > 0) {
       groups.unshift({ start: 0, end: groups[0].start - 1 });
     }
 
-    console.log('[JoinMode] Spine Groups generated from TOC:', groups);
+    // 挿絵や章扉による境界の微調整
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
+      return this.adjustSpineGroupsForIllustrations(groups);
+    }
+
+    console.log('[JoinMode] Spine Groups generated:', groups);
     return groups;
   }
 
   /**
-   * 挿絵のみで構成されるSpineを検出し、前のグループに吸収する。
-   * スクロールモード時の挿絵表示を統一するための後処理。
-   *
-   * 変換例:
-   *   Before: [0-3(本文)] [4(挿絵)] [5-8(本文)]
-   *   After:  [0-4(本文+挿絵)] [5-8(本文)]
-   *
-   * 連続する挿絵ページもまとめて前のグループに吸収する:
-   *   Before: [0-3(本文)] [4(挿絵)] [5(挿絵)] [6-8(本文)]
-   *   After:  [0-5(本文+挿絵群)] [6-8(本文)]
-   *
-   * @param {Array<{start: number, end: number}>} groups - TOCから生成された章グループ
-   * @returns {Array<{start: number, end: number}>} 挿絵吸収後のグループ
+   * 挿絵や章扉の配置に合わせてグループの境界を微調整する。
+   * 1. グループ末尾が画像で、次のグループが新しい章の開始なら、境界を前にずらして画像を次の章に含める（章扉対応）。
+   * 2. グループ全体が画像のみなら、前後のコンテキストに合わせて結合する。
    */
-  mergeIllustrationSpinesIntoGroups(groups) {
+  adjustSpineGroupsForIllustrations(groups) {
     if (!Array.isArray(groups) || groups.length <= 1) return groups;
     if (!Array.isArray(this.spineItems) || !this.spineItems.length) return groups;
 
-    // 各グループが「全Spineが挿絵のみ」かどうか判定
-    const isGroupIllustrationOnly = (group) => {
-      for (let i = group.start; i <= group.end; i++) {
-        const item = this.spineItems[i];
-        if (!item) continue;
-        if (!isIllustrationOnlySpine(item.htmlString)) return false;
-      }
-      return true;
-    };
+    let adjusted = [...groups];
 
-    const merged = [];
-    for (let i = 0; i < groups.length; i++) {
-      const group = { ...groups[i] };
+    // ステップ1: 章扉の移動（後ろへ結合）
+    // 章の直前にある画像のみのSpineは、その章のタイトルページである可能性が高いため、次のグループに含める
+    for (let i = 0; i < adjusted.length - 1; i++) {
+      const current = adjusted[i];
+      const next = adjusted[i + 1];
+      const lastSpine = this.spineItems[current.end];
 
-      if (isGroupIllustrationOnly(group) && merged.length > 0) {
-        // 前のグループに吸収（end を拡張する）
-        merged[merged.length - 1].end = group.end;
-        console.log(
-          `[JoinMode] 挿絵グループ [${group.start}-${group.end}] を前のグループに吸収 → [${merged[merged.length - 1].start}-${merged[merged.length - 1].end}]`
-        );
-      } else {
-        merged.push(group);
+      if (lastSpine?.isIllustrationOnly && current.start < current.end) {
+        // 現在のグループの末尾が画像。これを次のグループの先頭に付け替える
+        console.log(`[JoinMode] 章扉の可能性：Spine ${current.end} を次のグループ [${next.start}-${next.end}] に移動`);
+        next.start = current.end;
+        current.end--;
       }
     }
 
-    console.log('[JoinMode] Spine Groups after illustration merge:', merged);
+    // ステップ2: 独立した挿絵グループの解消
+    const merged = [];
+    let current = { ...adjusted[0] };
+
+    for (let i = 1; i < adjusted.length; i++) {
+      const next = { ...adjusted[i] };
+
+      // 次のグループ全体が画像のみなら、現在のグループに結合（挿絵ページ）
+      const isNextIllustrationOnly = () => {
+        for (let j = next.start; j <= next.end; j++) {
+          if (!this.spineItems[j]?.isIllustrationOnly) return false;
+        }
+        return true;
+      };
+
+      if (isNextIllustrationOnly()) {
+        console.log(`[JoinMode] 挿絵グループを結合: [${next.start}-${next.end}]`);
+        current.end = next.end;
+      } else {
+        merged.push(current);
+        current = next;
+      }
+    }
+    merged.push(current);
+
+    console.log('[JoinMode] Adjusted Spine Groups:', merged);
     return merged;
+  }
+
+  /**
+   * 挿絵のみで構成されるSpineを検出し、前のグループに吸収する。
+   * (廃止：adjustSpineGroupsForIllustrations に統合されました)
+   */
+  mergeIllustrationSpinesIntoGroups(groups) {
+    return groups;
   }
 
   renderEpubPage(index, pagination = this.pagination) {
@@ -2820,25 +2847,19 @@ export class ReaderController {
       // 中断チェック
       if (run.cancelled) return null;
 
-      // [挿絵統一] スクロールモード時: 挿絵のみのSpineを前のグループに吸収し、
-      // spineGroups を再構築してシームレスな表示を実現する。
-      // ※ ページめくりモードには影響しない（spineGroups はスクロール時のみ使用される）
+      // [挿絵統一] スクロールモード時: 挿絵や章扉を適切に結合
       if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && this._spineGroups) {
-        const mergedGroups = this.mergeIllustrationSpinesIntoGroups(this._spineGroups);
-        if (mergedGroups !== this._spineGroups) {
-          this._spineGroups = mergedGroups;
-          // paginator 側にも更新を反映
+        const adjustedGroups = this.adjustSpineGroupsForIllustrations(this._spineGroups);
+        if (adjustedGroups !== this._spineGroups) {
+          this._spineGroups = adjustedGroups;
           if (this.paginator) {
-            this.paginator.settings.spineGroups = mergedGroups;
+            this.paginator.settings.spineGroups = adjustedGroups;
           }
-          // グループ変更に伴い、パジネーション結果を再計算する必要がある
-          // （非joinグループだった挿絵Spineが結合対象に変わるため）
           if (this.paginator && !run.cancelled) {
-            console.log('[JoinMode] 挿絵吸収によるリパジネーション開始');
+            console.log('[JoinMode] グループ再計算によるリパジネーション開始');
             await this.paginator.repaginate(this.paginator.settings);
             this.pagination = { pages: this.paginator.pages };
             this.pageController.setTotalPages(this.pagination.pages.length);
-            // 表示中のページを再描画
             this.renderEpubPage(this.currentPageIndex, this.pagination);
           }
         }
