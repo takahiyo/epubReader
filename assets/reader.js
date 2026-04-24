@@ -2184,21 +2184,28 @@ export class ReaderController {
 
     try {
       const merged = [];
-      let current = adjusted[0] ? { ...adjusted[0] } : null;
-      if (!current) return groups;
+      let current = { ...adjusted[0] };
 
       for (let i = 1; i < adjusted.length; i++) {
         const next = { ...adjusted[i] };
         
         const lastOfCurrent = this.spineItems?.[current.end];
-        const firstOfNext = this.spineItems?.[next.start];
         
-        // 判定基準: 境界のどちらかが画像なら、その境界を解消（結合）する
-        // これにより、[本文][挿絵][本文] が一つのブロックにまとまり、章扉も次の章に吸着する
-        const isBoundaryWithImage = lastOfCurrent?.isIllustrationOnly || firstOfNext?.isIllustrationOnly;
+        // 判定基準: 
+        // 1. 今のグループ全体が画像のみ（扉絵など。次の章の先頭として扱う）
+        // 2. 今のグループの末尾が画像（挿絵。次の本文と繋げる）
+        // これにより、[第1章] | [第2章扉絵] | [第2章本文] は
+        // [第1章] | [第2章扉絵+本文] になり、章の区切りが維持される。
+        const isCurrentEndsWithImage = lastOfCurrent?.isIllustrationOnly;
+        const isCurrentIllustrationOnly = () => {
+          for (let j = current.start; j <= current.end; j++) {
+            if (!this.spineItems?.[j]?.isIllustrationOnly) return false;
+          }
+          return true;
+        };
 
-        if (isBoundaryWithImage) {
-          console.log(`[JoinMode] 画像隣接につき境界を統合: Spine ${current.end} - ${next.start}`);
+        if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
+          console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
         } else {
           merged.push(current);
@@ -2207,7 +2214,7 @@ export class ReaderController {
       }
       merged.push(current);
 
-      console.log('[JoinMode] Adjusted Spine Groups (Image-Adjacent Merge):', merged);
+      console.log('[JoinMode] Adjusted Spine Groups (Forward-Merge Priority):', merged);
       return merged;
     } catch (e) {
       console.error('[JoinMode] Error in adjustSpineGroupsForIllustrations:', e);
