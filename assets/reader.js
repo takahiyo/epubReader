@@ -1748,6 +1748,11 @@ export class ReaderController {
       if (joinedItem) {
         targetContainer = joinedItem;
         console.log(`[ジャンプデバッグ] 対象の章コンテナを特定しました: spineIndex=${targetSpineIndex}`);
+        // セグメント指定なし（章先頭へのジャンプ）の場合、コンテナ自体をターゲットにする
+        // （Walkerが画像のみのコンテナでテキストを見つけられず失敗することを防ぐ）
+        if (!searchQuery && segmentIndex === 0) {
+          targetElement = joinedItem;
+        }
       }
     }
 
@@ -2154,9 +2159,18 @@ export class ReaderController {
         console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
         pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
         if (pageIndex >= 0) {
-          // グループ内ジャンプ: 扉絵（グループ先頭のspine）へスクロールする。
-          // 章の視覚的な先頭は扉絵であるため、テキストより先に扉絵を表示するのが自然。
-          this._pendingScrollTargetSpineIndex = group.start;
+          // 直前の spine が扉絵（isIllustrationOnly）で、かつ同グループ内にある場合は扉絵を表示する
+          const prevIdx = spineIndex - 1;
+          const prevSpineItem = this.spineItems?.[prevIdx];
+          const prevInGroup = prevIdx >= group.start && prevIdx <= group.end;
+          if (prevInGroup && prevSpineItem?.isIllustrationOnly) {
+            // 扉絵が本文の直前にある → 扉絵の位置へ飛ぶ
+            this._pendingScrollTargetSpineIndex = prevIdx;
+            console.log(`[Reader] 扉絵へジャンプ: spine ${prevIdx}`);
+          } else {
+            // 扉絵なし → 指定 spine（本文先頭）へ飛ぶ
+            this._pendingScrollTargetSpineIndex = spineIndex;
+          }
           this._pendingScrollToSegment = 0;
           this._pendingScrollSearchQuery = null;
         }
