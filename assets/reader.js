@@ -2154,10 +2154,10 @@ export class ReaderController {
         console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
         pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
         if (pageIndex >= 0) {
-          // グループ内ジャンプ: 対象 spine と segmentIndex を予約してレンダリング後にスクロール
-          this._pendingScrollTargetSpineIndex = spineIndex;
-          this._pendingScrollToSegment = segmentIndex;
-          // fragPart はテキストではなくIDなので searchQuery に入れない（segmentIndex で処理済み）
+          // グループ内ジャンプ: 扉絵（グループ先頭のspine）へスクロールする。
+          // 章の視覚的な先頭は扉絵であるため、テキストより先に扉絵を表示するのが自然。
+          this._pendingScrollTargetSpineIndex = group.start;
+          this._pendingScrollToSegment = 0;
           this._pendingScrollSearchQuery = null;
         }
       }
