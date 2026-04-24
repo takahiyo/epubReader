@@ -2176,51 +2176,29 @@ export class ReaderController {
     return groups;
   }
 
-  /**
-   * 挿絵や章扉の配置に合わせてグループの境界を微調整する。
-   * 1. グループ末尾が画像で、次のグループが新しい章の開始なら、境界を前にずらして画像を次の章に含める（章扉対応）。
-   * 2. グループ全体が画像のみなら、前後のコンテキストに合わせて結合する。
-   */
   adjustSpineGroupsForIllustrations(groups) {
     if (!Array.isArray(groups) || groups.length <= 1) return groups;
     if (!Array.isArray(this.spineItems) || !this.spineItems.length) return groups;
 
-    let adjusted = [...groups];
+    const adjusted = groups.map(g => ({ ...g }));
 
     try {
-      // ステップ1: 章扉の移動（後ろへ結合）
-      for (let i = 0; i < adjusted.length - 1; i++) {
-        const current = adjusted[i];
-        const next = adjusted[i + 1];
-        if (!current || !next) continue;
-        const lastSpine = this.spineItems?.[current.end];
-
-        if (lastSpine?.isIllustrationOnly && current.start < current.end) {
-          console.log(`[JoinMode] 章扉の可能性：Spine ${current.end} を次のグループ [${next.start}-${next.end}] に移動`);
-          next.start = current.end;
-          current.end--;
-        }
-      }
-
-      // ステップ2: 独立した挿絵グループの解消
       const merged = [];
       let current = adjusted[0] ? { ...adjusted[0] } : null;
       if (!current) return groups;
 
       for (let i = 1; i < adjusted.length; i++) {
         const next = { ...adjusted[i] };
+        
+        const lastOfCurrent = this.spineItems?.[current.end];
+        const firstOfNext = this.spineItems?.[next.start];
+        
+        // 判定基準: 境界のどちらかが画像なら、その境界を解消（結合）する
+        // これにより、[本文][挿絵][本文] が一つのブロックにまとまり、章扉も次の章に吸着する
+        const isBoundaryWithImage = lastOfCurrent?.isIllustrationOnly || firstOfNext?.isIllustrationOnly;
 
-        // 次のグループ全体が画像のみなら、現在のグループに結合（挿絵ページ）
-        const isNextIllustrationOnly = () => {
-          if (next.start === undefined || next.end === undefined) return false;
-          for (let j = next.start; j <= next.end; j++) {
-            if (!this.spineItems?.[j]?.isIllustrationOnly) return false;
-          }
-          return true;
-        };
-
-        if (isNextIllustrationOnly()) {
-          console.log(`[JoinMode] 挿絵グループを結合: [${next.start}-${next.end}]`);
+        if (isBoundaryWithImage) {
+          console.log(`[JoinMode] 画像隣接につき境界を統合: Spine ${current.end} - ${next.start}`);
           current.end = next.end;
         } else {
           merged.push(current);
@@ -2229,7 +2207,7 @@ export class ReaderController {
       }
       merged.push(current);
 
-      console.log('[JoinMode] Adjusted Spine Groups:', merged);
+      console.log('[JoinMode] Adjusted Spine Groups (Image-Adjacent Merge):', merged);
       return merged;
     } catch (e) {
       console.error('[JoinMode] Error in adjustSpineGroupsForIllustrations:', e);
