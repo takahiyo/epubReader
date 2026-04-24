@@ -2120,21 +2120,18 @@ export class ReaderController {
       console.warn('[JoinMode] Failed to traverse TOC:', e);
     }
 
-    const tocEntries = allEntries;
-    const spineLength = this.book.spine.length;
-
     // --- [修正] スクロールモード時は最小深度（章レベル）のみを境界とする ---
-    let filteredToc = tocEntries;
-    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && tocEntries.length > 0) {
+    let filteredToc = allEntries;
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && allEntries.length > 0) {
       try {
         let minDepth = Infinity;
-        for (const e of tocEntries) {
+        for (const e of allEntries) {
           if (typeof e.depth === 'number' && e.depth < minDepth) {
             minDepth = e.depth;
           }
         }
         if (minDepth !== Infinity) {
-          filteredToc = tocEntries.filter(e => e.depth === minDepth);
+          filteredToc = allEntries.filter(e => e.depth === minDepth);
           console.log(`[JoinMode] スクロールモード：最小深度 ${minDepth} の目次項目 (${filteredToc.length}件) を使用します`);
         }
       } catch (e) {
