@@ -2480,13 +2480,15 @@ function buildFilePickerOptions() {
 }
 
 function ensureLegacyFileInput() {
-  const acceptValue = FILE_INPUT_ACCEPT.join(",");
   const existing = elements.fileInput ?? document.getElementById(DOM_IDS.LEGACY_FILE_INPUT);
   if (existing) {
-    existing.accept = acceptValue;
+    // Windowsのファイルピッカーフリーズ対策: accept属性によるOS側ファイルスキャンを抑制する
+    existing.removeAttribute('accept');
+    console.log('[openFileDialog] ensureLegacyFileInput: using existing element', existing.id);
     if (existing !== elements.fileInput && existing.dataset.listenerAttached !== "true") {
       existing.addEventListener("change", (e) => {
         const file = e.target.files?.[0];
+        console.log('[openFileDialog] file selected via existing input:', file?.name, file?.type, file?.size);
         if (file) {
           handleFile(file);
         } else {
@@ -2499,13 +2501,16 @@ function ensureLegacyFileInput() {
     return existing;
   }
 
+  console.log('[openFileDialog] ensureLegacyFileInput: creating new input element');
   const input = document.createElement("input");
   input.type = "file";
   input.id = DOM_IDS.LEGACY_FILE_INPUT;
-  input.accept = acceptValue;
+  // Windowsのファイルピッカーフリーズ対策: accept属性を設定しない
+  // (accept属性はWindowsがディレクトリ内ファイルを全スキャンしフリーズを引き起こす)
   input.style.display = "none";
   input.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
+    console.log('[openFileDialog] file selected via new input:', file?.name, file?.type, file?.size);
     if (file) {
       handleFile(file);
     } else {
@@ -2519,12 +2524,18 @@ function ensureLegacyFileInput() {
 }
 
 async function openFileDialog() {
+  console.log('[openFileDialog] called');
   const input = ensureLegacyFileInput();
-  if (!input) return;
+  if (!input) {
+    console.error('[openFileDialog] Failed to get/create input element');
+    return;
+  }
+  console.log('[openFileDialog] calling input.click(), accept=', input.getAttribute('accept') ?? '(none)');
   // showPicker / showOpenFilePicker はWindowsのChromium系ブラウザで
   // OSのファイルダイアログをフリーズさせるバグがある。
-  // 最も確実な input.click() のみを使用する。
+  // accept属性も同様にWindowsでフリーズを引き起こすため設定しない。
   input.click();
+  console.log('[openFileDialog] input.click() returned (waiting for user selection...)');
 }
 
 /**
