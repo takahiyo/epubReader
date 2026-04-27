@@ -301,6 +301,13 @@ export class ReaderController {
     this.bindZoomEvents();
     this.bindEpubScrollEvents();
     this.setupZoomSlider();
+
+    // [Quest 3 v85対応] visualViewport のリサイズ監視を追加
+    // OSのウィンドウハンドル消失時や、Distant View への切り替え時など、
+    // window.resize だけでは検知しきれないサイズ変更を確実に拾います。
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.onResize());
+    }
   }
 
   showImageLoading(isLoading) {
@@ -406,7 +413,17 @@ export class ReaderController {
     this.rendition = null;
     this.book = null;
     this.type = null; // "epub" | "image" | "web_novel"
-    this.archiveHandler = null;
+    
+    // [BEFORE] this.archiveHandler = null;
+    // [AFTER] アーカイブハンドラを明示的にクローズしてリソース（Worker, OPFS等）を解放
+    if (this.archiveHandler) {
+      const oldHandler = this.archiveHandler;
+      this.archiveHandler = null;
+      if (typeof oldHandler.close === 'function') {
+        oldHandler.close().catch(err => console.warn("Failed to close archive handler:", err));
+      }
+    }
+
     this.revokeImagePages();
     this.imagePages = [];
     this.imageIndex = 0;

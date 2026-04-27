@@ -24,6 +24,8 @@ export const FILESTORE_CONFIG = Object.freeze({
   PCLOUD_FALLBACK_PREFIX: "pcloud",
   /** OPFS (Origin Private File System) 内のファイル保存ディレクトリ名 */
   OPFS_DIR: "books",
+  /** 一時的な解凍データの保存用ディレクトリ名 */
+  OPFS_TEMP_DIR: "temp_extractions",
 });
 
 // ============================================

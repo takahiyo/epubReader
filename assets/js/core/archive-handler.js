@@ -442,6 +442,14 @@ export class ArchiveHandler {
   getArchiveLabel() {
     return "ARCHIVE";
   }
+
+  /**
+   * リソースを解放します。
+   * @returns {Promise<void>}
+   */
+  async close() {
+    // 基底クラスでは何もしない
+  }
 }
 
 export class ZipHandler extends ArchiveHandler {
@@ -530,6 +538,14 @@ export class ZipHandler extends ArchiveHandler {
   getArchiveLabel() {
     return "ZIP/CBZ";
   }
+
+  /**
+   * @returns {Promise<void>}
+   */
+  async close() {
+    this.zip = null;
+    this.entries = [];
+  }
 }
 
 export class RarHandler extends ArchiveHandler {
@@ -552,11 +568,20 @@ export class RarHandler extends ArchiveHandler {
   async init() {
     // RARファイルは解凍ライブラリ(unrar.js, wasm)の制約上、全データをArrayBufferとして
     // メモリに読み込む必要があり、ファイルサイズの約3倍のメモリ領域を消費します。
+<<<<<<< Updated upstream
     // 今回のアーキテクチャでは、抽出後にバッファをOPFSにオフロードし手動GCを行うことで
     // Quest 3(Horizon OS)の厳しいメモリ制限下でも大容量アーカイブの展開を許容します。
     if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) {
       console.warn(`[RarHandler] Large RAR archive detected (${(this.file.size / 1024 / 1024).toFixed(1)}MB). Offloading extraction to OPFS and manual GC.`);
       // 制限をプロンプトに従いバイパス（throwしない）
+=======
+    // モバイル端末等でのブラウザクラッシュ(OOM)を防ぐため、大容量ファイルは処理をブロックします。
+    // [BEFORE] if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) { ... }
+    // [AFTER] 50MB 制限を緩和し、大容量ファイルでも Worker 経由で処理を継続可能にします。
+    const isLarge = this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
+    if (isLarge) {
+      console.log(`[RarHandler] 大容量ファイル (${(this.file.size / 1024 / 1024).toFixed(1)}MB) を検知。Worker 優先モードで初期化します。`);
+>>>>>>> Stashed changes
     }
 
     const buffer = await this.file.arrayBuffer();
@@ -660,6 +685,15 @@ export class RarHandler extends ArchiveHandler {
     }
 
     let dataBuffer = null;
+    const archiveId = this.file.name; // IDとしてファイル名を使用（一時的）
+    
+    // 1. OPFS キャッシュの確認
+    const { loadTempFromOPFS, saveTempToOPFS, createOPFSWritableStream, closeOPFSStream, isOPFSAvailable } = await import("../../fileStore.js");
+    const cached = await loadTempFromOPFS(archiveId, path);
+    if (cached) {
+      console.debug(`[RarHandler] OPFS cache hit: ${path}`);
+      return cached;
+    }
 
     if (this.workerClient) {
       const payload = await this.workerClient.request(ARCHIVE_WORKER_MESSAGES.EXTRACT, { path });
@@ -690,11 +724,11 @@ export class RarHandler extends ArchiveHandler {
     const mimeType = resolveImageMimeType(path);
     const fileName = path.split('/').pop();
     
-    const { createOPFSWritableStream, closeOPFSStream, isOPFSAvailable } = await import("../../fileStore.js");
     const cacheId = `RAR_CHUNK_${btoa(unescape(encodeURIComponent(path))).replace(/[=+\/]/g, '')}`;
 
     // 画像のサイズ（展開後）が 20MB 以下なら OPFS を使わずメモリ上で Blob 化して返す
     const isVeryLargeImage = dataBuffer.byteLength > 20 * 1024 * 1024;
+    let resultBlob;
 
     // OPFSが利用可能かつ巨大な画像の場合のみオフロードを行う
     if (isOPFSAvailable() && isVeryLargeImage) {
@@ -711,17 +745,26 @@ export class RarHandler extends ArchiveHandler {
         dataBuffer = null;
         await new Promise(resolve => setTimeout(resolve, 0));
         
-        return await fileHandleObj.getFile();
+        resultBlob = await fileHandleObj.getFile();
       } catch (error) {
         if (writableStream) await closeOPFSStream(writableStream).catch(()=>{});
         console.warn("[RarHandler] OPFS offload failed, falling back to Blob", error);
+        resultBlob = new Blob([dataBuffer], { type: mimeType });
+        dataBuffer = null;
       }
+    } else {
+      // 通常の展開: 直接 Blob に変換（メモリ消費は一時的）
+      resultBlob = new Blob([dataBuffer], { type: mimeType });
+      dataBuffer = null; // 即座に参照を切り離して GC を促す
     }
 
-    // 通常の展開: 直接 Blob に変換（メモリ消費は一時的）
-    const blob = new Blob([dataBuffer], { type: mimeType });
-    dataBuffer = null; // 即座に参照を切り離して GC を促す
-    return blob;
+    // 2. 大容量ファイルの場合は OPFS に保存してメインメモリから逃がす
+    if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) {
+      await saveTempToOPFS(archiveId, path, resultBlob);
+      console.debug(`[RarHandler] Saved to OPFS temp: ${path}`);
+    }
+
+    return resultBlob;
   }
 
   /**
@@ -729,6 +772,32 @@ export class RarHandler extends ArchiveHandler {
    */
   getArchiveLabel() {
     return "RAR/CBR";
+  }
+
+  /**
+   * リソースを解放し、一時データをクリーンアップします。
+   * @returns {Promise<void>}
+   */
+  async close() {
+    if (this.workerClient) {
+      try {
+        await this.workerClient.request(ARCHIVE_WORKER_MESSAGES.CLOSE, {}).catch(() => {});
+        this.workerClient.terminate();
+      } catch (e) {
+        console.warn("[RarHandler] Worker close error:", e);
+      }
+      this.workerClient = null;
+    }
+    this.extractor = null;
+    this.headers = [];
+
+    // OPFS 一時データのクリーンアップ
+    try {
+      const { cleanupTempExtractions } = await import("../../fileStore.js");
+      await cleanupTempExtractions(this.file.name);
+    } catch (e) {
+      console.warn("[RarHandler] Temp cleanup failed:", e);
+    }
   }
 }
 

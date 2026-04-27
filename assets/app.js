@@ -132,6 +132,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (reader && typeof reader.setupZoomSlider === 'function') {
     reader.setupZoomSlider();
   }
+
+  // [New] OPFS 一時展開ディレクトリのクリーンアップ
+  try {
+    const { cleanupTempExtractions } = await import("./fileStore.js");
+    cleanupTempExtractions(); // 引数なしで全削除
+  } catch (e) {
+    console.warn("OPFS temp cleanup failed at startup:", e);
+  }
 });
 
 
@@ -891,10 +899,9 @@ async function handleFile(file, overrideBookId = null) {
     const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
 
     // 2.5. ストリーミングモード判定（能力ベース、OS非依存）
-    //      ZIPファイルかつ端末のメモリ能力に対しファイルが大きすぎる場合、
-    //      JSZipの一括展開ではなくzip.jsのストリーミングモードに切り替える
-    const useStreaming = isArchiveBook && type === BOOK_TYPES.ZIP &&
-      fileHandler.shouldUseStreaming(file);
+    //      ZIP/RARファイルかつ端末のメモリ能力に対しファイルが大きすぎる場合、
+    //      一括展開ではなくストリーミング（または Worker+OPFS 連携）モードに切り替える
+    const useStreaming = isArchiveBook && fileHandler.shouldUseStreaming(file);
 
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
     if (useStreaming) {
