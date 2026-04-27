@@ -38,7 +38,18 @@ self.addEventListener('install', (event) => {
                 Promise.all(
                     config.assets.map((url) =>
                         fetch(url, { cache: "no-cache" })
-                            .then((response) => cache.put(url, response))
+                            .then((response) => {
+                                if (!response.ok) {
+                                    throw new Error(`[SW] Network response was not ok for ${url}`);
+                                }
+                                // セキュリティ/堅牢性ガード: JS/CSS/JSONリクエスト時にHTMLが返ってきた場合は、
+                                // サーバーがエラーページ(404等)を返している可能性が高いためキャッシュを拒否する。
+                                const contentType = response.headers.get("content-type");
+                                if (url.match(/\.(js|css|json)$/) && contentType && contentType.includes("text/html")) {
+                                    throw new Error(`[SW] MIME type mismatch for ${url}: expected script/style but got HTML`);
+                                }
+                                return cache.put(url, response);
+                            })
                             .catch((err) => {
                                 console.warn(`[SW] Failed to cache: ${url}`, err);
                             })

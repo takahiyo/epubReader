@@ -6,8 +6,7 @@
  * 従来方式 (<input type="file">) を切り替える。
  */
 
-import { isQuest3 } from '../constants/runtime-config.js';
-import { SUPPORTED_FORMATS } from '../constants/formats.js';
+import { isQuest3, SUPPORTED_FORMATS } from "../../constants.js";
 
 let dependencies = {
     UI_CONSTANTS: null,
