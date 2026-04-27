@@ -736,7 +736,7 @@ self.addEventListener('fetch', (event) => {
 
 ```json
 {
-  "cacheName": "bookreader-v8",
+  "cacheName": "bookreader-v9",
   "assets": [
     "./",
     "./index.html",
@@ -797,7 +797,35 @@ self.addEventListener('fetch', (event) => {
     "https://cdn.jsdelivr.net/npm/@zip.js/zip.js/dist/zip.min.js",
     "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
     "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-    "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
+    "./assets/constants/app-info.js",
+    "./assets/constants/assets.js",
+    "./assets/constants/errors.js",
+    "./assets/constants/formats.js",
+    "./assets/constants/global.js",
+    "./assets/constants/interaction.js",
+    "./assets/constants/progress.js",
+    "./assets/constants/pwa.js",
+    "./assets/constants/reader.js",
+    "./assets/constants/runtime-config.js",
+    "./assets/constants/storage.js",
+    "./assets/constants/sync.js",
+    "./assets/constants/timing.js",
+    "./assets/constants/ui.js",
+    "./assets/js/core/archive-handler.js",
+    "./assets/js/core/file-handler.js",
+    "./assets/js/core/file-picker.js",
+    "./assets/js/core/index.js",
+    "./assets/js/core/progress-utils.js",
+    "./assets/js/core/streaming-zip-handler.js",
+    "./assets/js/core/sync-logic.js",
+    "./assets/js/core/web-novel-provider.js",
+    "./assets/js/core/web-novel-viewer.js",
+    "./assets/js/ui/elements.js",
+    "./assets/js/ui/i18n-utils.js",
+    "./assets/js/ui/overlay-manager.js",
+    "./assets/js/ui/renderers.js",
+    "./assets/js/ui/web-novel-ui.js"
   ]
 }
 
@@ -880,7 +908,7 @@ window.APP_CONFIG = {
 // PWA / Service Worker 設定
 // ============================================
 export const PWA_CONFIG = Object.freeze({
-  CACHE_NAME: "bookreader-v8",
+  CACHE_NAME: "bookreader-v9",
   THEME_COLOR: "#2c3e50",
   BACKGROUND_COLOR: "#ffffff",
 });
@@ -939,6 +967,37 @@ export const SW_CACHE_ASSETS = Object.freeze([
   "./assets/vendor/unrar.js",
   "./assets/vendor/unrar.wasm",
   "./assets/animations/loader_book.json",
+  // constants サブファイル
+  "./assets/constants/app-info.js",
+  "./assets/constants/assets.js",
+  "./assets/constants/errors.js",
+  "./assets/constants/formats.js",
+  "./assets/constants/global.js",
+  "./assets/constants/interaction.js",
+  "./assets/constants/progress.js",
+  "./assets/constants/pwa.js",
+  "./assets/constants/reader.js",
+  "./assets/constants/runtime-config.js",
+  "./assets/constants/storage.js",
+  "./assets/constants/sync.js",
+  "./assets/constants/timing.js",
+  "./assets/constants/ui.js",
+  // js/core サブモジュール
+  "./assets/js/core/archive-handler.js",
+  "./assets/js/core/file-handler.js",
+  "./assets/js/core/file-picker.js",
+  "./assets/js/core/index.js",
+  "./assets/js/core/progress-utils.js",
+  "./assets/js/core/streaming-zip-handler.js",
+  "./assets/js/core/sync-logic.js",
+  "./assets/js/core/web-novel-provider.js",
+  "./assets/js/core/web-novel-viewer.js",
+  // js/ui サブモジュール
+  "./assets/js/ui/elements.js",
+  "./assets/js/ui/i18n-utils.js",
+  "./assets/js/ui/overlay-manager.js",
+  "./assets/js/ui/renderers.js",
+  "./assets/js/ui/web-novel-ui.js",
 ]);
 
 ```
@@ -1148,6 +1207,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ズームスライダーの初期化をDOM準備後に行う
   if (reader && typeof reader.setupZoomSlider === 'function') {
     reader.setupZoomSlider();
+  }
+
+  // [New] OPFS 一時展開ディレクトリのクリーンアップ
+  try {
+    const { cleanupTempExtractions } = await import("./fileStore.js");
+    cleanupTempExtractions(); // 引数なしで全削除
+  } catch (e) {
+    console.warn("OPFS temp cleanup failed at startup:", e);
   }
 });
 
@@ -1908,10 +1975,9 @@ async function handleFile(file, overrideBookId = null) {
     const isArchiveBook = type === BOOK_TYPES.ZIP || type === BOOK_TYPES.RAR;
 
     // 2.5. ストリーミングモード判定（能力ベース、OS非依存）
-    //      ZIPファイルかつ端末のメモリ能力に対しファイルが大きすぎる場合、
-    //      JSZipの一括展開ではなくzip.jsのストリーミングモードに切り替える
-    const useStreaming = isArchiveBook && type === BOOK_TYPES.ZIP &&
-      fileHandler.shouldUseStreaming(file);
+    //      ZIP/RARファイルかつ端末のメモリ能力に対しファイルが大きすぎる場合、
+    //      一括展開ではなくストリーミング（または Worker+OPFS 連携）モードに切り替える
+    const useStreaming = isArchiveBook && fileHandler.shouldUseStreaming(file);
 
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
     if (useStreaming) {
