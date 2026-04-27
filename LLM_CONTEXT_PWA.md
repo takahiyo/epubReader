@@ -610,35 +610,6 @@ self.addEventListener('fetch', (event) => {
           </div>
         </div>
 
-        <div class="settings-section">
-          <h4 id="settingsNotionTitle"></h4>
-          <div class="setting-item">
-            <label id="notionStatusLabel" for="notionStatus"></label>
-            <p id="notionStatus" class="setting-hint"></p>
-          </div>
-          <div class="setting-item">
-            <label id="notionOauthUrlLabel" for="notionOauthUrl"></label>
-            <input id="notionOauthUrl" type="text" />
-          </div>
-          <div class="setting-item">
-            <label id="notionWorkspaceLabel" for="notionWorkspace"></label>
-            <input id="notionWorkspace" type="text" readonly />
-          </div>
-          <div class="setting-item">
-            <label id="notionParentPageLabel" for="notionParentPage"></label>
-            <input id="notionParentPage" type="text" readonly />
-          </div>
-          <div class="setting-item">
-            <label id="notionDatabaseLabel" for="notionDatabase"></label>
-            <input id="notionDatabase" type="text" readonly />
-          </div>
-          <div class="setting-item">
-            <div class="setting-actions">
-              <button id="notionConnectButton" class="secondary-btn" type="button"></button>
-              <button id="notionDisconnectButton" class="secondary-btn" type="button"></button>
-            </div>
-            <p id="notionHelpText" class="setting-hint"></p>
-          </div>
         </div>
 
 
@@ -674,6 +645,7 @@ self.addEventListener('fetch', (event) => {
         <button id="floatWebNovel" type="button">🌐📝</button>
         <button id="floatBookmarks" type="button"></button>
         <button id="floatHistory" type="button"></button>
+        <button id="share-log-btn" type="button"></button>
       </div>
 
       <button id="floatSettings" class="float-settings" type="button"></button>
@@ -855,7 +827,6 @@ export * from "./constants/formats.js";
 export * from "./constants/pwa.js";
 export * from "./constants/timing.js";
 export * from "./constants/global.js";
-export * from "./constants/notion.js";
 
 ```
 
@@ -1068,7 +1039,7 @@ import { elements } from "./js/ui/elements.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
-import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
+import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage, generateShareText } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
 import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
@@ -1101,9 +1072,7 @@ import {
   READER_CONFIG,
   SYNC_SOURCES,
   CLOUD_SYNC_PAGE_THRESHOLD,
-  NOTION_INTEGRATION_STATUS,
-  NOTION_DEFAULT_SETTINGS,
-  NOTION_CONFIG,
+  SHARE_MARKDOWN_TEMPLATE,
 } from "./constants.js";
 
 // ========================================
@@ -1160,13 +1129,6 @@ let archiveWarningTypes = [];
 // Map<string, { id: string, type: 'local' | 'cloud' }>
 let pendingDeletes = new Map();
 
-const NOTION_STATUS_LABEL_KEYS = Object.freeze({
-  [NOTION_INTEGRATION_STATUS.DISCONNECTED]: "notionStatusDisconnected",
-  [NOTION_INTEGRATION_STATUS.CONNECTED]: "notionStatusConnected",
-  [NOTION_INTEGRATION_STATUS.PENDING]: "notionStatusPending",
-  [NOTION_INTEGRATION_STATUS.ERROR]: "notionStatusError",
-});
-
 // UI_STRINGS は i18n.js からインポート済み
 
 
@@ -1197,23 +1159,6 @@ function t(key) {
 
 
 
-
-function getNotionSettingsSnapshot() {
-  const currentSettings = storage.getSettings();
-  return {
-    ...NOTION_DEFAULT_SETTINGS,
-    ...(currentSettings.notionIntegration ?? {}),
-  };
-}
-
-function getNotionUrlSample() {
-  return NOTION_CONFIG.OAUTH_URL_SAMPLE || NOTION_CONFIG.OAUTH_URL;
-}
-
-function getNotionOAuthUrl() {
-  const notionSettings = getNotionSettingsSnapshot();
-  return notionSettings.oauthUrl || NOTION_CONFIG.OAUTH_URL;
-}
 
 function normalizeEpubLocation(location) {
   if (!location) return null;
@@ -1250,54 +1195,6 @@ function normalizeProgressSnapshot(progress, bookType) {
     ...progress,
     location: normalizedLocation,
   };
-}
-
-function renderNotionSettingsStatus() {
-  const notionSettings = getNotionSettingsSnapshot();
-  const statusKey = NOTION_STATUS_LABEL_KEYS[notionSettings.status] ?? "notionStatusDisconnected";
-  if (elements.notionStatus) {
-    elements.notionStatus.textContent = t(statusKey);
-  }
-  if (elements.notionWorkspaceInput) {
-    elements.notionWorkspaceInput.value = notionSettings.workspaceName || t("notionValueEmpty");
-  }
-  if (elements.notionParentPageInput) {
-    elements.notionParentPageInput.value = notionSettings.parentPageId || t("notionValueEmpty");
-  }
-  if (elements.notionDatabaseInput) {
-    elements.notionDatabaseInput.value = notionSettings.databaseId || t("notionValueEmpty");
-  }
-  if (elements.notionOauthUrlInput) {
-    elements.notionOauthUrlInput.value = notionSettings.oauthUrl || "";
-    elements.notionOauthUrlInput.placeholder = tReplace(
-      "notionOauthUrlPlaceholder",
-      { url: getNotionUrlSample() },
-      uiLanguage,
-    );
-  }
-  const isConnected = notionSettings.status === NOTION_INTEGRATION_STATUS.CONNECTED;
-  if (elements.notionConnectButton) {
-    elements.notionConnectButton.disabled = isConnected;
-  }
-  if (elements.notionDisconnectButton) {
-    elements.notionDisconnectButton.disabled = !isConnected;
-  }
-}
-
-function handleNotionConnectClick() {
-  const notionUrl = getNotionOAuthUrl();
-  if (!notionUrl) {
-    alert(tReplace("notionConnectUnavailable", { url: getNotionUrlSample() }, uiLanguage));
-    return;
-  }
-  window.location.href = notionUrl;
-}
-
-function handleNotionDisconnectClick() {
-  if (!confirm(t("notionDisconnectConfirm"))) return;
-  storage.setSettings({ notionIntegration: { ...NOTION_DEFAULT_SETTINGS } });
-  renderNotionSettingsStatus();
-  alert(t("notionDisconnected"));
 }
 
 // ファイルピッカーの初期化
@@ -1375,8 +1272,47 @@ if (typeof document !== "undefined") {
 
 
 // ========================================
-// 進捗保存
+// UI ヘルパー
 // ========================================
+
+/**
+ * プレミアムアイコン（画像）を取得
+ */
+const getPremiumIcon = (path, size = 20) => {
+  const img = document.createElement("img");
+  img.src = path;
+  img.style.width = `${size}px`;
+  img.style.height = `${size}px`;
+  img.style.verticalAlign = "middle";
+  img.style.objectFit = "contain";
+  return img;
+};
+
+/**
+ * 2枚1組のプレミアムアイコン（画像）をクロップして取得
+ */
+const getPremiumIconCropped = (path, isRight, size = 20) => {
+  const container = document.createElement("div");
+  container.style.width = `${size}px`;
+  container.style.height = `${size}px`;
+  container.style.overflow = "hidden";
+  container.style.display = "inline-flex";
+  container.style.alignItems = "center";
+  container.style.justifyContent = "center";
+  container.style.verticalAlign = "middle";
+
+  const img = document.createElement("img");
+  img.src = path;
+  img.style.width = `${size * 2}px`;
+  img.style.height = `${size}px`;
+  img.style.maxWidth = "none";
+  img.style.objectFit = "cover";
+  img.style.objectPosition = isRight ? "right" : "left";
+
+  container.appendChild(img);
+  return container;
+};
+
 function getCurrentTotalPages() {
   if (!reader) return 0;
   return reader.type === BOOK_TYPES.EPUB
@@ -1419,6 +1355,43 @@ function saveCurrentProgress(options = {}) {
   if (getCurrentTotalPages() <= 0) return;
 
   let progressData = null;
+
+/**
+ * 読書録を共有する
+ */
+async function handleShareReadingLog() {
+  if (!currentBookId || !currentBookInfo) {
+    console.warn("[share] No book loaded");
+    return;
+  }
+
+  try {
+    const progress = storage.getProgress(currentBookId) || {};
+    const shareText = generateShareText({
+      title: currentBookInfo.title,
+      percentage: progress.percentage || 0
+    }, SHARE_MARKDOWN_TEMPLATE);
+
+    if (navigator.share) {
+      await navigator.share({
+        title: currentBookInfo.title,
+        text: shareText
+      });
+      console.log("[share] Shared successfully");
+    } else {
+      // フォールバック: クリップボード
+      await navigator.clipboard.writeText(shareText);
+      alert(t("share_success_clipboard"));
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      console.log("[share] Share cancelled by user");
+    } else {
+      console.error("[share] Error sharing:", error);
+      alert(t("error_generic"));
+    }
+  }
+}
 
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
@@ -1875,9 +1848,11 @@ function toggleFullscreen() {
 function updateFullscreenButtonLabel() {
   if (!elements.toggleFullscreen) return;
   const isFullscreen = !!document.fullscreenElement;
-  elements.toggleFullscreen.textContent = isFullscreen
-    ? UI_ICONS.FULLSCREEN_EXIT
-    : UI_ICONS.FULLSCREEN_ENTER;
+  
+  // プレミアムアイコン
+  const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen, 24);
+  elements.toggleFullscreen.replaceChildren(iconElement);
+  
   elements.toggleFullscreen.title = isFullscreen
     ? t('fullscreenExitTitle')
     : t('fullscreenEnterTitle');
@@ -3004,7 +2979,22 @@ function applyUiLanguage(nextLanguage) {
 
   const setMenuLabel = (button, icon, text) => {
     const iconSpan = button?.querySelector(DOM_SELECTORS.MENU_ICON);
-    if (iconSpan) iconSpan.textContent = icon;
+    if (iconSpan) {
+      const iconMap = {
+        [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
+        [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
+        [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
+        [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
+        [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.BOOKMARKS, // 代用
+        [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+      };
+      const premiumPath = iconMap[icon];
+      if (premiumPath) {
+        iconSpan.replaceChildren(getPremiumIcon(premiumPath, 24));
+      } else {
+        iconSpan.textContent = icon;
+      }
+    }
     const label = button?.querySelector(DOM_SELECTORS.MENU_LABEL);
     if (label) label.textContent = text;
   };
@@ -3014,7 +3004,22 @@ function applyUiLanguage(nextLanguage) {
   };
   const setFloatLabel = (button, icon, text) => {
     if (!button) return;
-    button.textContent = `${icon} ${text}`;
+    const iconMap = {
+      [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
+      [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
+      [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
+      [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
+      [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.BOOKMARKS, // 代用
+      [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+    };
+    const premiumPath = iconMap[icon];
+    if (premiumPath) {
+      const img = getPremiumIcon(premiumPath, 20);
+      const label = document.createTextNode(` ${text}`);
+      button.replaceChildren(img, label);
+    } else {
+      button.textContent = `${icon} ${text}`;
+    }
   };
   setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
   setMenuLabel(elements.menuLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
@@ -3037,11 +3042,11 @@ function applyUiLanguage(nextLanguage) {
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    elements.floatSettings.textContent = UI_ICONS.SETTINGS;
+    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 24));
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
   if (elements.openLangMenu) {
-    elements.openLangMenu.textContent = UI_ICONS.LANGUAGE;
+    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 24));
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
   }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
@@ -3130,27 +3135,10 @@ function applyUiLanguage(nextLanguage) {
     // storage.js の getDeviceInfo を使用
     elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
   }
-  renderNotionSettingsStatus();
-
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
-  if (elements.settingsNotionTitle) elements.settingsNotionTitle.textContent = strings.settingsNotionTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
   if (elements.manualSyncButton) elements.manualSyncButton.textContent = strings.syncNowButton;
   if (elements.syncHint) elements.syncHint.textContent = strings.syncHint;
-  if (elements.notionStatusLabel) elements.notionStatusLabel.textContent = strings.notionStatusLabel;
-  if (elements.notionOauthUrlLabel) elements.notionOauthUrlLabel.textContent = strings.notionOauthUrlLabel;
-  if (elements.notionWorkspaceLabel) elements.notionWorkspaceLabel.textContent = strings.notionWorkspaceLabel;
-  if (elements.notionParentPageLabel) elements.notionParentPageLabel.textContent = strings.notionParentPageLabel;
-  if (elements.notionDatabaseLabel) elements.notionDatabaseLabel.textContent = strings.notionDatabaseLabel;
-  if (elements.notionConnectButton) elements.notionConnectButton.textContent = strings.notionConnectButton;
-  if (elements.notionDisconnectButton) elements.notionDisconnectButton.textContent = strings.notionDisconnectButton;
-  if (elements.notionHelpText) {
-    elements.notionHelpText.textContent = tReplace(
-      "notionHelpText",
-      { url: getNotionUrlSample() },
-      uiLanguage,
-    );
-  }
   if (elements.settingsSyncTitle) elements.settingsSyncTitle.textContent = strings.settingsSyncTitle;
   if (elements.settingsFirebaseTitle) elements.settingsFirebaseTitle.textContent = strings.settingsSyncTitle;
   if (elements.firebaseApiKeyLabel) elements.firebaseApiKeyLabel.textContent = strings.firebaseApiKeyLabel;
@@ -3947,20 +3935,6 @@ function setupEvents() {
     startGoogleLogin();
   });
 
-  elements.notionOauthUrlInput?.addEventListener('input', (e) => {
-    const nextValue = e.target.value.trim();
-    const notionSettings = getNotionSettingsSnapshot();
-    storage.setSettings({
-      notionIntegration: {
-        ...notionSettings,
-        oauthUrl: nextValue,
-      },
-    });
-  });
-
-  elements.notionConnectButton?.addEventListener('click', handleNotionConnectClick);
-  elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
-
   // Manual sync button
   elements.manualSyncButton?.addEventListener('click', async () => {
     const authStatus = checkAuthStatus();
@@ -4362,6 +4336,9 @@ function setupEvents() {
   elements.toggleFullscreen?.addEventListener('click', () => {
     toggleFullscreen();
   });
+
+  // 読書録共有ボタン
+  elements.shareLogButton?.addEventListener('click', handleShareReadingLog);
 
   // 全画面状態が変わった時にボタンラベルを更新
   // リペジネーションは window.resize イベント経由で自動的にトリガーされる
@@ -5413,8 +5390,6 @@ import {
   DEVICE_COLOR_PALETTE,
   DEFAULT_SETTINGS,
   DEFAULT_DATA_SHAPE,
-  NOTION_DEFAULT_SETTINGS,
-  NOTION_INTEGRATION_STATUS,
   BOOK_TYPES,
 } from "./constants.js";
 
@@ -5584,14 +5559,6 @@ export class StorageService {
 
       const normalizedSource = normalizeStorageSource(settings.source) ?? STORAGE_SOURCE_DEFAULT;
       const normalizedDestination = normalizeStorageSource(settings.saveDestination);
-      const notionIntegration = {
-        ...NOTION_DEFAULT_SETTINGS,
-        ...(settings.notionIntegration ?? {}),
-      };
-      const normalizedNotionStatus =
-        Object.values(NOTION_INTEGRATION_STATUS).includes(notionIntegration.status)
-          ? notionIntegration.status
-          : NOTION_DEFAULT_SETTINGS.status;
       const data = {
         ...defaultData,
         ...parsed,
@@ -5623,11 +5590,6 @@ export class StorageService {
           onedriveFilePath: normalizedSettings.onedriveFilePath || defaultData.settings.onedriveFilePath,
           onedriveFileId: normalizedSettings.onedriveFileId || defaultData.settings.onedriveFileId,
           onedriveToken: normalizedSettings.onedriveToken || defaultData.settings.onedriveToken,
-          notionIntegration: {
-            ...NOTION_DEFAULT_SETTINGS,
-            ...notionIntegration,
-            status: normalizedNotionStatus,
-          },
 
           autoSyncEnabled: normalizedSettings.autoSyncEnabled ?? defaultData.settings.autoSyncEnabled,
         },

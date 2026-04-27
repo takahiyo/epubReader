@@ -1,5 +1,4 @@
 import { UI_DEFAULTS } from "./ui.js";
-import { NOTION_DEFAULT_SETTINGS } from "./notion.js";
 
 // ============================================
 // ストレージ設定
@@ -77,5 +76,4 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultPageDirection: UI_DEFAULTS.defaultDirection,
   defaultImageViewMode: UI_DEFAULTS.imageViewMode,
   oneBookmarkPerBook: false, // 1冊につき最後に作成したしおり1つだけを保持する
-  notionIntegration: { ...NOTION_DEFAULT_SETTINGS },
 });

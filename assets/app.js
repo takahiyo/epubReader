@@ -338,7 +338,6 @@ function saveCurrentProgress(options = {}) {
   if (getCurrentTotalPages() <= 0) return;
 
   let progressData = null;
-}
 
 /**
  * 読書録を共有する
@@ -2918,20 +2917,6 @@ function setupEvents() {
     // New Firebase Auth Login
     startGoogleLogin();
   });
-
-  elements.notionOauthUrlInput?.addEventListener('input', (e) => {
-    const nextValue = e.target.value.trim();
-    const notionSettings = getNotionSettingsSnapshot();
-    storage.setSettings({
-      notionIntegration: {
-        ...notionSettings,
-        oauthUrl: nextValue,
-      },
-    });
-  });
-
-  elements.notionConnectButton?.addEventListener('click', handleNotionConnectClick);
-  elements.notionDisconnectButton?.addEventListener('click', handleNotionDisconnectClick);
 
   // Manual sync button
   elements.manualSyncButton?.addEventListener('click', async () => {
