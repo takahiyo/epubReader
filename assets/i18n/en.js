@@ -145,6 +145,7 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Prompts & Messages
   openBookPrompt: "Please open a book.",
+  quest3FilePickerPrompt: "Please select a file from the shared folder.",
   searchMissingQuery: "Please enter a search keyword.",
   searchNoResults: "No results found.",
   searchLoading: "Searching...",

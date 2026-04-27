@@ -213,6 +213,7 @@ export const DOM_IDS = Object.freeze({
   CLOSE_FILE_MODAL: "closeFileModal",
   FILE_INPUT: "fileInput",
   LEGACY_FILE_INPUT: "legacy-file-input-fallback",
+  FALLBACK_INPUT_ID: "__quest3_file_picker_input",
   LIBRARY_GRID: "libraryGrid",
   LIBRARY_VIEW_GRID: "libraryViewGrid",
   LIBRARY_VIEW_LIST: "libraryViewList",

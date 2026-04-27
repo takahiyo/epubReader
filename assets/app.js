@@ -24,6 +24,7 @@ import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
 import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
+import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import { setupWebNovelUI } from "./js/ui/web-novel-ui.js";
@@ -252,6 +253,11 @@ function handleNotionDisconnectClick() {
   renderNotionSettingsStatus();
   alert(t("notionDisconnected"));
 }
+
+// ファイルピッカーの初期化
+filePicker.init({
+  UI_CONSTANTS: { DOM_IDS, DOM_SELECTORS }
+});
 
 // 同期ロジックの初期化
 syncLogic.init({
@@ -2479,63 +2485,22 @@ function buildFilePickerOptions() {
   };
 }
 
-function ensureLegacyFileInput() {
-  const existing = elements.fileInput ?? document.getElementById(DOM_IDS.LEGACY_FILE_INPUT);
-  if (existing) {
-    // Windowsのファイルピッカーフリーズ対策: accept属性によるOS側ファイルスキャンを抑制する
-    existing.removeAttribute('accept');
-    console.log('[openFileDialog] ensureLegacyFileInput: using existing element', existing.id);
-    if (existing !== elements.fileInput && existing.dataset.listenerAttached !== "true") {
-      existing.addEventListener("change", (e) => {
-        const file = e.target.files?.[0];
-        console.log('[openFileDialog] file selected via existing input:', file?.name, file?.type, file?.size);
-        if (file) {
-          handleFile(file);
-        } else {
-          pendingCloudBookId = null;
-        }
-        e.target.value = "";
-      });
-      existing.dataset.listenerAttached = "true";
-    }
-    return existing;
-  }
-
-  console.log('[openFileDialog] ensureLegacyFileInput: creating new input element');
-  const input = document.createElement("input");
-  input.type = "file";
-  input.id = DOM_IDS.LEGACY_FILE_INPUT;
-  // Windowsのファイルピッカーフリーズ対策: accept属性を設定しない
-  // (accept属性はWindowsがディレクトリ内ファイルを全スキャンしフリーズを引き起こす)
-  input.style.display = "none";
-  input.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    console.log('[openFileDialog] file selected via new input:', file?.name, file?.type, file?.size);
-    if (file) {
-      handleFile(file);
-    } else {
-      pendingCloudBookId = null;
-    }
-    e.target.value = "";
-  });
-  input.dataset.listenerAttached = "true";
-  document.body.appendChild(input);
-  return input;
-}
-
+// [REF] logic to be moved to file-picker.js:openFilePicker
+// (ensureLegacyFileInput and previous openFileDialog implementation were moved to file-picker.js)
 async function openFileDialog() {
   console.log('[openFileDialog] called');
-  const input = ensureLegacyFileInput();
-  if (!input) {
-    console.error('[openFileDialog] Failed to get/create input element');
-    return;
+  
+  // filePickerモジュールへの委譲
+  const files = await filePicker.openFilePicker();
+  
+  if (files && files.length > 0) {
+    const file = files[0];
+    console.log('[openFileDialog] file selected via filePicker:', file?.name, file?.type, file?.size);
+    handleFile(file);
+  } else {
+    console.log('[openFileDialog] file selection cancelled or no file selected');
+    pendingCloudBookId = null;
   }
-  console.log('[openFileDialog] calling input.click(), accept=', input.getAttribute('accept') ?? '(none)');
-  // showPicker / showOpenFilePicker はWindowsのChromium系ブラウザで
-  // OSのファイルダイアログをフリーズさせるバグがある。
-  // accept属性も同様にWindowsでフリーズを引き起こすため設定しない。
-  input.click();
-  console.log('[openFileDialog] input.click() returned (waiting for user selection...)');
 }
 
 /**

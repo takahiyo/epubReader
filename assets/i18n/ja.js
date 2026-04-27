@@ -145,6 +145,7 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // プロンプト・メッセージ
   openBookPrompt: "本を開いてください",
+  quest3FilePickerPrompt: "共有フォルダからファイルを選択してください",
   searchMissingQuery: "検索キーワードを入力してください",
   searchNoResults: "検索結果が見つかりませんでした",
   searchLoading: "検索中...",

@@ -29,3 +29,19 @@ export const GOOGLE_AUTH_CONFIG = Object.freeze({
   CLIENT_ID:
     "672654349618-h1252pqs19d076dkf3uteme7upau16kp.apps.googleusercontent.com",
 });
+
+export const UA_KEYWORDS = Object.freeze({
+    QUEST_3: 'Quest 3',
+    OCULUS: 'OculusBrowser',
+    VR: 'VR',
+    MOBILE: 'Mobile'
+});
+
+/**
+ * Quest 3 環境であるかを判定する
+ * @returns {boolean}
+ */
+export const isQuest3 = () => {
+    const ua = navigator.userAgent;
+    return ua.includes(UA_KEYWORDS.OCULUS) && ua.includes(UA_KEYWORDS.QUEST_3);
+};
