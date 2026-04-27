@@ -27,3 +27,21 @@
 - `app.js` の構文エラーが解消され、スクリプトが正常にロードされるようになりました。
 - `notion.js` への残存参照がすべて削除され、MIMEエラーが解消されました。
 - メニューおよびフローティングUIが正常に開閉可能であることを確認（理論上、構文エラー解消により復旧）。
+
+## 2回目のエラー (2026-04-27)
+
+### 症状
+`runtime-config.js` と `formats.js` で MIME type エラーが発生。前回とは異なるファイルが対象。
+
+### 調査
+- ファイルは物理的に存在することを確認。
+- Service Worker のキャッシュ (`bookreader-v8`) に `constants/` サブファイルが含まれていなかった。
+- SWはキャッシュヒットしない場合にネットワーク fetch を試みるが、GitHub Pages 等のホスト環境では存在しないキャッシュエントリの場合に `index.html`（404 相当）を返すことがある。
+
+### 修正内容
+- `pwa.js` および `sw-cache-config.json` のキャッシュ名を `bookreader-v9` に更新。
+- `constants/` 配下の全 14 ファイルと `js/core/`・`js/ui/` 配下のモジュールをキャッシュリストに追加。
+- これにより旧 v8 キャッシュが破棄され、新しいキャッシュが構築される。
+
+### ユーザー対応
+ブラウザで **強制リロード（Ctrl+Shift+R）** または DevTools > Application > Service Workers > 「Unregister」後にリロードが必要。
