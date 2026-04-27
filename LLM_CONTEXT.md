@@ -64,6 +64,8 @@
 - `assets/i18n/ja.js`
 - `assets/js/core/archive-handler.js`
 - `assets/js/core/file-handler.js`
+- `assets/js/core/file-picker.js`
+- `assets/js/core/index.js`
 - `assets/js/core/progress-utils.js`
 - `assets/js/core/streaming-zip-handler.js`
 - `assets/js/core/sync-logic.js`
@@ -83,7 +85,9 @@
 - `assets/sw-cache-config.json`
 - `assets/ui.js`
 - `debug_android_reselect_error.md`
+- `debug_illustration_merge.md`
 - `debug_mode_switch.md`
+- `debug_pwa_titlebar.md`
 - `debug_search_jump.md`
 - `debug_touch_panning.md`
 - `dev.html`
@@ -453,7 +457,7 @@ https://8000-iz8bn4mxp6xw7sf97p56t-18e660f9.sandbox.novita.ai/dev.html
     "id": "/",
     "name": "BookReader",
     "short_name": "BookReader",
-    "description": "ブラウザで動く軽量なEPUB/画像リーダー",
+    "description": "ブラウザで動く軽量なEPUB/画像書庫リーダー",
     "lang": "ja",
     "categories": [
         "books",
@@ -461,11 +465,6 @@ https://8000-iz8bn4mxp6xw7sf97p56t-18e660f9.sandbox.novita.ai/dev.html
     ],
     "start_url": "./index.html",
     "display": "standalone",
-    "display_override": [
-        "window-controls-overlay",
-        "standalone",
-        "minimal-ui"
-    ],
     "orientation": "any",
     "background_color": "#ffffff",
     "theme_color": "#2c3e50",
@@ -663,6 +662,7 @@ self.addEventListener('fetch', (event) => {
 
     <!-- 画像ビューア -->
     <div id="imageViewer" class="image-viewer hidden">
+      <div class="image-viewer-loader"></div>
       <img id="pageImage" alt="" />
     </div>
 
@@ -688,8 +688,8 @@ self.addEventListener('fetch', (event) => {
     </div>
   </div>
 
-  <!-- ファイル選択（非表示） -->
-  <input type="file" id="fileInput" accept=".epub,.cbz,.zip,.rar,.cbr" class="file-input-hidden" />
+  <!-- ファイル選択（非表示） accept属性はWindowsでフリーズを引き起こすため設定しない -->
+  <input type="file" id="fileInput" class="file-input-hidden" />
 
   <!-- 左サイドメニューバックドロップ -->
   <div id="leftMenuBackdrop" class="menu-backdrop"></div>
@@ -1443,6 +1443,22 @@ export const GOOGLE_AUTH_CONFIG = Object.freeze({
     "672654349618-h1252pqs19d076dkf3uteme7upau16kp.apps.googleusercontent.com",
 });
 
+export const UA_KEYWORDS = Object.freeze({
+    QUEST_3: 'Quest 3',
+    OCULUS: 'OculusBrowser',
+    VR: 'VR',
+    MOBILE: 'Mobile'
+});
+
+/**
+ * Quest 3 環境であるかを判定する
+ * @returns {boolean}
+ */
+export const isQuest3 = () => {
+    const ua = navigator.userAgent;
+    return ua.includes(UA_KEYWORDS.OCULUS) && ua.includes(UA_KEYWORDS.QUEST_3);
+};
+
 ```
 
 ### assets/app.js
@@ -1474,6 +1490,7 @@ import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
 import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
+import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import { setupWebNovelUI } from "./js/ui/web-novel-ui.js";
@@ -1522,7 +1539,9 @@ let currentBookId = null;
 let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
+let isSyncResolving = false;
 let pendingCloudBookId = null;
+let deferredPrompt = null;
 
 let theme = settings.theme ?? UI_DEFAULTS.theme;
 let uiLanguage = settings.uiLanguage ?? UI_DEFAULTS.uiLanguage;
@@ -1701,6 +1720,11 @@ function handleNotionDisconnectClick() {
   alert(t("notionDisconnected"));
 }
 
+// ファイルピッカーの初期化
+filePicker.init({
+  UI_CONSTANTS: { DOM_IDS, DOM_SELECTORS }
+});
+
 // 同期ロジックの初期化
 syncLogic.init({
   storage,
@@ -1809,7 +1833,7 @@ function shouldPersistLocalProgress(percentage) {
 
 function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
-  if (!currentBookId || isBookLoading) return;
+  if (!currentBookId || isBookLoading || isSyncResolving) return;
 
   // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
   if (getCurrentTotalPages() <= 0) return;
@@ -2298,11 +2322,12 @@ function updateFullscreenButtonLabel() {
 // ファイル処理
 // ========================================
 
-async function handleFile(file) {
+async function handleFile(file, overrideBookId = null) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
   showLoading();
   userOverrodeDirection = false;
+  isSyncResolving = true; // ロック開始
   try {
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
@@ -2320,7 +2345,7 @@ async function handleFile(file) {
     const type = fileHandler.detectFileType(header) || fileHandler.detectFileType(file);
     if (!type) {
       hideLoading();
-      alert(t ? t('errorFileLoadFailed') : "対応していないファイル形式です。");
+      alert(translate('errorFileLoadFailed', uiLanguage));
       return;
     }
     console.log(`Detected file type: ${type}`);
@@ -2336,6 +2361,23 @@ async function handleFile(file) {
     // ストリーミングモード時: ローディング画面にメモリ制限モードの通知を表示
     if (useStreaming) {
       showStreamingNotice();
+    }
+
+    // Quest 3 OSバグ（リサイズハンドル消失）対策: 1GB超の場合はDistant Modeへの変更を促す
+    if (isArchiveBook && file.size > 1024 * 1024 * 1024) {
+      const isQuest = /Quest|Oculus/i.test(navigator.userAgent);
+      if (isQuest) {
+        alert(translate('largeFileDistantMode', uiLanguage));
+      }
+    }
+
+    // 巨大RAR警告: モバイル等で巨大なRAR(非ストリーミング)は展開不能な可能性がある
+    if (type === BOOK_TYPES.RAR && file.size > 500 * 1024 * 1024) {
+      const env = fileHandler.detectEnvironment();
+      if (env.isLowEnd || /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+         console.warn("[RarHandler] Large RAR on mobile detected.");
+         // 重要：RARは現状ストリーミング非対応のため500MB超は非常に不安定
+      }
     }
 
     // 3. ハッシュ計算（リトライ付き）
@@ -2376,6 +2418,12 @@ async function handleFile(file) {
         const bufferForSave = await fileHandler.readFileWithRetry(file, () => file.arrayBuffer());
         await saveFile(id, bufferForSave, { fileName: file.name, mime }, source);
       }
+    }
+
+    // スタブ再選択時は overrideBookId を優先
+    if (overrideBookId && id !== overrideBookId) {
+      console.log(`[handleFile] Forcing id from ${id} to ${overrideBookId} due to stub reselect`);
+      id = overrideBookId;
     }
 
     // type: "epub" | "zip" | "rar" として正式に保存
@@ -2522,7 +2570,9 @@ async function handleFile(file) {
     if (floatVisible) {
       toggleFloatOverlay(false);
     }
+    isSyncResolving = false; // ジャンプ完了後にロック解除
   } catch (error) {
+    isSyncResolving = false; // エラー時もロック解除
     console.error("Error in handleFile:", error);
     console.error("Error stack:", error.stack);
     const resolvedCode = resolveErrorCode(error);
@@ -2709,17 +2759,6 @@ async function openFromLibrary(bookId, options = {}) {
       }
       showLoading();
       await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
-
-      // 軽量ハッシュで同一ファイルか検証（リトライ付き）
-      const reHash = await fileHandler.readFileWithRetry(file,
-        () => fileHandler.buildArchiveFingerprint(file));
-
-      if (reHash !== info.contentHash) {
-        hideLoading();
-        alert(translate('stubHashMismatch', uiLanguage) ||
-          "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。");
-        return;
-      }
 
       // スタブファイルが正しく再選択された場合、以後の振る舞いを
       // 全て通常の「ファイルを開く」フローへ委譲し、動作を完全に統一する
@@ -3912,82 +3951,22 @@ function buildFilePickerOptions() {
   };
 }
 
-function ensureLegacyFileInput() {
-  const acceptValue = FILE_INPUT_ACCEPT.join(",");
-  const existing = elements.fileInput ?? document.getElementById(DOM_IDS.LEGACY_FILE_INPUT);
-  if (existing) {
-    existing.accept = acceptValue;
-    if (existing !== elements.fileInput && existing.dataset.listenerAttached !== "true") {
-      existing.addEventListener("change", (e) => {
-        const file = e.target.files?.[0];
-        if (file) {
-          handleFile(file);
-        } else {
-          pendingCloudBookId = null;
-        }
-        e.target.value = "";
-      });
-      existing.dataset.listenerAttached = "true";
-    }
-    return existing;
-  }
-
-  const input = document.createElement("input");
-  input.type = "file";
-  input.id = DOM_IDS.LEGACY_FILE_INPUT;
-  input.accept = acceptValue;
-  input.style.display = "none";
-  input.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFile(file);
-    } else {
-      pendingCloudBookId = null;
-    }
-    e.target.value = "";
-  });
-  input.dataset.listenerAttached = "true";
-  document.body.appendChild(input);
-  return input;
-}
-
+// [REF] logic to be moved to file-picker.js:openFilePicker
+// (ensureLegacyFileInput and previous openFileDialog implementation were moved to file-picker.js)
 async function openFileDialog() {
-
-  const openLegacyFileInput = () => {
-    const input = ensureLegacyFileInput();
-    if (!input) return;
-    if (typeof input.showPicker === 'function') {
-      try {
-        input.showPicker();
-        return;
-      } catch (e) {
-        console.warn('showPicker failed, falling back to click:', e);
-      }
-    }
-    input.click();
-  };
-
-  if (typeof window.showOpenFilePicker === 'function') {
-    try {
-      const fileHandles = await window.showOpenFilePicker(buildFilePickerOptions());
-      if (fileHandles.length === 0) return;
-
-      const fileHandle = fileHandles[0];
-      const file = await fileHandle.getFile();
-
-      if (file) {
-        await handleFile(file);
-      }
-      return;
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        return;
-      }
-      console.warn('showOpenFilePicker failed, falling back to legacy input:', error);
-    }
+  console.log('[openFileDialog] called');
+  
+  // filePickerモジュールへの委譲
+  const files = await filePicker.openFilePicker();
+  
+  if (files && files.length > 0) {
+    const file = files[0];
+    console.log('[openFileDialog] file selected via filePicker:', file?.name, file?.type, file?.size);
+    handleFile(file);
+  } else {
+    console.log('[openFileDialog] file selection cancelled or no file selected');
+    pendingCloudBookId = null;
   }
-
-  openLegacyFileInput();
 }
 
 /**
@@ -7706,6 +7685,7 @@ import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
 import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
+import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import { setupWebNovelUI } from "./js/ui/web-novel-ui.js";
@@ -7934,6 +7914,11 @@ function handleNotionDisconnectClick() {
   renderNotionSettingsStatus();
   alert(t("notionDisconnected"));
 }
+
+// ファイルピッカーの初期化
+filePicker.init({
+  UI_CONSTANTS: { DOM_IDS, DOM_SELECTORS }
+});
 
 // 同期ロジックの初期化
 syncLogic.init({
@@ -10161,63 +10146,22 @@ function buildFilePickerOptions() {
   };
 }
 
-function ensureLegacyFileInput() {
-  const existing = elements.fileInput ?? document.getElementById(DOM_IDS.LEGACY_FILE_INPUT);
-  if (existing) {
-    // Windowsのファイルピッカーフリーズ対策: accept属性によるOS側ファイルスキャンを抑制する
-    existing.removeAttribute('accept');
-    console.log('[openFileDialog] ensureLegacyFileInput: using existing element', existing.id);
-    if (existing !== elements.fileInput && existing.dataset.listenerAttached !== "true") {
-      existing.addEventListener("change", (e) => {
-        const file = e.target.files?.[0];
-        console.log('[openFileDialog] file selected via existing input:', file?.name, file?.type, file?.size);
-        if (file) {
-          handleFile(file);
-        } else {
-          pendingCloudBookId = null;
-        }
-        e.target.value = "";
-      });
-      existing.dataset.listenerAttached = "true";
-    }
-    return existing;
-  }
-
-  console.log('[openFileDialog] ensureLegacyFileInput: creating new input element');
-  const input = document.createElement("input");
-  input.type = "file";
-  input.id = DOM_IDS.LEGACY_FILE_INPUT;
-  // Windowsのファイルピッカーフリーズ対策: accept属性を設定しない
-  // (accept属性はWindowsがディレクトリ内ファイルを全スキャンしフリーズを引き起こす)
-  input.style.display = "none";
-  input.addEventListener("change", (e) => {
-    const file = e.target.files?.[0];
-    console.log('[openFileDialog] file selected via new input:', file?.name, file?.type, file?.size);
-    if (file) {
-      handleFile(file);
-    } else {
-      pendingCloudBookId = null;
-    }
-    e.target.value = "";
-  });
-  input.dataset.listenerAttached = "true";
-  document.body.appendChild(input);
-  return input;
-}
-
+// [REF] logic to be moved to file-picker.js:openFilePicker
+// (ensureLegacyFileInput and previous openFileDialog implementation were moved to file-picker.js)
 async function openFileDialog() {
   console.log('[openFileDialog] called');
-  const input = ensureLegacyFileInput();
-  if (!input) {
-    console.error('[openFileDialog] Failed to get/create input element');
-    return;
+  
+  // filePickerモジュールへの委譲
+  const files = await filePicker.openFilePicker();
+  
+  if (files && files.length > 0) {
+    const file = files[0];
+    console.log('[openFileDialog] file selected via filePicker:', file?.name, file?.type, file?.size);
+    handleFile(file);
+  } else {
+    console.log('[openFileDialog] file selection cancelled or no file selected');
+    pendingCloudBookId = null;
   }
-  console.log('[openFileDialog] calling input.click(), accept=', input.getAttribute('accept') ?? '(none)');
-  // showPicker / showOpenFilePicker はWindowsのChromium系ブラウザで
-  // OSのファイルダイアログをフリーズさせるバグがある。
-  // accept属性も同様にWindowsでフリーズを引き起こすため設定しない。
-  input.click();
-  console.log('[openFileDialog] input.click() returned (waiting for user selection...)');
 }
 
 /**
@@ -12743,6 +12687,22 @@ export const GOOGLE_AUTH_CONFIG = Object.freeze({
     "672654349618-h1252pqs19d076dkf3uteme7upau16kp.apps.googleusercontent.com",
 });
 
+export const UA_KEYWORDS = Object.freeze({
+    QUEST_3: 'Quest 3',
+    OCULUS: 'OculusBrowser',
+    VR: 'VR',
+    MOBILE: 'Mobile'
+});
+
+/**
+ * Quest 3 環境であるかを判定する
+ * @returns {boolean}
+ */
+export const isQuest3 = () => {
+    const ua = navigator.userAgent;
+    return ua.includes(UA_KEYWORDS.OCULUS) && ua.includes(UA_KEYWORDS.QUEST_3);
+};
+
 ```
 
 ### assets/constants/storage.js
@@ -13126,6 +13086,7 @@ export const DOM_IDS = Object.freeze({
   CLOSE_FILE_MODAL: "closeFileModal",
   FILE_INPUT: "fileInput",
   LEGACY_FILE_INPUT: "legacy-file-input-fallback",
+  FALLBACK_INPUT_ID: "__quest3_file_picker_input",
   LIBRARY_GRID: "libraryGrid",
   LIBRARY_VIEW_GRID: "libraryViewGrid",
   LIBRARY_VIEW_LIST: "libraryViewList",
@@ -18937,6 +18898,7 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Prompts & Messages
   openBookPrompt: "Please open a book.",
+  quest3FilePickerPrompt: "Please select a file from the shared folder.",
   searchMissingQuery: "Please enter a search keyword.",
   searchNoResults: "No results found.",
   searchLoading: "Searching...",
@@ -19339,6 +19301,7 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // プロンプト・メッセージ
   openBookPrompt: "本を開いてください",
+  quest3FilePickerPrompt: "共有フォルダからファイルを選択してください",
   searchMissingQuery: "検索キーワードを入力してください",
   searchNoResults: "検索結果が見つかりませんでした",
   searchLoading: "検索中...",
@@ -20832,6 +20795,163 @@ export async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, { st
     }
     return meta;
 }
+
+```
+
+### assets/js/core/file-picker.js
+
+```javascript
+/**
+ * file-picker.js
+ * 
+ * ファイルピッカー呼び出しのUI依存ロジックを管理する。
+ * 動作環境に応じて、モダンAPI (showOpenFilePicker) と
+ * 従来方式 (<input type="file">) を切り替える。
+ */
+
+import { isQuest3 } from '../constants/runtime-config.js';
+import { SUPPORTED_FORMATS } from '../constants/formats.js';
+
+let dependencies = {
+    UI_CONSTANTS: null,
+};
+
+/**
+ * @typedef {Object} FilePickerDeps
+ * @property {typeof import('../constants/ui.js')} UI_CONSTANTS
+ */
+
+/**
+ * モジュールの依存関係を初期化する
+ * @param {FilePickerDeps} deps
+ */
+export function init(deps) {
+    dependencies.UI_CONSTANTS = deps.UI_CONSTANTS;
+}
+
+/**
+ * ファイルピッカーを開き、選択されたファイルの配列を返す
+ * @param {Object} options 
+ * @returns {Promise<File[]>}
+ */
+export const openFilePicker = async (options = {}) => {
+    // [REF] logic moved from app.js (formerly expected in file-handler.js)
+    if (isQuest3()) {
+        return await executeFallbackPicker();
+    }
+    
+    return await executeModernPicker();
+};
+
+/**
+ * Fallback Mode: <input type="file"> を動的生成して発火
+ * @returns {Promise<File[]>}
+ */
+const executeFallbackPicker = () => {
+    return new Promise((resolve) => {
+        const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.FALLBACK_INPUT_ID || '__quest3_file_picker_input';
+        
+        let input = document.getElementById(inputId);
+        if (input) {
+            input.remove();
+        }
+
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = inputId;
+        input.style.display = 'none';
+
+        // 拡張子の制限設定
+        const acceptedFormats = [
+            ...SUPPORTED_FORMATS.EPUB,
+            ...SUPPORTED_FORMATS.IMAGE_ARCHIVE,
+            ...SUPPORTED_FORMATS.WEB_NOVEL
+        ].join(',');
+        input.accept = acceptedFormats;
+
+        const handleFocus = () => {
+            // キャンセル検知用: ウィンドウフォーカス復帰後しばらくして
+            // change イベントが発火しなければキャンセルとみなす
+            setTimeout(() => {
+                if (input) {
+                    input.remove();
+                    resolve([]); // 空の配列を返してキャンセル扱いとする
+                }
+            }, 300);
+            window.removeEventListener('focus', handleFocus);
+        };
+
+        input.addEventListener('change', (e) => {
+            window.removeEventListener('focus', handleFocus);
+            const files = Array.from(e.target.files || []);
+            input.remove();
+            resolve(files);
+        });
+
+        // iOS/Quest等でファイル選択ダイアログが閉じた後の復帰検知
+        window.addEventListener('focus', handleFocus);
+
+        document.body.appendChild(input);
+        
+        // ユーザージェスチャから直接呼ばれている前提でclick発火
+        input.click();
+    });
+};
+
+/**
+ * Modern Mode: 既存のレガシーインプット利用（Windows等フリーズ回避用）
+ * 実際にはshowOpenFilePickerの代わりに以前app.jsにあった入力要素のクリックを利用
+ * @returns {Promise<File[]>}
+ */
+const executeModernPicker = () => {
+    return new Promise((resolve) => {
+        // [REF] logic moved from app.js:ensureLegacyFileInput and openFileDialog
+        const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.LEGACY_FILE_INPUT || 'legacy-file-input-fallback';
+        
+        let input = document.getElementById(inputId);
+        if (!input) {
+            input = document.createElement("input");
+            input.type = "file";
+            input.id = inputId;
+            // Windowsのファイルピッカーフリーズ対策: accept属性を設定しない
+            input.style.display = "none";
+            document.body.appendChild(input);
+        } else {
+            // 既存のリスナーがあれば上書きできないので一旦クローンしてリスナーをクリア
+            const newTarget = input.cloneNode(true);
+            input.parentNode.replaceChild(newTarget, input);
+            input = newTarget;
+        }
+
+        const handleFocus = () => {
+            setTimeout(() => {
+                window.removeEventListener('focus', handleFocus);
+                // changeがない場合はキャンセル
+                // 既存のinputは使い回すためremoveしないが、resolveは空で返す
+                resolve([]);
+            }, 300);
+        };
+
+        input.addEventListener("change", (e) => {
+            window.removeEventListener('focus', handleFocus);
+            const files = Array.from(e.target.files || []);
+            e.target.value = ""; // リセット
+            resolve(files);
+        }, { once: true });
+
+        window.addEventListener('focus', handleFocus);
+        
+        input.click();
+    });
+};
+
+```
+
+### assets/js/core/index.js
+
+```javascript
+export * as filePicker from './file-picker.js';
+// (その他のモジュールも将来的に追加可能)
 
 ```
 
@@ -24067,6 +24187,36 @@ export function renderToc(tocItems = []) {
     }
 
     elements.tocSection?.classList.remove(UI_CLASSES.HIDDEN);
+
+    // [追加] 目次ソース切り替えトグル
+    if (_reader?.enhancedToc?.length > 0) {
+        const toggleHeader = document.createElement("div");
+        toggleHeader.className = "toc-toggle-header";
+        toggleHeader.style.cssText = "padding: 8px 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; background: var(--bg-color-alt);";
+
+        const label = document.createElement("span");
+        label.textContent = _reader.useEnhancedToc ? "本文内目次を使用中" : "標準目次を使用中";
+        label.style.fontWeight = "bold";
+        label.style.color = "var(--primary-color)";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "toc-source-toggle-btn";
+        toggleBtn.textContent = _reader.useEnhancedToc ? "標準に戻す" : "拡張目次に切替";
+        toggleBtn.style.cssText = "padding: 4px 12px; border-radius: 20px; background: var(--primary-color); color: white; border: none; cursor: pointer; font-size: 0.75rem; transition: all 0.2s ease;";
+        
+        toggleBtn.onclick = async (e) => {
+            e.stopPropagation();
+            toggleBtn.disabled = true;
+            toggleBtn.style.opacity = "0.5";
+            await _reader.toggleTocSource(!_reader.useEnhancedToc);
+            // reader.toggleTocSource の中で onReady -> renderToc が再度呼ばれるため、ここでは何もしない
+        };
+
+        toggleHeader.append(label, toggleBtn);
+        elements.tocModalList.appendChild(toggleHeader);
+    }
+
     renderTocEntries(tocArray, elements.tocModalList, 0);
 }
 
@@ -25062,6 +25212,33 @@ const getMemoryStrategy = () => {
   return MEMORY_STRATEGY;
 };
 const getReaderLineHeight = () => READER_CONFIG.lineHeight ?? READER_CONFIG.DEFAULT_LINE_HEIGHT;
+
+/**
+ * SpineのHTMLコンテンツを解析し、挿絵のみのページかどうかを判定する。
+ * テキストが極めて少なく（閾値以下）、画像要素が1つ以上含まれる場合に true を返す。
+ * @param {string} htmlString - SpineのHTML文字列
+ * @param {number} [textThreshold=30] - テキスト文字数の閾値
+ * @returns {boolean}
+ */
+const isIllustrationOnlySpine = (htmlString, textThreshold = 30) => {
+  if (!htmlString) return false;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlString, 'text/html');
+    const body = doc.body;
+    if (!body) return false;
+
+    // テキストコンテンツ（空白除去）の文字数
+    const textLength = (body.textContent || '').replace(/\s+/g, '').length;
+
+    // 画像要素の数（img, svg, svg内image）
+    const imageCount = body.querySelectorAll('img, svg, image').length;
+
+    return textLength <= textThreshold && imageCount >= 1;
+  } catch (e) {
+    return false;
+  }
+};
 const normalizeRelativePath = (path) => {
   if (!path) return path;
   const normalized = path.replace(/\\/g, "/");
@@ -25256,6 +25433,9 @@ export class ReaderController {
     this.imageZoomBound = false;
     this.pageDimensionCache = {}; // [追加] 画像サイズ情報のキャッシュ
     this.toc = [];
+    this.logicToc = [];    // [追加] 標準の論理目次
+    this.enhancedToc = []; // [追加] 本文から抽出した目次
+    this.useEnhancedToc = false; // [追加] 現在どちらを使っているか
     this.resizeTimer = null;
 
     // WebNovelViewer 初期化
@@ -25960,7 +26140,53 @@ export class ReaderController {
     } else {
       console.log(`[openEpub] EPUB.js の目次を優先します (${toc.length} items)`);
     }
+    this.logicToc = toc;
     this.toc = toc;
+    this.enhancedToc = [];
+    this.useEnhancedToc = false;
+
+    // [試作] 本文内HTMLからの目次抽出を試行
+    try {
+      const betterToc = await this.tryExtractBetterTocFromHtml();
+      if (betterToc && betterToc.length > 0) {
+        this.enhancedToc = betterToc;
+
+        // --- 目次の質を判定するヒューリスティック ---
+        const logicLabels = this.logicToc.map(t => (t.label || "").trim());
+        const enhancedLabels = this.enhancedToc.map(t => (t.label || "").trim());
+
+        // 1. 機械的なパターンの検出 (p-cover, p-001, spine-xxx, Page 1 等)
+        const mechanicalRegex = /^(p-|spine-|page\s|chapter_|\d+$|cover$|title$)/i;
+        const mechanicalCount = logicLabels.filter(l => mechanicalRegex.test(l)).length;
+        const isMostlyMechanical = logicLabels.length > 0 && (mechanicalCount / logicLabels.length) > 0.5;
+
+        // 2. 項目数の比較 (標準が極端に少なく、抽出が多い場合)
+        const hasSignificantCountDiff = this.enhancedToc.length > this.logicToc.length * 2 && this.logicToc.length < 5;
+
+        // 3. ラベルの具体性 (漢字やカタカナ、特定のキーワードを含むか)
+        const humanKeywordRegex = /[一-龠ぁ-んァ-ヶ]|第.章|プロローグ|エピローグ|目次|Contents/i;
+        const enhancedHasHumanLabels = enhancedLabels.some(l => humanKeywordRegex.test(l));
+        const logicHasHumanLabels = logicLabels.some(l => humanKeywordRegex.test(l));
+
+        console.log('[JoinMode] TOC Quality Analysis:', {
+          logicCount: this.logicToc.length,
+          enhancedCount: this.enhancedToc.length,
+          mechanicalCount,
+          isMostlyMechanical,
+          enhancedHasHumanLabels,
+          logicHasHumanLabels
+        });
+
+        // 判定: 標準が機械的、もしくは項目が不足しており、かつ抽出側が人間味のあるラベルを持っている場合
+        if ((isMostlyMechanical || hasSignificantCountDiff || !logicHasHumanLabels) && enhancedHasHumanLabels) {
+          console.log('[JoinMode] 拡張目次の方が適切と判断されました。自動切り替えを実行します。');
+          this.toc = betterToc;
+          this.useEnhancedToc = true;
+        }
+      }
+    } catch (e) {
+      console.error('[JoinMode] Error during better TOC extraction:', e);
+    }
 
     // 縦書き・横書きを自動判別
     const detectedReading = await this.detectReadingDirectionFromBook();
@@ -26004,6 +26230,7 @@ export class ReaderController {
         this.onReady?.({
           metadata: this.book.package?.metadata,
           toc: this.toc,
+          isEnhanced: this.useEnhancedToc
         });
       }
 
@@ -26162,23 +26389,97 @@ export class ReaderController {
     return /^(https?:|mailto:|tel:|data:|blob:|ftp:)/i.test(href) || href.startsWith("//");
   }
 
+  resolveRelativePath(basePath, relativePath) {
+    if (!relativePath || this.isExternalLink(relativePath)) return relativePath;
+    // フラグメントのみの場合はそのまま返す
+    if (relativePath.startsWith("#")) return relativePath;
+    // 絶対パス風（/開始）の場合は / を取るだけ
+    if (relativePath.startsWith("/")) return relativePath.substring(1);
+
+    const baseParts = (basePath || "").split("/");
+    baseParts.pop(); // 最後の要素（ファイル名）を削除
+
+    const relParts = relativePath.split("/");
+    for (const part of relParts) {
+      if (part === "..") {
+        if (baseParts.length > 0) baseParts.pop();
+      } else if (part === "." || part === "") {
+        // 何もしない
+      } else {
+        baseParts.push(part);
+      }
+    }
+    return baseParts.join("/");
+  }
+
   normalizeHrefPath(path) {
     if (!path) return "";
+    // クエリパラメータとフラグメントを削除し、前後の空白を除去
     const cleaned = path.split("?")[0].split("#")[0].trim();
-    return cleaned.replace(/^\.\//, "");
+    // 先頭の ./ や / を正規化
+    return cleaned.replace(/^\.\//, "").replace(/^\//, "");
   }
 
   resolveSpineIndexFromHref(href, fallbackSpineIndex = 0) {
-    if (!href) return fallbackSpineIndex;
+    if (!href) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Empty href, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
+    // フラグメントのみ（#anchor）の場合は現在の spineIndex を維持
+    if (href.startsWith("#")) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Fragment only ${href}, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
     const [pathPart] = href.split("#");
     const normalized = this.normalizeHrefPath(pathPart);
-    if (!normalized) return fallbackSpineIndex;
-    const directIndex = this.spineItems.findIndex((item) => item.href === normalized);
-    if (directIndex >= 0) return directIndex;
-    const matchIndex = this.spineItems.findIndex((item) =>
-      item.href?.endsWith(`/${normalized}`) || item.href?.endsWith(normalized)
+    if (!normalized) {
+      console.log(`[Reader] resolveSpineIndexFromHref: No path part in ${href}, using fallback ${fallbackSpineIndex}`);
+      return fallbackSpineIndex;
+    }
+
+    console.log(`[Reader] resolveSpineIndexFromHref: Searching for "${normalized}" (fallback: ${fallbackSpineIndex})`);
+
+    // 1. 完全一致 (SSOT)
+    let index = this.spineItems.findIndex((item) => item.href === normalized);
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Direct match at index ${index}`);
+      return index;
+    }
+
+    // 2. 正規化されたパスでの一致（どちらかが / を含んでいたりいなかったりする場合）
+    const norm2 = normalized.replace(/\\/g, "/");
+    index = this.spineItems.findIndex((item) => (item.href || "").replace(/\\/g, "/") === norm2);
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: Normalized path match at index ${index}`);
+      return index;
+    }
+
+    // 3. 末尾一致 (EndsWith)
+    index = this.spineItems.findIndex((item) =>
+      item.href?.endsWith(`/${normalized}`) || item.href === normalized
     );
-    return matchIndex >= 0 ? matchIndex : fallbackSpineIndex;
+    if (index >= 0) {
+      console.log(`[Reader] resolveSpineIndexFromHref: EndsWith match at index ${index}`);
+      return index;
+    }
+
+    // 4. ファイル名のみでの一致（最終手段）
+    const filename = normalized.split("/").pop();
+    if (filename) {
+      index = this.spineItems.findIndex((item) => {
+        const itemFile = item.href?.split("/").pop();
+        return itemFile === filename;
+      });
+      if (index >= 0) {
+        console.log(`[Reader] resolveSpineIndexFromHref: Filename match ("${filename}") at index ${index}`);
+        return index;
+      }
+    }
+
+    console.warn(`[Reader] resolveSpineIndexFromHref: No match found for "${normalized}", returning fallback ${fallbackSpineIndex}`);
+    return fallbackSpineIndex;
   }
 
   getPaddings() {
@@ -26623,6 +26924,11 @@ export class ReaderController {
       if (joinedItem) {
         targetContainer = joinedItem;
         console.log(`[ジャンプデバッグ] 対象の章コンテナを特定しました: spineIndex=${targetSpineIndex}`);
+        // セグメント指定なし（章先頭へのジャンプ）の場合、コンテナ自体をターゲットにする
+        // （Walkerが画像のみのコンテナでテキストを見つけられず失敗することを防ぐ）
+        if (!searchQuery && segmentIndex === 0) {
+          targetElement = joinedItem;
+        }
       }
     }
 
@@ -26642,7 +26948,9 @@ export class ReaderController {
     }
 
     // 方法2: 検索テキストがない、または失敗した場合はセグメントインデックスから探す
-    if (!targetElement && (segmentIndex > 0 || (targetSpineIndex != null && targetContainer !== container))) {
+    // targetSpineIndex が指定されている（=Join Mode でのグループ内ジャンプ）場合は
+    // segmentIndex=0 でも対象章の先頭へスクロールするために実行する
+    if (!targetElement && (segmentIndex > 0 || targetSpineIndex != null)) {
       console.log(`[ジャンプデバッグ] インデックスによる位置特定を試行中: segmentIndex=${segmentIndex}`);
       const walker = document.createTreeWalker(
         targetContainer,
@@ -27003,6 +27311,7 @@ export class ReaderController {
     }, 5000);
   }
 
+
   navigateToHref(href, fallbackSpineIndex = 0) {
     if (!href || !this.pagination?.pages?.length) return;
     const [pathPart, fragPart] = href.split("#");
@@ -27017,10 +27326,47 @@ export class ReaderController {
     if (pageIndex < 0) {
       pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === spineIndex);
     }
+
+    // [修正] Join Mode対応: spineIndex がグループ内に結合されている場合、
+    // そのグループの先頭 spine を持つページを探す
+    if (pageIndex < 0 && Array.isArray(this._spineGroups)) {
+      const group = this._spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end);
+      if (group) {
+        console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
+        pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
+        if (pageIndex >= 0) {
+          // 直前の spine が扉絵（isIllustrationOnly）で、かつ同グループ内にある場合は扉絵を表示する
+          const prevIdx = spineIndex - 1;
+          const prevSpineItem = this.spineItems?.[prevIdx];
+          const prevInGroup = prevIdx >= group.start && prevIdx <= group.end;
+          if (prevInGroup && prevSpineItem?.isIllustrationOnly) {
+            // 扉絵が本文の直前にある → 扉絵の位置へ飛ぶ
+            this._pendingScrollTargetSpineIndex = prevIdx;
+            console.log(`[Reader] 扉絵へジャンプ: spine ${prevIdx}`);
+          } else {
+            // 扉絵なし → 指定 spine（本文先頭）へ飛ぶ
+            this._pendingScrollTargetSpineIndex = spineIndex;
+          }
+          this._pendingScrollToSegment = 0;
+          this._pendingScrollSearchQuery = null;
+        }
+      }
+    }
+
     if (pageIndex >= 0) {
-      this.pageController.goTo(pageIndex);
+      if (pageIndex === this.currentPageIndex && this.pageContainer) {
+        // すでに同じページ（スクロールブロック）にいる場合、DOM内スクロールを直接実行
+        console.log(`[Reader] Already on page ${pageIndex}, scrolling to spineIndex=${spineIndex} segment=${segmentIndex}`);
+        this._scrollToPositionInDOM(this.pageContainer, segmentIndex, null, true, spineIndex);
+      } else {
+        // 別のページへ移動（予約したスクロール先は renderEpubPage → requestAnimationFrame で実行される）
+        this.pageController.goTo(pageIndex);
+      }
+    } else {
+      console.warn(`[Reader] navigateToHref: Could not find page for spineIndex: ${spineIndex}`);
     }
   }
+
 
   interceptInternalLinks(container, page) {
     if (!container) return;
@@ -27035,9 +27381,14 @@ export class ReaderController {
 
         // [修正] Join Mode への対応: リンクが含まれるコンテナから spineIndex を特定
         const parentSpineContainer = anchor.closest('.joined-spine-item');
-        const spineIndexContext = parentSpineContainer
+        let spineIndexContext = parentSpineContainer
           ? parseInt(parentSpineContainer.getAttribute('data-spine-index'), 10)
-          : (page?.spineIndex ?? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0);
+          : (page?.spineIndex ?? -1);
+        
+        // 取得できない場合の最終フォールバック
+        if (isNaN(spineIndexContext) || spineIndexContext < 0) {
+           spineIndexContext = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex ?? 0;
+        }
 
         this.navigateToHref(href, spineIndexContext);
       });
@@ -27099,29 +27450,53 @@ export class ReaderController {
     // 目次項目を全階層から抽出
     const allEntries = [];
     const traverseToc = (items, depth = 0) => {
+      if (!Array.isArray(items)) return;
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label, spineIndex, depth });
+          allEntries.push({ title: item.label || "", spineIndex, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
         }
       });
     };
-    traverseToc(this.toc, 0);
 
-    const tocEntries = allEntries;
+    try {
+      if (this.toc) {
+        traverseToc(this.toc, 0);
+      }
+    } catch (e) {
+      console.warn('[JoinMode] Failed to traverse TOC:', e);
+    }
+
+    // --- [修正] スクロールモード時は最小深度（章レベル）のみを境界とする ---
+    let filteredToc = allEntries;
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && allEntries.length > 0) {
+      try {
+        let minDepth = Infinity;
+        for (const e of allEntries) {
+          if (typeof e.depth === 'number' && e.depth < minDepth) {
+            minDepth = e.depth;
+          }
+        }
+        if (minDepth !== Infinity) {
+          filteredToc = allEntries.filter(e => e.depth === minDepth);
+          console.log(`[JoinMode] スクロールモード：最小深度 ${minDepth} の目次項目 (${filteredToc.length}件) を使用します`);
+        }
+      } catch (e) {
+        console.warn('[JoinMode] Failed to filter TOC by depth:', e);
+      }
+    }
 
     // 重複を削除し、インデックス順にソート
-    const sortedToc = tocEntries
+    const sortedToc = filteredToc
       .sort((a, b) => a.spineIndex - b.spineIndex)
       .filter((entry, index, self) =>
         index === 0 || entry.spineIndex !== self[index - 1].spineIndex
       );
 
     if (sortedToc.length === 0) {
-      // 目次がない場合は全章を一つのグループにする（以前の挙動）
       return [{ start: 0, end: spineLength - 1 }];
     }
 
@@ -27132,18 +27507,213 @@ export class ReaderController {
         ? sortedToc[i + 1].spineIndex - 1
         : spineLength - 1;
 
-      // start > end になるケース（同じファイルに複数の目次がある等）は無視
       if (start <= end) {
         groups.push({ start, end });
       }
     }
 
-    // 最初の目次項目より前の spine items がある場合、それもグループ化する（表紙など）
+    // 最初の目次項目より前の spine items がある場合、それもグループ化する
     if (groups.length > 0 && groups[0].start > 0) {
       groups.unshift({ start: 0, end: groups[0].start - 1 });
     }
 
-    console.log('[JoinMode] Spine Groups generated from TOC:', groups);
+    // 挿絵や章扉による境界の微調整
+    if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
+      return this.adjustSpineGroupsForIllustrations(groups);
+    }
+
+    console.log('[JoinMode] Spine Groups generated:', groups);
+    return groups;
+  }
+
+  adjustSpineGroupsForIllustrations(groups) {
+    if (!Array.isArray(groups) || groups.length <= 1) return groups;
+    if (!Array.isArray(this.spineItems) || !this.spineItems.length) return groups;
+
+    const adjusted = groups.map(g => ({ ...g }));
+
+    try {
+      const merged = [];
+      let current = { ...adjusted[0] };
+
+      for (let i = 1; i < adjusted.length; i++) {
+        const next = { ...adjusted[i] };
+        
+        const lastOfCurrent = this.spineItems?.[current.end];
+        
+        // 判定基準: 
+        // 1. 今のグループ全体が画像のみ（扉絵など。次の章の先頭として扱う）
+        // 2. 今のグループの末尾が画像（挿絵。次の本文と繋げる）
+        // これにより、[第1章] | [第2章扉絵] | [第2章本文] は
+        // [第1章] | [第2章扉絵+本文] になり、章の区切りが維持される。
+        const isCurrentEndsWithImage = lastOfCurrent?.isIllustrationOnly;
+        const isCurrentIllustrationOnly = () => {
+          for (let j = current.start; j <= current.end; j++) {
+            if (!this.spineItems?.[j]?.isIllustrationOnly) return false;
+          }
+          return true;
+        };
+
+        if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
+          console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
+          current.end = next.end;
+        } else {
+          merged.push(current);
+          current = next;
+        }
+      }
+      merged.push(current);
+
+      console.log('[JoinMode] Adjusted Spine Groups (Forward-Merge Priority):', merged);
+      return merged;
+    } catch (e) {
+      console.error('[JoinMode] Error in adjustSpineGroupsForIllustrations:', e);
+      return groups;
+    }
+  }
+
+  /**
+   * 挿絵のみで構成されるSpineを検出し、前のグループに吸収する。
+   * (廃止：adjustSpineGroupsForIllustrations に統合されました)
+   */
+  /**
+   * 本文内のHTML目次ページから、より適切なラベルとリンクのリストを抽出することを試みる。
+   * 論理目次（NCX/NAV）が p-cover 等の機械的な名前である場合の救済措置。
+   */
+  async tryExtractBetterTocFromHtml() {
+    let tocPath = null;
+
+    // 1. 目次ページの特定
+    // Landmarks (EPUB 3) から探す
+    const landmarks = this.book.navigation.landmarks;
+    if (Array.isArray(landmarks)) {
+      const tocLandmark = landmarks.find(l => l.type === 'toc' || l.label?.toLowerCase()?.includes('目次') || l.label?.toLowerCase()?.includes('contents'));
+      if (tocLandmark) tocPath = tocLandmark.href;
+    }
+
+    // Guide (EPUB 2) から探す
+    if (!tocPath && Array.isArray(this.book.package.guide)) {
+      const tocGuide = this.book.package.guide.find(g => g.type === 'toc');
+      if (tocGuide) tocPath = tocGuide.href;
+    }
+
+    // ファイル名から推測
+    if (!tocPath) {
+      for (let i = 0; i < this.book.spine.length; i++) {
+        const item = this.book.spine.get(i);
+        const href = item.href.toLowerCase();
+        if (href.includes('toc') || href.includes('contents') || href.includes('nav')) {
+          tocPath = item.href;
+          break;
+        }
+      }
+    }
+
+    if (!tocPath) return null;
+
+    try {
+      // 2. 目次ページの内容をロードして解析
+      const item = this.book.spine.get(tocPath);
+      if (!item) return null;
+
+      await item.load(this.book.load.bind(this.book));
+      const doc = item.document || item.contents?.document;
+      if (!doc) return null;
+
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+      if (anchors.length < 3) return null;
+
+      const extractedToc = anchors.map(a => {
+        let label = a.textContent.trim().replace(/\s+/g, ' ');
+        // ラベルが空の場合、子要素のalt属性などから探す
+        if (!label) {
+          const img = a.querySelector('img');
+          if (img) label = img.getAttribute('alt') || img.getAttribute('title') || "";
+        }
+        return {
+          label: label,
+          href: this.resolveRelativePath(tocPath, a.getAttribute('href')),
+          subitems: []
+        };
+      }).filter(entry => entry.label.length > 1 && !entry.label.includes('http')); // 短すぎるものやURLは除外
+
+      if (extractedToc.length < 3) return null;
+
+      // 3. 現在の目次が機械的かどうか判定
+      const currentLabels = [];
+      const collectLabels = (items) => {
+        items.forEach(it => {
+          currentLabels.push(it.label || "");
+          if (it.subitems) collectLabels(it.subitems);
+        });
+      };
+      collectLabels(this.toc || []);
+
+      const isCurrentMechanical = currentLabels.some(l => /^p-\d+/i.test(l) || /^cover$/i.test(l) || /^spine/i.test(l));
+      const isExtractedBetter = extractedToc.some(l => l.label.length > 3 && !/^p-\d+/i.test(l.label));
+
+      if (isCurrentMechanical && isExtractedBetter) {
+        console.log(`[JoinMode] 本文内目次 (${extractedToc.length}件) に差し替えます。パス: ${tocPath}`);
+        return extractedToc;
+      }
+    } catch (e) {
+      console.warn('[JoinMode] Failed to extract better TOC from HTML:', e);
+    }
+    return null;
+  }
+
+  /**
+   * 目次ソースを切り替え、章区切りを再計算する
+   */
+  async toggleTocSource(useEnhanced) {
+    if (this.useEnhancedToc === useEnhanced) return;
+    this.useEnhancedToc = useEnhanced;
+    
+    const targetToc = useEnhanced ? this.enhancedToc : this.logicToc;
+    if (!targetToc || targetToc.length === 0) {
+      console.warn('[JoinMode] 切り替え先の目次が空です');
+      return;
+    }
+
+    console.log(`[JoinMode] 目次ソースを切り替えます: ${useEnhanced ? '本文内抽出' : '論理目次'}`);
+    this.toc = targetToc;
+
+    // EPUBかつスクロールモードの場合は、章区切りの再計算が必要
+    if (this.type === BOOK_TYPES.EPUB) {
+      // 現在の位置情報をテキストとして退避（位置維持のため）
+      const currentSpineIndex = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex;
+      const visibleText = this.getCurrentVisibleText(50);
+
+      // パジネーションをリセットして再計算
+      this.pagination = null;
+      this._spineGroups = null; // これをクリアすることで generateSpineGroupsFromToc が新しい目次で動く
+      
+      this.onRepaginationStart?.();
+      await this.buildPagination();
+      
+      // 全チャプター完了を待機（スクロール位置復元のため）
+      if (this.paginationPromise) {
+        await this.paginationPromise;
+      }
+
+      // 位置復元
+      if (currentSpineIndex != null) {
+        const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "toggleTocSource") ?? 0;
+        this.goToSegment(currentSpineIndex, segmentIndex, null, false);
+      }
+      
+      this.onRepaginationEnd?.();
+
+      // UI側に目次の更新を通知
+      this.onReady?.({
+        metadata: this.book.package?.metadata,
+        toc: this.toc,
+        isEnhanced: this.useEnhancedToc
+      });
+    }
+  }
+
+  mergeIllustrationSpinesIntoGroups(groups) {
     return groups;
   }
 
@@ -27238,10 +27808,12 @@ export class ReaderController {
         if (pendingSegment != null || pendingSearchQuery) {
           const shouldHighlight = this._pendingScrollHighlight;
           // [修正] Join Mode 時に正しい章へ飛ぶよう spineIndex を渡す
-          const targetSpineIndex = page?.spineIndex;
+          // _pendingScrollTargetSpineIndex が設定されている場合（グループ内ジャンプ）を優先する
+          const targetSpineIndex = this._pendingScrollTargetSpineIndex ?? page?.spineIndex;
           this._scrollToPositionInDOM(this.pageContainer, pendingSegment, pendingSearchQuery, shouldHighlight, targetSpineIndex);
           this._pendingScrollToSegment = null;
           this._pendingScrollSearchQuery = null;
+          this._pendingScrollTargetSpineIndex = null; // リセット
           this._pendingScrollHighlight = true; // デフォルトに戻す
         } else {
           this._scrollTargetNode = null;
@@ -27711,6 +28283,7 @@ export class ReaderController {
                 id: item.idref || item.id || `spine-${spineIndex}`,
                 href: item.href,
                 htmlString,
+                isIllustrationOnly: isIllustrationOnlySpine(htmlString),
               };
               this.spineItems.push(newItem);
               this.paginator.spineItems.push(newItem);
@@ -27769,6 +28342,24 @@ export class ReaderController {
 
       // 中断チェック
       if (run.cancelled) return null;
+
+      // [挿絵統一] スクロールモード時: 挿絵や章扉を適切に結合
+      if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && this._spineGroups) {
+        const adjustedGroups = this.adjustSpineGroupsForIllustrations(this._spineGroups);
+        if (adjustedGroups !== this._spineGroups) {
+          this._spineGroups = adjustedGroups;
+          if (this.paginator) {
+            this.paginator.settings.spineGroups = adjustedGroups;
+          }
+          if (this.paginator && !run.cancelled) {
+            console.log('[JoinMode] グループ再計算によるリパジネーション開始');
+            await this.paginator.repaginate(this.paginator.settings);
+            this.pagination = { pages: this.paginator.pages };
+            this.pageController.setTotalPages(this.pagination.pages.length);
+            this.renderEpubPage(this.currentPageIndex, this.pagination);
+          }
+        }
+      }
 
       if (!isFirstChapterDone) {
         firstPageResolver(this.pagination);
@@ -31224,6 +31815,40 @@ export class ProgressBarHandler {
 
 ```
 
+### debug_illustration_merge.md
+
+```markdown
+# デバッグ記録：挿絵表示と目次ナビゲーションの最適化
+
+## 問題
+- **挿絵の分断**: EPUBの構造により、挿絵が独立したHTMLファイルになっている場合、スクロールモードでもページが切り替わってしまう（TRPG系EPUB等）。
+- **目次が不親切**: 論理目次（TOC）が `p-001` 等の機械的なラベルしか持たず、人間が読める章立てになっていない書籍がある。
+- **章区切りの不一致**: 論理目次が機械的なため、スクロールモードでの章の分割位置が本来の章立てとズレる。
+
+## 実装されたソリューション（2026-04-24）
+
+### 1. 挿絵・扉絵のインテリジェント結合（Forward Merge）
+- **ロジック**: 前後のセクション（Spine）が「画像のみ」または「少量のテキスト＋画像」である場合、それを独立したページとせず、次の本格的な章と結合する。
+- **効果**: 扉絵が前の章の末尾に吸着するのを防ぎ、新しい章の先頭として正しく表示される。文章の間の挿絵も、前後の文脈と分断されずにスクロール表示される。
+
+### 2. 本文内HTMLからの目次抽出（Better TOC Extraction）
+- **ロジック**: EPUB内の全HTMLをスキャンし、`<a>`タグのテキストやリンク先を解析。人間が読めるラベル（「第1章」など）を抽出する。
+- **効果**: ファイル側の目次データが不親切な場合でも、本文から本物の目次を再構成できる。
+
+### 3. 目次の自動判定と手動切り替え（TOC Heuristic & Toggle）
+- **自動判定**: 読み込み時に「標準目次」が機械的（`p-` で始まる等）で、かつ「抽出目次」の方が質が高いと判断した場合、自動的に抽出目次をデフォルトにする。
+- **手動トグル**: 目次パネルの最上部に切り替えボタンを追加。ユーザーが手動でソースを切り替えると、**章の区切り位置も連動して再計算**される。
+- **位置維持**: 切り替え後も読んでいた場所を見失わないよう、テキストベースの同期処理を実装。
+
+## 最終検証結果
+- **TRPG書籍**: 理想的な「人間用の目次」が自動選択され、章の区切りもそれに準じた位置で正しく行われるようになった。
+- **一般書籍**: 標準目次がしっかりしていれば、既存の挙動を維持。
+
+## 完了日
+2026-04-24
+
+```
+
 ### debug_mode_switch.md
 
 ```markdown
@@ -31245,6 +31870,24 @@ export class ProgressBarHandler {
 5. [ ] Investigate `ReaderController` rendition initialization.
 6. [ ] Check if `rendition.settings` needs manual update during `applyEpubViewMode`.
 7. [ ] Ensure `rendition.display()` is called with correct options on mode switch.
+
+```
+
+### debug_pwa_titlebar.md
+
+```markdown
+# PWA タイトルバー非表示化のデバッグ記録
+
+## 現状の確認 (2026-04-24)
+- `manifest.json` の `display` は既に `"standalone"` に設定されている。
+- `display_override` に `"window-controls-overlay"` が指定されており、これが優先されている可能性がある。
+- Android等で「URLや共有ボタンが表示される」のは、`minimal-ui` や `browser` モードのように見える挙動。
+
+## 実施工程
+1. `display_override` を削除し、純粋な `"standalone"` 設定に変更した。 (2026-04-24)
+
+## テスト結果
+- (ユーザーによるデプロイ・再インストール後の報告待ち)
 
 ```
 
@@ -35321,11 +35964,6 @@ export function buildMatchMeta(info) {
     ],
     "start_url": "./index.html",
     "display": "standalone",
-    "display_override": [
-        "window-controls-overlay",
-        "standalone",
-        "minimal-ui"
-    ],
     "orientation": "any",
     "background_color": "#ffffff",
     "theme_color": "#2c3e50",
@@ -38794,45 +39432,4 @@ export default {
 };
 
 ```
-```
-
----
-
-## 更新履歴 — 2026-04-24 (TOCナビゲーション修正セッション)
-
-### 対象ファイル
-- `assets/reader.js`
-
-### 実装した変更
-
-#### 1. `resolveRelativePath(basePath, relativePath)` メソッドの追加
-- EPUB 内の相対パス（`../Text/prologue.xhtml` 等）を、基準となるファイルのパスを元に絶対パスへ解決するメソッドを実装。
-- `normalizeHrefPath` の先頭 `/` の除去も強化。
-
-#### 2. `resolveSpineIndexFromHref` の強化
-- 完全一致 → バックスラッシュ正規化一致 → 末尾一致 → ファイル名のみ一致の4段階フォールバックを実装。
-- デバッグログを追加し、どのルートでマッチしたかをコンソールで確認可能にした。
-
-#### 3. `tryExtractBetterTocFromHtml` での相対パス解決
-- HTML目次から抽出した `href` を `resolveRelativePath(tocPath, href)` で解決するよう修正。
-- これにより `toc.xhtml` 内の相対リンクが正しい spineItems のパスと照合可能になった。
-
-#### 4. `navigateToHref` の Join Mode 対応
-- **根本原因の特定**: スクロールモード（Join Mode）では、複数の spine が1つのページグループに結合される。目次リンク先の spine がグループ内に結合されている場合、`pagination.pages` にそのエントリが存在せず、ジャンプが失敗していた。
-- **修正内容**:
-  - `_spineGroups` を逆引きし、`spineIndex` が属するグループの先頭 spine を持つページを探すロジックを追加。
-  - `fragPart`（HTMLの id 属性文字列）を `searchQuery` に渡すのをやめた。`fragPart` はテキストではないため DOM テキスト検索で必ず失敗していた。
-  - 直前の spine が `isIllustrationOnly`（扉絵）で同グループ内にある場合は扉絵の spine をスクロールターゲットにする。扉絵がなければ指定された spine（本文先頭）を使う。
-
-#### 5. `_scrollToPositionInDOM` の修正
-- `targetSpineIndex` が指定され、`segmentIndex = 0` かつ `searchQuery` なしの場合（＝章先頭へのジャンプ）は、Walker でテキストを探さずに `joinedItem` コンテナ自体を `targetElement` として直接 `scrollIntoView` する。
-- これにより、画像のみで構成される扉絵 spine（テキストノードなし）でもスクロールジャンプが成功するようになった。
-
-### 修正された不具合
-- TRPGモジュール等で「序章」だけ目次ジャンプが失敗する問題を解決。
-  - 原因: 序章(spine 9)が挿絵(spine 8)と同じ Join Mode グループ([0-10])に属しており、ページエントリが spine 9 ではなく spine 0 として登録されていた。
-
-### 注意事項（既知の制約）
-- `spineItems[i].isIllustrationOnly` プロパティが正しく設定されている前提でロジックが動く。このプロパティは `adjustSpineGroupsForIllustrations` 内で参照されているが、設定箇所は `buildPagination` の spine ロード処理側にある。
-- `_spineGroups` は `buildPagination` 完了後にのみ有効。ナビゲーションは必ず pagination 完了後に呼ばれることを前提としている。
 
