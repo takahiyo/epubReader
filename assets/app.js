@@ -270,22 +270,20 @@ if (typeof document !== "undefined") {
 /**
  * プレミアムアイコン（画像）を取得
  */
-const getPremiumIcon = (path, size = 36) => {
+const getPremiumIcon = (path, size = 24) => {
   const img = document.createElement("img");
   img.src = path;
   img.style.width = `${size}px`;
   img.style.height = `${size}px`;
   img.style.verticalAlign = "middle";
   img.style.objectFit = "contain";
-  // SVGフィルタで白背景を透過させ、明るさを調整
-  img.style.filter = "url(#remove-white) brightness(1.1) contrast(110%)";
   return img;
 };
 
 /**
  * 2枚1組のプレミアムアイコン（画像）をクロップして取得
  */
-const getPremiumIconCropped = (path, isRight, size = 44) => {
+const getPremiumIconCropped = (path, isRight, size = 32) => {
   const container = document.createElement("div");
   container.style.width = `${size}px`;
   container.style.height = `${size}px`;
@@ -302,8 +300,6 @@ const getPremiumIconCropped = (path, isRight, size = 44) => {
   img.style.maxWidth = "none";
   img.style.objectFit = "cover";
   img.style.objectPosition = isRight ? "right" : "left";
-  // SVGフィルタで白背景を透過
-  img.style.filter = "url(#remove-white) brightness(1.1) contrast(110%)";
 
   container.appendChild(img);
   return container;
@@ -1985,7 +1981,7 @@ function applyUiLanguage(nextLanguage) {
       };
       const premiumPath = iconMap[icon];
       if (premiumPath) {
-        iconSpan.replaceChildren(getPremiumIcon(premiumPath, 44));
+        iconSpan.replaceChildren(getPremiumIcon(premiumPath, 32));
       } else {
         iconSpan.textContent = icon;
       }
@@ -2009,7 +2005,7 @@ function applyUiLanguage(nextLanguage) {
     };
     const premiumPath = iconMap[icon];
     if (premiumPath) {
-      const img = getPremiumIcon(premiumPath, 36);
+      const img = getPremiumIcon(premiumPath, 24);
       const label = document.createTextNode(` ${text}`);
       button.replaceChildren(img, label);
     } else {
@@ -2037,11 +2033,11 @@ function applyUiLanguage(nextLanguage) {
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 40));
+    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32));
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
   if (elements.openLangMenu) {
-    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 40));
+    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32));
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
   }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
