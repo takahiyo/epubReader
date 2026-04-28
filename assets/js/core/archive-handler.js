@@ -568,22 +568,12 @@ export class RarHandler extends ArchiveHandler {
   async init() {
     // RARファイルは解凍ライブラリ(unrar.js, wasm)の制約上、全データをArrayBufferとして
     // メモリに読み込む必要があり、ファイルサイズの約3倍のメモリ領域を消費します。
-<<<<<<< Updated upstream
     // 今回のアーキテクチャでは、抽出後にバッファをOPFSにオフロードし手動GCを行うことで
     // Quest 3(Horizon OS)の厳しいメモリ制限下でも大容量アーカイブの展開を許容します。
-    if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) {
-      console.warn(`[RarHandler] Large RAR archive detected (${(this.file.size / 1024 / 1024).toFixed(1)}MB). Offloading extraction to OPFS and manual GC.`);
-      // 制限をプロンプトに従いバイパス（throwしない）
-=======
-    // モバイル端末等でのブラウザクラッシュ(OOM)を防ぐため、大容量ファイルは処理をブロックします。
-    // [BEFORE] if (this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD) { ... }
-    // [AFTER] 50MB 制限を緩和し、大容量ファイルでも Worker 経由で処理を継続可能にします。
     const isLarge = this.file.size > FILE_STRATEGY.LARGE_FILE_THRESHOLD;
     if (isLarge) {
-      console.log(`[RarHandler] 大容量ファイル (${(this.file.size / 1024 / 1024).toFixed(1)}MB) を検知。Worker 優先モードで初期化します。`);
->>>>>>> Stashed changes
+      console.warn(`[RarHandler] 大容量ファイル (${(this.file.size / 1024 / 1024).toFixed(1)}MB) を検知。Worker優先モードとOPFSオフロードを併用してメモリ不足(OOM)を回避します。`);
     }
-
     const buffer = await this.file.arrayBuffer();
     const signature = new Uint8Array(buffer.slice(0, 8));
     this.isRar5Signature = signature[6] === 0x01 && signature[7] === 0x00;
