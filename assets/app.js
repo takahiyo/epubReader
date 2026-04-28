@@ -3439,6 +3439,24 @@ function init() {
   // イベント設定
   setupEvents();
 
+  // ========================================
+  // File Handling API: OSの「アプリで開く」等から渡されたファイルをキャッチ
+  // ========================================
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (launchParams) => {
+      if (launchParams.files && launchParams.files.length > 0) {
+        try {
+          const fileHandle = launchParams.files[0];
+          console.log('[File Handling] Launched with file:', fileHandle.name);
+          const file = await fileHandle.getFile();
+          handleFile(file);
+        } catch (err) {
+          console.error('[File Handling] Failed to get file from launchParams:', err);
+        }
+      }
+    });
+  }
+
   // テーマ適用
   applyTheme(theme);
   if (!Number.isFinite(fontSize)) {
