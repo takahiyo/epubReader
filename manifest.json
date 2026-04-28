@@ -51,5 +51,17 @@
                 }
             ]
         }
-    }
-}
+    },
+    "file_handlers": [
+        {
+            "action": "./index.html",
+            "accept": {
+                "application/epub+zip": [".epub"],
+                "application/zip": [".zip", ".cbz"],
+                "application/x-rar-compressed": [".rar", ".cbr"],
+                "text/plain": [".txt"],
+                "text/html": [".html"]
+            }
+        }
+    ]
+}

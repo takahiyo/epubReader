@@ -82,48 +82,50 @@ const executeFallbackPicker = (options = {}) => {
             input.remove();
         }
 
+        // 以前の入力があれば削除
+        if (input) input.remove();
+
+        // 【対策】IDをランダム化してブラウザのキャッシュ（前回のピッカータイプ保持）を回避
+        const randomId = `q3_picker_${Math.floor(Math.random() * 10000)}`;
+        
         input = document.createElement('input');
         input.type = 'file';
-        input.id = inputId;
-        input.style.display = 'none';
+        input.id = randomId;
         
-        // 【重要】複数選択を無効化。
-        // Android/Quest OS では multiple があるとメディアピッカーが強制され、
-        // 外部ファイラー（AnExplorer等）が選択肢から消えるケースがあるため。
+        // 【対策】display: none ではなく、物理的に存在するが隠れている状態にする。
+        // 一部のブラウザでは非表示要素からの click 発火を制限したり、
+        // インテントの優先度を下げたりするため。
+        Object.assign(input.style, {
+            position: 'fixed',
+            top: '-100px',
+            left: '-100px',
+            width: '1px',
+            height: '1px',
+            opacity: '0',
+            pointerEvents: 'none'
+        });
+        
+        // 複数選択は無効（メディアピッカー強制回避のため）
         input.multiple = false;
 
-        // 以前の正常動作時（commit c3b4dcfb）に近い拡張子リストを設定。
-        // MIMEタイプと拡張子を混ぜて、OSに「適切なアプリ」を探させる。
-        const formats = [
-            ...SUPPORTED_FORMATS.EPUB,
-            ...SUPPORTED_FORMATS.IMAGE_ARCHIVE,
-            ...SUPPORTED_FORMATS.WEB_NOVEL,
-            'application/epub+zip',
-            'application/zip'
-        ].join(',');
-        input.accept = formats;
+        // 【ユーザー提案】拡張子指定をあえて行わない（または最小限にする）。
+        // ブラウザが「特定のファイル用」と判断して制限付きピッカーを出すのを防ぐ。
+        // 空文字にする、あるいは最も汎用的な */* のみにする。
+        input.accept = ''; 
 
-        console.log('[Quest3Picker] Triggering picker with:', {
-            accept: input.accept,
-            multiple: input.multiple,
-            userAgent: navigator.userAgent
-        });
+        console.log(`[Quest3Picker] Triggering BROAD picker (ID: ${randomId})`);
 
         const handleFocus = () => {
-            console.log('[Quest3Picker] Window focused, checking for file selection...');
-            // キャンセル検知用
             setTimeout(() => {
                 if (input) {
-                    console.log('[Quest3Picker] No change event detected, cleaning up.');
                     input.remove();
                     resolve([]);
                 }
-            }, 1000); // 復帰後のタイムアウトを少し長めに設定
+            }, 1000);
             window.removeEventListener('focus', handleFocus);
         };
 
         input.addEventListener('change', (e) => {
-            console.log('[Quest3Picker] Change event fired!');
             window.removeEventListener('focus', handleFocus);
             const files = Array.from(e.target.files || []);
             console.log('[Quest3Picker] Files selected:', files.map(f => f.name));
@@ -134,7 +136,6 @@ const executeFallbackPicker = (options = {}) => {
         window.addEventListener('focus', handleFocus);
         document.body.appendChild(input);
         
-        console.log('[Quest3Picker] Executing input.click()...');
         input.click();
     });
 };
