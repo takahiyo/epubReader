@@ -90,12 +90,12 @@ export const PREMIUM_ICONS = Object.freeze({
   BOOKMARKS: "assets/icons/bookmarks.png",
   LANGUAGE: "assets/icons/language.png",
   THEME_LIGHT: "assets/icons/sun.png",
-  THEME_DARK: "assets/icons/moon.png", // 仮。後で追加
+  THEME_DARK: "assets/icons/theme_modes.png",
   SHARE: "assets/icons/share.png",
-  ZOOM_IN: "assets/icons/zoom_in.png",
-  ZOOM_OUT: "assets/icons/zoom_out.png",
-  FULLSCREEN_ENTER: "assets/icons/fullscreen_enter.png",
-  FULLSCREEN_EXIT: "assets/icons/fullscreen_exit.png",
+  ZOOM_IN: "assets/icons/zoom_modes.png",
+  ZOOM_OUT: "assets/icons/zoom_modes.png",
+  FULLSCREEN_ENTER: "assets/icons/fullscreen_modes.png",
+  FULLSCREEN_EXIT: "assets/icons/fullscreen_modes.png",
 });
 
 // ============================================
