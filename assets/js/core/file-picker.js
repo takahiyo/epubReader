@@ -31,10 +31,16 @@ export function init(deps) {
  * @returns {Promise<File[]>}
  */
 export const openFilePicker = async (options = {}) => {
-    // 1. モダンな File System Access API を試行 (もしサポートされていればこれが最良)
+    // Quest 環境: showOpenFilePicker も制限付きピッカーを表示するため、
+    // input type="file" を accept 属性なしで使い、ACTION_GET_CONTENT 経由の
+    // 広いアプリ選択（ファイラー・共有フォルダ等）を狙う
+    if (isQuest3()) {
+        return await executeFallbackPicker(options);
+    }
+
+    // 非Quest: モダンな File System Access API を試行
     if (window.showOpenFilePicker) {
         try {
-            // SUPPORTED_FORMATS.EPUB 等から種類を生成
             const pickerOptions = {
                 multiple: options.multiple !== false,
                 excludeAcceptAllOption: false,
@@ -58,10 +64,6 @@ export const openFilePicker = async (options = {}) => {
             if (e.name === 'AbortError') return [];
             // エラー時は従来のフォールバックへ
         }
-    }
-
-    if (isQuest3()) {
-        return await executeFallbackPicker(options);
     }
     
     return await executeModernPicker(options);
@@ -89,9 +91,10 @@ const executeFallbackPicker = (options = {}) => {
             input.multiple = true;
         }
 
-        // 拡張子の制限設定
-        // Quest 3 OSアップデート対策: 拡張子を絞ると制限されたピッカーが出るため、*/* で標準ピッカーを強制する
-        input.accept = '*/*';
+        // accept 属性を意図的にセットしない（属性自体が存在しない状態）。
+        // Android Chromium は accept が未設定の場合、ACTION_GET_CONTENT を発火し、
+        // ファイラーアプリや共有フォルダ等を含む広い選択肢を表示する可能性がある。
+        // accept="*/*" とは異なる挙動になる場合がある。
 
         const handleFocus = () => {
             // キャンセル検知用: ウィンドウフォーカス復帰後しばらくして
