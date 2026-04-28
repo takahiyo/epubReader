@@ -31,19 +31,47 @@ export function init(deps) {
  * @returns {Promise<File[]>}
  */
 export const openFilePicker = async (options = {}) => {
-    // [REF] logic moved from app.js (formerly expected in file-handler.js)
+    // 1. モダンな File System Access API を試行 (もしサポートされていればこれが最良)
+    if (window.showOpenFilePicker) {
+        try {
+            // SUPPORTED_FORMATS.EPUB 等から種類を生成
+            const pickerOptions = {
+                multiple: options.multiple !== false,
+                excludeAcceptAllOption: false,
+                types: [
+                    {
+                        description: 'Book Files',
+                        accept: {
+                            'application/epub+zip': ['.epub'],
+                            'application/zip': ['.zip', '.cbz'],
+                            'application/x-rar-compressed': ['.rar', '.cbr'],
+                            'text/plain': ['.txt'],
+                            'text/html': ['.html']
+                        }
+                    }
+                ]
+            };
+            const handles = await window.showOpenFilePicker(pickerOptions);
+            return await Promise.all(handles.map(h => h.getFile()));
+        } catch (e) {
+            console.warn('[filePicker] showOpenFilePicker failed or cancelled:', e);
+            if (e.name === 'AbortError') return [];
+            // エラー時は従来のフォールバックへ
+        }
+    }
+
     if (isQuest3()) {
-        return await executeFallbackPicker();
+        return await executeFallbackPicker(options);
     }
     
-    return await executeModernPicker();
+    return await executeModernPicker(options);
 };
 
 /**
  * Fallback Mode: <input type="file"> を動的生成して発火
  * @returns {Promise<File[]>}
  */
-const executeFallbackPicker = () => {
+const executeFallbackPicker = (options = {}) => {
     return new Promise((resolve) => {
         const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.FALLBACK_INPUT_ID || '__quest3_file_picker_input';
         
@@ -56,6 +84,10 @@ const executeFallbackPicker = () => {
         input.type = 'file';
         input.id = inputId;
         input.style.display = 'none';
+        
+        if (options.multiple !== false) {
+            input.multiple = true;
+        }
 
         // 拡張子の制限設定
         // Quest 3 OSアップデート対策: 拡張子を絞ると制限されたピッカーが出るため、*/* で標準ピッカーを強制する
@@ -95,7 +127,7 @@ const executeFallbackPicker = () => {
  * 実際にはshowOpenFilePickerの代わりに以前app.jsにあった入力要素のクリックを利用
  * @returns {Promise<File[]>}
  */
-const executeModernPicker = () => {
+const executeModernPicker = (options = {}) => {
     return new Promise((resolve) => {
         // [REF] logic moved from app.js:ensureLegacyFileInput and openFileDialog
         const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.LEGACY_FILE_INPUT || 'legacy-file-input-fallback';
@@ -113,6 +145,12 @@ const executeModernPicker = () => {
             const newTarget = input.cloneNode(true);
             input.parentNode.replaceChild(newTarget, input);
             input = newTarget;
+        }
+
+        if (options.multiple !== false) {
+            input.multiple = true;
+        } else {
+            input.removeAttribute('multiple');
         }
 
         const handleFocus = () => {
