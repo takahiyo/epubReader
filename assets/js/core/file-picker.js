@@ -58,12 +58,8 @@ const executeFallbackPicker = () => {
         input.style.display = 'none';
 
         // 拡張子の制限設定
-        const acceptedFormats = [
-            ...SUPPORTED_FORMATS.EPUB,
-            ...SUPPORTED_FORMATS.IMAGE_ARCHIVE,
-            ...SUPPORTED_FORMATS.WEB_NOVEL
-        ].join(',');
-        input.accept = acceptedFormats;
+        // Quest 3 OSアップデート対策: 拡張子を絞ると制限されたピッカーが出るため、*/* で標準ピッカーを強制する
+        input.accept = '*/*';
 
         const handleFocus = () => {
             // キャンセル検知用: ウィンドウフォーカス復帰後しばらくして
