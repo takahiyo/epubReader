@@ -70,3 +70,12 @@ export const FILE_STRATEGY = Object.freeze({
   /** JSZip 展開に割り当てるメモリ上限（端末メモリの何割まで） */
   SAFE_MEMORY_RATIO: 0.25,
 });
+
+// ============================================
+// 共有フォーマット
+// ============================================
+export const SHARE_MARKDOWN_TEMPLATE = `## 📖 読書録: \${title}
+- **進捗**: \${percentage}% [\${status}]
+- **日時**: \${date}
+- **アプリ**: \${appUrl}
+#BookReader`;

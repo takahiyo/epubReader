@@ -1,5 +1,4 @@
 import { UI_DEFAULTS } from "./ui.js";
-import { NOTION_DEFAULT_SETTINGS } from "./notion.js";
 
 // ============================================
 // ストレージ設定
@@ -25,6 +24,8 @@ export const FILESTORE_CONFIG = Object.freeze({
   PCLOUD_FALLBACK_PREFIX: "pcloud",
   /** OPFS (Origin Private File System) 内のファイル保存ディレクトリ名 */
   OPFS_DIR: "books",
+  /** 一時的な解凍データの保存用ディレクトリ名 */
+  OPFS_TEMP_DIR: "temp_extractions",
 });
 
 // ============================================
@@ -77,5 +78,4 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultPageDirection: UI_DEFAULTS.defaultDirection,
   defaultImageViewMode: UI_DEFAULTS.imageViewMode,
   oneBookmarkPerBook: false, // 1冊につき最後に作成したしおり1つだけを保持する
-  notionIntegration: { ...NOTION_DEFAULT_SETTINGS },
 });

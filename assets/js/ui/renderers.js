@@ -10,6 +10,7 @@ import {
     BOOK_TYPES,
     UI_CLASSES,
     UI_ICONS,
+    PREMIUM_ICONS,
     UI_SYMBOLS,
     CSS_VARS,
     DOM_IDS,
@@ -68,13 +69,72 @@ export function setStatusClass(element, statusClass) {
     }
 }
 
+/**
+ * プレミアムアイコン（画像）を取得
+ */
+export function getPremiumIcon(path, size = 24) {
+    const img = document.createElement("img");
+    img.src = path;
+    img.style.width = `${size}px`;
+    img.style.height = `${size}px`;
+    img.style.verticalAlign = "middle";
+    img.style.objectFit = "contain";
+    return img;
+}
+
+/**
+ * 2枚1組のプレミアムアイコン（画像）をクロップして取得
+ */
+export function getPremiumIconCropped(path, isRight, size = 32) {
+    const container = document.createElement("div");
+    container.style.width = `${size}px`;
+    container.style.height = `${size}px`;
+    container.style.overflow = "hidden";
+    container.style.display = "inline-flex";
+    container.style.alignItems = "center";
+    container.style.justifyContent = "center";
+    container.style.verticalAlign = "middle";
+    
+    const img = document.createElement("img");
+    img.src = path;
+    img.style.width = `${size * 2}px`;
+    img.style.height = `${size}px`;
+    img.style.maxWidth = "none";
+    img.style.objectFit = "cover";
+    img.style.objectPosition = isRight ? "right" : "left";
+    
+    container.appendChild(img);
+    return container;
+}
+
 export function setMaterialIconLabel(button, iconName, labelText) {
     if (!button) return;
-    const icon = document.createElement("span");
-    icon.className = UI_CLASSES.MATERIAL_ICON;
-    icon.textContent = iconName;
+    
+    // PREMIUM_ICONS マッピング
+    const iconMap = {
+        [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+        [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
+        [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
+        [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
+        [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
+        [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
+        [UI_ICONS.SPREAD_DOUBLE]: PREMIUM_ICONS.LIBRARY, // 代用
+        [UI_ICONS.SPREAD_SINGLE]: PREMIUM_ICONS.OPEN, // 代用
+    };
+
+    const premiumPath = iconMap[iconName];
+    let iconElement;
+
+    if (premiumPath) {
+        iconElement = getPremiumIcon(premiumPath, 24);
+    } else {
+        iconElement = document.createElement("span");
+        iconElement.className = UI_CLASSES.MATERIAL_ICON;
+        iconElement.textContent = iconName;
+    }
+
     const label = document.createTextNode(` ${labelText}`);
-    button.replaceChildren(icon, label);
+    button.replaceChildren(iconElement, label);
 }
 
 export function showArchiveWarnings(warningTypes = []) {
@@ -177,15 +237,16 @@ export function updateFloatingUIButtons() {
         updateZoomButtonLabel();
     }
 
-    if (elements.progressPrev) {
-        elements.progressPrev.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
-    }
-    if (elements.progressNext) {
-        elements.progressNext.classList.toggle(UI_CLASSES.HIDDEN, !isImageBook);
+    if (elements.shareLogButton) {
+        setElementVisibility(elements.shareLogButton, isBookOpen);
+        if (isBookOpen) {
+            const icon = getPremiumIcon(PREMIUM_ICONS.SHARE, 24);
+            const label = document.createTextNode(` ${t("share_reading_log")}`);
+            elements.shareLogButton.replaceChildren(icon, label);
+        }
     }
 
     updateProgressBarDirection();
-
 }
 
 /**
@@ -248,8 +309,13 @@ export function updateWritingModeToggleLabel() {
 
 export function updateThemeToggleIcon() {
     if (!elements.toggleTheme) return;
-    elements.toggleTheme.textContent = _state.theme === "dark" ? UI_ICONS.THEME_DARK : UI_ICONS.THEME_LIGHT;
-    elements.toggleTheme.setAttribute("aria-pressed", _state.theme === "dark" ? "true" : "false");
+    const isDark = _state.theme === "dark";
+    
+    // クロップドアイコンの生成（右側が月、左側が太陽と想定）
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
+    
+    elements.toggleTheme.replaceChildren(iconElement);
+    elements.toggleTheme.setAttribute("aria-pressed", isDark ? "true" : "false");
 }
 
 export function updateEpubScrollMode() {
@@ -282,7 +348,10 @@ export function updateReadingDirectionEpubButtonLabel() {
 export function updateZoomButtonLabel() {
     if (!elements.toggleZoom || !_reader) return;
     const isZoomed = _reader.imageZoomed;
-    elements.toggleZoom.textContent = isZoomed ? UI_ICONS.ZOOM_OUT : UI_ICONS.ZOOM_IN;
+    
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 32);
+    
+    elements.toggleZoom.replaceChildren(iconElement);
     elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
 }
 

@@ -278,6 +278,17 @@ export class StreamingZipHandler {
         if (!entry) {
             throw new Error(`ZIP内にファイルが見つかりません: ${path}`);
         }
+
+        const archiveId = this.file.name; // IDとしてファイル名を使用（一時的）
+
+        // 1. OPFS キャッシュの確認
+        const { loadTempFromOPFS, saveTempToOPFS } = await import("../../fileStore.js");
+        const cached = await loadTempFromOPFS(archiveId, path);
+        if (cached) {
+            console.debug(`[StreamingZipHandler] OPFS cache hit: ${path}`);
+            return cached;
+        }
+
         const zipLib = await ensureZipJs();
         const mimeType = resolveImageMimeType(path);
         const fileName = path.split('/').pop();
@@ -343,6 +354,11 @@ export class StreamingZipHandler {
             `画像の展開 (${fileName})`
         );
         console.timeEnd(`[StreamingZip] extract: ${fileName}`);
+
+        // 2. OPFS に保存してメインメモリから逃がす（ストリーミングモード時は常に保存を推奨）
+        await saveTempToOPFS(archiveId, path, blob);
+        console.debug(`[StreamingZipHandler] Saved to OPFS temp: ${path}`);
+
         return blob;
     }
 

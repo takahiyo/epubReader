@@ -67,8 +67,20 @@ self.addEventListener("message", async (event) => {
         throw new Error(`${ARCHIVE_PROCESSING_ERRORS.RAR_EXTRACT_FAILED}: ${path}`);
       }
       const dataArray = data instanceof Uint8Array ? data : new Uint8Array(data);
+      // [BEFORE] const slice = dataArray.buffer.slice(dataArray.byteOffset, dataArray.byteOffset + dataArray.byteLength);
+      // [AFTER] メインスレッドに転送するためにスライス（コピー）を作成。
+      // WASMのヒープメモリから独立した ArrayBuffer を作成し、Transferable として送信することで
+      // Worker側の参照を解除し、メモリ解放を効率化します。
       const slice = dataArray.buffer.slice(dataArray.byteOffset, dataArray.byteOffset + dataArray.byteLength);
       self.postMessage({ id, type, payload: { buffer: slice } }, [slice]);
+      return;
+    }
+
+    if (type === ARCHIVE_WORKER_MESSAGES.CLOSE) {
+      // 抽出器を破棄してメモリを解放
+      extractor = null;
+      // WASMバイナリは再利用のために保持（必要なら null にするが、再ロードのコストを考慮）
+      self.postMessage({ id, type, payload: { success: true } });
       return;
     }
   } catch (error) {

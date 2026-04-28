@@ -1,7 +1,7 @@
 import { FILESTORE_CONFIG, FILE_STRATEGY, DEFAULT_DATA_SHAPE } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
 
-const { DB_NAME, STORE, VERSION, STORAGE_KEY, OPFS_DIR } = FILESTORE_CONFIG;
+const { DB_NAME, STORE, VERSION, STORAGE_KEY, OPFS_DIR, OPFS_TEMP_DIR } = FILESTORE_CONFIG;
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -97,6 +97,82 @@ async function saveToOPFS(id, data, meta) {
   });
   const sizeBytes = data instanceof ArrayBuffer ? data.byteLength : data.size;
   console.log(`[fileStore] Saved to OPFS: ${id} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB)`);
+}
+
+/**
+ * OPFS 内の一時展開ディレクトリハンドルを取得する。
+ * @returns {Promise<FileSystemDirectoryHandle>}
+ */
+async function getOPFSTempDir() {
+  const root = await navigator.storage.getDirectory();
+  return await root.getDirectoryHandle(OPFS_TEMP_DIR, { create: true });
+}
+
+/**
+ * 一時データを OPFS に保存する（解凍中のストリーミング用）。
+ * @param {string} archiveId - 書籍ID
+ * @param {string} entryPath - アーカイブ内のパス
+ * @param {Blob|ArrayBuffer} data - データ
+ * @returns {Promise<string>} 保存されたファイル名
+ */
+export async function saveTempToOPFS(archiveId, entryPath, data) {
+  if (!isOPFSAvailable()) return null;
+  const tempDir = await getOPFSTempDir();
+  // アーカイブごとのサブディレクトリを作成（クリーンアップを容易にするため）
+  const archiveDir = await tempDir.getDirectoryHandle(archiveId, { create: true });
+  
+  // ファイル名をエスケープ（スラッシュ等を置換）
+  const fileName = btoa(unescape(encodeURIComponent(entryPath))).replace(/\//g, '_');
+  const fileHandle = await archiveDir.getFileHandle(fileName, { create: true });
+  const writable = await fileHandle.createWritable();
+  try {
+    await writable.write(data);
+  } finally {
+    await writable.close();
+  }
+  return fileName;
+}
+
+/**
+ * OPFS から一時データを読み込む。
+ * @param {string} archiveId 
+ * @param {string} entryPath 
+ * @returns {Promise<Blob|null>}
+ */
+export async function loadTempFromOPFS(archiveId, entryPath) {
+  if (!isOPFSAvailable()) return null;
+  try {
+    const tempDir = await getOPFSTempDir();
+    const archiveDir = await tempDir.getDirectoryHandle(archiveId);
+    const fileName = btoa(unescape(encodeURIComponent(entryPath))).replace(/\//g, '_');
+    const fileHandle = await archiveDir.getFileHandle(fileName);
+    const file = await fileHandle.getFile();
+    return file;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 特定のアーカイブの一時データを削除する。
+ * @param {string} archiveId 
+ */
+export async function cleanupTempExtractions(archiveId = null) {
+  if (!isOPFSAvailable()) return;
+  try {
+    const tempDir = await getOPFSTempDir();
+    if (archiveId) {
+      await tempDir.removeEntry(archiveId, { recursive: true }).catch(() => {});
+      console.log(`[fileStore] Cleaned up temp extractions for: ${archiveId}`);
+    } else {
+      // 全削除（アプリ起動時など）
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(OPFS_TEMP_DIR, { recursive: true }).catch(() => {});
+      console.log(`[fileStore] Cleaned up all temp extractions`);
+    }
+  } catch (e) {
+    console.warn("[fileStore] Temp cleanup failed:", e);
+  }
 }
 
 /**

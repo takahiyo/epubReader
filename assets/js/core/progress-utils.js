@@ -24,3 +24,20 @@ export function normalizePageIndex(value) {
   }
   return Number(value || 0);
 }
+
+/**
+ * 共有用のテキストを生成
+ */
+export function generateShareText(readerState, template) {
+  const { title, percentage } = readerState;
+  const status = percentage >= 100 ? "読了" : "読書中";
+  const date = new Date().toLocaleString();
+  const appUrl = window.location.origin + window.location.pathname;
+
+  return template
+    .replace("${title}", title || "無題")
+    .replace("${percentage}", Math.round(percentage))
+    .replace("${status}", status)
+    .replace("${date}", date)
+    .replace("${appUrl}", appUrl);
+}

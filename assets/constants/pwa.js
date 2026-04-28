@@ -2,7 +2,7 @@
 // PWA / Service Worker 設定
 // ============================================
 export const PWA_CONFIG = Object.freeze({
-  CACHE_NAME: "bookreader-v8",
+  CACHE_NAME: "bookreader-v9",
   THEME_COLOR: "#2c3e50",
   BACKGROUND_COLOR: "#ffffff",
 });
@@ -61,4 +61,35 @@ export const SW_CACHE_ASSETS = Object.freeze([
   "./assets/vendor/unrar.js",
   "./assets/vendor/unrar.wasm",
   "./assets/animations/loader_book.json",
+  // constants サブファイル
+  "./assets/constants/app-info.js",
+  "./assets/constants/assets.js",
+  "./assets/constants/errors.js",
+  "./assets/constants/formats.js",
+  "./assets/constants/global.js",
+  "./assets/constants/interaction.js",
+  "./assets/constants/progress.js",
+  "./assets/constants/pwa.js",
+  "./assets/constants/reader.js",
+  "./assets/constants/runtime-config.js",
+  "./assets/constants/storage.js",
+  "./assets/constants/sync.js",
+  "./assets/constants/timing.js",
+  "./assets/constants/ui.js",
+  // js/core サブモジュール
+  "./assets/js/core/archive-handler.js",
+  "./assets/js/core/file-handler.js",
+  "./assets/js/core/file-picker.js",
+  "./assets/js/core/index.js",
+  "./assets/js/core/progress-utils.js",
+  "./assets/js/core/streaming-zip-handler.js",
+  "./assets/js/core/sync-logic.js",
+  "./assets/js/core/web-novel-provider.js",
+  "./assets/js/core/web-novel-viewer.js",
+  // js/ui サブモジュール
+  "./assets/js/ui/elements.js",
+  "./assets/js/ui/i18n-utils.js",
+  "./assets/js/ui/overlay-manager.js",
+  "./assets/js/ui/renderers.js",
+  "./assets/js/ui/web-novel-ui.js",
 ]);

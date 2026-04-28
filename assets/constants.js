@@ -19,4 +19,3 @@ export * from "./constants/formats.js";
 export * from "./constants/pwa.js";
 export * from "./constants/timing.js";
 export * from "./constants/global.js";
-export * from "./constants/notion.js";

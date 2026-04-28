@@ -1,4 +1,4 @@
-﻿/**
+/**
  * assets/js/core/file-handler.js 
  * 
  * File processing logic.
@@ -53,11 +53,15 @@ export function selectLoadingStrategy(file, env) {
 }
 
 /**
- * Determines whether to use streaming for ZIP files.
+ * ZIP/RAR ファイルでストリーミング（または Worker+OPFS 連携）を使用するか判定します。
  */
 export function shouldUseStreaming(file) {
     const env = detectEnvironment();
     const fileSizeMB = file.size / (1024 * 1024);
+    const type = detectFileType(file);
+    const isRar = type === BOOK_TYPES.RAR;
+
+    // ZIP の場合の見積もり
     const estimatedPeakMB = fileSizeMB * FILE_STRATEGY.JSZIP_PEAK_MULTIPLIER;
 
     let safeMemoryMB;
@@ -68,21 +72,20 @@ export function shouldUseStreaming(file) {
         : 0;
 
     if (jsHeapLimit > 0) {
-        // JSZip.loadAsync(File) は File/Blob を直接処理するため、
-        // ファイルサイズの3倍全てがJSヒープを消費するわけではない。
-        // ヒープリミットの50%を安全ラインとする（30%では100MB程度で不必要にストリーミングに切り替わる）。
         safeMemoryMB = (jsHeapLimit / (1024 * 1024)) * 0.50;
         memorySource = `jsHeapLimit=${(jsHeapLimit / (1024 * 1024)).toFixed(0)}MB*0.50`;
     } else {
         safeMemoryMB = env.memoryGB * 1024 * 0.10;
-        memorySource = `deviceMemory=${env.memoryGB}GB*0.10`;
+        memorySource = `deviceMemory=${env.memoryGB.toFixed(1)}GB*0.10`;
     }
 
-    const needsStreaming = estimatedPeakMB > safeMemoryMB ||
-        (env.isLowEnd && fileSizeMB > FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024));
+    // RAR の場合は 50MB 超なら強制的に Worker+OPFS モード（ストリーミング扱い）
+    const needsStreaming = (isRar && fileSizeMB > (FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024))) ||
+        (!isRar && estimatedPeakMB > safeMemoryMB) ||
+        (env.isLowEnd && fileSizeMB > (FILE_STRATEGY.LARGE_FILE_THRESHOLD / (1024 * 1024)));
 
-    console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} - ` +
-        `file=${fileSizeMB.toFixed(1)}MB, peak=${estimatedPeakMB.toFixed(0)}MB, ` +
+    console.log(`[Streaming] shouldUseStreaming: ${needsStreaming} (${isRar ? 'RAR' : 'ZIP'}) - ` +
+        `file=${fileSizeMB.toFixed(1)}MB, peak=${isRar ? 'N/A' : estimatedPeakMB.toFixed(0) + 'MB'}, ` +
         `safe=${safeMemoryMB.toFixed(0)}MB (${memorySource}), ` +
         `isLowEnd=${env.isLowEnd}`);
     return needsStreaming;
