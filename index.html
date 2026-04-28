@@ -555,6 +555,18 @@
   <script type="module" src="./assets/config.js"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
   <script type="module" src="./assets/app.js"></script>
+  <!-- アイコンの白背景を除去するためのフィルタ定義 -->
+  <svg width="0" height="0" style="position:absolute;z-index:-1;">
+    <defs>
+      <filter id="remove-white" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values="1 0 0 0 0
+                                             0 1 0 0 0
+                                             0 0 1 0 0
+                                             -10 -10 -10 1 28"/>
+      </filter>
+    </defs>
+  </svg>
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
