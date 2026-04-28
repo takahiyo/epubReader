@@ -26,5 +26,30 @@
             "type": "image/png",
             "purpose": "any maskable"
         }
-    ]
-}
+    ],
+    "share_target": {
+        "action": "./share-target",
+        "method": "POST",
+        "enctype": "multipart/form-data",
+        "params": {
+            "files": [
+                {
+                    "name": "book",
+                    "accept": [
+                        "application/epub+zip",
+                        ".epub",
+                        "application/zip",
+                        ".zip",
+                        ".cbz",
+                        "application/x-rar-compressed",
+                        "application/vnd.rar",
+                        ".rar",
+                        ".cbr",
+                        "text/plain",
+                        ".txt"
+                    ]
+                }
+            ]
+        }
+    }
+}

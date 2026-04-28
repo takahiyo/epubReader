@@ -80,6 +80,40 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
     const isLocal = url.origin === self.location.origin;
+
+    // ========================================
+    // Web Share Target ハンドラー
+    // ファイラー等から「共有」で送られてきた POST を処理する
+    // ========================================
+    if (isLocal && url.pathname.endsWith('/share-target') && event.request.method === 'POST') {
+        event.respondWith((async () => {
+            try {
+                const formData = await event.request.formData();
+                const files = formData.getAll('book');
+
+                if (files.length > 0) {
+                    // 全クライアント（開いているタブ）にファイルを転送
+                    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+                    for (const client of allClients) {
+                        for (const file of files) {
+                            client.postMessage({
+                                type: 'share-target-file',
+                                file: file,
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[SW] share-target handling failed:', err);
+            }
+
+            // 処理後はアプリのメインページへリダイレクト（303 See Other）
+            return Response.redirect('./', 303);
+        })());
+        return;
+    }
+
     const isLocalAsset = isLocal && /\.(js|css|json|html)$/.test(url.pathname);
     const isNavigation = event.request.mode === 'navigate';
 

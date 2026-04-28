@@ -3408,6 +3408,19 @@ function setupEvents() {
     renderers.updateInstallButton(false);
     console.log('[PWA] App was installed');
   });
+
+  // ========================================
+  // Web Share Target: Service Worker からのファイル受信
+  // ファイラー等からの「共有」で送られてきたファイルを開く
+  // ========================================
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'share-target-file' && event.data?.file instanceof File) {
+        console.log('[share-target] Received shared file from SW:', event.data.file.name);
+        handleFile(event.data.file);
+      }
+    });
+  }
 }
 
 // ========================================
