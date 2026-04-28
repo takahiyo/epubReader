@@ -72,20 +72,23 @@ export function setStatusClass(element, statusClass) {
 /**
  * プレミアムアイコン（画像）を取得
  */
-export function getPremiumIcon(path, size = 20) {
+export function getPremiumIcon(path, size = 28) {
     const img = document.createElement("img");
     img.src = path;
     img.style.width = `${size}px`;
     img.style.height = `${size}px`;
     img.style.verticalAlign = "middle";
     img.style.objectFit = "contain";
+    // 白背景を透過（乗算）させて背後になじませる
+    img.style.mixBlendMode = "multiply";
+    img.style.filter = "contrast(110%)"; // 少し鮮やかに
     return img;
 }
 
 /**
  * 2枚1組のプレミアムアイコン（画像）をクロップして取得
  */
-export function getPremiumIconCropped(path, isRight, size = 20) {
+export function getPremiumIconCropped(path, isRight, size = 32) {
     const container = document.createElement("div");
     container.style.width = `${size}px`;
     container.style.height = `${size}px`;
@@ -102,6 +105,8 @@ export function getPremiumIconCropped(path, isRight, size = 20) {
     img.style.maxWidth = "none";
     img.style.objectFit = "cover";
     img.style.objectPosition = isRight ? "right" : "left";
+    // 白背景を透過
+    img.style.mixBlendMode = "multiply";
     
     container.appendChild(img);
     return container;
@@ -126,7 +131,7 @@ export function setMaterialIconLabel(button, iconName, labelText) {
     let iconElement;
 
     if (premiumPath) {
-        iconElement = getPremiumIcon(premiumPath, 20);
+        iconElement = getPremiumIcon(premiumPath, 28);
     } else {
         iconElement = document.createElement("span");
         iconElement.className = UI_CLASSES.MATERIAL_ICON;
@@ -240,7 +245,7 @@ export function updateFloatingUIButtons() {
     if (elements.shareLogButton) {
         setElementVisibility(elements.shareLogButton, isBookOpen);
         if (isBookOpen) {
-            const icon = getPremiumIcon(PREMIUM_ICONS.SHARE, 20);
+            const icon = getPremiumIcon(PREMIUM_ICONS.SHARE, 28);
             const label = document.createTextNode(` ${t("share_reading_log")}`);
             elements.shareLogButton.replaceChildren(icon, label);
         }
@@ -312,7 +317,7 @@ export function updateThemeToggleIcon() {
     const isDark = _state.theme === "dark";
     
     // クロップドアイコンの生成（右側が月、左側が太陽と想定）
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 24);
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
     
     elements.toggleTheme.replaceChildren(iconElement);
     elements.toggleTheme.setAttribute("aria-pressed", isDark ? "true" : "false");
@@ -349,7 +354,7 @@ export function updateZoomButtonLabel() {
     if (!elements.toggleZoom || !_reader) return;
     const isZoomed = _reader.imageZoomed;
     
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 24);
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 32);
     
     elements.toggleZoom.replaceChildren(iconElement);
     elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");

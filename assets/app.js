@@ -270,20 +270,23 @@ if (typeof document !== "undefined") {
 /**
  * プレミアムアイコン（画像）を取得
  */
-const getPremiumIcon = (path, size = 20) => {
+const getPremiumIcon = (path, size = 28) => {
   const img = document.createElement("img");
   img.src = path;
   img.style.width = `${size}px`;
   img.style.height = `${size}px`;
   img.style.verticalAlign = "middle";
   img.style.objectFit = "contain";
+  // 白背景を透過（乗算）させて背後になじませる
+  img.style.mixBlendMode = "multiply";
+  img.style.filter = "contrast(110%)"; // 少し鮮やかに
   return img;
 };
 
 /**
  * 2枚1組のプレミアムアイコン（画像）をクロップして取得
  */
-const getPremiumIconCropped = (path, isRight, size = 20) => {
+const getPremiumIconCropped = (path, isRight, size = 32) => {
   const container = document.createElement("div");
   container.style.width = `${size}px`;
   container.style.height = `${size}px`;
@@ -300,6 +303,8 @@ const getPremiumIconCropped = (path, isRight, size = 20) => {
   img.style.maxWidth = "none";
   img.style.objectFit = "cover";
   img.style.objectPosition = isRight ? "right" : "left";
+  // 白背景を透過
+  img.style.mixBlendMode = "multiply";
 
   container.appendChild(img);
   return container;
@@ -348,43 +353,6 @@ function saveCurrentProgress(options = {}) {
 
   let progressData = null;
 
-/**
- * 読書録を共有する
- */
-async function handleShareReadingLog() {
-  if (!currentBookId || !currentBookInfo) {
-    console.warn("[share] No book loaded");
-    return;
-  }
-
-  try {
-    const progress = storage.getProgress(currentBookId) || {};
-    const shareText = generateShareText({
-      title: currentBookInfo.title,
-      percentage: progress.percentage || 0
-    }, SHARE_MARKDOWN_TEMPLATE);
-
-    if (navigator.share) {
-      await navigator.share({
-        title: currentBookInfo.title,
-        text: shareText
-      });
-      console.log("[share] Shared successfully");
-    } else {
-      // フォールバック: クリップボード
-      await navigator.clipboard.writeText(shareText);
-      alert(t("share_success_clipboard"));
-    }
-  } catch (error) {
-    if (error.name === "AbortError") {
-      console.log("[share] Share cancelled by user");
-    } else {
-      console.error("[share] Error sharing:", error);
-      alert(t("error_generic"));
-    }
-  }
-}
-
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
     const total = progressSnapshot.totalPages;
@@ -432,6 +400,43 @@ async function handleShareReadingLog() {
   storage.setProgress(currentBookId, progressData);
   lastSavedPercentage = progressData.percentage;
   return progressSnapshot;
+}
+
+/**
+ * 読書録を共有する
+ */
+async function handleShareReadingLog() {
+  if (!currentBookId || !currentBookInfo) {
+    console.warn("[share] No book loaded");
+    return;
+  }
+
+  try {
+    const progress = storage.getProgress(currentBookId) || {};
+    const shareText = generateShareText({
+      title: currentBookInfo.title,
+      percentage: progress.percentage || 0
+    }, SHARE_MARKDOWN_TEMPLATE);
+
+    if (navigator.share) {
+      await navigator.share({
+        title: currentBookInfo.title,
+        text: shareText
+      });
+      console.log("[share] Shared successfully");
+    } else {
+      // フォールバック: クリップボード
+      await navigator.clipboard.writeText(shareText);
+      alert(t("share_success_clipboard"));
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      console.log("[share] Share cancelled by user");
+    } else {
+      console.error("[share] Error sharing:", error);
+      alert(t("error_generic"));
+    }
+  }
 }
 
 function shouldSyncCloudProgress(progressSnapshot) {
@@ -1981,7 +1986,7 @@ function applyUiLanguage(nextLanguage) {
       };
       const premiumPath = iconMap[icon];
       if (premiumPath) {
-        iconSpan.replaceChildren(getPremiumIcon(premiumPath, 24));
+        iconSpan.replaceChildren(getPremiumIcon(premiumPath, 32));
       } else {
         iconSpan.textContent = icon;
       }
@@ -2005,7 +2010,7 @@ function applyUiLanguage(nextLanguage) {
     };
     const premiumPath = iconMap[icon];
     if (premiumPath) {
-      const img = getPremiumIcon(premiumPath, 20);
+      const img = getPremiumIcon(premiumPath, 28);
       const label = document.createTextNode(` ${text}`);
       button.replaceChildren(img, label);
     } else {
@@ -2033,11 +2038,11 @@ function applyUiLanguage(nextLanguage) {
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 24));
+    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32));
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
   if (elements.openLangMenu) {
-    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 24));
+    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32));
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
   }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
