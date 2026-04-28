@@ -87,40 +87,54 @@ const executeFallbackPicker = (options = {}) => {
         input.id = inputId;
         input.style.display = 'none';
         
-        if (options.multiple !== false) {
-            input.multiple = true;
-        }
+        // 【重要】複数選択を無効化。
+        // Android/Quest OS では multiple があるとメディアピッカーが強制され、
+        // 外部ファイラー（AnExplorer等）が選択肢から消えるケースがあるため。
+        input.multiple = false;
 
-        // accept 属性を意図的にセットしない（属性自体が存在しない状態）。
-        // Android Chromium は accept が未設定の場合、ACTION_GET_CONTENT を発火し、
-        // ファイラーアプリや共有フォルダ等を含む広い選択肢を表示する可能性がある。
-        // accept="*/*" とは異なる挙動になる場合がある。
+        // 以前の正常動作時（commit c3b4dcfb）に近い拡張子リストを設定。
+        // MIMEタイプと拡張子を混ぜて、OSに「適切なアプリ」を探させる。
+        const formats = [
+            ...SUPPORTED_FORMATS.EPUB,
+            ...SUPPORTED_FORMATS.IMAGE_ARCHIVE,
+            ...SUPPORTED_FORMATS.WEB_NOVEL,
+            'application/epub+zip',
+            'application/zip'
+        ].join(',');
+        input.accept = formats;
+
+        console.log('[Quest3Picker] Triggering picker with:', {
+            accept: input.accept,
+            multiple: input.multiple,
+            userAgent: navigator.userAgent
+        });
 
         const handleFocus = () => {
-            // キャンセル検知用: ウィンドウフォーカス復帰後しばらくして
-            // change イベントが発火しなければキャンセルとみなす
+            console.log('[Quest3Picker] Window focused, checking for file selection...');
+            // キャンセル検知用
             setTimeout(() => {
                 if (input) {
+                    console.log('[Quest3Picker] No change event detected, cleaning up.');
                     input.remove();
-                    resolve([]); // 空の配列を返してキャンセル扱いとする
+                    resolve([]);
                 }
-            }, 300);
+            }, 1000); // 復帰後のタイムアウトを少し長めに設定
             window.removeEventListener('focus', handleFocus);
         };
 
         input.addEventListener('change', (e) => {
+            console.log('[Quest3Picker] Change event fired!');
             window.removeEventListener('focus', handleFocus);
             const files = Array.from(e.target.files || []);
+            console.log('[Quest3Picker] Files selected:', files.map(f => f.name));
             input.remove();
             resolve(files);
         });
 
-        // iOS/Quest等でファイル選択ダイアログが閉じた後の復帰検知
         window.addEventListener('focus', handleFocus);
-
         document.body.appendChild(input);
         
-        // ユーザージェスチャから直接呼ばれている前提でclick発火
+        console.log('[Quest3Picker] Executing input.click()...');
         input.click();
     });
 };
