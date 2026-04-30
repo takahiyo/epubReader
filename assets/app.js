@@ -2042,7 +2042,7 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.floatWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setFloatLabel(elements.shareLogButton, UI_ICONS.SHARE, strings.share_reading_log);
 
-  if (elements.openToc) elements.openToc.textContent = strings.tocButton;
+  setFloatLabel(elements.openToc, UI_ICONS.MENU_TOC, strings.tocButton);
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
     elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32));
