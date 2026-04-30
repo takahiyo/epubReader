@@ -841,7 +841,7 @@ function updateFullscreenButtonLabel() {
   if (!elements.toggleFullscreen) return;
   const isFullscreen = !!document.fullscreenElement;
   
-  // プレミアムアイコン
+  // プレミアムアイコン (スプライト)
   const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen, 24);
   elements.toggleFullscreen.replaceChildren(iconElement);
   
@@ -1977,7 +1977,10 @@ function applyUiLanguage(nextLanguage) {
         [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
         [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
         [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.BOOKMARKS, // 代用
+        [UI_ICONS.MENU_WEB_NOVEL]: UI_ICONS.MENU_WEB_NOVEL, // 絵文字
         [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+        [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
+        [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
       };
       const premiumPath = iconMap[icon];
       if (premiumPath) {
@@ -2001,7 +2004,10 @@ function applyUiLanguage(nextLanguage) {
       [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
       [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
       [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.BOOKMARKS, // 代用
+      [UI_ICONS.MENU_WEB_NOVEL]: UI_ICONS.MENU_WEB_NOVEL, // 絵文字
       [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+      [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
+      [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
     };
     const premiumPath = iconMap[icon];
     if (premiumPath) {
@@ -2017,6 +2023,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setMenuLabel(elements.menuBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
+  setMenuLabel(elements.menuWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
   if (elements.langJa) elements.langJa.textContent = strings.languageLabelJa;
   if (elements.langEn) elements.langEn.textContent = strings.languageLabelEn;
@@ -2029,6 +2036,8 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.floatSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setFloatLabel(elements.floatBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setFloatLabel(elements.floatHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
+  setFloatLabel(elements.floatWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
+  setFloatLabel(elements.shareLogButton, UI_ICONS.SHARE, strings.share_reading_log);
 
   if (elements.openToc) elements.openToc.textContent = strings.tocButton;
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;

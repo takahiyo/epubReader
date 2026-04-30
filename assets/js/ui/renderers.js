@@ -311,8 +311,9 @@ export function updateThemeToggleIcon() {
     if (!elements.toggleTheme) return;
     const isDark = _state.theme === "dark";
     
-    // クロップドアイコンの生成（右側が月、左側が太陽と想定）
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
+    // 個別アイコンの生成
+    const iconPath = isDark ? PREMIUM_ICONS.THEME_DARK : PREMIUM_ICONS.THEME_LIGHT;
+    const iconElement = getPremiumIcon(iconPath, 32);
     
     elements.toggleTheme.replaceChildren(iconElement);
     elements.toggleTheme.setAttribute("aria-pressed", isDark ? "true" : "false");
@@ -349,7 +350,8 @@ export function updateZoomButtonLabel() {
     if (!elements.toggleZoom || !_reader) return;
     const isZoomed = _reader.imageZoomed;
     
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 32);
+    const iconPath = isZoomed ? PREMIUM_ICONS.ZOOM_OUT : PREMIUM_ICONS.ZOOM_IN;
+    const iconElement = getPremiumIcon(iconPath, 32);
     
     elements.toggleZoom.replaceChildren(iconElement);
     elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
