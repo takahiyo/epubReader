@@ -116,6 +116,8 @@ export function setMaterialIconLabel(button, iconName, labelText) {
         [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
         [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
         [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
+        [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.HISTORY,
+        [UI_ICONS.MENU_WEB_NOVEL]: PREMIUM_ICONS.WEBNOVEL,
         [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
         [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
         [UI_ICONS.SPREAD_DOUBLE]: PREMIUM_ICONS.LIBRARY, // 代用
@@ -311,9 +313,8 @@ export function updateThemeToggleIcon() {
     if (!elements.toggleTheme) return;
     const isDark = _state.theme === "dark";
     
-    // 個別アイコンの生成
-    const iconPath = isDark ? PREMIUM_ICONS.THEME_DARK : PREMIUM_ICONS.THEME_LIGHT;
-    const iconElement = getPremiumIcon(iconPath, 32);
+    // クロップドアイコンの生成（右側が月、左側が太陽）
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
     
     elements.toggleTheme.replaceChildren(iconElement);
     elements.toggleTheme.setAttribute("aria-pressed", isDark ? "true" : "false");
@@ -350,8 +351,8 @@ export function updateZoomButtonLabel() {
     if (!elements.toggleZoom || !_reader) return;
     const isZoomed = _reader.imageZoomed;
     
-    const iconPath = isZoomed ? PREMIUM_ICONS.ZOOM_OUT : PREMIUM_ICONS.ZOOM_IN;
-    const iconElement = getPremiumIcon(iconPath, 32);
+    // クロップドアイコンの生成（右側がマイナス、左側がプラス）
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 32);
     
     elements.toggleZoom.replaceChildren(iconElement);
     elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
