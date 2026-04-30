@@ -57,6 +57,7 @@ export const UI_DEFAULTS = Object.freeze({
 export const UI_ICONS = Object.freeze({
   THEME_DARK: "🌙",
   THEME_LIGHT: "☀️",
+  MENU_TOC: "list",
   MENU_OPEN: "📂",
   MENU_LIBRARY: "📚",
   MENU_SEARCH: "🔍",
@@ -87,6 +88,7 @@ export const PREMIUM_ICONS = Object.freeze({
   SETTINGS: "assets/icons/settings.png",
   OPEN: "assets/icons/open.png",
   LIBRARY: "assets/icons/library.png",
+  TOC: "assets/icons/toc.png",
   SEARCH: "assets/icons/search.png",
   BOOKMARKS: "assets/icons/bookmarks.png",
   HISTORY: "assets/icons/history.png",
@@ -196,6 +198,7 @@ export const DOM_IDS = Object.freeze({
   FLOAT_LANG_EN: "floatLangEn",
   LEFT_MENU: "leftMenu",
   MENU_OPEN: "menuOpen",
+  MENU_OPEN_TOC: "menuOpenToc",
   MENU_LIBRARY: "menuLibrary",
   MENU_SEARCH: "menuSearch",
   MENU_BOOKMARKS: "menuBookmarks",

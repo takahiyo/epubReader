@@ -113,6 +113,8 @@ export function setMaterialIconLabel(button, iconName, labelText) {
     // PREMIUM_ICONS マッピング
     const iconMap = {
         [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+        [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
+        [UI_ICONS.MENU_TOC]: PREMIUM_ICONS.TOC,
         [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
         [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
         [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
@@ -183,6 +185,9 @@ export function updateSearchButtonState() {
 
     const isEpubOpen = _state.currentBookId && _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
     elements.menuSearch.disabled = !isEpubOpen;
+    if (elements.menuOpenToc) {
+        elements.menuOpenToc.disabled = !isEpubOpen;
+    }
     if (elements.openToc) {
         elements.openToc.disabled = !isEpubOpen;
     }
@@ -200,6 +205,9 @@ export function updateFloatingUIButtons() {
     const isEpub = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.EPUB;
     const isBookOpen = _state.currentBookId !== null;
 
+    if (elements.menuOpenToc) {
+        elements.menuOpenToc.disabled = !isEpub;
+    }
     if (elements.openToc) {
         elements.openToc.disabled = !isEpub;
     }

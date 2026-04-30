@@ -1973,6 +1973,7 @@ function applyUiLanguage(nextLanguage) {
     if (iconSpan) {
       const iconMap = {
         [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
+        [UI_ICONS.MENU_TOC]: PREMIUM_ICONS.TOC,
         [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
         [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
         [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
@@ -2000,6 +2001,7 @@ function applyUiLanguage(nextLanguage) {
     if (!button) return;
     const iconMap = {
       [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
+      [UI_ICONS.MENU_TOC]: PREMIUM_ICONS.TOC,
       [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
       [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
       [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
@@ -2018,6 +2020,7 @@ function applyUiLanguage(nextLanguage) {
       button.textContent = `${icon} ${text}`;
     }
   };
+  setMenuLabel(elements.menuOpenToc, UI_ICONS.MENU_TOC, strings.tocButton);
   setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
   setMenuLabel(elements.menuLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
   setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
@@ -2798,6 +2801,11 @@ function setupEvents() {
   elements.floatBackdrop?.addEventListener('click', (e) => {
     e.stopPropagation();
     renderers.toggleFloatOverlay(false);
+  });
+
+  elements.menuOpenToc?.addEventListener('click', () => {
+    if (!currentBookInfo || currentBookInfo.type !== BOOK_TYPES.EPUB) return;
+    openExclusiveMenu(elements.tocModal);
   });
 
   elements.openToc?.addEventListener('click', () => {

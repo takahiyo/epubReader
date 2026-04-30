@@ -59,6 +59,7 @@ export const elements = {
 
     // メニュー
     leftMenu: getById(DOM_IDS.LEFT_MENU),
+    menuOpenToc: getById(DOM_IDS.MENU_OPEN_TOC),
     menuOpen: getById(DOM_IDS.MENU_OPEN),
     menuLibrary: getById(DOM_IDS.MENU_LIBRARY),
     menuSearch: getById(DOM_IDS.MENU_SEARCH),
