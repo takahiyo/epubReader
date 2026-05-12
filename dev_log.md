@@ -114,3 +114,28 @@ C案: ADB経由での解除（非現実的）
 | 2026-04-28 | sw.js に share-target POST インターセプト処理を追加 | sw.js |
 | 2026-04-28 | app.js に SW からのメッセージ受信リスナーを追加 | assets/app.js |
 | 2026-04-28 | キャッシュを bookreader-v10 から bookreader-v11 に更新 | assets/sw-cache-config.json |
+| 2026-05-12 | Web小説読込後・クラウドのみ表示切替後にフロートUIボタン状態を更新 | assets/app.js |
+
+---
+
+## エントリ #4 - 2026-05-12（読書録ボタンが表示されない）
+
+### 成功の境界線
+
+- EPUB／ライブラリから開いた書籍では、`handleFile` / `openFromLibrary` 完了時に `renderers.updateFloatingUIButtons()` が呼ばれ、フロートの読書録ボタンの `.hidden` が解除される。
+
+### 失敗の事象
+
+- Web小説を `loadWebNovel` で開いたあと、画面中央のフロートメニューに「読書録」ボタンが出ない（`.hidden` のまま）。
+- クラウドのみ表示（`openCloudOnlyBook`）に切り替えたあと、フロートの読書録が前の状態のまま残る可能性。
+
+### 失敗の根本原因
+
+- 起動時 `applyReadingSettings` 内で `updateFloatingUIButtons` が走り、書籍未オープン時は読書録ボタンに `hidden` が付く。
+- `loadWebNovel` は `currentBookId` を設定するが **`updateFloatingUIButtons` を呼んでいない**ため、フロート側の表示状態が更新されず `hidden` が残る。
+- `openCloudOnlyBook` は `currentBookId` を `null` にするが **`updateFloatingUIButtons` を呼んでいない**ため、フロートの表示が状態とずれる可能性がある。
+
+### 次のアプローチ（実施）
+
+- `loadWebNovel` の成功パスで `renderers.updateFloatingUIButtons()` を呼ぶ。
+- `openCloudOnlyBook` の末尾でも `renderers.updateFloatingUIButtons()` を呼び、クラウドのみ時は読書録を非表示に揃える。

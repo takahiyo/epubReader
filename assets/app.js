@@ -1177,6 +1177,7 @@ function openCloudOnlyBook(cloudBookId) {
   });
   renderers.updateProgressBarDisplay();
   renderers.updateSearchButtonState();
+  renderers.updateFloatingUIButtons();
   closeExclusiveMenus();
   if (floatVisible) {
     toggleFloatOverlay(false);
@@ -3570,6 +3571,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
       provider: novelInfo.providerName
     });
     renderers.renderHistory();
+    renderers.updateFloatingUIButtons();
   } catch (e) {
     console.error(e);
     alert("エラー: " + e.message);
