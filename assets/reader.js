@@ -2268,19 +2268,21 @@ export class ReaderController {
       if (!tocHref) return -1;
       const [pathPart] = tocHref.split('#');
       if (!pathPart) return -1;
+      const normalized = pathPart.trim().replace(/^\.\//, "").replace(/^\//, "");
+      
+      if (spineHrefMap.has(normalized)) return spineHrefMap.get(normalized);
+      
+      // 末尾一致での再検索（パスの深さが異なる場合の救済：item/xhtml/xxx と xhtml/xxx など）
+      for (const [key, idx] of spineHrefMap.entries()) {
+        if (key.endsWith(normalized) || normalized.endsWith(key)) {
+          return idx;
+        }
+      }
 
-      // そのままマッチ
-      if (spineHrefMap.has(pathPart)) return spineHrefMap.get(pathPart);
-
-      // book.path.resolve で解決してマッチ
-      const resolved = this.book?.path?.resolve
-        ? this.book.path.resolve(pathPart) : pathPart;
-      if (spineHrefMap.has(resolved)) return spineHrefMap.get(resolved);
-
-      // ファイル名のみで部分マッチ
-      const filename = pathPart.split('/').pop();
+      // ファイル名のみでの比較
+      const filename = normalized.split('/').pop();
       if (filename && spineHrefMap.has(filename)) return spineHrefMap.get(filename);
-
+      
       return -1;
     };
 
@@ -2613,8 +2615,8 @@ export class ReaderController {
       // Join Modeでは、paginator側で非先頭spineをページ化しない実装のため、
       // pagination.pages だけで連結すると途中spine（挿絵ページ等）が欠落する。
       // そのため描画時は spineItems（SSOT）を基準に連結する。
-      const currentSpineIndex = page.spineIndex;
-      const group = this._spineGroups?.find(g => currentSpineIndex >= g.start && currentSpineIndex <= g.end);
+      // [重要] page.groupInfo がある場合はそれを優先使用する（同一Spineから始まる複数グループの識別の目的）
+      const group = page.groupInfo || this._spineGroups?.find(g => page.spineIndex >= g.start && page.spineIndex <= g.end);
 
       if (group) {
         for (let si = group.start; si <= group.end; si++) {
