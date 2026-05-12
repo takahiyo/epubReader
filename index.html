@@ -9,26 +9,26 @@
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon_BookReader_192.png">
   <title>BookReader</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="./assets/css/01-tokens.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/02-reset.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/03-base.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/04-reader.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/05-float-ui.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/06-reader-extras.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/07-menu.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/08-progress.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/09-bookmark.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/10-modal.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/11-library.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/12-history.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/13-search.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/14-settings.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/15-responsive.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/16-candidate.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/17-loading.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/18-float-lang.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/19-zoom.css?v=10" />
-  <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=10" />
+  <link rel="stylesheet" href="./assets/css/01-tokens.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/02-reset.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/03-base.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/04-reader.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/05-float-ui.css?v=12" />
+  <link rel="stylesheet" href="./assets/css/06-reader-extras.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/07-menu.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/08-progress.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/09-bookmark.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/10-modal.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/11-library.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/12-history.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/13-search.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/14-settings.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/15-responsive.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/16-candidate.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/17-loading.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/18-float-lang.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/19-zoom.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=11" />
   <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
@@ -143,6 +143,10 @@
         <span></span>
       </button>
       <button id="menuHistory" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
+      <button id="menuShareLog" class="menu-item">
         <span class="menu-icon"></span>
         <span></span>
       </button>
@@ -555,9 +559,9 @@
 
   <div id="modalOverlay"></div>
 
-  <script type="module" src="./assets/config.js?v=10"></script>
+  <script type="module" src="./assets/config.js?v=11"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
-  <script type="module" src="./assets/app.js?v=10"></script>
+  <script type="module" src="./assets/app.js?v=12"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

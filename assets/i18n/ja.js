@@ -107,6 +107,10 @@ export const UI_STRINGS_JA = Object.freeze({
   googleLoginFailed: "ログインに失敗しました",
   share_reading_log: "読書録",
   share_success_clipboard: "読書録をクリップボードにコピーしました",
+  share_dialog_title: "読書録を共有",
+  share_via_apps: "アプリで共有（ライン・メモ・Notion など）",
+  share_via_clipboard: "クリップボードにコピー",
+  share_cancel: "キャンセル",
 
   // 同期
   syncToggleLabel: "同期を有効にする",

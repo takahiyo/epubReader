@@ -203,6 +203,7 @@ export const DOM_IDS = Object.freeze({
   MENU_SEARCH: "menuSearch",
   MENU_BOOKMARKS: "menuBookmarks",
   MENU_HISTORY: "menuHistory",
+  MENU_SHARE_LOG: "menuShareLog",
   MENU_SETTINGS: "menuSettings",
   TOC_SECTION: "tocSection",
   TOC_SECTION_TITLE: "tocSectionTitle",
