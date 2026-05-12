@@ -2176,16 +2176,14 @@ export class ReaderController {
         console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
         pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
         if (pageIndex >= 0) {
-          // 直前の spine が扉絵（isIllustrationOnly）で、かつ同グループ内にある場合は扉絵を表示する
+          // 直前の spine が扉絵（isIllustrationOnly）であれば、グループをまたいでも扉絵の位置へ飛ぶ
+          // （スクロールモードでは全グループの DOM が存在するため、クロスグループ scrollIntoView が有効）
           const prevIdx = spineIndex - 1;
           const prevSpineItem = this.spineItems?.[prevIdx];
-          const prevInGroup = prevIdx >= group.start && prevIdx <= group.end;
-          if (prevInGroup && prevSpineItem?.isIllustrationOnly) {
-            // 扉絵が本文の直前にある → 扉絵の位置へ飛ぶ
+          if (prevIdx >= 0 && prevSpineItem?.isIllustrationOnly) {
             this._pendingScrollTargetSpineIndex = prevIdx;
             console.log(`[Reader] 扉絵へジャンプ: spine ${prevIdx}`);
           } else {
-            // 扉絵なし → 指定 spine（本文先頭）へ飛ぶ
             this._pendingScrollTargetSpineIndex = spineIndex;
           }
           this._pendingScrollToSegment = 0;
@@ -2447,15 +2445,12 @@ export class ReaderController {
         };
 
         if (current.isFrontmatter) {
-          // 「表紙/巻頭」グループ：末尾の挿絵ページを次のグループに移す（重複收防）
-          let trimEnd = current.end;
-          while (trimEnd >= current.start && this.spineItems?.[trimEnd]?.isIllustrationOnly) {
-            trimEnd--;
-          }
-          if (trimEnd < current.end && trimEnd >= current.start) {
-            console.log(`[JoinMode] 巻頭の末尾挿絵 (spine ${trimEnd + 1}-${current.end}) を次グループに移動`);
-            next.start = trimEnd + 1;
-            current.end = trimEnd;
+          // 「表紙/巻頭」グループ：末尾の1ページのみが挿絵の場合、それは次の章の扉絵である可能性が高いため次グループに移す。
+          // 複数ページ（カラーイラストなど）は巻頭に残す。
+          if (current.end >= current.start && this.spineItems?.[current.end]?.isIllustrationOnly) {
+            console.log(`[JoinMode] 巻頭の末尾挿絵 (spine ${current.end}) を次グループ（扉絵）として移動`);
+            next.start = current.end;
+            current.end = current.end - 1;
           }
           merged.push(current);
           current = next;
