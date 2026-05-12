@@ -413,24 +413,11 @@ async function handleShareReadingLog() {
       percentage: progress.percentage || 0
     }, SHARE_MARKDOWN_TEMPLATE);
 
-    if (navigator.share) {
-      await navigator.share({
-        title: currentBookInfo.title,
-        text: shareText
-      });
-      console.log("[share] Shared successfully");
-    } else {
-      // フォールバック: クリップボード
-      await navigator.clipboard.writeText(shareText);
-      alert(t("share_success_clipboard"));
-    }
+    await navigator.clipboard.writeText(shareText);
+    alert(t("share_success_clipboard") + "\\n\\n(Notionなどのアプリにペーストしてご利用ください)");
   } catch (error) {
-    if (error.name === "AbortError") {
-      console.log("[share] Share cancelled by user");
-    } else {
-      console.error("[share] Error sharing:", error);
-      alert(t("error_generic"));
-    }
+    console.error("[share] Error sharing:", error);
+    alert(t("error_generic"));
   }
 }
 
@@ -2026,6 +2013,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setMenuLabel(elements.menuBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
+  setMenuLabel(elements.menuShareLog, UI_ICONS.SHARE, strings.share_reading_log);
   setMenuLabel(elements.menuWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
   if (elements.langJa) elements.langJa.textContent = strings.languageLabelJa;
@@ -2684,6 +2672,14 @@ function setupEvents() {
     elements.menuHistory.addEventListener('click', () => {
       console.log('[menuHistory] Clicked!');
       showHistory();
+    });
+  }
+
+  if (elements.menuShareLog) {
+    elements.menuShareLog.addEventListener('click', () => {
+      console.log('[menuShareLog] Clicked!');
+      closeAllMenus();
+      handleShareReadingLog();
     });
   }
 

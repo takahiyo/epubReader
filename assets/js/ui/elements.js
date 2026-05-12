@@ -65,6 +65,7 @@ export const elements = {
     menuSearch: getById(DOM_IDS.MENU_SEARCH),
     menuBookmarks: getById(DOM_IDS.MENU_BOOKMARKS),
     menuHistory: getById(DOM_IDS.MENU_HISTORY),
+    menuShareLog: getById(DOM_IDS.MENU_SHARE_LOG),
     menuSettings: getById(DOM_IDS.MENU_SETTINGS),
     tocSection: getById(DOM_IDS.TOC_SECTION),
     tocSectionTitle: getById(DOM_IDS.TOC_SECTION_TITLE),
