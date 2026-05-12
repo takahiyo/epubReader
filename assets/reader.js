@@ -2393,7 +2393,8 @@ export class ReaderController {
           startId: null,
           end: first.startId ? first.start : first.start - 1,
           endId: first.startId || null,
-          title: "表紙 / 巻頭"
+          title: "表紙 / 巻頭",
+          isFrontmatter: true  // Forward Merge 対象外フラグ
         });
       }
     }
@@ -2435,7 +2436,7 @@ export class ReaderController {
           return true;
         };
 
-        if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
+        if (!current.isFrontmatter && (isCurrentIllustrationOnly() || isCurrentEndsWithImage)) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
           current.endId = next.endId; // IDも継承
