@@ -3421,6 +3421,19 @@ function setupEvents() {
     renderers.updateInstallButton(false);
     console.log('[PWA] App was installed');
   });
+
+  // ========================================
+  // Web Share Target: Service Worker からのファイル受信
+  // ファイラー等からの「共有」で送られてきたファイルを開く
+  // ========================================
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'share-target-file' && event.data?.file instanceof File) {
+        console.log('[share-target] Received shared file from SW:', event.data.file.name);
+        handleFile(event.data.file);
+      }
+    });
+  }
 }
 
 // ========================================
@@ -3438,6 +3451,24 @@ function init() {
 
   // イベント設定
   setupEvents();
+
+  // ========================================
+  // File Handling API: OSの「アプリで開く」等から渡されたファイルをキャッチ
+  // ========================================
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (launchParams) => {
+      if (launchParams.files && launchParams.files.length > 0) {
+        try {
+          const fileHandle = launchParams.files[0];
+          console.log('[File Handling] Launched with file:', fileHandle.name);
+          const file = await fileHandle.getFile();
+          handleFile(file);
+        } catch (err) {
+          console.error('[File Handling] Failed to get file from launchParams:', err);
+        }
+      }
+    });
+  }
 
   // テーマ適用
   applyTheme(theme);
