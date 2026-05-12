@@ -44,7 +44,8 @@ export class WebNovelProvider {
             'https://api.allorigins.win/raw?url=',
             'https://api.codetabs.com/v1/proxy?quest=',
             'https://thingproxy.freeboard.io/fetch/',
-            'https://corsproxy.io/?url='
+            'https://corsproxy.io/?url=',
+            'https://proxy.cors.sh/'
         ];
 
         try {
@@ -66,12 +67,12 @@ export class WebNovelProvider {
                 const res = await fetch(proxyUrl);
                 if (res.ok) {
                     const text = await res.text();
-                    // 403 Forbidden などのテキストが含まれていないかチェック
-                    if (text.length > 500 || !text.includes('403 Forbidden')) {
+                    // 403 Forbidden などのテキストが含まれていないか、またある程度の長さ（100文字以上）があるかをチェック
+                    if (text.length > 100 && !text.includes('403 Forbidden') && !text.includes('Access denied')) {
                         console.log(`[WebNovelProvider] Proxy fetch successful with: ${proxyBase}`);
                         return text;
                     }
-                    console.warn(`[WebNovelProvider] Proxy ${proxyBase} returned error or suspicious content.`);
+                    console.warn(`[WebNovelProvider] Proxy ${proxyBase} returned error or suspicious content (length: ${text.length}).`);
                 }
             } catch (err) {
                 console.warn(`[WebNovelProvider] Proxy ${proxyBase} failed:`, err.message);
