@@ -49,6 +49,9 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
             const query = elements.webNovelSearchInput.value.trim();
             if (!query) return;
 
+            const targetSelect = document.getElementById("webNovelSearchTarget");
+            const target = targetSelect ? targetSelect.value : 'all';
+
             const useNarou = elements.webNovelSourceNarou ? elements.webNovelSourceNarou.checked : true;
             const useKakuyomu = elements.webNovelSourceKakuyomu ? elements.webNovelSourceKakuyomu.checked : true;
 
@@ -64,8 +67,8 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
             try {
                 // プロバイダーで検索（必要に応じて並列）
                 const searchTasks = [];
-                if (useNarou) searchTasks.push(providers.narou.search(query).catch(e => { console.error(e); return []; }));
-                if (useKakuyomu) searchTasks.push(providers.kakuyomu.search(query).catch(e => { console.error(e); return []; }));
+                if (useNarou) searchTasks.push(providers.narou.search(query, target).catch(e => { console.error(e); return []; }));
+                if (useKakuyomu) searchTasks.push(providers.kakuyomu.search(query, target).catch(e => { console.error(e); return []; }));
 
                 const results = await Promise.all(searchTasks);
 

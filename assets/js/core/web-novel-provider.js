@@ -127,12 +127,19 @@ export class NarouProvider extends WebNovelProvider {
 
     /**
      * なろうAPIを用いた検索
+     * @param {string} query
+     * @param {string} target 'all', 'title', 'author', 'summary', 'keyword'
      */
-    async search(query) {
-        console.log(`[NarouProvider] Searching for: ${query}`);
+    async search(query, target = 'all') {
+        console.log(`[NarouProvider] Searching for: ${query}, target: ${target}`);
         // なろうAPI (https://dev.syosetu.com/man/api/) を使用して検索
-        // order=hyoka: 総合評価の高い順 (totalpointは無効なパラメータだったため修正)
-        const url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=hyoka`;
+        // order=hyoka: 総合評価の高い順
+        let url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=hyoka`;
+        
+        if (target === 'title') url += '&title=1';
+        else if (target === 'author') url += '&wname=1';
+        else if (target === 'summary') url += '&ex=1';
+        else if (target === 'keyword') url += '&keyword=1';
         try {
             const res = await fetch(url);
             const text = await res.text();
@@ -204,26 +211,36 @@ export class NarouProvider extends WebNovelProvider {
             console.log(`[NarouProvider] Parsed TOC title: "${title}", author: "${author}"`);
 
             const episodes = [];
-            // pc版旧レイアウトと新レイアウト両対応
-            // 旧: .subtitle
-            // 新: .p-eplist__subtitle
-            const episodeNodes = doc.querySelectorAll('.subtitle, .p-eplist__subtitle, .p-eplist__sublist');
+            // pc版・スマホ版・新旧レイアウト対応のため、クラス名に依存せず全てのリンクからエピソードを抽出する
+            const ncodeMatch = novelUrl.match(/ncode\.syosetu\.com\/([^/]+)/);
+            const ncode = ncodeMatch ? ncodeMatch[1].toLowerCase() : null;
 
-            episodeNodes.forEach(node => {
-                const linkEl = node.tagName === 'A' ? node : node.querySelector('a');
-                if (linkEl) {
-                    const href = linkEl.getAttribute('href');
-                    if (!href || href.includes('javascript:')) return;
+            const allLinks = doc.querySelectorAll('a');
+            allLinks.forEach(linkEl => {
+                const href = linkEl.getAttribute('href');
+                if (!href || href.includes('javascript:')) return;
 
+                let epId = null;
+                // ncodeが判明している場合は厳密にチェック。
+                // hrefが "/n7787eq/1/" または "https://ncode.syosetu.com/n7787eq/1/" のような形式かを判定
+                if (ncode) {
+                    const epMatch = href.match(new RegExp(`\/${ncode}\/(\\d+)\/?(?:$|\\?|#)`, 'i'));
+                    if (epMatch) {
+                        epId = `${ncode}-${epMatch[1]}`;
+                    }
+                } else {
+                    const epMatch = href.match(/\/([^/]+)\/(\d+)\/?(?:$|\?|#)/);
+                    if (epMatch && epMatch[1].toLowerCase().startsWith('n')) {
+                        epId = `${epMatch[1].toLowerCase()}-${epMatch[2]}`;
+                    }
+                }
+
+                if (epId) {
                     const epTitle = linkEl.textContent.trim();
                     const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
 
-                    // /ncode/epnum/ からID抽出
-                    const match = href.match(/\/([^/]+)\/(\d+)\/?/);
-                    const epId = match ? `${match[1]}-${match[2]}` : href;
-
-                    // 重複排除 (同じエピソードが複数回ヒットすることを防ぐ)
-                    if (!episodes.find(e => e.url === fullUrl)) {
+                    // 重複排除と空タイトル除外
+                    if (epTitle && !episodes.find(e => e.url === fullUrl)) {
                         episodes.push({
                             id: epId,
                             title: epTitle,
@@ -293,8 +310,13 @@ export class KakuyomuProvider extends WebNovelProvider {
     get id() { return 'kakuyomu'; }
     get name() { return 'カクヨム'; }
 
-    async search(query) {
-        console.log(`[KakuyomuProvider] Searching for: ${query}`);
+    /**
+     * カクヨムスクレイピング検索
+     * @param {string} query 
+     * @param {string} target 'all', 'title', 'author', 'summary', 'keyword'
+     */
+    async search(query, target = 'all') {
+        console.log(`[KakuyomuProvider] Searching for: ${query}, target: ${target}`);
         try {
             const url = `https://kakuyomu.jp/search?q=${encodeURIComponent(query)}`;
             const html = await this.fetchHtml(url);
@@ -341,7 +363,16 @@ export class KakuyomuProvider extends WebNovelProvider {
                 }
             });
 
-            return results;
+            // カクヨムはAPIがないため取得後にフィルタリング（タイトル、作者名のみ対応）
+            let filteredResults = results;
+            if (target === 'title') {
+                filteredResults = results.filter(r => r.title.toLowerCase().includes(query.toLowerCase()));
+            } else if (target === 'author') {
+                filteredResults = results.filter(r => r.author.toLowerCase().includes(query.toLowerCase()));
+            }
+            // summary, keyword等については、一覧からあらすじ等が取得できないため現状のまま返す
+
+            return filteredResults;
         } catch (error) {
             console.error(`[KakuyomuProvider] Error searching for "${query}":`, error);
             throw error;
