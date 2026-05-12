@@ -31,7 +31,7 @@ export const GOOGLE_AUTH_CONFIG = Object.freeze({
 });
 
 export const UA_KEYWORDS = Object.freeze({
-    QUEST_3: 'Quest 3',
+    QUEST_3: 'Quest',
     OCULUS: 'OculusBrowser',
     VR: 'VR',
     MOBILE: 'Mobile'
