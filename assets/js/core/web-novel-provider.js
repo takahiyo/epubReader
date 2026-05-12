@@ -43,6 +43,7 @@ export class WebNovelProvider {
         const proxies = [
             'https://api.allorigins.win/raw?url=',
             'https://api.codetabs.com/v1/proxy?quest=',
+            'https://thingproxy.freeboard.io/fetch/',
             'https://corsproxy.io/?url='
         ];
 
@@ -201,6 +202,7 @@ export class NarouProvider extends WebNovelProvider {
         console.log(`[NarouProvider] Getting TOC for: ${novelUrl}`);
         try {
             const html = await this.fetchHtml(novelUrl);
+            console.log(`[NarouProvider] HTML preview:`, html.substring(0, 300).replace(/\n/g, ' '));
             const doc = this.parseHtml(html);
 
             const titleEl = doc.querySelector('.novel_title') || doc.querySelector('#novel_title') || doc.querySelector('.p-novel__title');
