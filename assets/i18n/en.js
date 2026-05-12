@@ -107,6 +107,10 @@ export const UI_STRINGS_EN = Object.freeze({
   googleLoginFailed: "Failed to sign in",
   share_reading_log: "Reading Log",
   share_success_clipboard: "Reading log copied to clipboard",
+  share_dialog_title: "Share Reading Log",
+  share_via_apps: "Share via Apps (LINE, Notes, Notion, etc.)",
+  share_via_clipboard: "Copy to Clipboard",
+  share_cancel: "Cancel",
 
   // Sync
   syncToggleLabel: "Enable sync",

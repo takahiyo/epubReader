@@ -398,7 +398,75 @@ function saveCurrentProgress(options = {}) {
 }
 
 /**
+ * 読書録の共有テキストを生成する（内部共通処理）
+ */
+function buildShareText() {
+  if (!currentBookId || !currentBookInfo) return null;
+  const progress = storage.getProgress(currentBookId) || {};
+  return generateShareText({
+    title: currentBookInfo.title,
+    percentage: progress.percentage || 0
+  }, SHARE_MARKDOWN_TEMPLATE);
+}
+
+/**
+ * 読書録をクリップボードにコピーする
+ */
+async function shareReadingLogViaClipboard(shareText) {
+  await navigator.clipboard.writeText(shareText);
+  // 短いトーストを表示（alert の代替）
+  showShareToast(t("share_success_clipboard"));
+}
+
+/**
+ * 読書録を navigator.share API で共有する
+ */
+async function shareReadingLogViaApps(shareText, title) {
+  await navigator.share({
+    title: title || t("share_reading_log"),
+    text: shareText,
+  });
+}
+
+/**
+ * 短時間表示するトースト通知（alert の代替）
+ */
+function showShareToast(message) {
+  // 既存トーストを除去
+  const prev = document.getElementById("__share-toast");
+  if (prev) prev.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "__share-toast";
+  toast.textContent = message;
+  Object.assign(toast.style, {
+    position: "fixed",
+    bottom: "5rem",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "var(--bg-panel, #2a2a2a)",
+    color: "var(--text-primary, #fff)",
+    border: "1px solid var(--border, #555)",
+    borderRadius: "0.5rem",
+    padding: "0.75rem 1.5rem",
+    fontSize: "0.9rem",
+    zIndex: "9999",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+    opacity: "1",
+    transition: "opacity 0.4s ease",
+    maxWidth: "90vw",
+    textAlign: "center",
+    pointerEvents: "none",
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = "0"; }, 1800);
+  setTimeout(() => { toast.remove(); }, 2300);
+}
+
+/**
  * 読書録を共有する
+ * - navigator.share が使える端末: アプリ選択 / クリップボード の選択ポップオーバーを表示
+ * - それ以外: 直接クリップボードコピー
  */
 async function handleShareReadingLog() {
   if (!currentBookId || !currentBookInfo) {
@@ -406,19 +474,155 @@ async function handleShareReadingLog() {
     return;
   }
 
-  try {
-    const progress = storage.getProgress(currentBookId) || {};
-    const shareText = generateShareText({
-      title: currentBookInfo.title,
-      percentage: progress.percentage || 0
-    }, SHARE_MARKDOWN_TEMPLATE);
-
-    await navigator.clipboard.writeText(shareText);
-    alert(t("share_success_clipboard") + "\\n\\n(Notionなどのアプリにペーストしてご利用ください)");
-  } catch (error) {
-    console.error("[share] Error sharing:", error);
-    alert(t("error_generic"));
+  const shareText = buildShareText();
+  if (!shareText) {
+    console.warn("[share] Failed to build share text");
+    return;
   }
+
+  const canNativeShare = typeof navigator.share === "function";
+
+  if (!canNativeShare) {
+    // navigator.share 非対応: クリップボードコピーのみ
+    try {
+      await shareReadingLogViaClipboard(shareText);
+    } catch (err) {
+      console.error("[share] Clipboard copy failed:", err);
+      alert(t("error_generic"));
+    }
+    return;
+  }
+
+  // navigator.share 対応端末: 選択ポップオーバーを表示
+  showShareMethodDialog(shareText);
+}
+
+/**
+ * 「アプリで共有」vs「クリップボード」の選択ポップオーバーを表示する
+ */
+function showShareMethodDialog(shareText) {
+  // 既存ダイアログを除去
+  const prev = document.getElementById("__share-dialog");
+  if (prev) prev.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "__share-dialog";
+  Object.assign(overlay.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "9998",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    background: "rgba(0,0,0,0.5)",
+    padding: "1rem",
+  });
+
+  const dialog = document.createElement("div");
+  Object.assign(dialog.style, {
+    background: "var(--bg-panel, #2a2a2a)",
+    border: "1px solid var(--border, #555)",
+    borderRadius: "1rem",
+    padding: "1.5rem",
+    width: "100%",
+    maxWidth: "400px",
+    boxShadow: "0 -4px 24px rgba(0,0,0,0.5)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem",
+  });
+
+  const title = document.createElement("h3");
+  title.textContent = t("share_dialog_title");
+  Object.assign(title.style, {
+    margin: "0 0 0.25rem",
+    fontSize: "1rem",
+    color: "var(--text-primary, #fff)",
+    fontWeight: "600",
+  });
+
+  const btnApps = document.createElement("button");
+  btnApps.textContent = t("share_via_apps");
+  Object.assign(btnApps.style, {
+    padding: "0.8rem 1rem",
+    borderRadius: "0.5rem",
+    border: "none",
+    background: "var(--accent, #4b7bec)",
+    color: "#fff",
+    fontSize: "0.95rem",
+    cursor: "pointer",
+    fontWeight: "600",
+    width: "100%",
+    textAlign: "left",
+  });
+
+  const btnClipboard = document.createElement("button");
+  btnClipboard.textContent = t("share_via_clipboard");
+  Object.assign(btnClipboard.style, {
+    padding: "0.8rem 1rem",
+    borderRadius: "0.5rem",
+    border: "1px solid var(--border, #555)",
+    background: "var(--bg-surface, #333)",
+    color: "var(--text-primary, #fff)",
+    fontSize: "0.95rem",
+    cursor: "pointer",
+    width: "100%",
+    textAlign: "left",
+  });
+
+  const btnCancel = document.createElement("button");
+  btnCancel.textContent = t("share_cancel");
+  Object.assign(btnCancel.style, {
+    padding: "0.6rem 1rem",
+    borderRadius: "0.5rem",
+    border: "none",
+    background: "transparent",
+    color: "var(--muted, #888)",
+    fontSize: "0.9rem",
+    cursor: "pointer",
+    width: "100%",
+    textAlign: "center",
+    marginTop: "0.25rem",
+  });
+
+  const closeDialog = () => overlay.remove();
+
+  btnApps.addEventListener("click", async () => {
+    closeDialog();
+    try {
+      await shareReadingLogViaApps(shareText, currentBookInfo?.title);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error("[share] navigator.share failed:", err);
+        // フォールバック: クリップボードコピー
+        try {
+          await shareReadingLogViaClipboard(shareText);
+        } catch (clipErr) {
+          console.error("[share] Clipboard fallback failed:", clipErr);
+        }
+      }
+    }
+  });
+
+  btnClipboard.addEventListener("click", async () => {
+    closeDialog();
+    try {
+      await shareReadingLogViaClipboard(shareText);
+    } catch (err) {
+      console.error("[share] Clipboard copy failed:", err);
+      alert(t("error_generic"));
+    }
+  });
+
+  btnCancel.addEventListener("click", closeDialog);
+  // 背景クリックで閉じる
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeDialog();
+  });
+
+  dialog.append(title, btnApps, btnClipboard, btnCancel);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
 }
 
 function shouldSyncCloudProgress(progressSnapshot) {
@@ -3352,8 +3556,14 @@ function setupEvents() {
     toggleFullscreen();
   });
 
-  // 読書録共有ボタン
+  // 読書録共有ボタン（フロートUI）
   elements.shareLogButton?.addEventListener('click', handleShareReadingLog);
+
+  // 読書録共有ボタン（サイドメニュー）
+  elements.menuShareLog?.addEventListener('click', () => {
+    if (ui) ui.closeAllMenus();
+    handleShareReadingLog();
+  });
 
   // 全画面状態が変わった時にボタンラベルを更新
   // リペジネーションは window.resize イベント経由で自動的にトリガーされる
