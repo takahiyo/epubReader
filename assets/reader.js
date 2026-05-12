@@ -2294,8 +2294,9 @@ export class ReaderController {
       if (!Array.isArray(items)) return;
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
+        const id = item.href?.includes('#') ? item.href.split('#')[1] : null;
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label || "", spineIndex, depth });
+          allEntries.push({ title: item.label || "", spineIndex, id, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
@@ -2330,12 +2331,22 @@ export class ReaderController {
       }
     }
 
-    // 重複を削除し、インデックス順にソート
+    // インデックス順（同じインデックスならIDありを優先、または出現順）にソート
+    // 同一 Spine 内の分割を許容するため、spineIndex だけでなく id の有無も考慮してフィルタリング
     const sortedToc = filteredToc
-      .sort((a, b) => a.spineIndex - b.spineIndex)
-      .filter((entry, index, self) =>
-        index === 0 || entry.spineIndex !== self[index - 1].spineIndex
-      );
+      .sort((a, b) => {
+        if (a.spineIndex !== b.spineIndex) return a.spineIndex - b.spineIndex;
+        // 同じ spineIndex の場合、IDがない（先頭）ものを前に
+        if (!a.id && b.id) return -1;
+        if (a.id && !b.id) return 1;
+        return 0;
+      })
+      .filter((entry, index, self) => {
+        if (index === 0) return true;
+        const prev = self[index - 1];
+        // 同じ spineIndex かつ同じ ID（両方 null 含む）なら重複として除外
+        return entry.spineIndex !== prev.spineIndex || entry.id !== prev.id;
+      });
 
     if (sortedToc.length === 0) {
       return [{ start: 0, end: spineLength - 1 }];
@@ -2343,19 +2354,46 @@ export class ReaderController {
 
     // 各セクション（章）の範囲を決定
     for (let i = 0; i < sortedToc.length; i++) {
-      const start = sortedToc[i].spineIndex;
-      const end = (i < sortedToc.length - 1)
-        ? sortedToc[i + 1].spineIndex - 1
-        : spineLength - 1;
+      const entry = sortedToc[i];
+      const nextEntry = sortedToc[i + 1];
 
-      if (start <= end) {
-        groups.push({ start, end });
+      const group = {
+        start: entry.spineIndex,
+        startId: entry.id || null,
+        title: entry.title
+      };
+
+      if (nextEntry) {
+        if (nextEntry.spineIndex === entry.spineIndex) {
+          // 同一 Spine 内での分割
+          group.end = entry.spineIndex;
+          group.endId = nextEntry.id;
+        } else {
+          // 次の Spine Item の手前まで
+          group.end = nextEntry.spineIndex - 1;
+          group.endId = null;
+        }
+      } else {
+        // 最後まで
+        group.end = spineLength - 1;
+        group.endId = null;
       }
+
+      groups.push(group);
     }
 
-    // 最初の目次項目より前の spine items がある場合、それもグループ化する
-    if (groups.length > 0 && groups[0].start > 0) {
-      groups.unshift({ start: 0, end: groups[0].start - 1 });
+    // --- [追加] 最初の目次項目より前にコンテンツがある場合、「表紙 / 巻頭」として追加 ---
+    if (groups.length > 0) {
+      const first = groups[0];
+      if (first.start > 0 || first.startId !== null) {
+        groups.unshift({
+          start: 0,
+          startId: null,
+          end: first.startId ? first.start : first.start - 1,
+          endId: first.startId || null,
+          title: "表紙 / 巻頭"
+        });
+      }
     }
 
     // 挿絵や章扉による境界の微調整
@@ -2398,6 +2436,7 @@ export class ReaderController {
         if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
+          current.endId = next.endId; // IDも継承
         } else {
           merged.push(current);
           current = next;
@@ -2579,9 +2618,12 @@ export class ReaderController {
 
       if (group) {
         for (let si = group.start; si <= group.end; si++) {
-          const spineItem = this.spineItems?.[si];
-          const fallbackPage = pagination.pages.find((p) => p.spineIndex === si);
-          const htmlFragment = spineItem?.htmlString || fallbackPage?.htmlFragment || "";
+          // [重要] 分割されたSpineItem（章の途中に目次がある場合など）に対応するため、
+          // 先頭の SpineItem については Paginator が計算した htmlFragment を優先する。
+          const htmlFragment = (si === page.spineIndex)
+            ? (page.htmlFragment || "")
+            : (this.spineItems?.[si]?.htmlString || "");
+            
           if (!htmlFragment) continue;
           combinedHtml += `<div class="joined-spine-item" data-spine-index="${si}">${htmlFragment}</div>`;
         }
