@@ -262,6 +262,23 @@ body.google-auth-active .modal-backdrop {
 
 /* =====================================
 [REF]
+- HTML: #floatOverlay .float-buttons button:disabled（読書録など・本未オープン時）
+- JS: assets/js/ui/renderers.js（updateFloatingUIButtons）
+- STATE: :disabled
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.float-buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.float-buttons button:disabled:hover {
+  background: rgba(17, 24, 39, 0.85);
+}
+
+/* =====================================
+[REF]
 - HTML: #openLangMenu（フロート言語切替ボタン）
 - JS: assets/js/ui/elements.js（openLangMenu 取得）
 - STATE: なし

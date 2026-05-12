@@ -115,6 +115,7 @@ C案: ADB経由での解除（非現実的）
 | 2026-04-28 | app.js に SW からのメッセージ受信リスナーを追加 | assets/app.js |
 | 2026-04-28 | キャッシュを bookreader-v10 から bookreader-v11 に更新 | assets/sw-cache-config.json |
 | 2026-05-12 | Web小説読込後・クラウドのみ表示切替後にフロートUIボタン状態を更新 | assets/app.js |
+| 2026-05-12 | 読書録を常時表示＋未オープン時 disabled、キャッシュバンプ v12 | assets/js/ui/renderers.js, assets/css/05-float-ui.css, index.html |
 
 ---
 
@@ -122,7 +123,7 @@ C案: ADB経由での解除（非現実的）
 
 ### 成功の境界線
 
-- EPUB／ライブラリから開いた書籍では、`handleFile` / `openFromLibrary` 完了時に `renderers.updateFloatingUIButtons()` が呼ばれ、フロートの読書録ボタンの `.hidden` が解除される。
+- EPUB／ライブラリから開いた書籍では、`handleFile` / `openFromLibrary` 完了時に `renderers.updateFloatingUIButtons()` が呼ばれ、フロートの読書録の有効／無効が更新される。
 
 ### 失敗の事象
 
@@ -131,11 +132,28 @@ C案: ADB経由での解除（非現実的）
 
 ### 失敗の根本原因
 
-- 起動時 `applyReadingSettings` 内で `updateFloatingUIButtons` が走り、書籍未オープン時は読書録ボタンに `hidden` が付く。
+- 起動時 `applyReadingSettings` 内で `updateFloatingUIButtons` が走り、書籍未オープン時は読書録ボタンに `hidden` が付く（後続エントリ #5 で仕様変更）。
 - `loadWebNovel` は `currentBookId` を設定するが **`updateFloatingUIButtons` を呼んでいない**ため、フロート側の表示状態が更新されず `hidden` が残る。
 - `openCloudOnlyBook` は `currentBookId` を `null` にするが **`updateFloatingUIButtons` を呼んでいない**ため、フロートの表示が状態とずれる可能性がある。
 
 ### 次のアプローチ（実施）
 
 - `loadWebNovel` の成功パスで `renderers.updateFloatingUIButtons()` を呼ぶ。
-- `openCloudOnlyBook` の末尾でも `renderers.updateFloatingUIButtons()` を呼び、クラウドのみ時は読書録を非表示に揃える。
+- `openCloudOnlyBook` の末尾でも `renderers.updateFloatingUIButtons()` を呼び、フロート／左メニューの読書録の有効状態を同期する。
+
+---
+
+## エントリ #5 - 2026-05-12（本未選択でも読書録を見せる）
+
+### 失敗の事象
+
+- 空の状態（`bookId: null`）でフロートメニューを開くと、読書録ボタンが DOM 上 `display: none` のため一覧に現れず、7項目しか見えない。
+
+### 失敗の根本原因
+
+- `updateFloatingUIButtons` が `setElementVisibility(shareLogButton, isBookOpen)` とし、本未オープン時は `.hidden` で完全非表示にしていた。
+
+### 次のアプローチ（実施）
+
+- フロートの読書録は常に表示し、`disabled = !isBookOpen` とする（左メニューの `menuShareLog` も同様に無効化を同期）。
+- 無効時の見た目は `.float-buttons button:disabled` で左メニューと同程度の `opacity: 0.4` に統一。

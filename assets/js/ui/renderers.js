@@ -248,12 +248,16 @@ export function updateFloatingUIButtons() {
     }
 
     if (elements.shareLogButton) {
-        setElementVisibility(elements.shareLogButton, isBookOpen);
-        if (isBookOpen) {
-            const icon = getPremiumIcon(PREMIUM_ICONS.SHARE, 24);
-            const label = document.createTextNode(` ${t("share_reading_log")}`);
-            elements.shareLogButton.replaceChildren(icon, label);
-        }
+        // 読書録は目次と同様、常に表示し未オープン時のみ無効化（非表示にすると空状態で項目が消えて見える）
+        setElementVisibility(elements.shareLogButton, true);
+        elements.shareLogButton.disabled = !isBookOpen;
+        const icon = getPremiumIcon(PREMIUM_ICONS.SHARE, 24);
+        const label = document.createTextNode(` ${t("share_reading_log")}`);
+        elements.shareLogButton.replaceChildren(icon, label);
+    }
+
+    if (elements.menuShareLog) {
+        elements.menuShareLog.disabled = !isBookOpen;
     }
 
     updateProgressBarDirection();
