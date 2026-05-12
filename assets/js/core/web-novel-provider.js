@@ -211,25 +211,33 @@ export class NarouProvider extends WebNovelProvider {
             console.log(`[NarouProvider] Parsed TOC title: "${title}", author: "${author}"`);
 
             const episodes = [];
-            // pc版・スマホ版・新旧レイアウト対応のため、クラス名に依存せず全てのリンクからエピソードを抽出する
             const ncodeMatch = novelUrl.match(/ncode\.syosetu\.com\/([^/]+)/);
             const ncode = ncodeMatch ? ncodeMatch[1].toLowerCase() : null;
 
             const allLinks = doc.querySelectorAll('a');
+            console.log(`[NarouProvider] Total links found in HTML: ${allLinks.length}`);
+            
             allLinks.forEach(linkEl => {
                 const href = linkEl.getAttribute('href');
                 if (!href || href.includes('javascript:')) return;
 
                 let epId = null;
                 // ncodeが判明している場合は厳密にチェック。
-                // hrefが "/n7787eq/1/" または "https://ncode.syosetu.com/n7787eq/1/" のような形式かを判定
                 if (ncode) {
-                    const epMatch = href.match(new RegExp(`\/${ncode}\/(\\d+)\/?(?:$|\\?|#)`, 'i'));
-                    if (epMatch) {
-                        epId = `${ncode}-${epMatch[1]}`;
+                    const prefix = `/${ncode}/`;
+                    // URLが "/n7787eq/" を含むかチェック
+                    const lowerHref = href.toLowerCase();
+                    const idx = lowerHref.indexOf(prefix);
+                    if (idx !== -1) {
+                        // "/n7787eq/1/" -> "1/" の部分を取り出す
+                        const remainder = lowerHref.substring(idx + prefix.length);
+                        const numMatch = remainder.match(/^(\d+)(?:[/?#]|$)/);
+                        if (numMatch) {
+                            epId = `${ncode}-${numMatch[1]}`;
+                        }
                     }
                 } else {
-                    const epMatch = href.match(/\/([^/]+)\/(\d+)\/?(?:$|\?|#)/);
+                    const epMatch = href.match(/\/([^/]+)\/(\d+)(?:[/?#]|$)/);
                     if (epMatch && epMatch[1].toLowerCase().startsWith('n')) {
                         epId = `${epMatch[1].toLowerCase()}-${epMatch[2]}`;
                     }
@@ -239,8 +247,8 @@ export class NarouProvider extends WebNovelProvider {
                     const epTitle = linkEl.textContent.trim();
                     const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
 
-                    // 重複排除と空タイトル除外
-                    if (epTitle && !episodes.find(e => e.url === fullUrl)) {
+                    // 重複排除と空タイトル除外（"次へ"等のページネーションリンクはepIdがないためここで弾かれるはずだが念のため）
+                    if (epTitle && epTitle !== '次へ' && epTitle !== '最後へ' && !episodes.find(e => e.url === fullUrl)) {
                         episodes.push({
                             id: epId,
                             title: epTitle,
