@@ -2013,7 +2013,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setMenuLabel(elements.menuBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
-  setMenuLabel(elements.menuShareLog, UI_ICONS.SHARE, strings.share_reading_log);
+  setMenuLabel(elements.menuShareLog || document.getElementById('menuShareLog'), UI_ICONS.SHARE, strings.share_reading_log);
   setMenuLabel(elements.menuWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
   if (elements.langJa) elements.langJa.textContent = strings.languageLabelJa;
@@ -2681,6 +2681,16 @@ function setupEvents() {
       closeAllMenus();
       handleShareReadingLog();
     });
+  } else {
+    // elements.jsキャッシュが古い場合の直接フォールバック
+    const menuShareLogFallback = document.getElementById('menuShareLog');
+    if (menuShareLogFallback) {
+      menuShareLogFallback.addEventListener('click', () => {
+        console.log('[menuShareLog-fallback] Clicked!');
+        closeAllMenus();
+        handleShareReadingLog();
+      });
+    }
   }
 
   elements.floatOpen?.addEventListener('click', (e) => {

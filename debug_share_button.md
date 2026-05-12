@@ -9,5 +9,7 @@
 6. **PWAキャッシュ対策**: `assets/sw-cache-config.json` の `cacheName` を `bookreader-v10` から `bookreader-v11` に更新し、Service Worker のキャッシュ更新を促進。
 
 ## ユーザーテスト結果記録
+工程1〜5: ボタンが履いまだ出ないことを確認
+工程6: 原因特定 → Service Workerキャッシュが古い elements.js を返し続け、elements.menuShareLog が nullになっている可能性。
+工程7: app.js 内で elements.menuShareLog || document.getElementById('menuShareLog') のデュアル取得に変更。リスナー登録も直接ID取得のフォールバックを追加。
 (未テスト)
-※ ハードリロード、またはPWA環境のキャッシュクリアを試してもらう予定。
