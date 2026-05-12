@@ -33,6 +33,7 @@ export const UI_STRINGS_EN = Object.freeze({
   menuSearch: "Text Search",
   menuBookmarks: "Bookmarks",
   menuHistory: "History",
+  menuWebNovel: "Web Novel",
   menuSettings: "Settings",
 
   // TOC & Bookmarks

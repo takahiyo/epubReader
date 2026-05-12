@@ -166,6 +166,7 @@ function createMeasurementContainer(settings) {
 
 function createSegments(body) {
   const segments = [];
+  const idToSegmentIndex = new Map();
   const walker = document.createTreeWalker(
     body,
     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
@@ -190,6 +191,11 @@ function createSegments(body) {
 
   let current = walker.nextNode();
   while (current) {
+    // ID位置の記録
+    if (current.nodeType === Node.ELEMENT_NODE && current.id) {
+      idToSegmentIndex.set(current.id, segments.length);
+    }
+
     if (current.nodeType === Node.TEXT_NODE) {
       const text = current.textContent || "";
       const length = text.length;
@@ -204,7 +210,7 @@ function createSegments(body) {
     }
     current = walker.nextNode();
   }
-  return segments;
+  return { segments, idToSegmentIndex };
 }
 
 function positionForSegmentIndex(segments, index) {
@@ -424,7 +430,7 @@ export class EpubPaginator {
 
       await resolveResources(body, this.resourceLoader, spineItem);
       this.ensureNotCancelled(run);
-      const segments = createSegments(body);
+      const { segments, idToSegmentIndex } = createSegments(body);
       if (!segments.length) {
         continue;
       }
@@ -432,29 +438,59 @@ export class EpubPaginator {
       const totalUnits = segments.length;
 
       if (this.settings.epubViewMode === "scroll") {
-        const shouldCreatePage = this.shouldCreateScrollPageAtSpine(spineIndex);
-        if (!shouldCreatePage) {
-          this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
-          // progressive モードでは Reader 側が「spine 1件ごとに next() を呼ぶ」前提のため、
-          // スキップ時も必ず 1 回 yield して進行同期を保つ。
-          yield {
-            pages: [...this.pages],
-            isComplete: false
-          };
-          continue;
+        const startingGroups = this.getSpineGroupsStartingAt(spineIndex);
+        
+        if (startingGroups.length === 0) {
+          // グループの構成員（先頭以外）ならスキップ
+          if (this.isGroupMember(spineIndex)) {
+            this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
+            yield {
+              pages: [...this.pages],
+              isComplete: false
+            };
+            continue;
+          }
+          
+          // 単一 Spine ページとして作成
+          const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
+          const htmlFragment = serializeRange(range);
+          this.pages.push({
+            spineIndex,
+            withinSpineOffset: `s:0`,
+            htmlFragment,
+            estimatedCharCount: htmlFragment.length,
+            isJoined: false
+          });
+          this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
+        } else {
+          // 該当するすべてのグループをページとして作成
+          for (const group of startingGroups) {
+            let startIdx = 0;
+            let endIdx = totalUnits;
+            
+            if (group.startId && idToSegmentIndex.has(group.startId)) {
+              startIdx = idToSegmentIndex.get(group.startId);
+            }
+            if (group.endId && idToSegmentIndex.has(group.endId)) {
+              endIdx = idToSegmentIndex.get(group.endId);
+            }
+
+            const range = createRangeFromSegmentIndices(segments, startIdx, endIdx);
+            const htmlFragment = serializeRange(range);
+            const isJoined = this.shouldJoinAtSpine(spineIndex);
+            
+            this.pages.push({
+              spineIndex,
+              withinSpineOffset: `s:${startIdx}`,
+              htmlFragment,
+              estimatedCharCount: htmlFragment.length,
+              isJoined,
+              groupInfo: group
+            });
+            this.pageStartIndexMap.push({ spineIndex, startIndex: startIdx });
+          }
+          this.appendDebugTrace("scroll_page_created_multi", { spineIndex, groupCount: startingGroups.length });
         }
-        const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
-        const htmlFragment = serializeRange(range);
-        const isJoined = this.shouldJoinAtSpine(spineIndex);
-        this.pages.push({
-          spineIndex,
-          withinSpineOffset: `s:0`,
-          htmlFragment,
-          estimatedCharCount: htmlFragment.length,
-          isJoined
-        });
-        this.appendDebugTrace("scroll_page_created", { spineIndex, isJoined, totalUnits });
-        this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
       } else {
         let startIndex = 0;
         let pageCount = 0;
@@ -535,25 +571,26 @@ export class EpubPaginator {
     return error && error.name === "PaginationCancelledError";
   }
 
-  getSpineGroup(spineIndex) {
-    if (!Array.isArray(this.settings.spineGroups)) return null;
-    return this.settings.spineGroups.find(
-      (group) => spineIndex >= group.start && spineIndex <= group.end
-    ) || null;
+  getSpineGroupsStartingAt(spineIndex) {
+    if (!Array.isArray(this.settings.spineGroups)) return [];
+    return this.settings.spineGroups.filter((group) => group.start === spineIndex);
+  }
+
+  isGroupMember(spineIndex) {
+    if (!Array.isArray(this.settings.spineGroups)) return false;
+    return this.settings.spineGroups.some(
+      (group) => spineIndex > group.start && spineIndex <= group.end
+    );
   }
 
   shouldJoinAtSpine(spineIndex) {
     if (!this.settings.joinSpineItems) return false;
-    const group = this.getSpineGroup(spineIndex);
+    const group = this.settings.spineGroups?.find(
+      (group) => spineIndex === group.start
+    );
     if (!group) return true;
-    return group.start === spineIndex && group.end > group.start;
-  }
-
-  shouldCreateScrollPageAtSpine(spineIndex) {
-    if (!this.settings.joinSpineItems) return true;
-    const group = this.getSpineGroup(spineIndex);
-    if (!group) return true;
-    return group.start === spineIndex;
+    // Join Mode では、end が start より大きい、または ID による分割がある場合に joined とする
+    return group.end > group.start || group.startId != null || group.endId != null;
   }
 
   appendDebugTrace(event, detail = {}) {
@@ -610,7 +647,7 @@ export class EpubPaginator {
 
       await resolveResources(body, this.resourceLoader, spineItem);
       this.ensureNotCancelled(run);
-      const segments = createSegments(body);
+      const { segments, idToSegmentIndex } = createSegments(body);
       if (!segments.length) {
         continue;
       }
@@ -618,23 +655,60 @@ export class EpubPaginator {
       const totalUnits = segments.length;
 
       if (this.settings.epubViewMode === "scroll") {
-        const shouldCreatePage = this.shouldCreateScrollPageAtSpine(spineIndex);
-        if (!shouldCreatePage) {
-          this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
-          continue;
+        const startingGroups = this.getSpineGroupsStartingAt(spineIndex);
+        
+        if (startingGroups.length === 0) {
+          // グループの構成員（先頭以外）ならスキップ
+          if (this.isGroupMember(spineIndex)) {
+            this.appendDebugTrace("scroll_spine_skipped", { spineIndex, reason: "group_member_non_start" });
+            continue;
+          }
+          
+          // 単一 Spine ページとして作成
+          const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
+          const htmlFragment = serializeRange(range);
+          this.pages.push({
+            spineIndex,
+            withinSpineOffset: `s:0`,
+            htmlFragment,
+            estimatedCharCount: htmlFragment.length,
+            isJoined: false
+          });
+          this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
+        } else {
+          // 該当するすべてのグループをページとして作成
+          for (const group of startingGroups) {
+            let startIdx = 0;
+            let endIdx = totalUnits;
+            
+            if (group.startId && idToSegmentIndex.has(group.startId)) {
+              startIdx = idToSegmentIndex.get(group.startId);
+            }
+            if (group.endId && idToSegmentIndex.has(group.endId)) {
+              endIdx = idToSegmentIndex.get(group.endId);
+            }
+
+            const range = createRangeFromSegmentIndices(segments, startIdx, endIdx);
+            const htmlFragment = serializeRange(range);
+            const isJoined = this.shouldJoinAtSpine(spineIndex);
+            
+            this.pages.push({
+              spineIndex,
+              withinSpineOffset: `s:${startIdx}`,
+              htmlFragment,
+              estimatedCharCount: htmlFragment.length,
+              isJoined,
+              groupInfo: group // Reader 側での描画制御用
+            });
+            this.appendDebugTrace("scroll_page_created", { 
+              spineIndex, 
+              startId: group.startId, 
+              endId: group.endId, 
+              isJoined 
+            });
+            this.pageStartIndexMap.push({ spineIndex, startIndex: startIdx });
+          }
         }
-        const range = createRangeFromSegmentIndices(segments, 0, totalUnits);
-        const htmlFragment = serializeRange(range);
-        const isJoined = this.shouldJoinAtSpine(spineIndex);
-        this.pages.push({
-          spineIndex,
-          withinSpineOffset: `s:0`,
-          htmlFragment,
-          estimatedCharCount: htmlFragment.length,
-          isJoined
-        });
-        this.appendDebugTrace("scroll_page_created", { spineIndex, isJoined, totalUnits });
-        this.pageStartIndexMap.push({ spineIndex, startIndex: 0 });
       } else {
         let startIndex = 0;
         let pageCount = 0;

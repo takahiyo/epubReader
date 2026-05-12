@@ -2176,16 +2176,14 @@ export class ReaderController {
         console.log(`[Reader] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start spine`);
         pageIndex = this.pagination.pages.findIndex((page) => page.spineIndex === group.start);
         if (pageIndex >= 0) {
-          // 直前の spine が扉絵（isIllustrationOnly）で、かつ同グループ内にある場合は扉絵を表示する
+          // 直前の spine が扉絵（isIllustrationOnly）であれば、グループをまたいでも扉絵の位置へ飛ぶ
+          // （スクロールモードでは全グループの DOM が存在するため、クロスグループ scrollIntoView が有効）
           const prevIdx = spineIndex - 1;
           const prevSpineItem = this.spineItems?.[prevIdx];
-          const prevInGroup = prevIdx >= group.start && prevIdx <= group.end;
-          if (prevInGroup && prevSpineItem?.isIllustrationOnly) {
-            // 扉絵が本文の直前にある → 扉絵の位置へ飛ぶ
+          if (prevIdx >= 0 && prevSpineItem?.isIllustrationOnly) {
             this._pendingScrollTargetSpineIndex = prevIdx;
             console.log(`[Reader] 扉絵へジャンプ: spine ${prevIdx}`);
           } else {
-            // 扉絵なし → 指定 spine（本文先頭）へ飛ぶ
             this._pendingScrollTargetSpineIndex = spineIndex;
           }
           this._pendingScrollToSegment = 0;
@@ -2268,19 +2266,21 @@ export class ReaderController {
       if (!tocHref) return -1;
       const [pathPart] = tocHref.split('#');
       if (!pathPart) return -1;
+      const normalized = pathPart.trim().replace(/^\.\//, "").replace(/^\//, "");
+      
+      if (spineHrefMap.has(normalized)) return spineHrefMap.get(normalized);
+      
+      // 末尾一致での再検索（パスの深さが異なる場合の救済：item/xhtml/xxx と xhtml/xxx など）
+      for (const [key, idx] of spineHrefMap.entries()) {
+        if (key.endsWith(normalized) || normalized.endsWith(key)) {
+          return idx;
+        }
+      }
 
-      // そのままマッチ
-      if (spineHrefMap.has(pathPart)) return spineHrefMap.get(pathPart);
-
-      // book.path.resolve で解決してマッチ
-      const resolved = this.book?.path?.resolve
-        ? this.book.path.resolve(pathPart) : pathPart;
-      if (spineHrefMap.has(resolved)) return spineHrefMap.get(resolved);
-
-      // ファイル名のみで部分マッチ
-      const filename = pathPart.split('/').pop();
+      // ファイル名のみでの比較
+      const filename = normalized.split('/').pop();
       if (filename && spineHrefMap.has(filename)) return spineHrefMap.get(filename);
-
+      
       return -1;
     };
 
@@ -2294,8 +2294,9 @@ export class ReaderController {
       if (!Array.isArray(items)) return;
       items.forEach(item => {
         const spineIndex = resolveSpineIndex(item.href);
+        const id = item.href?.includes('#') ? item.href.split('#')[1] : null;
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label || "", spineIndex, depth });
+          allEntries.push({ title: item.label || "", spineIndex, id, depth });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
@@ -2330,12 +2331,22 @@ export class ReaderController {
       }
     }
 
-    // 重複を削除し、インデックス順にソート
+    // インデックス順（同じインデックスならIDありを優先、または出現順）にソート
+    // 同一 Spine 内の分割を許容するため、spineIndex だけでなく id の有無も考慮してフィルタリング
     const sortedToc = filteredToc
-      .sort((a, b) => a.spineIndex - b.spineIndex)
-      .filter((entry, index, self) =>
-        index === 0 || entry.spineIndex !== self[index - 1].spineIndex
-      );
+      .sort((a, b) => {
+        if (a.spineIndex !== b.spineIndex) return a.spineIndex - b.spineIndex;
+        // 同じ spineIndex の場合、IDがない（先頭）ものを前に
+        if (!a.id && b.id) return -1;
+        if (a.id && !b.id) return 1;
+        return 0;
+      })
+      .filter((entry, index, self) => {
+        if (index === 0) return true;
+        const prev = self[index - 1];
+        // 同じ spineIndex かつ同じ ID（両方 null 含む）なら重複として除外
+        return entry.spineIndex !== prev.spineIndex || entry.id !== prev.id;
+      });
 
     if (sortedToc.length === 0) {
       return [{ start: 0, end: spineLength - 1 }];
@@ -2343,19 +2354,57 @@ export class ReaderController {
 
     // 各セクション（章）の範囲を決定
     for (let i = 0; i < sortedToc.length; i++) {
-      const start = sortedToc[i].spineIndex;
-      const end = (i < sortedToc.length - 1)
-        ? sortedToc[i + 1].spineIndex - 1
-        : spineLength - 1;
+      const entry = sortedToc[i];
+      const nextEntry = sortedToc[i + 1];
 
-      if (start <= end) {
-        groups.push({ start, end });
+      const group = {
+        start: entry.spineIndex,
+        startId: entry.id || null,
+        title: entry.title
+      };
+
+      if (nextEntry) {
+        if (nextEntry.spineIndex === entry.spineIndex) {
+          // 同一 Spine 内での分割
+          group.end = entry.spineIndex;
+          group.endId = nextEntry.id;
+        } else {
+          // 次の Spine Item の手前まで
+          group.end = nextEntry.spineIndex - 1;
+          group.endId = null;
+        }
+      } else {
+        // 最後まで
+        group.end = spineLength - 1;
+        group.endId = null;
       }
+
+      groups.push(group);
     }
 
-    // 最初の目次項目より前の spine items がある場合、それもグループ化する
-    if (groups.length > 0 && groups[0].start > 0) {
-      groups.unshift({ start: 0, end: groups[0].start - 1 });
+    // --- [追加] 最初の目次項目より前にコンテンツがある場合、「表紙 / 巻頭」として追加 ---
+    if (groups.length > 0) {
+      const first = groups[0];
+      if (first.start > 0 || first.startId !== null) {
+        // 巻頭グループの Spine インデックスを確定
+        const frontmatterEnd = first.startId ? first.start : first.start - 1;
+        const firstSpineHref = this.book?.spine?.get?.(0)?.href || "";
+        groups.unshift({
+          start: 0,
+          startId: null,
+          end: frontmatterEnd,
+          endId: first.startId || null,
+          title: "表紙 / 巻頭",
+          isFrontmatter: true  // Forward Merge 対象外フラグ
+        });
+        // 目次メニューにも「表紙/巻頭」を追加する
+        if (Array.isArray(this.toc)) {
+          const alreadyHasFrontmatter = this.toc.some(t => t._isFrontmatter);
+          if (!alreadyHasFrontmatter) {
+            this.toc = [{ label: "表紙 / 巻頭", href: firstSpineHref, _isFrontmatter: true }, ...this.toc];
+          }
+        }
+      }
     }
 
     // 挿絵や章扉による境界の微調整
@@ -2395,9 +2444,20 @@ export class ReaderController {
           return true;
         };
 
-        if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
+        if (current.isFrontmatter) {
+          // 「表紙/巻頭」グループ：末尾の1ページのみが挿絵の場合、それは次の章の扉絵である可能性が高いため次グループに移す。
+          // 複数ページ（カラーイラストなど）は巻頭に残す。
+          if (current.end >= current.start && this.spineItems?.[current.end]?.isIllustrationOnly) {
+            console.log(`[JoinMode] 巻頭の末尾挿絵 (spine ${current.end}) を次グループ（扉絵）として移動`);
+            next.start = current.end;
+            current.end = current.end - 1;
+          }
+          merged.push(current);
+          current = next;
+        } else if (!current.isFrontmatter && (isCurrentIllustrationOnly() || isCurrentEndsWithImage)) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
+          current.endId = next.endId; // IDも継承
         } else {
           merged.push(current);
           current = next;
@@ -2574,14 +2634,17 @@ export class ReaderController {
       // Join Modeでは、paginator側で非先頭spineをページ化しない実装のため、
       // pagination.pages だけで連結すると途中spine（挿絵ページ等）が欠落する。
       // そのため描画時は spineItems（SSOT）を基準に連結する。
-      const currentSpineIndex = page.spineIndex;
-      const group = this._spineGroups?.find(g => currentSpineIndex >= g.start && currentSpineIndex <= g.end);
+      // [重要] page.groupInfo がある場合はそれを優先使用する（同一Spineから始まる複数グループの識別の目的）
+      const group = page.groupInfo || this._spineGroups?.find(g => page.spineIndex >= g.start && page.spineIndex <= g.end);
 
       if (group) {
         for (let si = group.start; si <= group.end; si++) {
-          const spineItem = this.spineItems?.[si];
-          const fallbackPage = pagination.pages.find((p) => p.spineIndex === si);
-          const htmlFragment = spineItem?.htmlString || fallbackPage?.htmlFragment || "";
+          // [重要] 分割されたSpineItem（章の途中に目次がある場合など）に対応するため、
+          // 先頭の SpineItem については Paginator が計算した htmlFragment を優先する。
+          const htmlFragment = (si === page.spineIndex)
+            ? (page.htmlFragment || "")
+            : (this.spineItems?.[si]?.htmlString || "");
+            
           if (!htmlFragment) continue;
           combinedHtml += `<div class="joined-spine-item" data-spine-index="${si}">${htmlFragment}</div>`;
         }

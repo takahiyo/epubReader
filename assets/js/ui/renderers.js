@@ -113,9 +113,13 @@ export function setMaterialIconLabel(button, iconName, labelText) {
     // PREMIUM_ICONS マッピング
     const iconMap = {
         [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
+        [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
+        [UI_ICONS.MENU_TOC]: PREMIUM_ICONS.TOC,
         [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
         [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
         [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
+        [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.HISTORY,
+        [UI_ICONS.MENU_WEB_NOVEL]: PREMIUM_ICONS.WEBNOVEL,
         [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
         [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
         [UI_ICONS.SPREAD_DOUBLE]: PREMIUM_ICONS.LIBRARY, // 代用
@@ -181,6 +185,9 @@ export function updateSearchButtonState() {
 
     const isEpubOpen = _state.currentBookId && _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
     elements.menuSearch.disabled = !isEpubOpen;
+    if (elements.menuOpenToc) {
+        elements.menuOpenToc.disabled = !isEpubOpen;
+    }
     if (elements.openToc) {
         elements.openToc.disabled = !isEpubOpen;
     }
@@ -198,6 +205,9 @@ export function updateFloatingUIButtons() {
     const isEpub = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.EPUB;
     const isBookOpen = _state.currentBookId !== null;
 
+    if (elements.menuOpenToc) {
+        elements.menuOpenToc.disabled = !isEpub;
+    }
     if (elements.openToc) {
         elements.openToc.disabled = !isEpub;
     }
@@ -311,7 +321,7 @@ export function updateThemeToggleIcon() {
     if (!elements.toggleTheme) return;
     const isDark = _state.theme === "dark";
     
-    // クロップドアイコンの生成（右側が月、左側が太陽と想定）
+    // クロップドアイコンの生成（右側が月、左側が太陽）
     const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
     
     elements.toggleTheme.replaceChildren(iconElement);
@@ -349,6 +359,7 @@ export function updateZoomButtonLabel() {
     if (!elements.toggleZoom || !_reader) return;
     const isZoomed = _reader.imageZoomed;
     
+    // クロップドアイコンの生成（右側がマイナス、左側がプラス）
     const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 32);
     
     elements.toggleZoom.replaceChildren(iconElement);

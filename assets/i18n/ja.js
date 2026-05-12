@@ -33,6 +33,7 @@ export const UI_STRINGS_JA = Object.freeze({
   menuSearch: "テキスト検索",
   menuBookmarks: "しおり",
   menuHistory: "履歴",
+  menuWebNovel: "なろう・Web小説",
   menuSettings: "設定",
 
   // 目次・しおり

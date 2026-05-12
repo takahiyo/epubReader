@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v16",
+  "cacheName": "bookreader-v10",
   "assets": [
     "./",
     "./index.html",
@@ -51,16 +51,6 @@
     "./assets/vendor/unrar.js",
     "./assets/vendor/unrar.wasm",
     "./assets/animations/loader_book.json",
-    "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js",
-    "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
-    "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
-    "https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js",
-    "https://esm.sh/node-unrar-js@2.0.2",
-    "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm",
-    "https://cdn.jsdelivr.net/npm/@zip.js/zip.js/dist/zip.min.js",
-    "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-    "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-    "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
     "./assets/constants/app-info.js",
     "./assets/constants/assets.js",
     "./assets/constants/errors.js",
@@ -88,6 +78,16 @@
     "./assets/js/ui/i18n-utils.js",
     "./assets/js/ui/overlay-manager.js",
     "./assets/js/ui/renderers.js",
-    "./assets/js/ui/web-novel-ui.js"
+    "./assets/js/ui/web-novel-ui.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js",
+    "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+    "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
+    "https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js",
+    "https://esm.sh/node-unrar-js@2.0.2",
+    "https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2/dist/js/unrar.wasm",
+    "https://cdn.jsdelivr.net/npm/@zip.js/zip.js/dist/zip.min.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+    "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
   ]
 }

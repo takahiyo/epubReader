@@ -186,8 +186,9 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
+  justify-content: flex-start !important;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
   border: none;
   background: transparent;
   color: var(--text);
@@ -195,7 +196,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s ease;
-  text-align: left;
+  text-align: left !important;
 }
 
 /* =====================================
@@ -244,9 +245,12 @@
 - SPLIT: GROUP
 ===================================== */
 .menu-icon {
-  font-size: 1.25rem;
-  width: 1.5rem;
-  text-align: center;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 /* =====================================

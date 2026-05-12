@@ -176,9 +176,17 @@ export function buildLibraryEntries(uiLanguage) {
         const localInfo = localBookId ? localLibrary[localBookId] : null;
         const cloudState = cloudStates[cloudBookId];
         const localProgress = localBookId ? _storage.getProgress(localBookId) : null;
-        const progressPercentage = cloudState?.progress ?? localProgress?.percentage ?? 0;
+        
+        // SSOT: ローカルに進捗がある（クラウドからマージ済みを含む）場合はそれを優先
+        // クラウドのみにしか状態がない（未ダウンロード）場合は cloudState.progress を使用
+        const progressPercentage = localProgress?.percentage ?? cloudState?.progress ?? 0;
+        
+        if (localBookId && (localProgress?.percentage !== cloudState?.progress)) {
+            debugLog(`[buildLibraryEntries] Progress mismatch for ${localBookId}: local=${localProgress?.percentage}%, cloud=${cloudState?.progress}%`);
+        }
+
         const lastTimestamp =
-            cloudState?.updatedAt ?? normalizedMeta.lastReadAt ?? normalizedMeta.updatedAt ?? localInfo?.lastOpened ?? 0;
+            localProgress?.updatedAt ?? cloudState?.updatedAt ?? normalizedMeta.lastReadAt ?? normalizedMeta.updatedAt ?? localInfo?.lastOpened ?? 0;
         entries.push({
             type: "cloud",
             cloudBookId,
@@ -287,26 +295,28 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
                 _storage.mergeCloudIndex(index, safeUpdatedAt);
                 didApplyIndex = true;
 
+                // [修正] 状態プル (pullUpdatedBookStates) の前に自動紐付けを実行
+                // これにより、プルされた状態が即座にローカルの progress にマージされる
+                const currentLibrary = _storage.data.library || {};
+                Object.keys(currentLibrary).forEach((localBookId) => {
+                    if (!_storage.getCloudBookId(localBookId)) {
+                        const book = currentLibrary[localBookId];
+                        if (book && book.contentHash) {
+                            const match = Object.values(index).find(
+                                (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+                            );
+                            if (match && match.cloudBookId) {
+                                debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId} (Pre-pull)`);
+                                _storage.setBookLink(localBookId, match.cloudBookId);
+                            }
+                        }
+                    }
+                });
+
                 if (isCloudSyncEnabled()) {
                     await pullUpdatedBookStates(index);
                 }
             }
-
-            const library = _storage.data.library;
-            Object.keys(library).forEach((localBookId) => {
-                if (!_storage.getCloudBookId(localBookId)) {
-                    const book = library[localBookId];
-                    if (book && book.contentHash) {
-                        const match = Object.values(index).find(
-                            (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
-                        );
-                        if (match && match.cloudBookId) {
-                            debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId}`);
-                            _storage.setBookLink(localBookId, match.cloudBookId);
-                        }
-                    }
-                }
-            });
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
             console.warn("クラウドの同期に失敗しました:", error);
