@@ -2388,14 +2388,24 @@ export class ReaderController {
     if (groups.length > 0) {
       const first = groups[0];
       if (first.start > 0 || first.startId !== null) {
+        // 巻頭グループの Spine インデックスを確定
+        const frontmatterEnd = first.startId ? first.start : first.start - 1;
+        const firstSpineHref = this.book?.spine?.get?.(0)?.href || "";
         groups.unshift({
           start: 0,
           startId: null,
-          end: first.startId ? first.start : first.start - 1,
+          end: frontmatterEnd,
           endId: first.startId || null,
           title: "表紙 / 巻頭",
           isFrontmatter: true  // Forward Merge 対象外フラグ
         });
+        // 目次メニューにも「表紙/巻頭」を追加する
+        if (Array.isArray(this.toc)) {
+          const alreadyHasFrontmatter = this.toc.some(t => t._isFrontmatter);
+          if (!alreadyHasFrontmatter) {
+            this.toc = [{ label: "表紙 / 巻頭", href: firstSpineHref, _isFrontmatter: true }, ...this.toc];
+          }
+        }
       }
     }
 
@@ -2436,7 +2446,20 @@ export class ReaderController {
           return true;
         };
 
-        if (!current.isFrontmatter && (isCurrentIllustrationOnly() || isCurrentEndsWithImage)) {
+        if (current.isFrontmatter) {
+          // 「表紙/巻頭」グループ：末尾の挿絵ページを次のグループに移す（重複收防）
+          let trimEnd = current.end;
+          while (trimEnd >= current.start && this.spineItems?.[trimEnd]?.isIllustrationOnly) {
+            trimEnd--;
+          }
+          if (trimEnd < current.end && trimEnd >= current.start) {
+            console.log(`[JoinMode] 巻頭の末尾挿絵 (spine ${trimEnd + 1}-${current.end}) を次グループに移動`);
+            next.start = trimEnd + 1;
+            current.end = trimEnd;
+          }
+          merged.push(current);
+          current = next;
+        } else if (!current.isFrontmatter && (isCurrentIllustrationOnly() || isCurrentEndsWithImage)) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
           current.endId = next.endId; // IDも継承
