@@ -5,6 +5,8 @@
  * CORSの回避ロジックや、共通パターンのHTMLパースなどを提供します。
  */
 
+import { WORKERS_CONFIG } from "../../constants/runtime-config.js";
+
 export class WebNovelProvider {
     constructor(options = {}) {
         // オプション（プロキシURLなど）
@@ -39,13 +41,25 @@ export class WebNovelProvider {
     async fetchHtml(url) {
         console.log(`[WebNovelProvider] Fetching HTML from: ${url}`);
 
-        // プロキシリスト（フォールバック用）
+        // プロキシリスト（自前Worker を最優先、パブリックプロキシはフォールバック）
+        // buildUrl: 各プロキシのURL組み立てロジック
         const proxies = [
-            'https://api.allorigins.win/raw?url=',
-            'https://api.codetabs.com/v1/proxy?quest=',
-            'https://thingproxy.freeboard.io/fetch/',
-            'https://corsproxy.io/?url=',
-            'https://proxy.cors.sh/'
+            {
+                name: 'BookReader Worker',
+                buildUrl: (targetUrl) => `${WORKERS_CONFIG.PROXY_ENDPOINT}?url=${encodeURIComponent(targetUrl)}`,
+            },
+            {
+                name: 'allorigins',
+                buildUrl: (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+            },
+            {
+                name: 'codetabs',
+                buildUrl: (targetUrl) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+            },
+            {
+                name: 'corsproxy.io',
+                buildUrl: (targetUrl) => `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`,
+            },
         ];
 
         try {
@@ -60,22 +74,22 @@ export class WebNovelProvider {
         }
 
         // 2. プロキシ経由で順次試行
-        for (const proxyBase of proxies) {
-            const proxyUrl = proxyBase + encodeURIComponent(url);
-            console.log(`[WebNovelProvider] Trying proxy: ${proxyUrl}`);
+        for (const proxy of proxies) {
+            const proxyUrl = proxy.buildUrl(url);
+            console.log(`[WebNovelProvider] Trying proxy [${proxy.name}]: ${proxyUrl}`);
             try {
                 const res = await fetch(proxyUrl);
                 if (res.ok) {
                     const text = await res.text();
                     // 403 Forbidden などのテキストが含まれていないか、またある程度の長さ（100文字以上）があるかをチェック
                     if (text.length > 100 && !text.includes('403 Forbidden') && !text.includes('Access denied')) {
-                        console.log(`[WebNovelProvider] Proxy fetch successful with: ${proxyBase}`);
+                        console.log(`[WebNovelProvider] Proxy fetch successful with: ${proxy.name}`);
                         return text;
                     }
-                    console.warn(`[WebNovelProvider] Proxy ${proxyBase} returned error or suspicious content (length: ${text.length}).`);
+                    console.warn(`[WebNovelProvider] Proxy ${proxy.name} returned error or suspicious content (length: ${text.length}).`);
                 }
             } catch (err) {
-                console.warn(`[WebNovelProvider] Proxy ${proxyBase} failed:`, err.message);
+                console.warn(`[WebNovelProvider] Proxy ${proxy.name} failed:`, err.message);
             }
         }
 

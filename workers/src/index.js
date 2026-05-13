@@ -149,6 +149,81 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
+    // ===================================================================
+    // 0. CORSプロキシ  GET /proxy?url=<target>
+    //    Web小説（なろう・カクヨム）のHTML取得に使用。
+    //    悪用防止のため、許可ドメインのみに限定する。
+    //    ※ 認証不要（未ログインユーザーでもWeb小説機能は利用可能とする）
+    // ===================================================================
+    if (path === '/proxy' && method === 'GET') {
+      const targetUrl = url.searchParams.get('url');
+
+      // パラメータ検証
+      if (!targetUrl) {
+        return new Response(
+          JSON.stringify({ error: 'url パラメータが必要です' }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
+      // URLの妥当性チェック
+      let parsedTarget;
+      try {
+        parsedTarget = new URL(targetUrl);
+      } catch (_) {
+        return new Response(
+          JSON.stringify({ error: '不正なURLです' }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
+      // 許可ドメインの制限（オープンプロキシ化を防止）
+      const ALLOWED_DOMAINS = [
+        'ncode.syosetu.com',   // 小説家になろう（目次・本文）
+        'kakuyomu.jp',         // カクヨム（検索・目次・本文）
+      ];
+      const isAllowed = ALLOWED_DOMAINS.some(
+        domain => parsedTarget.hostname === domain || parsedTarget.hostname.endsWith('.' + domain)
+      );
+      if (!isAllowed) {
+        return new Response(
+          JSON.stringify({ error: `許可されていないドメインです: ${parsedTarget.hostname}` }),
+          { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
+      // ターゲットへのfetch（User-Agent偽装でボット対策を回避）
+      try {
+        const proxyResponse = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ja,en;q=0.5',
+          },
+          redirect: 'follow',
+        });
+
+        // レスポンスヘッダーにCORSを付与して返す
+        const responseHeaders = new Headers(proxyResponse.headers);
+        responseHeaders.set('Access-Control-Allow-Origin', '*');
+        responseHeaders.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        // キャッシュ制御（短時間キャッシュを許可して負荷軽減）
+        responseHeaders.set('Cache-Control', 'public, max-age=300');
+
+        return new Response(proxyResponse.body, {
+          status: proxyResponse.status,
+          headers: responseHeaders,
+        });
+      } catch (proxyErr) {
+        console.error('[Worker] Proxy fetch error:', proxyErr.message);
+        return new Response(
+          JSON.stringify({ error: `プロキシ取得に失敗しました: ${proxyErr.message}` }),
+          { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+    }
+
     try {
       // POST body を1回だけ安全に読み取る
       let body = {};
