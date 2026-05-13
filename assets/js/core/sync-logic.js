@@ -729,15 +729,24 @@ export async function resolveSyncedProgress(
         const localPercentage = localProgress?.percentage ?? 0;
         const remotePercentage = remoteState?.progress ?? 0;
 
+        const locationsAreEqual = (loc1, loc2) => {
+            if (loc1 === loc2) return true;
+            if (typeof loc1 === 'object' && loc1 !== null && typeof loc2 === 'object' && loc2 !== null) {
+                return loc1.location === loc2.location && loc1.percentage === loc2.percentage;
+            }
+            return false;
+        };
+        const isSameLocation = locationsAreEqual(localLocation, remoteLocation);
+
         // 1. クラウド側のデータが新しい（または初回）が、中身が同じ（位置が同じ）場合は自動適用
-        if (remoteUpdatedAt >= localUpdatedAt && localLocation === remoteLocation) {
+        if (remoteUpdatedAt >= localUpdatedAt && isSameLocation) {
             applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
             return _storage.getProgress(localBookId);
         }
 
         // 2. ユーザー要望：別端末に「新しい日付」の進捗データがあり、かつ「位置が異なる」場合にのみ確認
         // 同一位置なら自動で最新化するのが自然（「どちらで開くか」の選択肢が同じになるため）
-        if (remoteUpdatedAt > localUpdatedAt && localLocation !== remoteLocation) {
+        if (remoteUpdatedAt > localUpdatedAt && !isSameLocation) {
             console.log(`[resolveSyncedProgress] Conflict detected: remote is newer (${remoteUpdatedAt}) but distance is different.`);
             const choice = await promptSyncResolution(
                 { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null },

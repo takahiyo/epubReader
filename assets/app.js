@@ -3826,7 +3826,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
 
     // ライブラリ/履歴用にスタブ情報を保存
     const stubFile = new File(["webnovel_stub"], `webnovel_${novelInfo.id}.txt`, { type: MIME_TYPES.WEB_NOVEL });
-    await saveFile(stubFile, currentBookId, {
+    await saveFile(currentBookId, stubFile, {
       title: novelInfo.title,
       author: novelInfo.author,
       type: BOOK_TYPES.WEB_NOVEL,

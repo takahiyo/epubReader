@@ -183,16 +183,16 @@ export function hideArchiveWarnings() {
 export function updateSearchButtonState() {
     if (!elements.menuSearch) return;
 
-    const isEpubOpen = _state.currentBookId && _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
-    elements.menuSearch.disabled = !isEpubOpen;
+    const isSupportedBook = _state.currentBookId && (_state.currentBookInfo?.type === BOOK_TYPES.EPUB || _state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL);
+    elements.menuSearch.disabled = !isSupportedBook;
     if (elements.menuOpenToc) {
-        elements.menuOpenToc.disabled = !isEpubOpen;
+        elements.menuOpenToc.disabled = !isSupportedBook;
     }
     if (elements.openToc) {
-        elements.openToc.disabled = !isEpubOpen;
+        elements.openToc.disabled = !isSupportedBook;
     }
     if (elements.floatSearch) {
-        elements.floatSearch.disabled = !isEpubOpen;
+        elements.floatSearch.disabled = !isSupportedBook;
     }
 }
 
@@ -203,13 +203,15 @@ export function updateFloatingUIButtons() {
     console.log('[Renderers.updateFloatingUIButtons] 呼び出し', { bookId: _state.currentBookId, bookType: _state.currentBookInfo?.type });
     const isImageBook = _state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR);
     const isEpub = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.EPUB;
+    const isWebNovel = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.WEB_NOVEL;
+    const isSupportedBook = isEpub || isWebNovel;
     const isBookOpen = _state.currentBookId !== null;
 
     if (elements.menuOpenToc) {
-        elements.menuOpenToc.disabled = !isEpub;
+        elements.menuOpenToc.disabled = !isSupportedBook;
     }
     if (elements.openToc) {
-        elements.openToc.disabled = !isEpub;
+        elements.openToc.disabled = !isSupportedBook;
     }
 
     if (elements.toggleWritingMode) {
@@ -1095,7 +1097,7 @@ export function renderTocEntries(items, container, depth) {
             try {
                 if (_actions.closeAllMenus) _actions.closeAllMenus();
                 if (_state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL && item._episodeIndex !== undefined) {
-                    if (_reader) _reader.goTo({ location: item._episodeIndex, percentage: 0 });
+                    if (_reader) _reader.goTo({ location: { location: item._episodeIndex, percentage: 0 } });
                 } else if (_reader?.usingPaginator && item.href) {
                     _reader.navigateToHref(item.href);
                 }

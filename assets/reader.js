@@ -267,7 +267,9 @@ export class ReaderController {
       containerId: webNovelViewerId || DOM_IDS.WEB_NOVEL_VIEWER,
       onProgress: (info) => {
         if (this.onProgress) this.onProgress(info);
-      }
+      },
+      onNextEpisode: () => this.next(),
+      onPrevEpisode: () => this.prev()
     });
 
     // [New] Zoom State
@@ -804,6 +806,15 @@ export class ReaderController {
 
       await this.webNovelViewer.renderEpisode(novelInfo, episodes, episodeIndex, provider, percentage);
 
+      const generatedToc = episodes.map((ep, index) => ({ 
+        label: ep.title, 
+        href: ep.url, 
+        _episodeIndex: index,
+        // _episodeIndex を利用できない場合を考慮し cfi も定義
+        cfi: `wn:${index}:0`
+      }));
+      this.toc = generatedToc;
+
       // Web小説用のメタデータを組み立てて onReady に渡す
       // （app.js 側の onReady ハンドラーが data.metadata を参照するため必須）
       this.onReady?.({
@@ -811,7 +822,7 @@ export class ReaderController {
           title: novelInfo.title,
           creator: novelInfo.author || '',
         },
-        toc: episodes.map((ep, index) => ({ label: ep.title, href: ep.url, _episodeIndex: index })),
+        toc: generatedToc,
       });
     } catch (e) {
       console.error("Failed to open web novel:", e);
