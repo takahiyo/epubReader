@@ -307,6 +307,7 @@ const getPremiumIconCropped = (path, isRight, size = 32) => {
 
 function getCurrentTotalPages() {
   if (!reader) return 0;
+  if (reader.type === BOOK_TYPES.WEB_NOVEL) return reader.webNovelViewer?.episodes?.length || 0;
   return reader.type === BOOK_TYPES.EPUB
     ? (reader.pagination?.pages?.length || 0)
     : (reader.imagePages?.length || 0);
@@ -314,6 +315,7 @@ function getCurrentTotalPages() {
 
 function getCurrentPageIndex() {
   if (!reader) return 0;
+  if (reader.type === BOOK_TYPES.WEB_NOVEL) return reader.webNovelViewer?.currentEpisodeIndex || 0;
   const rawIndex = reader.type === BOOK_TYPES.EPUB ? reader.currentPageIndex : reader.imageIndex;
   return normalizePageIndex(rawIndex);
 }
@@ -364,6 +366,12 @@ function saveCurrentProgress(options = {}) {
       writingMode,
       pageDirection,
       epubViewMode,
+      updatedAt: Date.now()
+    };
+  } else if (reader.type === BOOK_TYPES.WEB_NOVEL) {
+    progressData = {
+      percentage: progressSnapshot.percentage,
+      location: progressSnapshot.location, // { location: epIndex, percentage: scrollRatio }
       updatedAt: Date.now()
     };
   } else {
@@ -1568,8 +1576,51 @@ async function openFromLibrary(bookId, options = {}) {
     }
 
     renderers.hideCloudEmptyState();
-    // isImageBook: zip または rar の場合
-    const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
+
+    if (info.type === BOOK_TYPES.WEB_NOVEL) {
+      // ========================================
+      // Web小説の場合
+      // ========================================
+      if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
+      if (elements.imageViewer) elements.imageViewer.classList.add(UI_CLASSES.HIDDEN);
+      if (elements.viewer) {
+        elements.viewer.classList.remove(UI_CLASSES.HIDDEN);
+        elements.viewer.classList.add(UI_CLASSES.VISIBLE);
+      }
+      if (elements.fullscreenReader) {
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL);
+        elements.fullscreenReader.classList.remove(UI_CLASSES.EPUB_SCROLL_MODE);
+        elements.fullscreenReader.classList.remove('show-mode-indicator');
+      }
+
+      showLoading();
+      await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
+
+      try {
+        const { NarouProvider, KakuyomuProvider } = await import('./js/core/web-novel-provider.js');
+        const provider = info.provider === 'カクヨム' || info.provider === 'kakuyomu' ? new KakuyomuProvider() : new NarouProvider();
+        const tocInfo = await provider.getTableOfContents(info.novelUrl || info.url, info);
+        
+        let targetEpisodeIndex = 0;
+        let startPercentage = 0;
+        if (startFromBookmark && typeof startFromBookmark.location === 'number') {
+           targetEpisodeIndex = startFromBookmark.location;
+           startPercentage = startFromBookmark.percentage || 0;
+        } else if (typeof start === 'number') {
+           targetEpisodeIndex = start;
+           startPercentage = startProgress || 0;
+        }
+
+        // app.loadWebNovel に丸投げせず、自前で reader にセット（openFromLibrary はすでに currentBookId などを設定済みのため）
+        await reader.openWebNovel(info, tocInfo.episodes, provider, targetEpisodeIndex, startPercentage);
+        renderers.updateBookInfo(info.title, info.author || "");
+      } catch (err) {
+        console.error("Failed to load web novel:", err);
+        throw new Error("Web小説の復元に失敗しました。");
+      }
+    } else {
+      // isImageBook: zip または rar の場合
+      const isImageBook = info.type === BOOK_TYPES.ZIP || info.type === BOOK_TYPES.RAR;
     if (!isImageBook) {
       // ... (既存のUI制御コード)
       if (elements.emptyState) elements.emptyState.classList.add(UI_CLASSES.HIDDEN);
@@ -1608,6 +1659,7 @@ async function openFromLibrary(bookId, options = {}) {
       const streamingNeeded = (info.type === BOOK_TYPES.ZIP) && fileHandler.shouldUseStreaming(file);
       await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, { streaming: streamingNeeded });
     }
+    } // End of else (not WEB_NOVEL)
 
     // [修正] オープン処理の後に状態を再適用
     if (normalizedProgress) {

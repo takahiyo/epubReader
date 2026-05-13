@@ -180,6 +180,7 @@ export default {
       // 許可ドメインの制限（オープンプロキシ化を防止）
       const ALLOWED_DOMAINS = [
         'ncode.syosetu.com',   // 小説家になろう（目次・本文）
+        'yomou.syosetu.com',   // 小説家になろう（検索）
         'kakuyomu.jp',         // カクヨム（検索・目次・本文）
       ];
       const isAllowed = ALLOWED_DOMAINS.some(

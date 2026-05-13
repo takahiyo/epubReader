@@ -209,13 +209,87 @@ export class NarouProvider extends WebNovelProvider {
     }
 
     /**
-     * 目次とメタ情報を取得
+     * 目次HTMLからエピソードリンクを抽出する（内部ヘルパー）
+     * @param {Document} doc - パース済みHTML Document
+     * @param {string} ncode - 作品コード（小文字、例: "n7787eq"）
+     * @param {Array} existingEpisodes - 既に抽出済みのエピソードリスト（重複排除用）
+     * @returns {Array} 新規抽出されたエピソードの配列
+     */
+    _extractEpisodesFromDoc(doc, ncode, existingEpisodes = []) {
+        const newEpisodes = [];
+        const allLinks = doc.querySelectorAll('a');
+
+        allLinks.forEach(linkEl => {
+            const href = linkEl.getAttribute('href');
+            if (!href || href.includes('javascript:')) return;
+
+            let epId = null;
+            if (ncode) {
+                const prefix = `/${ncode}/`;
+                const lowerHref = href.toLowerCase();
+                const idx = lowerHref.indexOf(prefix);
+                if (idx !== -1) {
+                    const remainder = lowerHref.substring(idx + prefix.length);
+                    const numMatch = remainder.match(/^(\d+)(?:[/?#]|$)/);
+                    if (numMatch) {
+                        epId = `${ncode}-${numMatch[1]}`;
+                    }
+                }
+            } else {
+                const epMatch = href.match(/\/([^/]+)\/(\d+)(?:[/?#]|$)/);
+                if (epMatch && epMatch[1].toLowerCase().startsWith('n')) {
+                    epId = `${epMatch[1].toLowerCase()}-${epMatch[2]}`;
+                }
+            }
+
+            if (epId) {
+                const epTitle = linkEl.textContent.trim();
+                const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
+
+                // 重複排除と空タイトル・ページネーションリンク除外
+                const allExisting = [...existingEpisodes, ...newEpisodes];
+                if (epTitle && epTitle !== '次へ' && epTitle !== '最後へ' && epTitle !== '最初へ' && epTitle !== '前へ' && !allExisting.find(e => e.url === fullUrl)) {
+                    newEpisodes.push({
+                        id: epId,
+                        title: epTitle,
+                        url: fullUrl
+                    });
+                }
+            }
+        });
+
+        return newEpisodes;
+    }
+
+    /**
+     * 目次HTMLからページネーションの最大ページ番号を検出する（内部ヘルパー）
+     * @param {Document} doc - パース済みHTML Document
+     * @returns {number} 最大ページ番号（ページネーションがない場合は1）
+     */
+    _detectMaxTocPage(doc) {
+        let maxPage = 1;
+        // ページネーションリンクからページ番号を抽出（?p=2, ?p=3 ...）
+        const pagerLinks = doc.querySelectorAll('a[href*="?p="]');
+        pagerLinks.forEach(link => {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/[?&]p=(\d+)/);
+            if (match) {
+                const pageNum = parseInt(match[1], 10);
+                if (pageNum > maxPage) maxPage = pageNum;
+            }
+        });
+        return maxPage;
+    }
+
+    /**
+     * 目次とメタ情報を取得（ページネーション対応・全ページ取得）
      * @param {string} novelUrl 
      * @param {object} novelInfo 検索結果からの追加情報（タイトル、作者などのフォールバック用）
      */
     async getTableOfContents(novelUrl, novelInfo = {}) {
         console.log(`[NarouProvider] Getting TOC for: ${novelUrl}`);
         try {
+            // 1ページ目を取得
             const html = await this.fetchHtml(novelUrl);
             console.log(`[NarouProvider] HTML preview:`, html.substring(0, 300).replace(/\n/g, ' '));
             const doc = this.parseHtml(html);
@@ -227,53 +301,34 @@ export class NarouProvider extends WebNovelProvider {
             const author = authorEl ? authorEl.textContent.replace('作者：', '').trim() : (novelInfo.author || 'Unknown Author');
             console.log(`[NarouProvider] Parsed TOC title: "${title}", author: "${author}"`);
 
-            const episodes = [];
             const ncodeMatch = novelUrl.match(/ncode\.syosetu\.com\/([^/]+)/);
             const ncode = ncodeMatch ? ncodeMatch[1].toLowerCase() : null;
 
-            const allLinks = doc.querySelectorAll('a');
-            console.log(`[NarouProvider] Total links found in HTML: ${allLinks.length}`);
-            
-            allLinks.forEach(linkEl => {
-                const href = linkEl.getAttribute('href');
-                if (!href || href.includes('javascript:')) return;
+            // 1ページ目からエピソードを抽出
+            const episodes = this._extractEpisodesFromDoc(doc, ncode);
+            console.log(`[NarouProvider] Page 1: found ${episodes.length} episodes.`);
 
-                let epId = null;
-                // ncodeが判明している場合は厳密にチェック。
-                if (ncode) {
-                    const prefix = `/${ncode}/`;
-                    // URLが "/n7787eq/" を含むかチェック
-                    const lowerHref = href.toLowerCase();
-                    const idx = lowerHref.indexOf(prefix);
-                    if (idx !== -1) {
-                        // "/n7787eq/1/" -> "1/" の部分を取り出す
-                        const remainder = lowerHref.substring(idx + prefix.length);
-                        const numMatch = remainder.match(/^(\d+)(?:[/?#]|$)/);
-                        if (numMatch) {
-                            epId = `${ncode}-${numMatch[1]}`;
-                        }
-                    }
-                } else {
-                    const epMatch = href.match(/\/([^/]+)\/(\d+)(?:[/?#]|$)/);
-                    if (epMatch && epMatch[1].toLowerCase().startsWith('n')) {
-                        epId = `${epMatch[1].toLowerCase()}-${epMatch[2]}`;
+            // ページネーション検出・全ページ取得
+            const maxPage = this._detectMaxTocPage(doc);
+            if (maxPage > 1) {
+                console.log(`[NarouProvider] TOC has ${maxPage} pages. Fetching remaining pages...`);
+                // ベースURL（クエリパラメータを除去）
+                const baseUrl = novelUrl.replace(/[?#].*$/, '').replace(/\/$/, '');
+                for (let page = 2; page <= maxPage; page++) {
+                    try {
+                        const pageUrl = `${baseUrl}/?p=${page}`;
+                        console.log(`[NarouProvider] Fetching TOC page ${page}/${maxPage}: ${pageUrl}`);
+                        const pageHtml = await this.fetchHtml(pageUrl);
+                        const pageDoc = this.parseHtml(pageHtml);
+                        const pageEpisodes = this._extractEpisodesFromDoc(pageDoc, ncode, episodes);
+                        episodes.push(...pageEpisodes);
+                        console.log(`[NarouProvider] Page ${page}: found ${pageEpisodes.length} new episodes (total: ${episodes.length}).`);
+                    } catch (pageErr) {
+                        console.warn(`[NarouProvider] Failed to fetch TOC page ${page}:`, pageErr.message);
+                        // ページ取得失敗でも、取得済みの分は返す
                     }
                 }
-
-                if (epId) {
-                    const epTitle = linkEl.textContent.trim();
-                    const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
-
-                    // 重複排除と空タイトル除外（"次へ"等のページネーションリンクはepIdがないためここで弾かれるはずだが念のため）
-                    if (epTitle && epTitle !== '次へ' && epTitle !== '最後へ' && !episodes.find(e => e.url === fullUrl)) {
-                        episodes.push({
-                            id: epId,
-                            title: epTitle,
-                            url: fullUrl
-                        });
-                    }
-                }
-            });
+            }
 
             // 短編（目次がなく直接本文のページ）の対応
             if (episodes.length === 0) {
@@ -288,7 +343,7 @@ export class NarouProvider extends WebNovelProvider {
                 }
             }
 
-            console.log(`[NarouProvider] Found ${episodes.length} episodes.`);
+            console.log(`[NarouProvider] Found ${episodes.length} episodes total.`);
             return { title, author, episodes };
         } catch (error) {
             console.error(`[NarouProvider] Error getting TOC for ${novelUrl}:`, error);

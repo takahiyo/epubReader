@@ -192,14 +192,16 @@ export class WebNovelViewer {
     }
 
     reportProgress() {
-        // 読書進捗（現在読んでいる話数のインデックスを location の代わりに使い、
-        // エピソード内のスクロール位置を percentage として使用する想定）
+        // 読書進捗
         if (this.onProgress) {
+            const scrollPercent = this.getScrollPercentage();
+            const overallPercent = this.episodes.length > 0 ? (this.currentEpisodeIndex / this.episodes.length) * 100 : 0;
             this.onProgress({
-                location: this.currentEpisodeIndex, // WebNovelではエピソードIndexをlocationとする
-                percentage: this.getScrollPercentage(),
-                episodeIndex: this.currentEpisodeIndex,
-                totalEpisodes: this.episodes.length
+                location: {
+                    location: this.currentEpisodeIndex,
+                    percentage: scrollPercent
+                },
+                percentage: overallPercent
             });
         }
     }
