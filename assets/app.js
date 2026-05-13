@@ -3370,8 +3370,9 @@ function setupEvents() {
       return;
     }
 
-    // EPUBのスクロールモード時はネイティブのスクロールを優先するため、ページめくりはしない
-    if (epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB) {
+    // EPUBのスクロールモード時やWebNovelはネイティブのスクロールを優先するため、ページめくりはしない
+    if ((epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB) ||
+        (reader && reader.type === BOOK_TYPES.WEB_NOVEL)) {
       return;
     }
 
@@ -3821,7 +3822,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
 
   try {
     await reader.openWebNovel(novelInfo, episodes, provider, episodeIndex);
-    renderers.updateBookInfo(novelInfo.title, novelInfo.author || "");
+    document.title = `${novelInfo.title} - ${APP_INFO.NAME}`;
 
     // ライブラリ/履歴用にスタブ情報を保存
     const stubFile = new File(["webnovel_stub"], `webnovel_${novelInfo.id}.txt`, { type: MIME_TYPES.WEB_NOVEL });

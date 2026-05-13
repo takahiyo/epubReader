@@ -1036,9 +1036,9 @@ export function renderToc(tocItems = []) {
 
     if (elements.tocList) elements.tocList.innerHTML = "";
     elements.tocModalList.innerHTML = "";
-    const isEpub = _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
+    const isEpubOrWebNovel = _state.currentBookInfo?.type === BOOK_TYPES.EPUB || _state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL;
 
-    if (!isEpub || tocArray.length === 0) {
+    if (!isEpubOrWebNovel || tocArray.length === 0) {
         elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
         return;
     }
@@ -1094,7 +1094,9 @@ export function renderTocEntries(items, container, depth) {
         button.addEventListener("click", async () => {
             try {
                 if (_actions.closeAllMenus) _actions.closeAllMenus();
-                if (_reader?.usingPaginator && item.href) {
+                if (_state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL && item._episodeIndex !== undefined) {
+                    if (_reader) _reader.goTo({ location: item._episodeIndex, percentage: 0 });
+                } else if (_reader?.usingPaginator && item.href) {
                     _reader.navigateToHref(item.href);
                 }
             } catch (error) {

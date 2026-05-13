@@ -127,9 +127,10 @@ export class WebNovelProvider {
     /**
      * エピソードURLから本文を取得する（サブクラスで実装）
      * @param {string} episodeUrl 
+     * @param {string} fallbackTitle 目次から取得したタイトル
      * @returns {Promise<{title: string, htmlContent: string}>}
      */
-    async getEpisodeContent(episodeUrl) {
+    async getEpisodeContent(episodeUrl, fallbackTitle = '') {
         throw new Error('getEpisodeContent() must be implemented by subclass');
     }
 }
@@ -351,14 +352,14 @@ export class NarouProvider extends WebNovelProvider {
         }
     }
 
-    async getEpisodeContent(episodeUrl) {
+    async getEpisodeContent(episodeUrl, fallbackTitle = '') {
         console.log(`[NarouProvider] Getting content for episode: ${episodeUrl}`);
         try {
             const html = await this.fetchHtml(episodeUrl);
             const doc = this.parseHtml(html);
 
             const subtitleEl = doc.querySelector('.novel_subtitle') || doc.querySelector('.p-novel__subtitle');
-            const title = subtitleEl ? subtitleEl.textContent.trim() : 'Episode';
+            let title = subtitleEl ? subtitleEl.textContent.trim() : fallbackTitle;
 
             // 本文コンテナ
             const contentEl = doc.querySelector('#novel_honbun') || doc.querySelector('.js-novel-text');
@@ -370,8 +371,14 @@ export class NarouProvider extends WebNovelProvider {
                 scripts.forEach(s => s.remove());
                 // <br>等は維持したいのでinnerHTMLを使用
                 htmlContent = contentEl.innerHTML;
+                
+                if (!title) {
+                    const text = contentEl.textContent.trim();
+                    title = text ? (text.length > 30 ? text.substring(0, 30) + '...' : text) : 'Episode';
+                }
                 console.log(`[NarouProvider] Parsed episode title: "${title}", length: ${htmlContent.length} chars.`);
             } else {
+                if (!title) title = 'Episode';
                 console.warn(`[NarouProvider] Could not find content element for episode: ${episodeUrl}`);
             }
 
@@ -505,14 +512,14 @@ export class KakuyomuProvider extends WebNovelProvider {
         }
     }
 
-    async getEpisodeContent(episodeUrl) {
+    async getEpisodeContent(episodeUrl, fallbackTitle = '') {
         console.log(`[KakuyomuProvider] Getting content for episode: ${episodeUrl}`);
         try {
             const html = await this.fetchHtml(episodeUrl);
             const doc = this.parseHtml(html);
 
             const titleEl = doc.querySelector('.widget-episodeTitle');
-            const title = titleEl ? titleEl.textContent.trim() : 'Episode';
+            let title = titleEl ? titleEl.textContent.trim() : fallbackTitle;
 
             // 本文コンテナ
             const contentEl = doc.querySelector('.widget-episodeBody');
@@ -523,8 +530,14 @@ export class KakuyomuProvider extends WebNovelProvider {
                 const scripts = contentEl.querySelectorAll('script');
                 scripts.forEach(s => s.remove());
                 htmlContent = contentEl.innerHTML;
+
+                if (!title) {
+                    const text = contentEl.textContent.trim();
+                    title = text ? (text.length > 30 ? text.substring(0, 30) + '...' : text) : 'Episode';
+                }
                 console.log(`[KakuyomuProvider] Parsed episode title: "${title}", length: ${htmlContent.length} chars.`);
             } else {
+                if (!title) title = 'Episode';
                 console.warn(`[KakuyomuProvider] Could not find content element for episode: ${episodeUrl}`);
             }
 

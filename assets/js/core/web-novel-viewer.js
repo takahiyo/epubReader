@@ -53,7 +53,7 @@ export class WebNovelViewer {
         if (!ep) throw new Error('Episode not found');
 
         // ローディング表示などのUI処理は呼び出し元で行う前提
-        const content = await this.provider.getEpisodeContent(ep.url);
+        const content = await this.provider.getEpisodeContent(ep.url, ep.title);
 
         // コンテナをクリア
         this.container.innerHTML = '';

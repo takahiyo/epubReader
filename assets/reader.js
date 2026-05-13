@@ -811,7 +811,7 @@ export class ReaderController {
           title: novelInfo.title,
           creator: novelInfo.author || '',
         },
-        toc: episodes.map(ep => ({ label: ep.title, href: ep.url })),
+        toc: episodes.map((ep, index) => ({ label: ep.title, href: ep.url, _episodeIndex: index })),
       });
     } catch (e) {
       console.error("Failed to open web novel:", e);
