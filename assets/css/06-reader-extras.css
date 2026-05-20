@@ -74,7 +74,7 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  cursor: zoom-in;
+  cursor: default;
   transform-origin: 0 0;
   will-change: transform;
   touch-action: none;
@@ -131,7 +131,7 @@
   /* 必要に応じて縮小 */
   margin: 0 2px;
   /* 画像間の隙間 */
-  cursor: zoom-in;
+  cursor: default;
 }
 
 /* =====================================
