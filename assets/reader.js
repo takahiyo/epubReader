@@ -3670,7 +3670,6 @@ export class ReaderController {
     // 単ページでも画像書庫ならクリック無効化
     if (this.type !== BOOK_TYPES.EPUB) {
       this.imageElement.onclick = null;
-      this.imageElement.style.pointerEvents = "none";
     }
 
     // 見開きコンテナ削除
@@ -3693,6 +3692,8 @@ export class ReaderController {
     if (!isWideSpread) {
       this.updateProgress(index, false);
     }
+
+    this.bindImageZoomHandlers();
   }
 
   updateProgress(targetIndex, isWideSpread) {
@@ -3724,11 +3725,6 @@ export class ReaderController {
       this.imageViewer.appendChild(container);
     }
 
-    // 画像書庫ならクリック無効
-    if (this.type !== BOOK_TYPES.EPUB) {
-      container.style.pointerEvents = "none";
-    }
-
     this.syncZoomedClass();
 
     // 描画開始前に中身を空にする（プログレスバー移動時の残像防止）
@@ -3753,7 +3749,6 @@ export class ReaderController {
       img.onerror = () => this.showImageLoading(false);
       img.src = page1Src;
       img.className = 'spread-page wide'; //.wide -> max-width: 100%
-      if (this.type !== BOOK_TYPES.EPUB) img.style.pointerEvents = "none";
       container.appendChild(img);
 
       this.currentSpreadStep = 1;
@@ -3804,12 +3799,10 @@ export class ReaderController {
 
           leftImg.src = leftImgSrc;
           leftImg.className = 'spread-page spread-left';
-          if (this.type !== BOOK_TYPES.EPUB) leftImg.style.pointerEvents = "none";
           container.appendChild(leftImg);
 
           rightImg.src = rightImgSrc;
           rightImg.className = 'spread-page spread-right';
-          if (this.type !== BOOK_TYPES.EPUB) rightImg.style.pointerEvents = "none";
           container.appendChild(rightImg);
 
       } else {
@@ -3821,7 +3814,6 @@ export class ReaderController {
         img1.onerror = () => this.showImageLoading(false);
         img1.src = page1Src;
         img1.className = 'spread-page single-view';
-        if (this.type !== BOOK_TYPES.EPUB) img1.style.pointerEvents = "none";
         container.appendChild(img1);
 
         this.currentSpreadStep = 1;
@@ -3838,6 +3830,7 @@ export class ReaderController {
 
     this.updateProgress(targetIndex, isWide);
     this.updateTransform();
+    this.bindImageZoomHandlers();
   }
 
   setImageViewMode(mode) {
@@ -4637,9 +4630,12 @@ export class ReaderController {
 
 
   bindImageZoomHandlers() {
-    if (!this.imageElement || this.imageZoomBound) return;
-    this.imageZoomBound = true;
-    this.bindElementZoomHandlers(this.imageElement, () => this.imagePages[this.imageIndex]);
+    if (!this.imageViewer) return;
+    this.imageViewer.querySelectorAll("img").forEach((img) => {
+      if (img.dataset.zoomBound === "true") return;
+      img.style.pointerEvents = "auto";
+      this.bindElementZoomHandlers(img, () => img.src);
+    });
   }
 
   bindElementZoomHandlers(element, getSrc) {
