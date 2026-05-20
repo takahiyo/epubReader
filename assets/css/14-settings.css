@@ -15,19 +15,60 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* =====================================
 [REF]
-- HTML: #settingsModal .settings-section h4
-- JS: assets/js/ui/renderers.js（見出し更新）
-- STATE: なし
+- HTML: #settingsModal .settings-section-title
+- JS: assets/app.js（トグル処理）
+- STATE: .collapsed
 - LAYER: なし
 - SPLIT: GROUP
 ===================================== */
-.settings-section h4 {
+.settings-section-title {
   font-size: 1.125rem;
-  margin-bottom: 1rem;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.settings-section-title::after {
+  content: "▲";
+  font-size: 0.75rem;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--muted);
+}
+
+.settings-section.collapsed .settings-section-title::after {
+  transform: rotate(180deg);
+}
+
+/* =====================================
+[REF]
+- HTML: #settingsModal .settings-section-content
+- JS: なし
+- STATE: .collapsed
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.settings-section-content {
+  margin-top: 1.25rem;
+  max-height: 1000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin-top 0.3s ease;
+}
+
+.settings-section.collapsed .settings-section-content {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  pointer-events: none;
 }
 
 /* =====================================

@@ -264,6 +264,6 @@ export const UI_STRINGS_EN = Object.freeze({
   stubHashMismatch: "The selected file does not match the registered file.\nPlease select the correct file.",
   cancel: "Cancel",
   selectFile: "Select File",
-  streamingNotice: "Loading in limited mode (streaming) due to insufficient memory. Some features may not be available.",
+  streamingNotice: "Your device is running low on available memory. To continue reading safely, we are using a low-memory streaming mode. You may experience some delays when turning pages.",
   streamingCdnFailed: "Failed to load streaming library. Retrying with standard mode.",
 });

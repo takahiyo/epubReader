@@ -1748,9 +1748,6 @@ async function applyReadingState(progress) {
   }
 
   // 3. テーマ・フォント等の復元
-  if (progress.theme && progress.theme !== theme) {
-    applyTheme(progress.theme);
-  }
   if (Number.isFinite(progress.fontSize) && progress.fontSize !== fontSize) {
     applyFontSize(progress.fontSize);
   }
@@ -1776,7 +1773,6 @@ function handleProgress(progress) {
       percentage: roundedPercentage,
       writingMode,
       fontSize,
-      theme,
       uiLanguage,
       pageDirection,
       epubViewMode,
@@ -2154,10 +2150,7 @@ function applyTheme(newTheme) {
   document.body.dataset.theme = theme;
   reader.applyTheme(theme);
   storage.setSettings({ theme });
-  persistReadingState({ theme });
   renderers.updateThemeToggleIcon();
-  saveCurrentProgress({ force: true });
-  requestCloudSyncIfNeeded({ force: true });
 }
 
 // 移行済み: updateThemeToggleIcon
@@ -2870,6 +2863,11 @@ function showHistory() {
 }
 
 function showSettings() {
+  // 設定画面を開くときは、すべてのセクションを折りたたんだ状態にする
+  elements.settingsModal?.querySelectorAll('.settings-section').forEach(section => {
+    section.classList.add('collapsed');
+  });
+
   openExclusiveMenu(elements.settingsModal);
   const currentSettings = storage.getSettings();
 
@@ -3340,6 +3338,17 @@ function setupEvents() {
   });
 
   // (※ epubScrollCenterClick のリスナーは二重トグルの原因となり削除済)
+
+  // 設定セクションのアコーディオン（ロールダウン）制御
+  elements.settingsModal?.querySelectorAll('.settings-section-title').forEach(title => {
+    title.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const section = title.closest('.settings-section');
+      if (section) {
+        section.classList.toggle('collapsed');
+      }
+    });
+  });
 
   // しおりメニューのバックドロップクリック
   elements.bookmarkMenu?.addEventListener('click', (e) => {
