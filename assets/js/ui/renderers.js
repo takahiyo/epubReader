@@ -1028,6 +1028,19 @@ export function renderBookmarkMarkers() {
 }
 
 /**
+ * ラベルが不要な数字のみの項目であるかを判定する
+ * @param {string} label 
+ * @returns {boolean}
+ */
+function isNumericLabel(label) {
+    const trimmed = label.trim();
+    if (!trimmed) return false;
+    // 半角・全角数字、漢数字、ローマ数字、丸数字、括弧付き数字等
+    const pattern = /^[0-9０-９一二三四五六七八九十百千万〇零IVXLCDMivxlcdm\u2160-\u217f\u2460-\u2473\u2474-\u247d\u3220-\u3229\s]+$/;
+    return pattern.test(trimmed);
+}
+
+/**
  * 目次の描画
  */
 export function renderToc(tocItems = []) {
@@ -1076,14 +1089,41 @@ export function renderToc(tocItems = []) {
         elements.tocModalList.appendChild(toggleHeader);
     }
 
-    renderTocEntries(tocArray, elements.tocModalList, 0);
+    // 【追加】事前にテキストを含む見出しが混在しているかをチェックする
+    let hasNonNumericLabel = false;
+    const checkLabels = (items) => {
+        if (!Array.isArray(items)) return;
+        for (const item of items) {
+            const label = (item.label ?? item.title ?? "").toString().trim();
+            if (label && !isNumericLabel(label)) {
+                hasNonNumericLabel = true;
+                return;
+            }
+            if (item.subitems?.length) {
+                checkLabels(item.subitems);
+                if (hasNonNumericLabel) return;
+            }
+        }
+    };
+    checkLabels(tocArray);
+
+    renderTocEntries(tocArray, elements.tocModalList, 0, hasNonNumericLabel);
 }
 
-export function renderTocEntries(items, container, depth) {
+export function renderTocEntries(items, container, depth, filterNumerics = false) {
     if (!Array.isArray(items)) return;
 
     items.forEach((item) => {
         const label = (item.label ?? item.title ?? t("tocUntitled")).toString().trim() || t("tocUntitled");
+
+        // 【追加】テキストと混在しており、かつ数字のみの項目の場合はスキップ
+        if (filterNumerics && isNumericLabel(label)) {
+            if (item.subitems?.length) {
+                renderTocEntries(item.subitems, container, depth, filterNumerics);
+            }
+            return;
+        }
+
         const li = document.createElement("li");
         li.className = "toc-item";
 
@@ -1110,7 +1150,7 @@ export function renderTocEntries(items, container, depth) {
         container.appendChild(li);
 
         if (item.subitems?.length) {
-            renderTocEntries(item.subitems, container, depth + 1);
+            renderTocEntries(item.subitems, container, depth + 1, filterNumerics);
         }
     });
 }
