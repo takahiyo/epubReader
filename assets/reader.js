@@ -4836,8 +4836,8 @@ export class ReaderController {
   // ========================================
 
   getActiveViewer() {
-    // 画像モードなら imageViewer
-    if (this.isImageBook()) {
+    // 画像モード、またはEPUBの一時画像ズーム中なら imageViewer
+    if (this.isImageBook() || this.isEpubTemporaryZoom) {
       return this.imageViewer;
     }
     // EPUBなら viewer
@@ -4845,7 +4845,8 @@ export class ReaderController {
   }
 
   getZoomTarget() {
-    if (this.isImageBook()) {
+    // 画像モード、またはEPUBの一時画像ズーム中なら
+    if (this.isImageBook() || this.isEpubTemporaryZoom) {
       const spreadContainer = this.imageViewer?.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
       if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD && spreadContainer) {
         return spreadContainer;
@@ -5026,6 +5027,33 @@ export class ReaderController {
 
   bindZoomEvents() {
     if (typeof window === 'undefined') return;
+
+    // パジネーションモード時のclick-overlayの下にある画像に対する長押しズームのフォワーディング
+    const clickOverlay = document.querySelector('.click-overlay');
+    if (clickOverlay) {
+      clickOverlay.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode === "scroll") return;
+
+        // click-overlayを一時的に無視して真下の要素を特定する
+        const originalPointerEvents = clickOverlay.style.pointerEvents;
+        clickOverlay.style.pointerEvents = 'none';
+        
+        try {
+          const elementUnder = document.elementFromPoint(e.clientX, e.clientY);
+          if (elementUnder && (elementUnder.tagName === 'IMG' || elementUnder.tagName === 'image')) {
+            // 画像要素が見つかったら、pointerdown イベントを画像要素に再送する
+            const clonedEvent = new PointerEvent('pointerdown', e);
+            elementUnder.dispatchEvent(clonedEvent);
+            e.preventDefault();
+          }
+        } catch (err) {
+          console.error("Error in click-overlay forwarding:", err);
+        } finally {
+          clickOverlay.style.pointerEvents = originalPointerEvents;
+        }
+      });
+    }
 
     // ホイールズーム（documentレベルで捕捉）
     document.addEventListener('wheel', (event) => {
