@@ -183,16 +183,16 @@ export function hideArchiveWarnings() {
 export function updateSearchButtonState() {
     if (!elements.menuSearch) return;
 
-    const isEpubOpen = _state.currentBookId && _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
-    elements.menuSearch.disabled = !isEpubOpen;
+    const isSupportedBook = _state.currentBookId && (_state.currentBookInfo?.type === BOOK_TYPES.EPUB || _state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL);
+    elements.menuSearch.disabled = !isSupportedBook;
     if (elements.menuOpenToc) {
-        elements.menuOpenToc.disabled = !isEpubOpen;
+        elements.menuOpenToc.disabled = !isSupportedBook;
     }
     if (elements.openToc) {
-        elements.openToc.disabled = !isEpubOpen;
+        elements.openToc.disabled = !isSupportedBook;
     }
     if (elements.floatSearch) {
-        elements.floatSearch.disabled = !isEpubOpen;
+        elements.floatSearch.disabled = !isSupportedBook;
     }
 }
 
@@ -203,13 +203,15 @@ export function updateFloatingUIButtons() {
     console.log('[Renderers.updateFloatingUIButtons] 呼び出し', { bookId: _state.currentBookId, bookType: _state.currentBookInfo?.type });
     const isImageBook = _state.currentBookInfo && (_state.currentBookInfo.type === BOOK_TYPES.ZIP || _state.currentBookInfo.type === BOOK_TYPES.RAR);
     const isEpub = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.EPUB;
+    const isWebNovel = _state.currentBookInfo && _state.currentBookInfo.type === BOOK_TYPES.WEB_NOVEL;
+    const isSupportedBook = isEpub || isWebNovel;
     const isBookOpen = _state.currentBookId !== null;
 
     if (elements.menuOpenToc) {
-        elements.menuOpenToc.disabled = !isEpub;
+        elements.menuOpenToc.disabled = !isSupportedBook;
     }
     if (elements.openToc) {
-        elements.openToc.disabled = !isEpub;
+        elements.openToc.disabled = !isSupportedBook;
     }
 
     if (elements.toggleWritingMode) {
@@ -1026,6 +1028,19 @@ export function renderBookmarkMarkers() {
 }
 
 /**
+ * ラベルが不要な数字のみの項目であるかを判定する
+ * @param {string} label 
+ * @returns {boolean}
+ */
+function isNumericLabel(label) {
+    const trimmed = label.trim();
+    if (!trimmed) return false;
+    // 半角・全角数字、漢数字、ローマ数字、丸数字、括弧付き数字等
+    const pattern = /^[0-9０-９一二三四五六七八九十百千万〇零IVXLCDMivxlcdm\u2160-\u217f\u2460-\u2473\u2474-\u247d\u3220-\u3229\s]+$/;
+    return pattern.test(trimmed);
+}
+
+/**
  * 目次の描画
  */
 export function renderToc(tocItems = []) {
@@ -1036,9 +1051,9 @@ export function renderToc(tocItems = []) {
 
     if (elements.tocList) elements.tocList.innerHTML = "";
     elements.tocModalList.innerHTML = "";
-    const isEpub = _state.currentBookInfo?.type === BOOK_TYPES.EPUB;
+    const isEpubOrWebNovel = _state.currentBookInfo?.type === BOOK_TYPES.EPUB || _state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL;
 
-    if (!isEpub || tocArray.length === 0) {
+    if (!isEpubOrWebNovel || tocArray.length === 0) {
         elements.tocSection?.classList.add(UI_CLASSES.HIDDEN);
         return;
     }
@@ -1074,14 +1089,41 @@ export function renderToc(tocItems = []) {
         elements.tocModalList.appendChild(toggleHeader);
     }
 
-    renderTocEntries(tocArray, elements.tocModalList, 0);
+    // 【追加】事前にテキストを含む見出しが混在しているかをチェックする
+    let hasNonNumericLabel = false;
+    const checkLabels = (items) => {
+        if (!Array.isArray(items)) return;
+        for (const item of items) {
+            const label = (item.label ?? item.title ?? "").toString().trim();
+            if (label && !isNumericLabel(label)) {
+                hasNonNumericLabel = true;
+                return;
+            }
+            if (item.subitems?.length) {
+                checkLabels(item.subitems);
+                if (hasNonNumericLabel) return;
+            }
+        }
+    };
+    checkLabels(tocArray);
+
+    renderTocEntries(tocArray, elements.tocModalList, 0, hasNonNumericLabel);
 }
 
-export function renderTocEntries(items, container, depth) {
+export function renderTocEntries(items, container, depth, filterNumerics = false) {
     if (!Array.isArray(items)) return;
 
     items.forEach((item) => {
         const label = (item.label ?? item.title ?? t("tocUntitled")).toString().trim() || t("tocUntitled");
+
+        // 【追加】テキストと混在しており、かつ数字のみの項目の場合はスキップ
+        if (filterNumerics && isNumericLabel(label)) {
+            if (item.subitems?.length) {
+                renderTocEntries(item.subitems, container, depth, filterNumerics);
+            }
+            return;
+        }
+
         const li = document.createElement("li");
         li.className = "toc-item";
 
@@ -1094,7 +1136,9 @@ export function renderTocEntries(items, container, depth) {
         button.addEventListener("click", async () => {
             try {
                 if (_actions.closeAllMenus) _actions.closeAllMenus();
-                if (_reader?.usingPaginator && item.href) {
+                if (_state.currentBookInfo?.type === BOOK_TYPES.WEB_NOVEL && item._episodeIndex !== undefined) {
+                    if (_reader) _reader.goTo({ location: { location: item._episodeIndex, percentage: 0 } });
+                } else if (_reader?.usingPaginator && item.href) {
                     _reader.navigateToHref(item.href);
                 }
             } catch (error) {
@@ -1106,7 +1150,7 @@ export function renderTocEntries(items, container, depth) {
         container.appendChild(li);
 
         if (item.subitems?.length) {
-            renderTocEntries(item.subitems, container, depth + 1);
+            renderTocEntries(item.subitems, container, depth + 1, filterNumerics);
         }
     });
 }

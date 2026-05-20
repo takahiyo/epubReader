@@ -267,7 +267,9 @@ export class ReaderController {
       containerId: webNovelViewerId || DOM_IDS.WEB_NOVEL_VIEWER,
       onProgress: (info) => {
         if (this.onProgress) this.onProgress(info);
-      }
+      },
+      onNextEpisode: () => this.next(),
+      onPrevEpisode: () => this.prev()
     });
 
     // [New] Zoom State
@@ -804,7 +806,24 @@ export class ReaderController {
 
       await this.webNovelViewer.renderEpisode(novelInfo, episodes, episodeIndex, provider, percentage);
 
-      this.onReady?.();
+      const generatedToc = episodes.map((ep, index) => ({ 
+        label: ep.title, 
+        href: ep.url, 
+        _episodeIndex: index,
+        // _episodeIndex を利用できない場合を考慮し cfi も定義
+        cfi: `wn:${index}:0`
+      }));
+      this.toc = generatedToc;
+
+      // Web小説用のメタデータを組み立てて onReady に渡す
+      // （app.js 側の onReady ハンドラーが data.metadata を参照するため必須）
+      this.onReady?.({
+        metadata: {
+          title: novelInfo.title,
+          creator: novelInfo.author || '',
+        },
+        toc: generatedToc,
+      });
     } catch (e) {
       console.error("Failed to open web novel:", e);
       throw new Error("Web小説の読み込みに失敗しました。");
@@ -3897,10 +3916,7 @@ export class ReaderController {
 
     // Web小説の場合
     if (this.type === BOOK_TYPES.WEB_NOVEL) {
-      const isEpisodeChanged = await this.webNovelViewer.prevEpisode();
-      if (!isEpisodeChanged) {
-        this.webNovelViewer.prev(); // スクロールのみ
-      }
+      await this.webNovelViewer.prevEpisode();
       return;
     }
 
@@ -4010,10 +4026,7 @@ export class ReaderController {
 
     // Web小説の場合
     if (this.type === BOOK_TYPES.WEB_NOVEL) {
-      const isEpisodeChanged = await this.webNovelViewer.nextEpisode();
-      if (!isEpisodeChanged) {
-        this.webNovelViewer.next(); // スクロールのみ
-      }
+      await this.webNovelViewer.nextEpisode();
       return;
     }
 
@@ -4195,6 +4208,18 @@ export class ReaderController {
           const index = Math.round(exactIndex);
           this.pageController.goTo(Math.max(0, Math.min(index, total - 1)));
         }
+      }
+    } else if (bookType === BOOK_TYPES.WEB_NOVEL) {
+      if (bookmark.location && typeof bookmark.location.location === "number") {
+        const episodeIndex = bookmark.location.location;
+        const percentage = bookmark.location.percentage || 0;
+        await this.webNovelViewer.renderEpisode(
+          this.webNovelViewer.novelInfo,
+          this.webNovelViewer.episodes,
+          episodeIndex,
+          this.webNovelViewer.provider,
+          percentage
+        );
       }
     } else if (bookType !== BOOK_TYPES.EPUB) {
       // 画像書庫: location は imageIndex

@@ -23,6 +23,7 @@ export const FIREBASE_CONFIG = Object.freeze({
 
 export const WORKERS_CONFIG = Object.freeze({
   SYNC_ENDPOINT: "https://bookreader-dev.taka-hiyo.workers.dev",
+  PROXY_ENDPOINT: "https://bookreader-dev.taka-hiyo.workers.dev/proxy",
 });
 
 export const GOOGLE_AUTH_CONFIG = Object.freeze({

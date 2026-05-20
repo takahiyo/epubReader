@@ -16,6 +16,8 @@ export class WebNovelViewer {
         this.currentEpisodeIndex = 0;
         this.provider = null; // NarouProvider or KakuyomuProvider
         this.onProgress = options.onProgress || (() => { });
+        this.onNextEpisode = options.onNextEpisode || (() => { });
+        this.onPrevEpisode = options.onPrevEpisode || (() => { });
 
         this.writingMode = 'horizontal-tb';
 
@@ -53,7 +55,7 @@ export class WebNovelViewer {
         if (!ep) throw new Error('Episode not found');
 
         // ローディング表示などのUI処理は呼び出し元で行う前提
-        const content = await this.provider.getEpisodeContent(ep.url);
+        const content = await this.provider.getEpisodeContent(ep.url, ep.title);
 
         // コンテナをクリア
         this.container.innerHTML = '';
@@ -72,8 +74,49 @@ export class WebNovelViewer {
         // 縦書き/横書き対応設定（CSS変数は上位で制御されている想定）
         this.container.style.writingMode = this.writingMode;
 
+        // ナビゲーションボタンの作成
+        const createNav = () => {
+            const nav = document.createElement('div');
+            nav.className = 'web-novel-nav';
+            nav.style.display = 'flex';
+            nav.style.justifyContent = 'space-between';
+            nav.style.marginTop = '2em';
+            nav.style.marginBottom = '2em';
+            nav.style.padding = '0 1em';
+
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '前の話';
+            prevBtn.className = 'web-novel-nav-btn';
+            prevBtn.style.padding = '8px 16px';
+            prevBtn.style.cursor = 'pointer';
+            if (episodeIndex > 0) {
+                prevBtn.onclick = () => this.onPrevEpisode();
+            } else {
+                prevBtn.disabled = true;
+                prevBtn.style.opacity = '0.5';
+            }
+
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = '次の話';
+            nextBtn.className = 'web-novel-nav-btn';
+            nextBtn.style.padding = '8px 16px';
+            nextBtn.style.cursor = 'pointer';
+            if (episodeIndex < episodes.length - 1) {
+                nextBtn.onclick = () => this.onNextEpisode();
+            } else {
+                nextBtn.disabled = true;
+                nextBtn.style.opacity = '0.5';
+            }
+
+            nav.appendChild(prevBtn);
+            nav.appendChild(nextBtn);
+            return nav;
+        };
+
+        this.container.appendChild(createNav());
         this.container.appendChild(titleEl);
         this.container.appendChild(bodyEl);
+        this.container.appendChild(createNav());
 
         // スクロール位置の復元
         requestAnimationFrame(() => {
@@ -192,14 +235,16 @@ export class WebNovelViewer {
     }
 
     reportProgress() {
-        // 読書進捗（現在読んでいる話数のインデックスを location の代わりに使い、
-        // エピソード内のスクロール位置を percentage として使用する想定）
+        // 読書進捗
         if (this.onProgress) {
+            const scrollPercent = this.getScrollPercentage();
+            const overallPercent = this.episodes.length > 0 ? (this.currentEpisodeIndex / this.episodes.length) * 100 : 0;
             this.onProgress({
-                location: this.currentEpisodeIndex, // WebNovelではエピソードIndexをlocationとする
-                percentage: this.getScrollPercentage(),
-                episodeIndex: this.currentEpisodeIndex,
-                totalEpisodes: this.episodes.length
+                location: {
+                    location: this.currentEpisodeIndex,
+                    percentage: scrollPercent
+                },
+                percentage: overallPercent
             });
         }
     }

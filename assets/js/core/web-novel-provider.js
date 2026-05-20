@@ -5,6 +5,8 @@
  * CORSの回避ロジックや、共通パターンのHTMLパースなどを提供します。
  */
 
+import { WORKERS_CONFIG } from "../../constants/runtime-config.js";
+
 export class WebNovelProvider {
     constructor(options = {}) {
         // オプション（プロキシURLなど）
@@ -39,11 +41,25 @@ export class WebNovelProvider {
     async fetchHtml(url) {
         console.log(`[WebNovelProvider] Fetching HTML from: ${url}`);
 
-        // プロキシリスト（フォールバック用）
+        // プロキシリスト（自前Worker を最優先、パブリックプロキシはフォールバック）
+        // buildUrl: 各プロキシのURL組み立てロジック
         const proxies = [
-            'https://api.allorigins.win/raw?url=',
-            'https://api.codetabs.com/v1/proxy?quest=',
-            'https://corsproxy.io/?url='
+            {
+                name: 'BookReader Worker',
+                buildUrl: (targetUrl) => `${WORKERS_CONFIG.PROXY_ENDPOINT}?url=${encodeURIComponent(targetUrl)}`,
+            },
+            {
+                name: 'allorigins',
+                buildUrl: (targetUrl) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+            },
+            {
+                name: 'codetabs',
+                buildUrl: (targetUrl) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+            },
+            {
+                name: 'corsproxy.io',
+                buildUrl: (targetUrl) => `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`,
+            },
         ];
 
         try {
@@ -58,22 +74,22 @@ export class WebNovelProvider {
         }
 
         // 2. プロキシ経由で順次試行
-        for (const proxyBase of proxies) {
-            const proxyUrl = proxyBase + encodeURIComponent(url);
-            console.log(`[WebNovelProvider] Trying proxy: ${proxyUrl}`);
+        for (const proxy of proxies) {
+            const proxyUrl = proxy.buildUrl(url);
+            console.log(`[WebNovelProvider] Trying proxy [${proxy.name}]: ${proxyUrl}`);
             try {
                 const res = await fetch(proxyUrl);
                 if (res.ok) {
                     const text = await res.text();
-                    // 403 Forbidden などのテキストが含まれていないかチェック
-                    if (text.length > 500 || !text.includes('403 Forbidden')) {
-                        console.log(`[WebNovelProvider] Proxy fetch successful with: ${proxyBase}`);
+                    // 403 Forbidden などのテキストが含まれていないか、またある程度の長さ（100文字以上）があるかをチェック
+                    if (text.length > 100 && !text.includes('403 Forbidden') && !text.includes('Access denied')) {
+                        console.log(`[WebNovelProvider] Proxy fetch successful with: ${proxy.name}`);
                         return text;
                     }
-                    console.warn(`[WebNovelProvider] Proxy ${proxyBase} returned error or suspicious content.`);
+                    console.warn(`[WebNovelProvider] Proxy ${proxy.name} returned error or suspicious content (length: ${text.length}).`);
                 }
             } catch (err) {
-                console.warn(`[WebNovelProvider] Proxy ${proxyBase} failed:`, err.message);
+                console.warn(`[WebNovelProvider] Proxy ${proxy.name} failed:`, err.message);
             }
         }
 
@@ -111,9 +127,10 @@ export class WebNovelProvider {
     /**
      * エピソードURLから本文を取得する（サブクラスで実装）
      * @param {string} episodeUrl 
+     * @param {string} fallbackTitle 目次から取得したタイトル
      * @returns {Promise<{title: string, htmlContent: string}>}
      */
-    async getEpisodeContent(episodeUrl) {
+    async getEpisodeContent(episodeUrl, fallbackTitle = '') {
         throw new Error('getEpisodeContent() must be implemented by subclass');
     }
 }
@@ -127,12 +144,19 @@ export class NarouProvider extends WebNovelProvider {
 
     /**
      * なろうAPIを用いた検索
+     * @param {string} query
+     * @param {string} target 'all', 'title', 'author', 'summary', 'keyword'
      */
-    async search(query) {
-        console.log(`[NarouProvider] Searching for: ${query}`);
+    async search(query, target = 'all') {
+        console.log(`[NarouProvider] Searching for: ${query}, target: ${target}`);
         // なろうAPI (https://dev.syosetu.com/man/api/) を使用して検索
-        // order=hyoka: 総合評価の高い順 (totalpointは無効なパラメータだったため修正)
-        const url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=hyoka`;
+        // order=hyoka: 総合評価の高い順
+        let url = `https://api.syosetu.com/novelapi/api/?out=json&word=${encodeURIComponent(query)}&lim=20&order=hyoka`;
+        
+        if (target === 'title') url += '&title=1';
+        else if (target === 'author') url += '&wname=1';
+        else if (target === 'summary') url += '&ex=1';
+        else if (target === 'keyword') url += '&keyword=1';
         try {
             const res = await fetch(url);
             const text = await res.text();
@@ -186,14 +210,89 @@ export class NarouProvider extends WebNovelProvider {
     }
 
     /**
-     * 目次とメタ情報を取得
+     * 目次HTMLからエピソードリンクを抽出する（内部ヘルパー）
+     * @param {Document} doc - パース済みHTML Document
+     * @param {string} ncode - 作品コード（小文字、例: "n7787eq"）
+     * @param {Array} existingEpisodes - 既に抽出済みのエピソードリスト（重複排除用）
+     * @returns {Array} 新規抽出されたエピソードの配列
+     */
+    _extractEpisodesFromDoc(doc, ncode, existingEpisodes = []) {
+        const newEpisodes = [];
+        const allLinks = doc.querySelectorAll('a');
+
+        allLinks.forEach(linkEl => {
+            const href = linkEl.getAttribute('href');
+            if (!href || href.includes('javascript:')) return;
+
+            let epId = null;
+            if (ncode) {
+                const prefix = `/${ncode}/`;
+                const lowerHref = href.toLowerCase();
+                const idx = lowerHref.indexOf(prefix);
+                if (idx !== -1) {
+                    const remainder = lowerHref.substring(idx + prefix.length);
+                    const numMatch = remainder.match(/^(\d+)(?:[/?#]|$)/);
+                    if (numMatch) {
+                        epId = `${ncode}-${numMatch[1]}`;
+                    }
+                }
+            } else {
+                const epMatch = href.match(/\/([^/]+)\/(\d+)(?:[/?#]|$)/);
+                if (epMatch && epMatch[1].toLowerCase().startsWith('n')) {
+                    epId = `${epMatch[1].toLowerCase()}-${epMatch[2]}`;
+                }
+            }
+
+            if (epId) {
+                const epTitle = linkEl.textContent.trim();
+                const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
+
+                // 重複排除と空タイトル・ページネーションリンク除外
+                const allExisting = [...existingEpisodes, ...newEpisodes];
+                if (epTitle && epTitle !== '次へ' && epTitle !== '最後へ' && epTitle !== '最初へ' && epTitle !== '前へ' && !allExisting.find(e => e.url === fullUrl)) {
+                    newEpisodes.push({
+                        id: epId,
+                        title: epTitle,
+                        url: fullUrl
+                    });
+                }
+            }
+        });
+
+        return newEpisodes;
+    }
+
+    /**
+     * 目次HTMLからページネーションの最大ページ番号を検出する（内部ヘルパー）
+     * @param {Document} doc - パース済みHTML Document
+     * @returns {number} 最大ページ番号（ページネーションがない場合は1）
+     */
+    _detectMaxTocPage(doc) {
+        let maxPage = 1;
+        // ページネーションリンクからページ番号を抽出（?p=2, ?p=3 ...）
+        const pagerLinks = doc.querySelectorAll('a[href*="?p="]');
+        pagerLinks.forEach(link => {
+            const href = link.getAttribute('href') || '';
+            const match = href.match(/[?&]p=(\d+)/);
+            if (match) {
+                const pageNum = parseInt(match[1], 10);
+                if (pageNum > maxPage) maxPage = pageNum;
+            }
+        });
+        return maxPage;
+    }
+
+    /**
+     * 目次とメタ情報を取得（ページネーション対応・全ページ取得）
      * @param {string} novelUrl 
      * @param {object} novelInfo 検索結果からの追加情報（タイトル、作者などのフォールバック用）
      */
     async getTableOfContents(novelUrl, novelInfo = {}) {
         console.log(`[NarouProvider] Getting TOC for: ${novelUrl}`);
         try {
+            // 1ページ目を取得
             const html = await this.fetchHtml(novelUrl);
+            console.log(`[NarouProvider] HTML preview:`, html.substring(0, 300).replace(/\n/g, ' '));
             const doc = this.parseHtml(html);
 
             const titleEl = doc.querySelector('.novel_title') || doc.querySelector('#novel_title') || doc.querySelector('.p-novel__title');
@@ -203,35 +302,34 @@ export class NarouProvider extends WebNovelProvider {
             const author = authorEl ? authorEl.textContent.replace('作者：', '').trim() : (novelInfo.author || 'Unknown Author');
             console.log(`[NarouProvider] Parsed TOC title: "${title}", author: "${author}"`);
 
-            const episodes = [];
-            // pc版旧レイアウトと新レイアウト両対応
-            // 旧: .subtitle
-            // 新: .p-eplist__subtitle
-            const episodeNodes = doc.querySelectorAll('.subtitle, .p-eplist__subtitle, .p-eplist__sublist');
+            const ncodeMatch = novelUrl.match(/ncode\.syosetu\.com\/([^/]+)/);
+            const ncode = ncodeMatch ? ncodeMatch[1].toLowerCase() : null;
 
-            episodeNodes.forEach(node => {
-                const linkEl = node.tagName === 'A' ? node : node.querySelector('a');
-                if (linkEl) {
-                    const href = linkEl.getAttribute('href');
-                    if (!href || href.includes('javascript:')) return;
+            // 1ページ目からエピソードを抽出
+            const episodes = this._extractEpisodesFromDoc(doc, ncode);
+            console.log(`[NarouProvider] Page 1: found ${episodes.length} episodes.`);
 
-                    const epTitle = linkEl.textContent.trim();
-                    const fullUrl = new URL(href, 'https://ncode.syosetu.com').href;
-
-                    // /ncode/epnum/ からID抽出
-                    const match = href.match(/\/([^/]+)\/(\d+)\/?/);
-                    const epId = match ? `${match[1]}-${match[2]}` : href;
-
-                    // 重複排除 (同じエピソードが複数回ヒットすることを防ぐ)
-                    if (!episodes.find(e => e.url === fullUrl)) {
-                        episodes.push({
-                            id: epId,
-                            title: epTitle,
-                            url: fullUrl
-                        });
+            // ページネーション検出・全ページ取得
+            const maxPage = this._detectMaxTocPage(doc);
+            if (maxPage > 1) {
+                console.log(`[NarouProvider] TOC has ${maxPage} pages. Fetching remaining pages...`);
+                // ベースURL（クエリパラメータを除去）
+                const baseUrl = novelUrl.replace(/[?#].*$/, '').replace(/\/$/, '');
+                for (let page = 2; page <= maxPage; page++) {
+                    try {
+                        const pageUrl = `${baseUrl}/?p=${page}`;
+                        console.log(`[NarouProvider] Fetching TOC page ${page}/${maxPage}: ${pageUrl}`);
+                        const pageHtml = await this.fetchHtml(pageUrl);
+                        const pageDoc = this.parseHtml(pageHtml);
+                        const pageEpisodes = this._extractEpisodesFromDoc(pageDoc, ncode, episodes);
+                        episodes.push(...pageEpisodes);
+                        console.log(`[NarouProvider] Page ${page}: found ${pageEpisodes.length} new episodes (total: ${episodes.length}).`);
+                    } catch (pageErr) {
+                        console.warn(`[NarouProvider] Failed to fetch TOC page ${page}:`, pageErr.message);
+                        // ページ取得失敗でも、取得済みの分は返す
                     }
                 }
-            });
+            }
 
             // 短編（目次がなく直接本文のページ）の対応
             if (episodes.length === 0) {
@@ -246,7 +344,7 @@ export class NarouProvider extends WebNovelProvider {
                 }
             }
 
-            console.log(`[NarouProvider] Found ${episodes.length} episodes.`);
+            console.log(`[NarouProvider] Found ${episodes.length} episodes total.`);
             return { title, author, episodes };
         } catch (error) {
             console.error(`[NarouProvider] Error getting TOC for ${novelUrl}:`, error);
@@ -254,14 +352,14 @@ export class NarouProvider extends WebNovelProvider {
         }
     }
 
-    async getEpisodeContent(episodeUrl) {
+    async getEpisodeContent(episodeUrl, fallbackTitle = '') {
         console.log(`[NarouProvider] Getting content for episode: ${episodeUrl}`);
         try {
             const html = await this.fetchHtml(episodeUrl);
             const doc = this.parseHtml(html);
 
             const subtitleEl = doc.querySelector('.novel_subtitle') || doc.querySelector('.p-novel__subtitle');
-            const title = subtitleEl ? subtitleEl.textContent.trim() : 'Episode';
+            let title = subtitleEl ? subtitleEl.textContent.trim() : fallbackTitle;
 
             // 本文コンテナ
             const contentEl = doc.querySelector('#novel_honbun') || doc.querySelector('.js-novel-text');
@@ -273,8 +371,14 @@ export class NarouProvider extends WebNovelProvider {
                 scripts.forEach(s => s.remove());
                 // <br>等は維持したいのでinnerHTMLを使用
                 htmlContent = contentEl.innerHTML;
+                
+                if (!title) {
+                    const text = contentEl.textContent.trim();
+                    title = text ? (text.length > 30 ? text.substring(0, 30) + '...' : text) : 'Episode';
+                }
                 console.log(`[NarouProvider] Parsed episode title: "${title}", length: ${htmlContent.length} chars.`);
             } else {
+                if (!title) title = 'Episode';
                 console.warn(`[NarouProvider] Could not find content element for episode: ${episodeUrl}`);
             }
 
@@ -293,8 +397,13 @@ export class KakuyomuProvider extends WebNovelProvider {
     get id() { return 'kakuyomu'; }
     get name() { return 'カクヨム'; }
 
-    async search(query) {
-        console.log(`[KakuyomuProvider] Searching for: ${query}`);
+    /**
+     * カクヨムスクレイピング検索
+     * @param {string} query 
+     * @param {string} target 'all', 'title', 'author', 'summary', 'keyword'
+     */
+    async search(query, target = 'all') {
+        console.log(`[KakuyomuProvider] Searching for: ${query}, target: ${target}`);
         try {
             const url = `https://kakuyomu.jp/search?q=${encodeURIComponent(query)}`;
             const html = await this.fetchHtml(url);
@@ -341,7 +450,16 @@ export class KakuyomuProvider extends WebNovelProvider {
                 }
             });
 
-            return results;
+            // カクヨムはAPIがないため取得後にフィルタリング（タイトル、作者名のみ対応）
+            let filteredResults = results;
+            if (target === 'title') {
+                filteredResults = results.filter(r => r.title.toLowerCase().includes(query.toLowerCase()));
+            } else if (target === 'author') {
+                filteredResults = results.filter(r => r.author.toLowerCase().includes(query.toLowerCase()));
+            }
+            // summary, keyword等については、一覧からあらすじ等が取得できないため現状のまま返す
+
+            return filteredResults;
         } catch (error) {
             console.error(`[KakuyomuProvider] Error searching for "${query}":`, error);
             throw error;
@@ -394,14 +512,14 @@ export class KakuyomuProvider extends WebNovelProvider {
         }
     }
 
-    async getEpisodeContent(episodeUrl) {
+    async getEpisodeContent(episodeUrl, fallbackTitle = '') {
         console.log(`[KakuyomuProvider] Getting content for episode: ${episodeUrl}`);
         try {
             const html = await this.fetchHtml(episodeUrl);
             const doc = this.parseHtml(html);
 
             const titleEl = doc.querySelector('.widget-episodeTitle');
-            const title = titleEl ? titleEl.textContent.trim() : 'Episode';
+            let title = titleEl ? titleEl.textContent.trim() : fallbackTitle;
 
             // 本文コンテナ
             const contentEl = doc.querySelector('.widget-episodeBody');
@@ -412,8 +530,14 @@ export class KakuyomuProvider extends WebNovelProvider {
                 const scripts = contentEl.querySelectorAll('script');
                 scripts.forEach(s => s.remove());
                 htmlContent = contentEl.innerHTML;
+
+                if (!title) {
+                    const text = contentEl.textContent.trim();
+                    title = text ? (text.length > 30 ? text.substring(0, 30) + '...' : text) : 'Episode';
+                }
                 console.log(`[KakuyomuProvider] Parsed episode title: "${title}", length: ${htmlContent.length} chars.`);
             } else {
+                if (!title) title = 'Episode';
                 console.warn(`[KakuyomuProvider] Could not find content element for episode: ${episodeUrl}`);
             }
 

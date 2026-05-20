@@ -316,6 +316,17 @@
         </div>
         <div class="search-filters"
           style="margin: 0.5rem 0 1rem 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.9rem; color: var(--text-secondary); align-items: center;">
+          <div style="display:flex; align-items:center; gap:0.3rem;">
+            <label for="webNovelSearchTarget">対象:</label>
+            <select id="webNovelSearchTarget"
+              style="background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border); padding:2px 5px; border-radius:4px;">
+              <option value="all">すべて</option>
+              <option value="title">タイトル</option>
+              <option value="author">作者名</option>
+              <option value="summary">あらすじ</option>
+              <option value="keyword">キーワード</option>
+            </select>
+          </div>
           <label style="cursor:pointer; display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"
               id="webNovelSourceNarou" checked> 小説家になろう</label>
           <label style="cursor:pointer; display:flex; align-items:center; gap:0.3rem;"><input type="checkbox"

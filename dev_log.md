@@ -116,6 +116,10 @@ C案: ADB経由での解除（非現実的）
 | 2026-04-28 | キャッシュを bookreader-v10 から bookreader-v11 に更新 | assets/sw-cache-config.json |
 | 2026-05-12 | Web小説読込後・クラウドのみ表示切替後にフロートUIボタン状態を更新 | assets/app.js |
 | 2026-05-12 | 読書録を常時表示＋未オープン時 disabled、キャッシュバンプ v12 | assets/js/ui/renderers.js, assets/css/05-float-ui.css, index.html |
+| 2026-05-13 | 既存Workerに /proxy CORSプロキシエンドポイント追加（許可ドメイン制限付き） | workers/src/index.js |
+| 2026-05-13 | WORKERS_CONFIG に PROXY_ENDPOINT 追加（SSOT） | assets/constants/runtime-config.js |
+| 2026-05-13 | 自前Workerプロキシを最優先に変更、パブリックプロキシはフォールバックに降格 | assets/js/core/web-novel-provider.js |
+| 2026-05-13 | キャッシュバンプ v12→v13 | assets/sw-cache-config.json |
 
 ---
 
@@ -157,3 +161,61 @@ C案: ADB経由での解除（非現実的）
 
 - フロートの読書録は常に表示し、`disabled = !isBookOpen` とする（左メニューの `menuShareLog` も同様に無効化を同期）。
 - 無効時の見た目は `.float-buttons button:disabled` で左メニューと同程度の `opacity: 0.4` に統一。
+
+---
+
+## エントリ #6 - 2026-05-13（Web小説CORSプロキシ問題の解決）
+
+### 成功の境界線
+
+- なろうAPIによる検索は正常動作していた。
+- カクヨムの検索UIも正常動作していた。
+- エピソード抽出ロジック（正規表現→文字列ベース）の修正は完了済み。
+
+### 失敗の事象
+
+- パブリックCORSプロキシ（codetabs, corsproxy.io, allorigins等）経由でなろうの目次ページを取得すると、HTMLが空文字（0文字）または403 Forbiddenが返り、エピソード一覧が取得できない。
+
+### 失敗の根本原因
+
+- 「小説家になろう」がCloudflare Turnstile等の強力なボット対策を導入しており、パブリックCORSプロキシからのアクセスを完全にブロックしている。
+- パブリックプロキシは多数のユーザーが共有するIPアドレスを使用するため、集中的にブロック対象になりやすい。
+
+### 解決アプローチ（実施）
+
+- 既存のCloudflare Worker（`bookreader-dev.taka-hiyo.workers.dev`）に `/proxy` エンドポイントを追加。
+- 許可ドメイン制限（`ncode.syosetu.com`, `kakuyomu.jp` のみ）でオープンプロキシ化を防止。
+- User-Agentをデスクトップブラウザに偽装してボット判定を回避。
+- `runtime-config.js`（SSOT）にURLを追加し、`web-novel-provider.js`で最優先プロキシとして設定。
+- **結果**: なろうの目次ページ74,711文字を正常取得、検索→目次→本文の一連フローがブラウザで動作確認済み。
+
+### 残課題
+
+- 本文読込時に `TypeError: Cannot read properties of undefined (reading 'metadata') at ReaderController.onReady` が発生（表示には影響なし、Web小説固有のメタデータ未定義が原因）。
+
+---
+
+## エントリ #4 - 2026-05-13 (Web小説機能の安定化)
+
+### 成功の境界線
+
+- **ナビゲーションの安定化**: Web小説閲覧画面の上下に「前の話」「次の話」ボタンを実装し、スクロールによる意図しない章遷移を廃止した。
+- **目次 (TOC) の修正**: `reader.js` 内で `this.toc` を正しく保持するようにし、目次メニューからのジャンプ機能を復旧させた。
+- **同期コンフリクトの解消**: Web小説固有の `location` オブジェクト（インデックスとスクロール率）を正しく比較できるよう `locationsAreEqual` ヘルパーを導入。これにより、同一地点で開いた際に「別の端末での進捗があります」というモーダルがループする問題を解決。
+- **タイトルのフォールバック**: エピソードタイトルが取得できない場合、本文の冒頭をタイトルとして採用するロジックをプロバイダーに追加。
+
+### 失敗の事象
+
+- **目次クリック時のエラー**: `renderers.js` から `reader.goTo` に渡す引数のネスト構造が誤っており、目次からの遷移が動作していなかった（修正済み）。
+- **大規模連載の目次取得**: 数千話ある作品の目次を一括で取得・表示するとメモリ負荷が高い。
+
+### 失敗の根本原因
+
+- `reader.goTo` はしおり互換性のために `{ location: { location: index, percentage: scroll } }` という二重の location 構造を期待していたが、UI側からは一重のオブジェクトを渡していた。
+
+### 次のアプローチ
+
+- **テキスト範囲検索**: 作品全体、あるいは指定した章範囲での全文検索機能の実装。
+- **目次の遅延読み込み/ページネーション**: TOCモーダル内での表示最適化。
+
+---
