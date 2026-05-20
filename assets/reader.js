@@ -4623,7 +4623,7 @@ export class ReaderController {
 
     container.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
       if (img.dataset.zoomBound === "true") return;
-      img.style.cursor = "zoom-in";
+      img.style.cursor = "default";
       this.bindElementZoomHandlers(img, () => img.src);
     });
   }
@@ -4752,12 +4752,37 @@ export class ReaderController {
       } else {
         e.preventDefault();
         
-        let dx = clientX - this.dragStartX;
-        let dy = clientY - this.dragStartY;
-        this.panX = this.dragStartPanX + dx;
-        this.panY = this.dragStartPanY + dy;
-        this.clampPan();
-        this.updateTransform();
+        const container = this.getActiveViewer();
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const px = (clientX - containerRect.left) / containerRect.width;
+          const py = (clientY - containerRect.top) / containerRect.height;
+          const clampedPx = Math.min(1, Math.max(0, px));
+          const clampedPy = Math.min(1, Math.max(0, py));
+
+          const target = this.getZoomTarget();
+          if (target) {
+            const targetWidth = target.offsetWidth;
+            const targetHeight = target.offsetHeight;
+            const scaledWidth = targetWidth * this.zoomScale;
+            const scaledHeight = targetHeight * this.zoomScale;
+
+            if (scaledWidth <= containerRect.width) {
+              this.panX = (containerRect.width - scaledWidth) / 2;
+            } else {
+              this.panX = (containerRect.width - scaledWidth) * clampedPx;
+            }
+
+            if (scaledHeight <= containerRect.height) {
+              this.panY = (containerRect.height - scaledHeight) / 2;
+            } else {
+              this.panY = (containerRect.height - scaledHeight) * clampedPy;
+            }
+
+            this.clampPan();
+            this.updateTransform();
+          }
+        }
       }
     };
 
