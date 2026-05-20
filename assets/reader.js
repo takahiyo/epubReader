@@ -309,6 +309,7 @@ export class ReaderController {
     this.bindZoomEvents();
     this.bindEpubScrollEvents();
     this.setupZoomSlider();
+    this.bindImageZoomHandlers();
 
     // [Quest 3 v85対応] visualViewport のリサイズ監視を追加
     // OSのウィンドウハンドル消失時や、Distant View への切り替え時など、
@@ -4645,6 +4646,10 @@ export class ReaderController {
     if (!element || element.dataset.zoomBound === "true") return;
     element.dataset.zoomBound = "true";
 
+    // ブラウザデフォルトの画像ドラッグを完全無効化
+    element.setAttribute("draggable", "false");
+    element.addEventListener("dragstart", (e) => e.preventDefault());
+
     let longPressTimer = null;
     let longPressActive = false;
     let startX = 0;
@@ -4664,6 +4669,12 @@ export class ReaderController {
 
       isPointerDown = true;
       longPressActive = false;
+
+      try {
+        element.setPointerCapture(e.pointerId);
+      } catch (err) {
+        console.warn("Failed to set pointer capture:", err);
+      }
 
       let clientX = e.clientX;
       let clientY = e.clientY;
@@ -4738,6 +4749,9 @@ export class ReaderController {
         if (Math.hypot(dx, dy) > LONG_PRESS_ZOOM_CONFIG.MOVE_THRESHOLD_PX) {
           clearTimeout(longPressTimer);
           isPointerDown = false;
+          try {
+            element.releasePointerCapture(e.pointerId);
+          } catch (err) {}
         }
       } else {
         e.preventDefault();
@@ -4754,6 +4768,10 @@ export class ReaderController {
     const onPointerUp = (e) => {
       clearTimeout(longPressTimer);
       isPointerDown = false;
+
+      try {
+        element.releasePointerCapture(e.pointerId);
+      } catch (err) {}
 
       if (longPressActive) {
         longPressActive = false;
