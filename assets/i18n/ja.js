@@ -90,6 +90,9 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
   settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
   settingsOneBookmarkPerBookLabel: "1つの書籍に作成するしおりは一つだけにする",
+  settingsLongPressZoomLabel: "長押しでズーム（PerfectViewer風）",
+  settingsLongPressZoomScaleLabel: "長押しズーム倍率",
+
 
   // アカウント
   settingsAccountTitle: "アカウント",

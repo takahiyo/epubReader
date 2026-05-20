@@ -90,6 +90,9 @@ export const UI_STRINGS_EN = Object.freeze({
   settingsDefaultPageDirectionLabel: "Default Page Direction",
   settingsDefaultImageViewModeLabel: "Default View Mode",
   settingsOneBookmarkPerBookLabel: "Only keep the most recent bookmark per book",
+  settingsLongPressZoomLabel: "Long press to zoom (PerfectViewer style)",
+  settingsLongPressZoomScaleLabel: "Long press zoom scale",
+
 
   // Account
   settingsAccountTitle: "Account",

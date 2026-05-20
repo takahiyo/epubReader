@@ -65,3 +65,13 @@ export const DEBUG_GRID_CONFIG = Object.freeze({
   VERTICAL_LINES: Object.freeze([20, 40, 60, 80]),
   LINE_THICKNESS_PX: 2,
 });
+
+// ============================================
+// 長押しズーム設定
+// ============================================
+export const LONG_PRESS_ZOOM_CONFIG = Object.freeze({
+  DEFAULT_SCALE: 2.5,
+  DELAY_MS: 300,
+  MOVE_THRESHOLD_PX: 10,
+});
+
