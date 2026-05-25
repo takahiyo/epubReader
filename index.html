@@ -389,80 +389,102 @@
         <button id="closeSettingsModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
-        <div class="settings-section">
-          <h4 id="settingsDisplayTitle"></h4>
-          <div class="setting-item">
-            <label for="progressDisplayMode" id="progressDisplayModeLabel"></label>
-            <select id="progressDisplayMode">
-              <option value="page"></option>
-              <option value="percentage"></option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label for="settingsEpubViewMode" id="settingsEpubViewModeLabel"></label>
-            <select id="settingsEpubViewMode">
-              <option value="paginated"></option>
-              <option value="scroll"></option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label for="settingsDefaultWritingMode" id="settingsDefaultWritingModeLabel"></label>
-            <select id="settingsDefaultWritingMode">
-              <option value="horizontal-tb"></option>
-              <option value="vertical-rl"></option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label for="settingsDefaultPageDirection" id="settingsDefaultPageDirectionLabel"></label>
-            <select id="settingsDefaultPageDirection">
-              <option value="rtl"></option>
-              <option value="ltr"></option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label for="settingsDefaultImageViewMode" id="settingsDefaultImageViewModeLabel"></label>
-            <select id="settingsDefaultImageViewMode">
-              <option value="single"></option>
-              <option value="spread"></option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label for="settingsOneBookmarkPerBook" id="settingsOneBookmarkPerBookLabel"></label>
-            <input type="checkbox" id="settingsOneBookmarkPerBook" />
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4 id="settingsDeviceTitle"></h4>
-          <div class="setting-item">
-            <label for="deviceId" id="deviceIdLabel"></label>
-            <input id="deviceId" type="text" readonly />
-          </div>
-          <div class="setting-item">
-            <label for="deviceColor" id="deviceColorLabel"></label>
-            <input id="deviceColor" type="text" readonly />
-          </div>
-          <div class="setting-item">
-            <label for="deviceName" id="deviceNameLabel"></label>
-            <input id="deviceName" type="text" readonly />
-          </div>
-          <!-- PWA Install Button -->
-          <div class="setting-item hidden" id="installContainer">
-            <button id="installButton" class="secondary-btn" type="button"></button>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h4 id="settingsAccountTitle"></h4>
-          <div class="setting-item">
-            <div class="setting-actions">
-              <button id="googleLoginButton" class="secondary-btn" type="button"></button>
-              <button id="manualSyncButton" class="secondary-btn" type="button" style="margin-left: 10px;"></button>
+        <div class="settings-section collapsed">
+          <h4 id="settingsDisplayTitle" class="settings-section-title"></h4>
+          <div class="settings-section-content">
+            <div class="setting-item">
+              <label for="progressDisplayMode" id="progressDisplayModeLabel"></label>
+              <select id="progressDisplayMode">
+                <option value="page"></option>
+                <option value="percentage"></option>
+              </select>
             </div>
-            <p id="userInfo" class="setting-hint"></p>
-            <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
-            <p id="syncHint" class="setting-hint" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem;">
-            </p>
+            <div class="setting-item">
+              <label for="settingsEpubViewMode" id="settingsEpubViewModeLabel"></label>
+              <select id="settingsEpubViewMode">
+                <option value="paginated"></option>
+                <option value="scroll"></option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="settingsDefaultWritingMode" id="settingsDefaultWritingModeLabel"></label>
+              <select id="settingsDefaultWritingMode">
+                <option value="horizontal-tb"></option>
+                <option value="vertical-rl"></option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="settingsDefaultPageDirection" id="settingsDefaultPageDirectionLabel"></label>
+              <select id="settingsDefaultPageDirection">
+                <option value="rtl"></option>
+                <option value="ltr"></option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="settingsDefaultImageViewMode" id="settingsDefaultImageViewModeLabel"></label>
+              <select id="settingsDefaultImageViewMode">
+                <option value="single"></option>
+                <option value="spread"></option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="settingsOneBookmarkPerBook" id="settingsOneBookmarkPerBookLabel"></label>
+              <input type="checkbox" id="settingsOneBookmarkPerBook" />
+            </div>
+            <div class="setting-item">
+              <label for="settingsLongPressZoom" id="settingsLongPressZoomLabel"></label>
+              <input type="checkbox" id="settingsLongPressZoom" />
+            </div>
+            <div class="setting-item">
+              <label for="settingsLongPressZoomScale" id="settingsLongPressZoomScaleLabel"></label>
+              <select id="settingsLongPressZoomScale">
+                <option value="1.5">1.5x</option>
+                <option value="2.0">2.0x</option>
+                <option value="2.5">2.5x</option>
+                <option value="3.0">3.0x</option>
+                <option value="3.5">3.5x</option>
+                <option value="4.0">4.0x</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+
+        <div class="settings-section collapsed">
+          <h4 id="settingsDeviceTitle" class="settings-section-title"></h4>
+          <div class="settings-section-content">
+            <div class="setting-item">
+              <label for="deviceId" id="deviceIdLabel"></label>
+              <input id="deviceId" type="text" readonly />
+            </div>
+            <div class="setting-item">
+              <label for="deviceColor" id="deviceColorLabel"></label>
+              <input id="deviceColor" type="text" readonly />
+            </div>
+            <div class="setting-item">
+              <label for="deviceName" id="deviceNameLabel"></label>
+              <input id="deviceName" type="text" readonly />
+            </div>
+            <!-- PWA Install Button -->
+            <div class="setting-item hidden" id="installContainer">
+              <button id="installButton" class="secondary-btn" type="button"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section collapsed">
+          <h4 id="settingsAccountTitle" class="settings-section-title"></h4>
+          <div class="settings-section-content">
+            <div class="setting-item">
+              <div class="setting-actions">
+                <button id="googleLoginButton" class="secondary-btn" type="button"></button>
+                <button id="manualSyncButton" class="secondary-btn" type="button" style="margin-left: 10px;"></button>
+              </div>
+              <p id="userInfo" class="setting-hint"></p>
+              <p id="syncStatus" class="setting-hint" style="margin-top: 5px;"></p>
+              <p id="syncHint" class="setting-hint" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem;">
+              </p>
+            </div>
           </div>
         </div>
 

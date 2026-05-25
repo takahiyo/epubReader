@@ -766,8 +766,14 @@ export function renderBookmarks(mode = "current") {
         const libraryOrder = Object.keys(_storage.data.library);
         const cloudBookIds = Object.keys(_storage.data.cloudIndex ?? {});
 
-        // ローカルとクラウドのIDを統合（順序維持）
-        const allPotentialIds = [...historyOrder, ...libraryOrder, ...cloudBookIds].filter((id, index, self) => self.indexOf(id) === index);
+        // すでにローカル書籍と紐づいているクラウドIDの一覧を取得
+        const linkedCloudIds = Object.values(_storage.data.bookLinkMap ?? {});
+
+        // すでにリンク済みのクラウドIDは、クラウド専用しおりのリスト候補から除外する
+        const unlinkedCloudBookIds = cloudBookIds.filter(id => !linkedCloudIds.includes(id));
+
+        // ローカルと未リンククラウドのIDを統合（順序維持）
+        const allPotentialIds = [...historyOrder, ...libraryOrder, ...unlinkedCloudBookIds].filter((id, index, self) => self.indexOf(id) === index);
         const entries = [];
 
         allPotentialIds.forEach((id) => {

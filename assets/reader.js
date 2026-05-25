@@ -23,7 +23,9 @@ import {
   MEMORY_STRATEGY,
   READER_LOADING_PHASES,
   READER_LOADING_STATUSES,
+  LONG_PRESS_ZOOM_CONFIG,
 } from "./constants.js";
+
 import { createArchiveHandler, EpubArchiveHandler } from "./js/core/archive-handler.js";
 import { calculateProgressPercentage } from "./js/core/progress-utils.js";
 import { WebNovelViewer } from "./js/core/web-novel-viewer.js";
@@ -233,6 +235,10 @@ export class ReaderController {
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
     this.imageReadingDirection = READING_DIRECTIONS.LTR; // READING_DIRECTIONS.LTR = 左開き, READING_DIRECTIONS.RTL = 右開き
     this.imageZoomed = false;
+    this.longPressZoomEnabled = true;
+    this.longPressZoomScale = LONG_PRESS_ZOOM_CONFIG.DEFAULT_SCALE;
+    this.longPressZoomActive = false;
+
     this.repaginationRequestId = 0;
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
@@ -303,6 +309,7 @@ export class ReaderController {
     this.bindZoomEvents();
     this.bindEpubScrollEvents();
     this.setupZoomSlider();
+    this.bindImageZoomHandlers();
 
     // [Quest 3 v85対応] visualViewport のリサイズ監視を追加
     // OSのウィンドウハンドル消失時や、Distant View への切り替え時など、
@@ -3663,7 +3670,6 @@ export class ReaderController {
     // 単ページでも画像書庫ならクリック無効化
     if (this.type !== BOOK_TYPES.EPUB) {
       this.imageElement.onclick = null;
-      this.imageElement.style.pointerEvents = "none";
     }
 
     // 見開きコンテナ削除
@@ -3686,6 +3692,8 @@ export class ReaderController {
     if (!isWideSpread) {
       this.updateProgress(index, false);
     }
+
+    this.bindImageZoomHandlers();
   }
 
   updateProgress(targetIndex, isWideSpread) {
@@ -3717,11 +3725,6 @@ export class ReaderController {
       this.imageViewer.appendChild(container);
     }
 
-    // 画像書庫ならクリック無効
-    if (this.type !== BOOK_TYPES.EPUB) {
-      container.style.pointerEvents = "none";
-    }
-
     this.syncZoomedClass();
 
     // 描画開始前に中身を空にする（プログレスバー移動時の残像防止）
@@ -3746,7 +3749,6 @@ export class ReaderController {
       img.onerror = () => this.showImageLoading(false);
       img.src = page1Src;
       img.className = 'spread-page wide'; //.wide -> max-width: 100%
-      if (this.type !== BOOK_TYPES.EPUB) img.style.pointerEvents = "none";
       container.appendChild(img);
 
       this.currentSpreadStep = 1;
@@ -3797,12 +3799,10 @@ export class ReaderController {
 
           leftImg.src = leftImgSrc;
           leftImg.className = 'spread-page spread-left';
-          if (this.type !== BOOK_TYPES.EPUB) leftImg.style.pointerEvents = "none";
           container.appendChild(leftImg);
 
           rightImg.src = rightImgSrc;
           rightImg.className = 'spread-page spread-right';
-          if (this.type !== BOOK_TYPES.EPUB) rightImg.style.pointerEvents = "none";
           container.appendChild(rightImg);
 
       } else {
@@ -3814,7 +3814,6 @@ export class ReaderController {
         img1.onerror = () => this.showImageLoading(false);
         img1.src = page1Src;
         img1.className = 'spread-page single-view';
-        if (this.type !== BOOK_TYPES.EPUB) img1.style.pointerEvents = "none";
         container.appendChild(img1);
 
         this.currentSpreadStep = 1;
@@ -3831,6 +3830,7 @@ export class ReaderController {
 
     this.updateProgress(targetIndex, isWide);
     this.updateTransform();
+    this.bindImageZoomHandlers();
   }
 
   setImageViewMode(mode) {
@@ -4618,63 +4618,226 @@ export class ReaderController {
   }
 
   injectImageZoom() {
-    /* Image zoom on click is disabled per user request
-    if (this.type === BOOK_TYPES.EPUB) {
-      this.viewer?.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
-        img.style.cursor = "zoom-in";
-        this.bindElementZoomHandlers(img, () => img.src);
-      });
-      return;
-    }
-    if (!this.rendition) return;
-    */
+    const container = this.pageContainer || this.viewer;
+    if (!container) return;
+
+    container.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
+      if (img.dataset.zoomBound === "true") return;
+      img.style.cursor = "default";
+      this.bindElementZoomHandlers(img, () => img.src);
+    });
   }
 
+
   bindImageZoomHandlers() {
-    if (!this.imageElement || this.imageZoomBound) return;
-    this.imageZoomBound = true;
-    this.bindElementZoomHandlers(this.imageElement, () => this.imagePages[this.imageIndex]);
+    if (!this.imageViewer) return;
+    this.imageViewer.querySelectorAll("img").forEach((img) => {
+      if (img.dataset.zoomBound === "true") return;
+      img.style.pointerEvents = "auto";
+      this.bindElementZoomHandlers(img, () => img.src);
+    });
   }
 
   bindElementZoomHandlers(element, getSrc) {
     if (!element || element.dataset.zoomBound === "true") return;
     element.dataset.zoomBound = "true";
+
+    // ブラウザデフォルトの画像ドラッグを完全無効化
+    element.setAttribute("draggable", "false");
+    element.addEventListener("dragstart", (e) => e.preventDefault());
+
     let longPressTimer = null;
-    let longPressFired = false;
-    const startPress = (event) => {
-      if (event.type === "mousedown" && event.button !== 0) return;
-      longPressFired = false;
+    let longPressActive = false;
+    let startX = 0;
+    let startY = 0;
+    let isPointerDown = false;
+    let isEpubImage = false;
+
+    // EPUBの画像かどうかの簡易判定
+    if (this.type === BOOK_TYPES.EPUB || (element.ownerDocument !== document)) {
+      isEpubImage = true;
+    }
+
+    const onPointerDown = (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (!this.longPressZoomEnabled) return;
+      if (this.imageZoomed && !longPressActive) return;
+
+      isPointerDown = true;
+      longPressActive = false;
+
+      try {
+        element.setPointerCapture(e.pointerId);
+      } catch (err) {
+        console.warn("Failed to set pointer capture:", err);
+      }
+
+      let clientX = e.clientX;
+      let clientY = e.clientY;
+
+      if (isEpubImage) {
+        const iframe = this.viewer?.querySelector("iframe");
+        if (iframe) {
+          const iframeRect = iframe.getBoundingClientRect();
+          clientX += iframeRect.left;
+          clientY += iframeRect.top;
+        }
+      }
+
+      startX = clientX;
+      startY = clientY;
+
       clearTimeout(longPressTimer);
       longPressTimer = setTimeout(() => {
-        longPressFired = true;
-        this.onImageZoom?.(getSrc());
-      }, 500);
+        if (!isPointerDown) return;
+        longPressActive = true;
+        
+        if (isEpubImage) {
+          const src = getSrc();
+          this.isEpubTemporaryZoom = true;
+          
+          if (this.imageViewer && this.imageElement) {
+            this.imageViewer.style.display = "flex";
+            this.imageElement.src = src;
+            
+            this.startZoom(this.longPressZoomScale, startX, startY);
+            
+            this.isDragging = true;
+            this.dragStartX = startX;
+            this.dragStartY = startY;
+            this.dragStartPanX = this.panX;
+            this.dragStartPanY = this.panY;
+            this.imageViewer.classList.add(UI_CLASSES.DRAGGING);
+          }
+        } else {
+          this.startZoom(this.longPressZoomScale, startX, startY);
+          this.isDragging = true;
+          this.dragStartX = startX;
+          this.dragStartY = startY;
+          this.dragStartPanX = this.panX;
+          this.dragStartPanY = this.panY;
+          const container = this.getActiveViewer();
+          if (container) {
+            container.classList.add(UI_CLASSES.DRAGGING);
+          }
+        }
+      }, LONG_PRESS_ZOOM_CONFIG.DELAY_MS);
     };
-    const endPress = () => {
-      clearTimeout(longPressTimer);
-    };
-    element.addEventListener("mousedown", startPress);
-    element.addEventListener("touchstart", startPress, { passive: true });
-    element.addEventListener("mouseup", endPress);
-    element.addEventListener("mouseleave", endPress);
-    element.addEventListener("touchend", endPress);
-    element.addEventListener("touchcancel", endPress);
-    element.addEventListener("click", () => {
-      if (longPressFired) {
-        longPressFired = false;
-        return;
+
+    const onPointerMove = (e) => {
+      if (!isPointerDown) return;
+
+      let clientX = e.clientX;
+      let clientY = e.clientY;
+
+      if (isEpubImage) {
+        const iframe = this.viewer?.querySelector("iframe");
+        if (iframe) {
+          const iframeRect = iframe.getBoundingClientRect();
+          clientX += iframeRect.left;
+          clientY += iframeRect.top;
+        }
       }
-      this.onImageZoom?.(getSrc());
-    });
+
+      if (!longPressActive) {
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        if (Math.hypot(dx, dy) > LONG_PRESS_ZOOM_CONFIG.MOVE_THRESHOLD_PX) {
+          clearTimeout(longPressTimer);
+          isPointerDown = false;
+          try {
+            element.releasePointerCapture(e.pointerId);
+          } catch (err) {}
+        }
+      } else {
+        e.preventDefault();
+        
+        const container = this.getActiveViewer();
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const px = (clientX - containerRect.left) / containerRect.width;
+          const py = (clientY - containerRect.top) / containerRect.height;
+          const clampedPx = Math.min(1, Math.max(0, px));
+          const clampedPy = Math.min(1, Math.max(0, py));
+
+          const target = this.getZoomTarget();
+          if (target) {
+            const targetWidth = target.offsetWidth;
+            const targetHeight = target.offsetHeight;
+            const scaledWidth = targetWidth * this.zoomScale;
+            const scaledHeight = targetHeight * this.zoomScale;
+
+            if (scaledWidth <= containerRect.width) {
+              this.panX = (containerRect.width - scaledWidth) / 2;
+            } else {
+              this.panX = (containerRect.width - scaledWidth) * clampedPx;
+            }
+
+            if (scaledHeight <= containerRect.height) {
+              this.panY = (containerRect.height - scaledHeight) / 2;
+            } else {
+              this.panY = (containerRect.height - scaledHeight) * clampedPy;
+            }
+
+            this.clampPan();
+            this.updateTransform();
+          }
+        }
+      }
+    };
+
+    const onPointerUp = (e) => {
+      clearTimeout(longPressTimer);
+      isPointerDown = false;
+
+      try {
+        element.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+
+      if (longPressActive) {
+        longPressActive = false;
+        
+        if (this.isEpubTemporaryZoom) {
+          this.endZoom();
+          if (this.imageViewer) {
+            this.imageViewer.style.display = "none";
+            this.imageViewer.classList.remove(UI_CLASSES.DRAGGING);
+          }
+          this.isEpubTemporaryZoom = false;
+        } else {
+          this.endZoom();
+          const container = this.getActiveViewer();
+          if (container) {
+            container.classList.remove(UI_CLASSES.DRAGGING);
+          }
+        }
+
+        
+        e.preventDefault();
+        e.stopPropagation();
+      } else {
+        if (!this.longPressZoomEnabled) {
+          this.toggleZoom();
+        }
+      }
+    };
+
+    element.addEventListener("pointerdown", onPointerDown);
+    element.addEventListener("pointermove", onPointerMove);
+    element.addEventListener("pointerup", onPointerUp);
+    element.addEventListener("pointercancel", onPointerUp);
+
+    element.style.touchAction = "none";
   }
+
 
   // ========================================
   // ズーム・パン・ドラッグ制御
   // ========================================
 
   getActiveViewer() {
-    // 画像モードなら imageViewer
-    if (this.isImageBook()) {
+    // 画像モード、またはEPUBの一時画像ズーム中なら imageViewer
+    if (this.isImageBook() || this.isEpubTemporaryZoom) {
       return this.imageViewer;
     }
     // EPUBなら viewer
@@ -4682,7 +4845,8 @@ export class ReaderController {
   }
 
   getZoomTarget() {
-    if (this.isImageBook()) {
+    // 画像モード、またはEPUBの一時画像ズーム中なら
+    if (this.isImageBook() || this.isEpubTemporaryZoom) {
       const spreadContainer = this.imageViewer?.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
       if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD && spreadContainer) {
         return spreadContainer;
@@ -4863,6 +5027,33 @@ export class ReaderController {
 
   bindZoomEvents() {
     if (typeof window === 'undefined') return;
+
+    // パジネーションモード時のclick-overlayの下にある画像に対する長押しズームのフォワーディング
+    const clickOverlay = document.querySelector('.click-overlay');
+    if (clickOverlay) {
+      clickOverlay.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode === "scroll") return;
+
+        // click-overlayを一時的に無視して真下の要素を特定する
+        const originalPointerEvents = clickOverlay.style.pointerEvents;
+        clickOverlay.style.pointerEvents = 'none';
+        
+        try {
+          const elementUnder = document.elementFromPoint(e.clientX, e.clientY);
+          if (elementUnder && (elementUnder.tagName === 'IMG' || elementUnder.tagName === 'image')) {
+            // 画像要素が見つかったら、pointerdown イベントを画像要素に再送する
+            const clonedEvent = new PointerEvent('pointerdown', e);
+            elementUnder.dispatchEvent(clonedEvent);
+            e.preventDefault();
+          }
+        } catch (err) {
+          console.error("Error in click-overlay forwarding:", err);
+        } finally {
+          clickOverlay.style.pointerEvents = originalPointerEvents;
+        }
+      });
+    }
 
     // ホイールズーム（documentレベルで捕捉）
     document.addEventListener('wheel', (event) => {
@@ -5150,4 +5341,77 @@ export class ReaderController {
     this.updateTransform();
     return true;
   }
+
+  setLongPressZoomEnabled(enabled) {
+    this.longPressZoomEnabled = !!enabled;
+  }
+
+  setLongPressZoomScale(scale) {
+    this.longPressZoomScale = parseFloat(scale) || 2.5;
+  }
+
+  startZoom(scale, centerX, centerY) {
+    const body = document.body;
+    const backdrop = document.querySelector('#floatOverlay .float-backdrop');
+    
+    this.imageZoomed = true;
+    this.zoomScale = scale;
+    body.classList.add(UI_CLASSES.IS_ZOOMED);
+    if (backdrop) backdrop.style.pointerEvents = 'none';
+    this.syncZoomedClass();
+
+    // 画面座標 (centerX, centerY) を中心に拡大するための panX, panY を計算
+    const container = this.getActiveViewer();
+    const target = this.getZoomTarget();
+    if (container && target) {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      
+      const touchX = centerX - containerRect.left;
+      const touchY = centerY - containerRect.top;
+
+      const targetLeft = targetRect.left - containerRect.left;
+      const targetTop = targetRect.top - containerRect.top;
+      
+      const relativeX = touchX - targetLeft;
+      const relativeY = touchY - targetTop;
+
+      this.panX = touchX - relativeX * this.zoomScale;
+      this.panY = touchY - relativeY * this.zoomScale;
+
+      this.clampPan();
+    } else {
+      if (container && target) {
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+        const tw = target.offsetWidth;
+        const th = target.offsetHeight;
+        this.panX = (cw - tw * this.zoomScale) / 2;
+        this.panY = (ch - th * this.zoomScale) / 2;
+      }
+    }
+
+    this.onImageZoom?.(this.imageZoomed, this.zoomScale);
+    this.updateTransform();
+    this.syncZoomSlider();
+  }
+
+  endZoom() {
+    const { min } = this.getZoomConfig();
+    const body = document.body;
+    const slider = document.getElementById(DOM_IDS.ZOOM_SLIDER);
+    const backdrop = document.querySelector('#floatOverlay .float-backdrop');
+
+    this.imageZoomed = false;
+    this.zoomScale = min;
+    this.panX = 0;
+    this.panY = 0;
+    body.classList.remove(UI_CLASSES.IS_ZOOMED);
+    if (slider) slider.value = min;
+    if (backdrop) backdrop.style.pointerEvents = '';
+    this.syncZoomedClass();
+    this.onImageZoom?.(this.imageZoomed, this.zoomScale);
+    this.updateTransform();
+  }
 }
+

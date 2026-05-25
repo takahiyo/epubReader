@@ -90,6 +90,9 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
   settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
   settingsOneBookmarkPerBookLabel: "1つの書籍に作成するしおりは一つだけにする",
+  settingsLongPressZoomLabel: "長押しでズーム（PerfectViewer風）",
+  settingsLongPressZoomScaleLabel: "長押しズーム倍率",
+
 
   // アカウント
   settingsAccountTitle: "アカウント",
@@ -263,6 +266,6 @@ export const UI_STRINGS_JA = Object.freeze({
   stubHashMismatch: "選択されたファイルは登録済みのファイルと一致しません。\n正しいファイルを選択してください。",
   cancel: "キャンセル",
   selectFile: "ファイルを選択",
-  streamingNotice: "メモリが不足しているため、機能制限モード（ストリーミング）で読み込んでいます。一部の機能が利用できません。",
-  streamingCdnFailed: "ストリーミング用ライブラリの読み込みに失敗しました。通常モードで再試行します。",
+  streamingNotice: "ご利用の端末の空きメモリが少なくなっています。読込を継続するため、省メモリモード（ストリーミング）で読み込んでいます。ページ切り替えなどの動作が少し遅くなる場合がありますのでご了承ください。",
+  streamingCdnFailed: "ストリーミング用のライブラリの読み込みに失敗しました。通常モードで読み込み直します。",
 });
