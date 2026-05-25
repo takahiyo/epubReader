@@ -4688,6 +4688,10 @@ export class ReaderController {
     element.setAttribute("draggable", "false");
     element.addEventListener("dragstart", (e) => e.preventDefault());
 
+    // モバイルブラウザでの長押しコンテキストメニュー表示を防止（ズーム操作を阻害しないため）
+    element.style.webkitTouchCallout = "none";
+    element.addEventListener("contextmenu", (e) => e.preventDefault());
+
     let longPressTimer = null;
     let longPressActive = false;
     let startX = 0;
