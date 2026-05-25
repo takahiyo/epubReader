@@ -49,7 +49,8 @@ const DEFAULTS = {
   padding: READER_CONFIG.padding,
   maxWidth: READER_CONFIG.layout?.maxWidth,
   joinSpineItems: false, // 新規：全章を結合して1つのスクロール領域にするか
-  spineGroups: null      // [追加] 章のグループ情報 { start, end } の配列
+  spineGroups: null,     // [追加] 章のグループ情報 { start, end } の配列
+  gaijiClasses: null     // [追加] 抽出した外字クラスの配列
 };
 
 const MAX_BINARY_SEARCH_ITERATIONS = READER_CONFIG.MAX_BINARY_SEARCH_ITERATIONS;
@@ -321,7 +322,19 @@ function makeHtmlSafe(html) {
   return safe;
 }
 
-async function resolveResources(body, resourceLoader, spineItem) {
+async function resolveResources(body, resourceLoader, spineItem, gaijiClasses = null) {
+  // [追加] 外字クラスの自動付与
+  const allImages = Array.from(body.querySelectorAll("img, image"));
+  allImages.forEach(img => {
+    const className = img.getAttribute("class") || "";
+    const hasGaijiInClass = className.toLowerCase().includes("gaiji");
+    const hasCustomGaijiClass = gaijiClasses && className.split(/\s+/).some(cls => gaijiClasses.includes(cls));
+    
+    if (hasGaijiInClass || hasCustomGaijiClass) {
+      img.classList.add("gaiji");
+    }
+  });
+
   if (!resourceLoader) return;
   const images = Array.from(body.querySelectorAll("img, image"));
 
@@ -428,7 +441,7 @@ export class EpubPaginator {
       const parsed = new DOMParser().parseFromString(safeHtmlString, "text/html");
       const body = parsed.body;
 
-      await resolveResources(body, this.resourceLoader, spineItem);
+      await resolveResources(body, this.resourceLoader, spineItem, this.settings.gaijiClasses);
       this.ensureNotCancelled(run);
       const { segments, idToSegmentIndex } = createSegments(body);
       if (!segments.length) {
@@ -645,7 +658,7 @@ export class EpubPaginator {
       const parsed = new DOMParser().parseFromString(safeHtmlString, "text/html");
       const body = parsed.body;
 
-      await resolveResources(body, this.resourceLoader, spineItem);
+      await resolveResources(body, this.resourceLoader, spineItem, this.settings.gaijiClasses);
       this.ensureNotCancelled(run);
       const { segments, idToSegmentIndex } = createSegments(body);
       if (!segments.length) {
