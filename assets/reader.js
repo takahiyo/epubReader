@@ -226,6 +226,7 @@ export class ReaderController {
     this.book = null;
     this.type = null; // BOOK_TYPES.EPUB | BOOK_TYPES.IMAGE
     this.archiveHandler = null;
+    this.gaijiClasses = [];
     this.imagePages = [];
     this.imageIndex = 0;
     this.imageEntries = [];
@@ -981,6 +982,7 @@ export class ReaderController {
         spineCount: this.archiveHandler.spine.length,
         tocCount: this.archiveHandler.toc.length,
       });
+      this.gaijiClasses = await this.detectGaijiClassesFromStylesheets();
     } catch (err) {
       console.warn("[openEpub] EpubArchiveHandler の初期化に失敗しました（従来ロジックで継続）:", err);
       this.archiveHandler = null;
@@ -2712,7 +2714,8 @@ export class ReaderController {
 
     this.pageContainer.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG).forEach((img) => {
       const className = img.getAttribute("class") || "";
-      const isGaiji = className.toLowerCase().includes("gaiji");
+      const isGaiji = className.toLowerCase().includes("gaiji") || 
+                      (this.gaijiClasses && className.split(/\s+/).some(cls => this.gaijiClasses.includes(cls)));
       if (isGaiji) {
         img.classList.add(UI_CLASSES.GAIJI_IMAGE || "reader-gaiji-img");
       } else {
@@ -2905,6 +2908,44 @@ export class ReaderController {
       location: locator ?? fallbackLocator ?? null,
       percentage,
     });
+  }
+
+  async detectGaijiClassesFromStylesheets() {
+    if (!this.archiveHandler || !this.archiveHandler.manifest) return [];
+    const gaijiClasses = new Set();
+    try {
+      const cssItems = Array.from(this.archiveHandler.manifest.values()).filter(
+        item => item.mediaType === "text/css"
+      );
+      for (const cssItem of cssItems) {
+        try {
+          const blob = await this.archiveHandler.getFileBlob(cssItem.fullPath);
+          if (!blob) continue;
+          const cssText = await blob.text();
+          const ruleRegex = /([^{]+)\{([^}]+)\}/g;
+          let match;
+          while ((match = ruleRegex.exec(cssText)) !== null) {
+            const selector = match[1];
+            const ruleBody = match[2].toLowerCase();
+            const hasWidth1em = /width\s*:\s*1(?:\.0)?em\b/.test(ruleBody);
+            const hasHeight1em = /height\s*:\s*1(?:\.0)?em\b/.test(ruleBody);
+            if (hasWidth1em || hasHeight1em) {
+              const classRegex = /\.([a-zA-Z0-9_-]+)/g;
+              let classMatch;
+              while ((classMatch = classRegex.exec(selector)) !== null) {
+                gaijiClasses.add(classMatch[1]);
+                console.log(`[detectGaijiClasses] Detected gaiji class from CSS: .${classMatch[1]}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[detectGaijiClasses] Failed to parse CSS file ${cssItem.fullPath}:`, e);
+        }
+      }
+    } catch (err) {
+      console.warn("[detectGaijiClasses] Error during CSS scanning:", err);
+    }
+    return Array.from(gaijiClasses);
   }
 
   async resolveImagesInRenderedPage(page) {
@@ -3186,6 +3227,7 @@ export class ReaderController {
         epubViewMode: this.epubViewMode,
         joinSpineItems: this.epubViewMode === EPUB_VIEW_MODES.SCROLL,
         spineGroups: this._spineGroups, // [追加] 章の境界情報を渡す
+        gaijiClasses: this.gaijiClasses, // [追加] 抽出した外字クラスを渡す
       });
 
       // 以前のパジネーション実行があれば中断
