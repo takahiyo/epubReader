@@ -1,0 +1,100 @@
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uuid_id" prefix="calibre: https://calibre-ebook.com">
+  <metadata xmlns:opf="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:calibre="http://calibre.kovidgoyal.net/2009/metadata">
+    <dc:title id="id">ようこそ実力至上主義の教室へ 10 (MF文庫J)</dc:title>
+    <dc:creator id="id-1">衣笠彰梧</dc:creator>
+    <dc:identifier>mobi-asin:B07MZNJ71J</dc:identifier>
+    <dc:identifier>calibre:30993</dc:identifier>
+    <dc:identifier>uuid:7a0115a8-f939-469e-8fba-24e325d42c74</dc:identifier>
+    <dc:identifier id="uuid_id">uuid:183ff0cc-1fdf-4098-9375-db910536f8e1</dc:identifier>
+    <dc:language>ja</dc:language>
+    <dc:contributor id="id-2">calibre (6.4.0) [https://calibre-ebook.com]</dc:contributor>
+    <dc:date>2019-02-24T16:00:00+00:00</dc:date>
+    <dc:publisher>株式会社ＫＡＤＯＫＡＷＡ</dc:publisher>
+    <opf:meta refines="#id" property="title-type">main</opf:meta>
+    <opf:meta refines="#id" property="file-as">ようこそ実力至上主義の教室へ 10 (MF文庫J)</opf:meta>
+    <meta name="cover" content="cover"/>
+    <meta name="primary-writing-mode" content="vertical-rl"/>
+    <meta property="calibre:timestamp" scheme="dcterms:W3CDTF">2021-05-15T17:13:36Z</meta>
+    <meta property="dcterms:modified" scheme="dcterms:W3CDTF">2021-05-15T17:16:05Z</meta>
+    <opf:meta refines="#id-2" property="role" scheme="marc:relators">bkp</opf:meta>
+    <opf:meta refines="#id-1" property="role" scheme="marc:relators">aut</opf:meta>
+    <opf:meta refines="#id-1" property="file-as">衣笠彰梧</opf:meta>
+    <opf:meta property="calibre:author_link_map">{"衣笠彰梧": ""}</opf:meta>
+  </metadata>
+  <manifest>
+    <item id="titlepage" href="titlepage.xhtml" media-type="application/xhtml+xml" properties="svg calibre:title-page"/>
+    <item id="id36" href="text/part0000.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id37" href="text/part0001.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id38" href="text/part0002.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id39" href="text/part0003.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id40" href="text/part0004.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id41" href="text/part0005.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id42" href="text/part0006.html" media-type="application/xhtml+xml"/>
+    <item id="id43" href="text/part0007.html" media-type="application/xhtml+xml"/>
+    <item id="id44" href="text/part0008.html" media-type="application/xhtml+xml"/>
+    <item id="id45" href="text/part0009.html" media-type="application/xhtml+xml"/>
+    <item id="id46" href="text/part0010.html" media-type="application/xhtml+xml"/>
+    <item id="id47" href="text/part0011.html" media-type="application/xhtml+xml"/>
+    <item id="id48" href="text/part0012.html" media-type="application/xhtml+xml"/>
+    <item id="id49" href="text/part0013.html" media-type="application/xhtml+xml"/>
+    <item id="id50" href="text/part0014.html" media-type="application/xhtml+xml"/>
+    <item id="id51" href="text/part0015.html" media-type="application/xhtml+xml"/>
+    <item id="id52" href="text/part0016.html" media-type="application/xhtml+xml"/>
+    <item id="id53" href="text/part0017.html" media-type="application/xhtml+xml"/>
+    <item id="id54" href="text/part0018.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="id55" href="text/part0019.html" media-type="application/xhtml+xml"/>
+    <item id="id56" href="text/part0020.html" media-type="application/xhtml+xml"/>
+    <item id="id57" href="text/part0021.html" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="page_css" href="page_styles.css" media-type="text/css"/>
+    <item id="css" href="stylesheet.css" media-type="text/css"/>
+    <item id="cover" href="cover.jpeg" media-type="image/jpeg" properties="cover-image"/>
+    <item id="id1" href="images/00001.jpeg" media-type="image/jpeg"/>
+    <item id="id2" href="images/00002.jpeg" media-type="image/jpeg"/>
+    <item id="id3" href="images/00003.jpeg" media-type="image/jpeg"/>
+    <item id="id4" href="images/00004.jpeg" media-type="image/jpeg"/>
+    <item id="id5" href="images/00005.jpeg" media-type="image/jpeg"/>
+    <item id="id6" href="images/00006.jpeg" media-type="image/jpeg"/>
+    <item id="id7" href="images/00007.jpeg" media-type="image/jpeg"/>
+    <item id="id8" href="images/00008.jpeg" media-type="image/jpeg"/>
+    <item id="id9" href="images/00009.jpeg" media-type="image/jpeg"/>
+    <item id="id10" href="images/00010.jpeg" media-type="image/jpeg"/>
+    <item id="id11" href="images/00011.jpeg" media-type="image/jpeg"/>
+    <item id="id12" href="images/00012.jpeg" media-type="image/jpeg"/>
+    <item id="id13" href="images/00013.jpeg" media-type="image/jpeg"/>
+    <item id="id14" href="images/00014.jpeg" media-type="image/jpeg"/>
+    <item id="id15" href="images/00015.jpeg" media-type="image/jpeg"/>
+    <item id="id16" href="images/00016.jpeg" media-type="image/jpeg"/>
+    <item id="id17" href="images/00017.jpeg" media-type="image/jpeg"/>
+    <item id="id18" href="images/00018.jpeg" media-type="image/jpeg"/>
+    <item id="id19" href="images/00019.jpeg" media-type="image/jpeg"/>
+    <item id="id20" href="images/00020.jpeg" media-type="image/jpeg"/>
+    <item id="id21" href="images/00021.jpeg" media-type="image/jpeg"/>
+    <item id="id22" href="images/00022.jpeg" media-type="image/jpeg"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref idref="titlepage"/>
+    <itemref idref="id36"/>
+    <itemref idref="id37"/>
+    <itemref idref="id38"/>
+    <itemref idref="id39"/>
+    <itemref idref="id40"/>
+    <itemref idref="id41"/>
+    <itemref idref="id42"/>
+    <itemref idref="id43"/>
+    <itemref idref="id44"/>
+    <itemref idref="id45"/>
+    <itemref idref="id46"/>
+    <itemref idref="id47"/>
+    <itemref idref="id48"/>
+    <itemref idref="id49"/>
+    <itemref idref="id50"/>
+    <itemref idref="id51"/>
+    <itemref idref="id52"/>
+    <itemref idref="id53"/>
+    <itemref idref="id54"/>
+    <itemref idref="id55"/>
+    <itemref idref="id56"/>
+    <itemref idref="id57"/>
+  </spine>
+</package>
