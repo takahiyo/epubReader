@@ -4666,7 +4666,8 @@ export class ReaderController {
     container.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
       if (img.dataset.zoomBound === "true") return;
       img.style.cursor = "default";
-      this.bindElementZoomHandlers(img, () => img.src);
+      const getSrc = () => img.src || img.getAttribute("href") || img.getAttribute("xlink:href") || img.getAttribute("data-src") || "";
+      this.bindElementZoomHandlers(img, getSrc);
     });
   }
 
@@ -4676,7 +4677,8 @@ export class ReaderController {
     this.imageViewer.querySelectorAll("img").forEach((img) => {
       if (img.dataset.zoomBound === "true") return;
       img.style.pointerEvents = "auto";
-      this.bindElementZoomHandlers(img, () => img.src);
+      const getSrc = () => img.src || img.getAttribute("href") || img.getAttribute("xlink:href") || img.getAttribute("data-src") || "";
+      this.bindElementZoomHandlers(img, getSrc);
     });
   }
 
@@ -4687,6 +4689,10 @@ export class ReaderController {
     // ブラウザデフォルトの画像ドラッグを完全無効化
     element.setAttribute("draggable", "false");
     element.addEventListener("dragstart", (e) => e.preventDefault());
+
+    // モバイルブラウザでの長押しコンテキストメニュー表示を防止（ズーム操作を阻害しないため）
+    element.style.webkitTouchCallout = "none";
+    element.addEventListener("contextmenu", (e) => e.preventDefault());
 
     let longPressTimer = null;
     let longPressActive = false;
@@ -4740,6 +4746,7 @@ export class ReaderController {
           
           if (this.imageViewer && this.imageElement) {
             this.imageViewer.style.display = "flex";
+            this.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
             this.imageElement.src = src;
             
             this.startZoom(this.longPressZoomScale, startX, startY);
@@ -4843,6 +4850,7 @@ export class ReaderController {
           this.endZoom();
           if (this.imageViewer) {
             this.imageViewer.style.display = "none";
+            this.imageViewer.classList.add(UI_CLASSES.HIDDEN);
             this.imageViewer.classList.remove(UI_CLASSES.DRAGGING);
           }
           this.isEpubTemporaryZoom = false;
