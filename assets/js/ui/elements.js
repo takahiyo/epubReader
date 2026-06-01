@@ -226,4 +226,16 @@ export const elements = {
     backToWebNovelSearch: getById("backToWebNovelSearch"),
     floatWebNovel: getById(DOM_IDS.FLOAT_WEB_NOVEL),
     menuWebNovel: getById(DOM_IDS.MENU_WEB_NOVEL),
+
+    // Quest 3 Picker
+    quest3PickerModal: getById(DOM_IDS.QUEST3_PICKER_MODAL),
+    quest3PickerTitle: getById(DOM_IDS.QUEST3_PICKER_TITLE),
+    closeQuest3Picker: getById(DOM_IDS.CLOSE_QUEST3_PICKER),
+    networkUrlInput: getById(DOM_IDS.NETWORK_URL_INPUT),
+    networkFetchBtn: getById(DOM_IDS.NETWORK_FETCH_BTN),
+    networkAuthUser: getById(DOM_IDS.NETWORK_AUTH_USER),
+    networkAuthPass: getById(DOM_IDS.NETWORK_AUTH_PASS),
+    networkHistory: getById(DOM_IDS.NETWORK_HISTORY),
+    quest3LocalFileBtn: getById(DOM_IDS.QUEST3_LOCAL_FILE_BTN),
+    quest3LibraryBtn: getById(DOM_IDS.QUEST3_LIBRARY_BTN),
 };

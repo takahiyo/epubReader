@@ -338,6 +338,18 @@ export const DOM_IDS = Object.freeze({
   WEB_NOVEL_TOC_LIST: "webNovelTocList",
   FLOAT_WEB_NOVEL: "floatWebNovel",
   MENU_WEB_NOVEL: "menuWebNovel",
+
+  // Quest 3 Picker
+  QUEST3_PICKER_MODAL: "quest3PickerModal",
+  QUEST3_PICKER_TITLE: "quest3PickerTitle",
+  CLOSE_QUEST3_PICKER: "closeQuest3Picker",
+  NETWORK_URL_INPUT: "networkUrlInput",
+  NETWORK_FETCH_BTN: "networkFetchBtn",
+  NETWORK_AUTH_USER: "networkAuthUser",
+  NETWORK_AUTH_PASS: "networkAuthPass",
+  NETWORK_HISTORY: "networkHistory",
+  QUEST3_LOCAL_FILE_BTN: "quest3LocalFileBtn",
+  QUEST3_LIBRARY_BTN: "quest3LibraryBtn",
 });
 
 export const DOM_SELECTORS = Object.freeze({
