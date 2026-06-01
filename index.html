@@ -5,6 +5,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#2c3e50">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BookReader">
   <link rel="apple-touch-icon" href="assets/icon_BookReader_512.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon_BookReader_192.png">
   <title>BookReader</title>
@@ -29,6 +32,7 @@
   <link rel="stylesheet" href="./assets/css/18-float-lang.css?v=11" />
   <link rel="stylesheet" href="./assets/css/19-zoom.css?v=11" />
   <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/21-quest3-picker.css?v=1" />
   <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
@@ -273,6 +277,46 @@
           <button id="syncUseRemote" class="sync-action-btn primary" type="button"></button>
           <button id="syncUseLocal" class="sync-action-btn" type="button"></button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quest 3 ファイルソース選択モーダル -->
+  <div id="quest3PickerModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="quest3PickerTitle">ファイルを開く (Quest 3)</h3>
+        <button id="closeQuest3Picker" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <!-- ネットワーク取得セクション -->
+        <div class="quest3-source-section" style="margin-bottom: 1.5rem;">
+          <h4 style="margin-bottom: 0.5rem; font-size: 1.1rem; color: var(--text-primary);">📡 ネットワークから取得</h4>
+          <div class="network-input-group" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <input type="url" id="networkUrlInput" placeholder="http://nas-server/books/example.epub" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-panel); color: var(--text-primary);" />
+            <button id="networkFetchBtn" class="primary-btn" style="padding: 0 1rem; border: none; border-radius: 4px; background: var(--accent); color: white; cursor: pointer;">取得</button>
+          </div>
+          <!-- 認証セクション -->
+          <details class="network-auth-section" style="margin-bottom: 1rem;">
+            <summary style="cursor: pointer; color: var(--text-secondary); font-size: 0.9rem;">認証設定 (WebDAV等)</summary>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <input type="text" id="networkAuthUser" placeholder="ユーザー名" style="flex: 1; padding: 0.3rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-panel); color: var(--text-primary);" />
+              <input type="password" id="networkAuthPass" placeholder="パスワード" style="flex: 1; padding: 0.3rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-panel); color: var(--text-primary);" />
+            </div>
+          </details>
+          <!-- 接続履歴 -->
+          <div id="networkHistory" class="network-history" style="max-height: 100px; overflow-y: auto; background: var(--bg-panel); border-radius: 4px; padding: 0.5rem;"></div>
+        </div>
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0;" />
+        <!-- ローカルファイル -->
+        <button id="quest3LocalFileBtn" class="secondary-btn" style="width: 100%; padding: 1rem; margin-bottom: 1rem; text-align: left; font-size: 1.1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📂</span> ローカルファイルを選択
+        </button>
+        <!-- ライブラリ -->
+        <button id="quest3LibraryBtn" class="secondary-btn" style="width: 100%; padding: 1rem; text-align: left; font-size: 1.1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📚</span> ライブラリから選択
+        </button>
       </div>
     </div>
   </div>
