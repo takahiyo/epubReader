@@ -240,9 +240,10 @@ C案: ADB経由での解除（非現実的）
 ### 解決アプローチ（実施）
 
 1. `file-picker.js` で `QUEST3` に対しても直接 `androidPicker` を呼び出すように変更し、中間モーダルを完全に廃止。
-2. `picker-android.js` に `isQuest3()` の判定を追加。Quest 3 の場合は `acceptString = "*/*"`（ワイルドカード）とし、`multiple = false` に強制することで、以前のように外部ファイラーを含む広範囲なピッカー（多機能ピッカー）をOSに起動させる。（※当初 `accept` を完全に空にしたが効果がなかったため、以前の有効策であった `*/*` に再設定した）。
-3. `index.html` から不要になった `#quest3PickerModal` のマークアップを削除。
-4. 反映のためキャッシュを `bookreader-v25` にバンプ。
+2. Quest 3 のOSアップデートにより、ブラウザ上の `<input type="file">` はOS制限を回避不可能であることが確定。そのため、`picker-android.js` のパラメータはハックコードを廃止し、通常のAndroidと同じ安全な設定に戻した。
+3. 今後の本命対策として、TWA（APK）パッケージの再ビルドによる「アプリで開く」への登録（file_handlersのインテントフィルタ連携）へと舵を切る。
+4. `index.html` から不要になった `#quest3PickerModal` のマークアップを削除。
+5. キャッシュを `bookreader-v26` にバンプ。
 
 ---
 
@@ -251,7 +252,7 @@ C案: ADB経由での解除（非現実的）
 | 日時 | 変更内容 | ファイル |
 |------|---------|---------|
 | 2026-06-02 | Quest 3 でも直接 androidPicker を起動するよう変更 | assets/js/core/file-picker.js |
-| 2026-06-02 | Quest 3 検出時に accept を */*、multiple を false に強制し多機能ピッカーを起動 | assets/js/core/pickers/picker-android.js |
+| 2026-06-02 | OS制限の確定に伴い、Quest 3用ハックを廃止し安全な元のコードへ復帰 | assets/js/core/pickers/picker-android.js |
 | 2026-06-02 | 不要な Quest 3 専用モーダルのマークアップを削除 | index.html |
-| 2026-06-02 | キャッシュバンプ v23→v25 | assets/constants/pwa.js, assets/sw-cache-config.json |
+| 2026-06-02 | キャッシュバンプ v23→v26 | assets/constants/pwa.js, assets/sw-cache-config.json |
 
