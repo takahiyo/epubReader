@@ -37,7 +37,7 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         const useBroadPicker = isQuest || options.broad;
 
         if (useBroadPicker) {
-            acceptString = '';
+            acceptString = '*/*';
         } else if (!acceptString) {
             acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         }
