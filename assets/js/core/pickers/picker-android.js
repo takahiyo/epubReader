@@ -7,6 +7,7 @@
  * 従来の <input type="file"> が最もクラウドストレージ（Google Drive等）と親和性が高い。
  */
 import { createFileInput } from './picker-base.js';
+import { isQuest3 } from '../../../constants.js';
 
 export const openFilePicker = async (options = {}, dependencies = {}) => {
     return new Promise((resolve) => {
@@ -29,13 +30,20 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
             acceptString = accepts.join(',');
         }
 
-        // 指定がない場合、または空の場合はデフォルトの電子書籍/書庫フォーマットを指定して
-        // Androidの「カメラ」「写真」インテントが起動するのを防ぐ
-        if (!acceptString) {
+        // Quest 3の場合は、OSの制限付きメディアピッカーを回避して
+        // クラウドストレージ等も選択できる多機能ピッカーを起動するため、
+        // acceptを空、multipleをfalseにする
+        const isQuest = isQuest3();
+        const useBroadPicker = isQuest || options.broad;
+
+        if (useBroadPicker) {
+            acceptString = '';
+        } else if (!acceptString) {
             acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         }
         
-        const input = createFileInput(inputId, acceptString, options.multiple !== false, true);
+        const isMultiple = useBroadPicker ? false : (options.multiple !== false);
+        const input = createFileInput(inputId, acceptString, isMultiple, true);
 
         const handleFocus = () => {
             setTimeout(() => {

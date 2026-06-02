@@ -15,7 +15,7 @@ let dependencies = {
 };
 
 const PICKER_MAP = {
-    [PLATFORM_TYPES.QUEST3]: quest3Picker,
+    [PLATFORM_TYPES.QUEST3]: androidPicker, // Quest 3でも専用モーダルは使わず直接ピッカーを起動
     [PLATFORM_TYPES.ANDROID]: androidPicker,
     [PLATFORM_TYPES.WINDOWS]: windowsPicker,
     [PLATFORM_TYPES.IOS]: androidPicker, // iOSも現状はAndroid同様レガシーinputを利用する
