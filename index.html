@@ -475,6 +475,15 @@
             <div class="setting-item hidden" id="installContainer">
               <button id="installButton" class="secondary-btn" type="button"></button>
             </div>
+            <!-- [BEFORE] -->
+            <!-- [AFTER] -->
+            <!-- デバッグ情報表示領域 -->
+            <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px; font-size: 0.85em; opacity: 0.8; width: 100%;">
+              <div style="font-weight: bold; color: var(--accent-color);">[DEBUG INFO]</div>
+              <div><strong>Cache:</strong> <span id="debugCacheName">読み込み中...</span></div>
+              <div><strong>Platform:</strong> <span id="debugPlatform" style="font-weight: bold;">読み込み中...</span></div>
+              <div style="word-break: break-all; width: 100%;"><strong>UA:</strong> <span id="debugUserAgent">読み込み中...</span></div>
+            </div>
           </div>
         </div>
 
