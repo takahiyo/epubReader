@@ -47,7 +47,9 @@ export const isQuest3 = () => {
     // [BEFORE]
     // return ua.includes(UA_KEYWORDS.OCULUS) && ua.includes(UA_KEYWORDS.QUEST_3);
     // [AFTER]
-    return /Quest|Oculus|VR/i.test(ua);
+    // WebXR APIが存在すれば、Quest等のVRデバイスとみなす（UA偽装対策）
+    const hasXR = typeof navigator !== 'undefined' && 'xr' in navigator;
+    return /Quest|Oculus|VR/i.test(ua) || hasXR;
 };
 
 export const PLATFORM_TYPES = Object.freeze({
