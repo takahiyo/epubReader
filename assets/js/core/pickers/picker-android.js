@@ -34,43 +34,45 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
             acceptString = accepts.join(',');
         }
 
+        // [BEFORE]
+        // const platform = detectPlatform();
+        // const isQuest = platform === PLATFORM_TYPES.QUEST3;
+        // const useBroadPicker = isQuest || options.broad;
+        // [AFTER]
         const platform = detectPlatform();
-        const isQuest = platform === PLATFORM_TYPES.QUEST3;
+        const hasXR = typeof navigator !== 'undefined' && 'xr' in navigator;
+        const isQuest = platform === PLATFORM_TYPES.QUEST3 || hasXR || /Quest|Oculus|VR/i.test(navigator.userAgent);
         const useBroadPicker = isQuest || options.broad;
 
         // [BEFORE]
-        // // 指定がない場合、または空の場合はデフォルトの電子書籍/書庫フォーマットを指定して
-        // // Androidの「カメラ」「写真」インテントが起動するのを防ぐ
-        // if (!acceptString) {
+        // if (useBroadPicker) {
+        //     acceptString = '';
+        //     console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '' (empty) for system picker.`);
+        // } else if (!acceptString) {
         //     acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         // }
-        // 
-        // const input = createFileInput(inputId, acceptString, options.multiple !== false, true);
         // [AFTER]
-        // Quest 3の場合は、OSの制限付きメディアピッカーを回避して
-        // クラウドストレージ等も選択できる多機能ピッカーを起動するため、
-        // acceptを*/*にする。
-        // [BEFORE]
-        // if (useBroadPicker) {
-        //     acceptString = '*/*';
-        //     console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '*/*' for system picker.`);
-        // }
-        // [AFTER]
-        if (useBroadPicker) {
-            acceptString = '';
-            console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '' (empty) for system picker.`);
-        } else if (!acceptString) {
-            acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
-        }
+        // Quest 3およびAndroid全般において、特定の拡張子を指定すると簡易メディアピッカーが強制起動するのを防ぐため、
+        // 常に acceptString を空（''）にして、外部ファイラーやGoogle Drive等が選べる高度なシステムピッカー（SAF）を強制起動します。
+        acceptString = '';
+        console.log(`[picker-android] Forcing acceptString to '' (empty) to ensure advanced system picker (SAF) on Android.`);
         
         // [BEFORE]
-        // const isMultiple = useBroadPicker ? false : (options.multiple !== false);
+        // const isMultiple = options.multiple !== false;
+        // const input = createFileInput(inputId, acceptString, isMultiple, true);
         // [AFTER]
         // Quest 3で高度なピッカー（左ペインあり）を起動するためには、multiple属性（複数選択）を有効にする必要があります。
         const isMultiple = options.multiple !== false;
         const input = createFileInput(inputId, acceptString, isMultiple, true);
 
         const startTime = Date.now();
+        
+        // 画面のデバッグログを更新
+        const debugPickerLog = document.getElementById("debugPickerLog");
+        if (debugPickerLog) {
+            debugPickerLog.textContent = `android (isQuest:${isQuest}, multiple:${isMultiple}, accept:'${acceptString}')`;
+        }
+
         console.log(`[picker-android] Picker launched at ${new Date(startTime).toLocaleTimeString()}`);
 
         const handleFocus = () => {
