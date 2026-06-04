@@ -874,7 +874,11 @@ export function renderBookmarks(mode = "current") {
                     _storage.removeBookmark(bookId, bookmark.createdAt);
                     renderBookmarks(mode);
                     renderBookmarkMarkers();
-                    if (_actions.scheduleAutoSyncPush) _actions.scheduleAutoSyncPush();
+                    if (_actions.requestCloudSyncIfNeeded) {
+                        _actions.requestCloudSyncIfNeeded({ force: true });
+                    } else if (_actions.scheduleAutoSyncPush) {
+                        _actions.scheduleAutoSyncPush();
+                    }
                 }
             };
 

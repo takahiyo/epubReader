@@ -826,6 +826,9 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
 
             _storage.save(); // すべての更新を永続化
             uiCallbacks.updateSyncStatusDisplay();
+            if (typeof uiCallbacks.renderLibrary === 'function') {
+                uiCallbacks.renderLibrary();
+            }
         }
         return didSync;
     } catch (error) {
