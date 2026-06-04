@@ -57,6 +57,8 @@ import {
   SYNC_SOURCES,
   CLOUD_SYNC_PAGE_THRESHOLD,
   SHARE_MARKDOWN_TEMPLATE,
+  detectPlatform,
+  PWA_CONFIG,
 } from "./constants.js";
 
 // ========================================
@@ -2391,9 +2393,36 @@ function applyUiLanguage(nextLanguage) {
   if (elements.deviceColorInput && deviceSettings.deviceColor) {
     elements.deviceColorInput.value = deviceSettings.deviceColor;
   }
+  // [BEFORE]
+  //   if (elements.deviceNameInput) {
+  //     // storage.js の getDeviceInfo を使用
+  //     elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
+  //   }
+  // [AFTER]
   if (elements.deviceNameInput) {
     // storage.js の getDeviceInfo を使用
     elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
+  }
+
+  // 画面表示用のデバッグ情報を設定モーダルに反映する
+  const debugCacheName = document.getElementById("debugCacheName");
+  const debugPlatform = document.getElementById("debugPlatform");
+  const debugUserAgent = document.getElementById("debugUserAgent");
+  
+  if (debugCacheName) {
+    debugCacheName.textContent = PWA_CONFIG?.CACHE_NAME || "不明";
+  }
+  if (debugPlatform) {
+    const platform = typeof detectPlatform === "function" ? detectPlatform() : "不明";
+    debugPlatform.textContent = platform;
+    if (platform === "quest3") {
+      debugPlatform.style.color = "#2ecc71"; // 正常検知した場合は緑色
+    } else {
+      debugPlatform.style.color = "#e74c3c"; // それ以外は赤色
+    }
+  }
+  if (debugUserAgent) {
+    debugUserAgent.textContent = navigator.userAgent;
   }
   if (elements.settingsAccountTitle) elements.settingsAccountTitle.textContent = strings.settingsAccountTitle;
   if (elements.googleLoginButton) elements.googleLoginButton.textContent = strings.googleLoginLabel;
