@@ -430,3 +430,31 @@ C案: ADB経由での解除（非現実的）
 - `bubblewrap update` および `bubblewrap build` を実行して、通常のAndroid TWA用署名付きAPKを再ビルドし、ユーザーに入れ替えて動作確認を依頼する。
 
 ---
+
+## エントリ #15 - 2026-06-04 (PWAbuilder版での高度なピッカー起動成功とファイル選択後の読込フリーズ対応)
+
+### 成功の境界線
+
+- Quest 3の実機 (PWAbuilder版APK) にて、PWAキャッシュが `v33` に更新され、Platformが `quest3` と正常に認識され、かつファイル選択後に正常に本の読み込みが開始される状態。
+
+### 失敗の事象
+
+- PWAbuilder版のAPKをインストールして起動したところ、高度なファイルピッカー（左ペイン付き）が正常に起動することを確認した。
+- しかし、ファイルを選択してもリーダーへの読み込みが開始されなかった。また、Platformのデバッグ表記が `unknown` になっていた。
+
+### 失敗の根本原因
+
+1. **プラットフォーム判定のすり抜け:**
+   PWAbuilder版（Custom Tabs/Oculus Browser）から起動した際、大画面モードやデスクトップ表示モードなどの影響で、`navigator.userAgent` 文字列に `Android` や `Quest`, `Oculus`, `VR` のキーワードが一切含まれず、`detectPlatform()` が `unknown` を返していた。
+2. **Windowsピッカーのフォールバックにおけるタイマー誤作動:**
+   `detectPlatform()` が `unknown` と判定されたため、`file-picker.js` は `windowsPicker` を呼び出した。
+   `windowsPicker` はモダンAPI非対応時に `accept=""`（空）で `<input>` を作成し、これが高度なピッカーの起動に繋がったが、そのフォールバック処理に組み込まれている「キャンセル判定タイムアウト」がわずか **`300ms`** だった。
+   Quest 3 OSの処理遅延およびファイラーのファイルデータ準備により、フォーカスが戻ってから `change` イベントが届くまでに0.3秒以上かかったため、`change` が発火する前にタイムアウトによる空のファイル配列が解決され（キャンセル扱い）、読み込みが開始されなかった。
+
+### 次のアプローチ
+
+- `picker-windows.js` のフォールバック処理において、タッチデバイス（`isTouch`）の時はキャンセル猶予タイムアウトを `3000ms` (3秒) に延長する。
+- `runtime-config.js` の `isQuest3()` 判定において、UAだけでなく WebXR API の有無（`'xr' in navigator`）も条件に追加し、UAが偽装または制限されている場合でも確実に `quest3` と判定できるようにする。
+- キャッシュを `bookreader-v33` にバンプする。
+
+---

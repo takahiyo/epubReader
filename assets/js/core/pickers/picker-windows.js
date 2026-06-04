@@ -44,11 +44,22 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         // acceptsは設定しない
         const input = createFileInput(inputId, '', options.multiple !== false, true);
 
+        // [BEFORE]
+        // const handleFocus = () => {
+        //     setTimeout(() => {
+        //         window.removeEventListener('focus', handleFocus);
+        //         resolve([]);
+        //     }, 300);
+        // };
+        // [AFTER]
         const handleFocus = () => {
+            // タッチデバイス（Questやモバイル）の場合は、OSの処理遅延を考慮して3秒の猶予を設ける
+            const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            const timeoutDelay = isTouch ? 3000 : 300;
             setTimeout(() => {
                 window.removeEventListener('focus', handleFocus);
                 resolve([]);
-            }, 300);
+            }, timeoutDelay);
         };
 
         input.addEventListener("change", (e) => {
