@@ -44,7 +44,10 @@ export const UA_KEYWORDS = Object.freeze({
  */
 export const isQuest3 = () => {
     const ua = navigator.userAgent;
-    return ua.includes(UA_KEYWORDS.OCULUS) && ua.includes(UA_KEYWORDS.QUEST_3);
+    // [BEFORE]
+    // return ua.includes(UA_KEYWORDS.OCULUS) && ua.includes(UA_KEYWORDS.QUEST_3);
+    // [AFTER]
+    return /Quest|Oculus|VR/i.test(ua);
 };
 
 export const PLATFORM_TYPES = Object.freeze({
