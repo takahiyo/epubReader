@@ -219,3 +219,120 @@ C案: ADB経由での解除（非現実的）
 - **目次の遅延読み込み/ページネーション**: TOCモーダル内での表示最適化。
 
 ---
+
+## エントリ #7 - 2026-06-02 (Quest 3 ファイルピッカーの簡略化と多機能化)
+
+### 成功の境界線
+
+- Quest 3環境下において、「開く」ボタンを押した際、中間モーダル（WebDAV等の選択）を挟まず、直接以前のような「多機能なOSファイルピッカー」を起動する状態。
+
+### 失敗の事象
+
+- 前回の改修後、Quest 3環境だけで「開く」を押してもファイルピッカーが立ち上がらなくなった（ブラーで隠れたモーダルが原因）。
+- モーダルから「ローカルファイルを開く」を実行しても、他の環境と変わらない制限付きのシンプルなピッカー（ファイラーではなくメディア選択など）しか起動しなくなった。
+
+### 失敗の根本原因
+
+1. モーダル表示時の重ね順（z-index）設定の不備により、設定画面等のブラー背景の裏に隠れていた。
+2. モーダル内のWebDAVとライブラリはそもそも不要であった。
+3. `picker-android.js`（ローカル用）において、`accept` 属性に具体的な拡張子（.epub, .zip等）を詰め込み、`multiple` を有効にしていたため、Android/Quest OS側が「特定のメディア専用の入力」と判断し、Google DriveやpCloud、外部ファイルマネージャー等を選べる多機能ピッカー（ACTION_GET_CONTENT）を隠してしまっていた。
+
+### 解決アプローチ（実施）
+
+1. `file-picker.js` で `QUEST3` に対しても直接 `androidPicker` を呼び出すように変更し、中間モーダルを完全に廃止。
+2. Quest 3 のOSアップデートにより、ブラウザ上の `<input type="file">` はOS制限を回避不可能であることが確定。そのため、`picker-android.js` のパラメータはハックコードを廃止し、通常のAndroidと同じ安全な設定に戻した。
+3. 今後の本命対策として、TWA（APK）パッケージの再ビルドによる「アプリで開く」への登録（file_handlersのインテントフィルタ連携）へと舵を切る。
+4. `index.html` から不要になった `#quest3PickerModal` のマークアップを削除。
+5. キャッシュを `bookreader-v26` にバンプ。
+
+---
+
+## 変更履歴
+
+| 日時 | 変更内容 | ファイル |
+|------|---------|---------|
+| 2026-06-02 | Quest 3 でも直接 androidPicker を起動するよう変更 | assets/js/core/file-picker.js |
+| 2026-06-02 | OS制限の確定に伴い、Quest 3用ハックを廃止し安全な元のコードへ復帰 | assets/js/core/pickers/picker-android.js |
+| 2026-06-02 | 不要な Quest 3 専用モーダルのマークアップを削除 | index.html |
+| 2026-06-02 | キャッシュバンプ v23→v26 | assets/constants/pwa.js, assets/sw-cache-config.json |
+| 2026-06-04 | 署名付きAPK (TWA) のビルド自動化 | android-project/app/build.gradle, .gitignore |
+
+---
+
+## エントリ #8 - 2026-06-04 (BubblewrapによるAndroid APKビルド自動化)
+
+### 成功の境界線
+
+- ローカル環境の Bubblewrap を用い、対話的なプロンプトの入力を手動で待つことなく、署名付き APK (`app-release-signed.apk`) および App Bundle (`app-release-bundle.aab`) のビルドが完全に成功した。
+- 生成された APK には `manifest.json` の `file_handlers` 設定（インテントフィルタによる `.epub` / `.zip` 等のファイル関連付け）が正しく組み込まれている。
+
+### 失敗の事象
+
+1. **初期化時の対話プロンプトでのループ/停止**:
+   - `manage_task` での `send_input` は呼び出し元の標準入力にしか届かず、Bubblewrap CLI にパイプされていなかったため、一部の鍵生成プロンプトでプロセスが待機状態（フリーズ）になった。
+   - `init-automator.js` 内で一部のプロンプト名（大文字小文字の差異、例: `? Organizational Unit`）がマッチせず、自動応答が正しく行われなかった。
+
+2. **Gradle ビルド時の build-tools 35.0.0 エラー**:
+   - `npx @bubblewrap/cli build` 実行時に `Failed to install the following SDK components: build-tools;35.0.0` というエラーでビルドが失敗した。
+   - SDK の `build-tools/35.0.0` ディレクトリが存在するものの、中身が `.installer` のみで不完全（破損状態）であった。
+
+### 失敗の根本原因
+
+1. `process.stdin.pipe(child.stdin)` が抜けていたため、外部からの入力中継が効かなかった。また、プロンプト検出の文字列が大文字小文字で異なっていた。
+2. Android Gradle Plugin (AGP) が自動的に最新の build-tools バージョン（35.0.0）を要求して自動インストールしようとしたが、ライセンス承認の不足またはネットワーク制限等でインストーラーが壊れた状態で停止していた。
+
+### 解決アプローチ
+
+1. **自動化スクリプトの改修**:
+   - `init-automator.js` に対話中継用のパイプを追加し、プロンプト判定の文字列を大文字小文字を含めて正確（かつ一度だけ応答するフラグ制御）にしたことで、完全に自動で `init` と鍵生成が終了するようになった。
+2. **build.gradle でのビルドツール指定ハック**:
+   - `android-project/app/build.gradle` 内の `android` ブロックに `buildToolsVersion "34.0.0"` を明示的に追加。すでに正常インストールされている 34.0.0 (実体は 36.1.0) を強制使用させることで、存在しない 35.0.0 のダウンロードを回避し、ビルドを無事通過させた。
+3. **非対話ビルドの実現**:
+   - ビルド時のパスワード入力を回避するため、環境変数 `BUBBLEWRAP_KEYSTORE_PASSWORD` と `BUBBLEWRAP_KEY_PASSWORD` に `"password"` をセットして `bubblewrap build` を呼び出すことで、ビルドから署名まで完全自動で完了させた。
+
+| 2026-06-04 | 本番URLへの切り替え、Meta Quest互換設定 (isMetaQuest: true) の有効化 | android-project/twa-manifest.json, android-project/app/src/main/AndroidManifest.xml |
+
+---
+
+## エントリ #9 - 2026-06-04 (本番環境切り替え & Meta Quest 互換有効化)
+
+### 成功の境界線
+
+- 本番ドメイン `bookreader.flateight.jp` に接続し、かつ Meta Quest 互換フラグ（`isMetaQuest: true`）を有効にした署名付き APK (`app-release-signed.apk`) のビルドが成功した。
+- `AndroidManifest.xml` に Meta Quest (Oculus) 向けの拡張メタデータ（ハンドトラッキング許可、VRヘッドトラッキング要件、PWA名およびスコープ定義等）が自動的に正しく組み込まれた。
+
+### 解決アプローチ
+
+1. **twa-manifest.json の更新**:
+   - 単一の真実のソース (SSOT) である [twa-manifest.json](file:///e:/Local_Storage/GitHub/epubReader/android-project/twa-manifest.json) を本番ドメイン (`bookreader.flateight.jp`)、マニフェストURL (`https://bookreader.flateight.jp/manifest.json`)、および `"isMetaQuest": true` に更新。
+2. **Bubblewrapプロジェクトのアップデート**:
+   - `npx @bubblewrap/cli update` コマンドを実行し、設定の更新内容をプロジェクトファイル全体に反映。これにより、バージョン名・バージョンコードが自動で `2` にバンプされた。
+3. **build.gradle の再ハックとビルド実行**:
+   - `update` コマンドにより上書きリセットされた `app/build.gradle` に対し、再度 `buildToolsVersion "34.0.0"` を挿入。
+   - 環境変数経由のパスワード自動入力設定のもとで `bubblewrap build` を実行し、ビルドを無事成功させた。
+
+---
+
+## エントリ #10 - 2026-06-04 (パッケージの解析エラー対応)
+
+### 成功の境界線
+
+- `androidx.browser:browser:1.9.0-alpha04` の制約である `compileSdkVersion 36` を維持しつつ、実行時の挙動を定義する `targetSdkVersion` を `34` (Android 14) に引き下げた APK のビルドが成功した。
+
+### 失敗の事象
+
+- 実機へのインストール時に「パッケージの解析中に問題が発生しました」というエラーが発生した。
+
+### 失敗の根本原因
+
+1. **OS互換性**:
+   - 以前のビルドでは `compileSdkVersion 36` に対して `targetSdkVersion 35` (Android 15) が指定されていたため、Quest 3 (Android 12Lベース) のパッケージマネージャーがサポート対象外としてインストールを拒否した可能性がある。
+2. **署名鍵の不一致（最有力原因）**:
+   - 以前にPWABuilder等で作成・インストールした古い「BookReader」アプリが実機に残っている場合、今回のビルドで新規作成されたローカルキーストア（`android.keystore`）の署名と異なるため、Android OSのセキュリティ制約により「同一パッケージ名での署名不一致による上書き失敗」が起き、ファイラー側で「パッケージの解析中に問題が発生しました」と表現された可能性が非常に高い。
+
+### 解決アプローチ
+
+1. **build.gradle での SDK レベル調整**:
+   - `compileSdkVersion` を `36` (ライブラリの最低要求) に維持したまま、`targetSdkVersion` を `34` (Quest 3 との互換性確保) に引き下げて再ビルド。
+2. **古いアプリの完全アンインストールの提示**:
+   - 署名鍵が変わったことによる不整合を防ぐため、インストール前に実機から古い「BookReader」を完全にアンインストールする手順をユーザーへ案内する。

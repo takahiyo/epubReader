@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bookreader.takahiyo",
+      "sha256_cert_fingerprints": [
+        "09:4E:23:63:F3:BE:67:E6:3D:D8:97:04:1F:02:85:39:66:B5:4A:AA:66:FD:88:58:DF:4C:86:AB:50:EA:F5:F1"
+      ]
+    }
+  }
+]
