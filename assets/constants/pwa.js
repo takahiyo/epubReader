@@ -3,9 +3,9 @@
 // ============================================
 export const PWA_CONFIG = Object.freeze({
   // [BEFORE]
-  // CACHE_NAME: "bookreader-v30",
+  // CACHE_NAME: "bookreader-v31",
   // [AFTER]
-  CACHE_NAME: "bookreader-v31",
+  CACHE_NAME: "bookreader-v32",
   THEME_COLOR: "#2c3e50",
   BACKGROUND_COLOR: "#ffffff",
 });
