@@ -8,9 +8,10 @@
  */
 // [BEFORE]
 // import { createFileInput } from './picker-base.js';
+// import { detectPlatform, PLATFORM_TYPES } from '../../constants.js';
 // [AFTER]
 import { createFileInput } from './picker-base.js';
-import { detectPlatform, PLATFORM_TYPES } from '../../constants.js';
+import { detectPlatform, PLATFORM_TYPES } from '../../../constants.js';
 
 export const openFilePicker = async (options = {}, dependencies = {}) => {
     return new Promise((resolve) => {
