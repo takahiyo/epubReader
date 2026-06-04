@@ -37,17 +37,29 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         
         const input = createFileInput(inputId, acceptString, options.multiple !== false, true);
 
+        const startTime = Date.now();
+        console.log(`[picker-android] Picker launched at ${new Date(startTime).toLocaleTimeString()}`);
+
         const handleFocus = () => {
+            console.log(`[picker-android] Window focus regained after ${Date.now() - startTime}ms`);
+            // [BEFORE]
+            // setTimeout(() => {
+            //     window.removeEventListener('focus', handleFocus);
+            //     // changeがない場合はキャンセル扱い
+            //     resolve([]);
+            // }, 500);
+            // [AFTER]
             setTimeout(() => {
                 window.removeEventListener('focus', handleFocus);
-                // changeがない場合はキャンセル扱い
+                console.log(`[picker-android] Timeout reached. Resolving as cancelled (empty).`);
                 resolve([]);
-            }, 500);
+            }, 3000);
         };
 
         input.addEventListener("change", (e) => {
             window.removeEventListener('focus', handleFocus);
             const files = Array.from(e.target.files || []);
+            console.log(`[picker-android] Change event fired after ${Date.now() - startTime}ms. Files:`, files.map(f => f.name));
             e.target.value = ""; // リセット
             resolve(files);
         }, { once: true });

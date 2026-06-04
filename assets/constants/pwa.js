@@ -2,7 +2,10 @@
 // PWA / Service Worker 設定
 // ============================================
 export const PWA_CONFIG = Object.freeze({
-  CACHE_NAME: "bookreader-v26",
+  // [BEFORE]
+  // CACHE_NAME: "bookreader-v26",
+  // [AFTER]
+  CACHE_NAME: "bookreader-v27",
   THEME_COLOR: "#2c3e50",
   BACKGROUND_COLOR: "#ffffff",
 });
