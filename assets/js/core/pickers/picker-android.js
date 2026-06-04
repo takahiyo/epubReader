@@ -63,7 +63,11 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
             acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         }
         
-        const isMultiple = useBroadPicker ? false : (options.multiple !== false);
+        // [BEFORE]
+        // const isMultiple = useBroadPicker ? false : (options.multiple !== false);
+        // [AFTER]
+        // Quest 3で高度なピッカー（左ペインあり）を起動するためには、multiple属性（複数選択）を有効にする必要があります。
+        const isMultiple = options.multiple !== false;
         const input = createFileInput(inputId, acceptString, isMultiple, true);
 
         const startTime = Date.now();

@@ -458,3 +458,28 @@ C案: ADB経由での解除（非現実的）
 - キャッシュを `bookreader-v33` にバンプする。
 
 ---
+
+## エントリ #16 - 2026-06-04 (Platform正常認識後のファイルピッカー退化とmultiple属性の影響特定)
+
+### 成功の境界線
+
+- Quest 3の実機 (PWAbuilder版APK) にて、PWAキャッシュが `v34` に更新され、Platformが `quest3` と正常に認識された状態で「左ペインのある高度なシステムピッカー」が正常に起動し、ファイル選択後に本が読み込める状態。
+
+### 失敗の事象
+
+- キャッシュを `v33` に更新したところ、Platform判定が正常に `quest3` に改善されたことを確認した。
+- しかし、ファイルピッカーが再びシンプルの状態に戻ってしまった。
+
+### 失敗の根本原因
+
+- `detectPlatform()` が `quest3` と正しく判定されるようになったことで、`windowsPicker` の代わりに `androidPicker` が起動するようになった。
+- しかし、`picker-android.js` の既存ロジックでは、Quest 3判定時（`useBroadPicker` が `true`）に `multiple` 属性を強制的に `false` (単一選択) に変更する仕様になっていた。
+- Quest 3 (Horizon OS) の WebView は、`<input type="file">` に `multiple` 属性がない場合、簡易的なメディアピッカー（シンプルなピッカー）を強制起動し、`multiple` 属性がある場合のみ、左ペイン付きの高度なシステムファイルピッカー（SAF）を起動する挙動仕様であることが判明。
+- プラットフォーム判定が `unknown`（Windowsフォールバック）だった時は、`windowsPicker` で `multiple` が `true` になっていたため、偶然高度なピッカーが開いていた。
+
+### 次のアプローチ
+
+- `picker-android.js` において、Quest 3環境であっても `multiple` を強制的に `false` にせず、`options.multiple !== false` (通常通り `true`) のまま動作させるように修正する。
+- キャッシュを `bookreader-v34` にバンプする。
+
+---
