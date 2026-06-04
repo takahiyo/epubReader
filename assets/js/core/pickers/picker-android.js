@@ -50,9 +50,15 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         // Quest 3の場合は、OSの制限付きメディアピッカーを回避して
         // クラウドストレージ等も選択できる多機能ピッカーを起動するため、
         // acceptを*/*にする。
+        // [BEFORE]
+        // if (useBroadPicker) {
+        //     acceptString = '*/*';
+        //     console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '*/*' for system picker.`);
+        // }
+        // [AFTER]
         if (useBroadPicker) {
-            acceptString = '*/*';
-            console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '*/*' for system picker.`);
+            acceptString = '';
+            console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '' (empty) for system picker.`);
         } else if (!acceptString) {
             acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         }
