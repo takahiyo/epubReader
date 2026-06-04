@@ -44,6 +44,12 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         // acceptsは設定しない
         const input = createFileInput(inputId, '', options.multiple !== false, true);
 
+        // 画面のデバッグログを更新
+        const debugPickerLog = document.getElementById("debugPickerLog");
+        if (debugPickerLog) {
+            debugPickerLog.textContent = `windows-fallback (multiple:${options.multiple !== false})`;
+        }
+
         // [BEFORE]
         // const handleFocus = () => {
         //     setTimeout(() => {
