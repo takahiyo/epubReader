@@ -6,7 +6,11 @@
  * OSネイティブの Storage Access Framework (SAF) が立ち上がる
  * 従来の <input type="file"> が最もクラウドストレージ（Google Drive等）と親和性が高い。
  */
+// [BEFORE]
+// import { createFileInput } from './picker-base.js';
+// [AFTER]
 import { createFileInput } from './picker-base.js';
+import { detectPlatform, PLATFORM_TYPES } from '../../constants.js';
 
 export const openFilePicker = async (options = {}, dependencies = {}) => {
     return new Promise((resolve) => {
@@ -29,13 +33,31 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
             acceptString = accepts.join(',');
         }
 
-        // 指定がない場合、または空の場合はデフォルトの電子書籍/書庫フォーマットを指定して
-        // Androidの「カメラ」「写真」インテントが起動するのを防ぐ
-        if (!acceptString) {
+        const platform = detectPlatform();
+        const isQuest = platform === PLATFORM_TYPES.QUEST3;
+        const useBroadPicker = isQuest || options.broad;
+
+        // [BEFORE]
+        // // 指定がない場合、または空の場合はデフォルトの電子書籍/書庫フォーマットを指定して
+        // // Androidの「カメラ」「写真」インテントが起動するのを防ぐ
+        // if (!acceptString) {
+        //     acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
+        // }
+        // 
+        // const input = createFileInput(inputId, acceptString, options.multiple !== false, true);
+        // [AFTER]
+        // Quest 3の場合は、OSの制限付きメディアピッカーを回避して
+        // クラウドストレージ等も選択できる多機能ピッカーを起動するため、
+        // acceptを*/*にする。
+        if (useBroadPicker) {
+            acceptString = '*/*';
+            console.log(`[picker-android] Quest 3 or broad option detected. Forcing acceptString to '*/*' for system picker.`);
+        } else if (!acceptString) {
             acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         }
         
-        const input = createFileInput(inputId, acceptString, options.multiple !== false, true);
+        const isMultiple = useBroadPicker ? false : (options.multiple !== false);
+        const input = createFileInput(inputId, acceptString, isMultiple, true);
 
         const startTime = Date.now();
         console.log(`[picker-android] Picker launched at ${new Date(startTime).toLocaleTimeString()}`);
