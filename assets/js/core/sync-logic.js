@@ -401,6 +401,19 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
                             debugLog(`[syncAllBooksFromCloud] Pushing state for book: ${localBookId} (bookmarks: ${localState.bookmarks?.length ?? 0}, progress: ${localState.progress}%)`);
                             await _cloudSync.pushState(cloudBookId, localState, localUpdatedAt);
                             _storage.setCloudState(cloudBookId, { ...localState, updatedAt: localUpdatedAt });
+                            
+                            // State push 成功後に index の updatedAt も更新する
+                            const info = _storage.data.library[localBookId];
+                            if (info) {
+                                const indexMeta = _storage.data.cloudIndex?.[cloudBookId];
+                                const fingerprint = indexMeta?.fingerprint || info.fingerprint;
+                                await upsertCloudIndexEntry(cloudBookId, info, fingerprint, {
+                                    storage: _storage,
+                                    cloudSync: _cloudSync,
+                                    isCloudSyncEnabled,
+                                    uiLanguage: _storage.getSettings().uiLanguage,
+                                });
+                            }
                         }
                     } catch (stateError) {
                         console.warn(`[syncAllBooksFromCloud] Failed to push state for ${localBookId}:`, stateError);
@@ -691,9 +704,17 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
     const isProgressValid = typeof state.progress === "number" || typeof state.progress === "string";
     if (state.lastCfi || isProgressValid) {
         const existing = _storage.getProgress(localBookId) ?? {};
-        const shouldPreservePercentage =
-            existing.location === null &&
-            (existing.updatedAt ?? 0) > (state.updatedAt ?? 0);
+        const isCloudProgressEmpty = !state.lastCfi && (!isProgressValid || Number(state.progress) === 0);
+        
+        let shouldPreservePercentage;
+        if (isCloudProgressEmpty) {
+            shouldPreservePercentage = true;
+        } else if (existing.location === null) {
+            shouldPreservePercentage = false;
+        } else {
+            shouldPreservePercentage = (existing.updatedAt ?? 0) >= (state.updatedAt ?? 0);
+        }
+        
         const nextPercentage = shouldPreservePercentage
             ? existing.percentage
             : (isProgressValid ? Number(state.progress) : existing.percentage);
