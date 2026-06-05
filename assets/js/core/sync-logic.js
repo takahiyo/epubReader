@@ -325,10 +325,13 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                         }
                     }
                 });
+            }
 
-                if (isCloudSyncEnabled()) {
-                    await pullUpdatedBookStates(index);
-                }
+            // インデックスの取得結果（新規あり・なし）に関わらず、
+            // ローカルにstateが存在しない書籍があれば確実に取得する
+            if (isCloudSyncEnabled()) {
+                const fullCloudIndex = _storage.data.cloudIndex ?? {};
+                await pullUpdatedBookStates(fullCloudIndex);
             }
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
