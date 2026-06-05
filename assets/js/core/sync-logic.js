@@ -181,6 +181,15 @@ export function buildLibraryEntries(uiLanguage) {
         // クラウドのみにしか状態がない（未ダウンロード）場合は cloudState.progress を使用
         const progressPercentage = localProgress?.percentage ?? (cloudState?.progress != null ? Number(cloudState.progress) : 0);
         
+        debugLog(`[buildLibraryEntries] Book: "${normalizedMeta.title || localInfo?.title}"`, {
+            cloudBookId,
+            localBookId,
+            hasCloudState: !!cloudState,
+            cloudProgress: cloudState?.progress,
+            localProgress: localProgress?.percentage,
+            finalProgress: progressPercentage
+        });
+
         if (localBookId && (localProgress?.percentage !== (cloudState?.progress != null ? Number(cloudState.progress) : undefined))) {
             debugLog(`[buildLibraryEntries] Progress mismatch for ${localBookId}: local=${localProgress?.percentage}%, cloud=${cloudState?.progress}%`);
         }
@@ -324,7 +333,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
 
         try {
             const library = _storage.data.library;
-            const remoteIndex = index;
+            const remoteIndex = _storage.data.cloudIndex ?? {};
 
             debugLog(`[syncAllBooksFromCloud] Push phase: checking ${Object.keys(library).length} local books against ${Object.keys(remoteIndex).length} cloud entries`);
 
