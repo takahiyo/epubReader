@@ -389,13 +389,18 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             const bookLinkMap = _storage.data.bookLinkMap ?? {};
             const linkedEntries = Object.entries(bookLinkMap);
 
-            if (linkedEntries.length > 0) {
-                debugLog(`[syncAllBooksFromCloud] State push phase: pushing states for ${linkedEntries.length} linked books...`);
+            debugLog(`[syncAllBooksFromCloud] State push phase: bookLinkMap has ${linkedEntries.length} entries, forcePushAll=${forcePushAll}`);
 
+            let pushCount = 0;
+            let skipEmptyCount = 0;
+            let skipTimestampCount = 0;
+
+            if (linkedEntries.length > 0) {
                 for (const [localBookId, cloudBookId] of linkedEntries) {
                     try {
                         const payload = buildCloudStatePayload(localBookId, cloudBookId);
                         if (isEmptyCloudState(payload.state)) {
+                            skipEmptyCount++;
                             continue;
                         }
 
@@ -410,9 +415,10 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
 
                         if (localUpdatedAt > cloudUpdatedAt || forcePushDueToEmptyCloud) {
                             const finalUpdatedAt = forcePushDueToEmptyCloud ? Date.now() : localUpdatedAt;
-                            debugLog(`[syncAllBooksFromCloud] Pushing state for book: ${localBookId} (bookmarks: ${localState.bookmarks?.length ?? 0}, progress: ${localState.progress}%)`);
+                            debugLog(`[syncAllBooksFromCloud] Pushing state: ${localBookId.slice(0,8)}→${cloudBookId.slice(0,8)} (progress=${localState.progress}%, bookmarks=${localState.bookmarks?.length ?? 0})`);
                             await _cloudSync.pushState(cloudBookId, localState, finalUpdatedAt);
                             _storage.setCloudState(cloudBookId, { ...localState, updatedAt: finalUpdatedAt });
+                            pushCount++;
                             
                             // State push 成功後に index の updatedAt も更新する
                             const info = _storage.data.library[localBookId];
@@ -426,12 +432,15 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                                     uiLanguage: _storage.getSettings().uiLanguage,
                                 });
                             }
+                        } else {
+                            skipTimestampCount++;
                         }
                     } catch (stateError) {
                         console.warn(`[syncAllBooksFromCloud] Failed to push state for ${localBookId}:`, stateError);
                     }
                 }
             }
+            debugLog(`[syncAllBooksFromCloud] State push summary: pushed=${pushCount}, skipEmpty=${skipEmptyCount}, skipTimestamp=${skipTimestampCount}`);
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to push book states:', error);
         }
@@ -614,44 +623,49 @@ async function pullUpdatedBookStates(indexDelta) {
     const cloudBookIds = selectStatePullTargets(indexDelta);
     debugLog(`[pullUpdatedBookStates] Start pulling states for ${cloudBookIds.length} books...`);
 
+    let pullCount = 0;
+    let skipCount = 0;
+    let emptyCount = 0;
+    let successCount = 0;
+
     // 順次実行（サーバー負荷を考慮）
     for (const cloudBookId of cloudBookIds) {
-            try {
-            // ローカルに対応する書籍があるか確認
+        try {
             const localId = findLocalIdByCloudId(cloudBookId);
-
             const remoteMeta = indexDelta[cloudBookId];
             const localState = _storage.getCloudState(cloudBookId);
 
-            // サーバー側の更新時刻がローカルより新しい場合のみプル
-            if (!localState || (remoteMeta.updatedAt > (localState.updatedAt ?? 0))) {
-                debugLog(`[pullUpdatedBookStates] Pulling state for book: ${remoteMeta.title || cloudBookId}`);
-                const response = await _cloudSync.pullState(cloudBookId);
-                const remoteState = response?.state ?? response?.data ?? response;
+            // cloudState が存在しない場合は無条件でプル
+            // 存在する場合でも、remoteMeta の updatedAt がローカルより新しければプル
+            const needsPull = !localState
+                || !localState.progress  // progress が 0 / undefined の場合もプル
+                || (remoteMeta?.updatedAt && remoteMeta.updatedAt > (localState.updatedAt ?? 0));
 
-                if (remoteState && !isEmptyCloudState(remoteState)) {
-                    debugLog(`[pullUpdatedBookStates] Pulled remote state for: ${cloudBookId}`, {
-                        progress: remoteState.progress,
-                        progressType: typeof remoteState.progress,
-                        bookmarks: remoteState.bookmarks?.length,
-                        updatedAt: remoteState.updatedAt
-                    });
-                    if (localId) {
-                        applyCloudStateToLocal(localId, cloudBookId, remoteState);
-                        } else {
-                        // クラウドのみの書籍として状態を保存（将来の紐付け用）
-                        debugLog(`[pullUpdatedBookStates] Storing cloud-only state for: ${cloudBookId}`);
-                        _storage.setCloudState(cloudBookId, remoteState);
-                    }
+            if (!needsPull) {
+                skipCount++;
+                continue;
+            }
+
+            pullCount++;
+            const response = await _cloudSync.pullState(cloudBookId);
+            const remoteState = response?.state ?? response?.data ?? response;
+
+            if (remoteState && !isEmptyCloudState(remoteState)) {
+                successCount++;
+                debugLog(`[pullUpdatedBookStates] ✓ ${remoteMeta?.title || cloudBookId}: progress=${remoteState.progress}%, bookmarks=${remoteState.bookmarks?.length ?? 0}`);
+                if (localId) {
+                    applyCloudStateToLocal(localId, cloudBookId, remoteState);
                 } else {
-                    debugLog(`[pullUpdatedBookStates] Remote state for ${cloudBookId} was empty or invalid`, remoteState);
+                    _storage.setCloudState(cloudBookId, remoteState);
                 }
+            } else {
+                emptyCount++;
             }
         } catch (error) {
             console.warn(`[pullUpdatedBookStates] Failed to pull state for ${cloudBookId}:`, error);
         }
     }
-    debugLog(`[pullUpdatedBookStates] Finished pulling states.`);
+    debugLog(`[pullUpdatedBookStates] Finished: total=${cloudBookIds.length}, pulled=${pullCount}, success=${successCount}, empty=${emptyCount}, skipped=${skipCount}`);
 }
 
 function selectStatePullTargets(indexDelta) {
