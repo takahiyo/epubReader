@@ -240,8 +240,12 @@ export function buildLibraryEntries(uiLanguage) {
  * 
  * @param {boolean} uiInitialized UIが初期化済みかどうか
  * @param {string} bookmarkMenuMode ブックマークメニューモード
+ * @param {Object} [options]
+ * @param {boolean} [options.forcePushAll] 強制的に全データをプッシュするかどうか
  */
-export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
+export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, options = {}) {
+    const { forcePushAll = false } = options;
+
     if (_activeSyncPromise) {
         debugLog('[syncAllBooksFromCloud] Reusing in-flight sync promise');
         return _activeSyncPromise;
@@ -399,7 +403,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
 
                         const isCloudEmpty = (cloudState?.progress ?? 0) === 0 && (cloudState?.bookmarks?.length ?? 0) === 0;
                         const isLocalNotEmpty = (localState.progress ?? 0) > 0 || (localState.bookmarks?.length ?? 0) > 0;
-                        const forcePushDueToEmptyCloud = isCloudEmpty && isLocalNotEmpty;
+                        const forcePushDueToEmptyCloud = (isCloudEmpty && isLocalNotEmpty) || (forcePushAll && isLocalNotEmpty);
 
                         if (localUpdatedAt > cloudUpdatedAt || forcePushDueToEmptyCloud) {
                             const finalUpdatedAt = forcePushDueToEmptyCloud ? Date.now() : localUpdatedAt;

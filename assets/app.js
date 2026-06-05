@@ -3312,7 +3312,7 @@ function setupEvents() {
       saveCurrentProgress({ force: true });
 
       // クラウドからインデックスをプル
-      await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
+      await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, { forcePushAll: true });
 
       // 開いている本があればその状態をプッシュ
       if (currentBookId && currentCloudBookId) {
