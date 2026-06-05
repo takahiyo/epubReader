@@ -20,7 +20,7 @@ let _activeSyncPromise = null;
 let _lastSyncStartedAt = 0;
 
 const SYNC_LOGIC_CONFIG = Object.freeze({
-    RECENT_STATE_PREFETCH_LIMIT: 5,
+    RECENT_STATE_PREFETCH_LIMIT: 500,
     SYNC_REENTRY_GUARD_MS: 5000,
 });
 
