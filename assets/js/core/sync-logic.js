@@ -397,10 +397,15 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode) {
                         const localUpdatedAt = payload.updatedAt ?? 0;
                         const cloudUpdatedAt = cloudState?.updatedAt ?? 0;
 
-                        if (localUpdatedAt > cloudUpdatedAt) {
+                        const isCloudEmpty = (cloudState?.progress ?? 0) === 0 && (cloudState?.bookmarks?.length ?? 0) === 0;
+                        const isLocalNotEmpty = (localState.progress ?? 0) > 0 || (localState.bookmarks?.length ?? 0) > 0;
+                        const forcePushDueToEmptyCloud = isCloudEmpty && isLocalNotEmpty;
+
+                        if (localUpdatedAt > cloudUpdatedAt || forcePushDueToEmptyCloud) {
+                            const finalUpdatedAt = forcePushDueToEmptyCloud ? Date.now() : localUpdatedAt;
                             debugLog(`[syncAllBooksFromCloud] Pushing state for book: ${localBookId} (bookmarks: ${localState.bookmarks?.length ?? 0}, progress: ${localState.progress}%)`);
-                            await _cloudSync.pushState(cloudBookId, localState, localUpdatedAt);
-                            _storage.setCloudState(cloudBookId, { ...localState, updatedAt: localUpdatedAt });
+                            await _cloudSync.pushState(cloudBookId, localState, finalUpdatedAt);
+                            _storage.setCloudState(cloudBookId, { ...localState, updatedAt: finalUpdatedAt });
                             
                             // State push 成功後に index の updatedAt も更新する
                             const info = _storage.data.library[localBookId];
@@ -686,8 +691,7 @@ export function isEmptyCloudState(state) {
     const hasHistory = Array.isArray(state.history) && state.history.length > 0;
     const hasProgress = (typeof state.progress === "number" || typeof state.progress === "string") && Number(state.progress) > 0;
     const hasLocation = Boolean(state.lastCfi);
-    const hasUpdatedAt = (state.updatedAt ?? 0) > 0;
-    return !(hasBookmarks || hasHistory || hasProgress || hasLocation || hasUpdatedAt);
+    return !(hasBookmarks || hasHistory || hasProgress || hasLocation);
 }
 
 /**
