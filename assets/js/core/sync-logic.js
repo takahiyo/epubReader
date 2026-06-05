@@ -179,9 +179,9 @@ export function buildLibraryEntries(uiLanguage) {
         
         // SSOT: ローカルに進捗がある（クラウドからマージ済みを含む）場合はそれを優先
         // クラウドのみにしか状態がない（未ダウンロード）場合は cloudState.progress を使用
-        const progressPercentage = localProgress?.percentage ?? cloudState?.progress ?? 0;
+        const progressPercentage = localProgress?.percentage ?? (cloudState?.progress != null ? Number(cloudState.progress) : 0);
         
-        if (localBookId && (localProgress?.percentage !== cloudState?.progress)) {
+        if (localBookId && (localProgress?.percentage !== (cloudState?.progress != null ? Number(cloudState.progress) : undefined))) {
             debugLog(`[buildLibraryEntries] Progress mismatch for ${localBookId}: local=${localProgress?.percentage}%, cloud=${cloudState?.progress}%`);
         }
 
@@ -596,6 +596,12 @@ async function pullUpdatedBookStates(indexDelta) {
                 const remoteState = response?.state ?? response;
 
                 if (remoteState && !isEmptyCloudState(remoteState)) {
+                    debugLog(`[pullUpdatedBookStates] Pulled remote state for: ${cloudBookId}`, {
+                        progress: remoteState.progress,
+                        progressType: typeof remoteState.progress,
+                        bookmarks: remoteState.bookmarks?.length,
+                        updatedAt: remoteState.updatedAt
+                    });
                     if (localId) {
                         applyCloudStateToLocal(localId, cloudBookId, remoteState);
                         } else {
@@ -603,6 +609,8 @@ async function pullUpdatedBookStates(indexDelta) {
                         debugLog(`[pullUpdatedBookStates] Storing cloud-only state for: ${cloudBookId}`);
                         _storage.setCloudState(cloudBookId, remoteState);
                     }
+                } else {
+                    debugLog(`[pullUpdatedBookStates] Remote state for ${cloudBookId} was empty or invalid`, remoteState);
                 }
             }
         } catch (error) {
@@ -654,7 +662,7 @@ export function isEmptyCloudState(state) {
     if (!state) return true;
     const hasBookmarks = Array.isArray(state.bookmarks) && state.bookmarks.length > 0;
     const hasHistory = Array.isArray(state.history) && state.history.length > 0;
-    const hasProgress = typeof state.progress === "number" && state.progress > 0;
+    const hasProgress = (typeof state.progress === "number" || typeof state.progress === "string") && Number(state.progress) > 0;
     const hasLocation = Boolean(state.lastCfi);
     const hasUpdatedAt = (state.updatedAt ?? 0) > 0;
     return !(hasBookmarks || hasHistory || hasProgress || hasLocation || hasUpdatedAt);
@@ -671,14 +679,15 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
         _storage.mergeBookmarks(localBookId, state.bookmarks);
     }
 
-    if (state.lastCfi || typeof state.progress === "number") {
+    const isProgressValid = typeof state.progress === "number" || typeof state.progress === "string";
+    if (state.lastCfi || isProgressValid) {
         const existing = _storage.getProgress(localBookId) ?? {};
         const shouldPreservePercentage =
             existing.location === null &&
             (existing.updatedAt ?? 0) > (state.updatedAt ?? 0);
         const nextPercentage = shouldPreservePercentage
             ? existing.percentage
-            : (typeof state.progress === "number" ? state.progress : existing.percentage);
+            : (isProgressValid ? Number(state.progress) : existing.percentage);
         const newProgress = {
             ...existing,
             location: state.lastCfi ?? existing.location,
@@ -826,6 +835,9 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
 
             _storage.save(); // すべての更新を永続化
             uiCallbacks.updateSyncStatusDisplay();
+            if (typeof uiCallbacks.renderLibrary === 'function') {
+                uiCallbacks.renderLibrary();
+            }
         }
         return didSync;
     } catch (error) {

@@ -5,8 +5,8 @@ import { PROGRESS_SAVE_THRESHOLD_PERCENT } from "./progress.js";
 // ============================================
 export const TIMING_CONFIG = Object.freeze({
   // --- クラウド同期関連 ---
-  BACKGROUND_SYNC_INTERVAL_MS: 1800000, // バックグラウンド定期同期 (30分)
-  PERIODIC_SYNC_MS: 1200000, // フォアグラウンド定期同期 (20分)
+  BACKGROUND_SYNC_INTERVAL_MS: 600000, // バックグラウンド定期同期 (10分)
+  PERIODIC_SYNC_MS: 300000, // フォアグラウンド定期同期 (5分)
 
   // --- ローカル保存関連 ---
   LOCAL_SAVE_THRESHOLD_PERCENT: PROGRESS_SAVE_THRESHOLD_PERCENT, // ローカル保存を実行する進捗差分 (%)

@@ -879,6 +879,7 @@ renderers.init({
       closeExclusiveMenus();
     },
     scheduleAutoSyncPush,
+    requestCloudSyncIfNeeded,
     getEpubPaginationTotal: () => {
       if (reader.type !== BOOK_TYPES.EPUB || !reader.paginator) return null;
       return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
@@ -1976,7 +1977,7 @@ function addBookmark() {
     renderers.renderBookmarks(bookmarkMenuMode);
     renderers.renderBookmarkMarkers();
 
-    requestCloudSyncIfNeeded(getProgressSnapshot());
+    requestCloudSyncIfNeeded({ force: true });
   }
 }
 
@@ -2865,6 +2866,11 @@ function showLibrary() {
   }
   renderers.renderLibrary();
 
+  // バックグラウンドで同期を実行して、書籍一覧を最新化
+  syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode).catch(err => {
+    console.error("[showLibrary] Background sync pull failed:", err);
+  });
+
   // モーダルの閉じるボタンにイベントを追加
   const closeHandler = async () => {
     await commitPendingDeletes();
@@ -2903,6 +2909,11 @@ function showBookmarks() {
   bookmarkMenuMode = "all";
   renderers.renderBookmarks(bookmarkMenuMode);
   openExclusiveMenu(elements.bookmarkMenu);
+
+  // バックグラウンドで同期を実行して、しおりリストを最新化
+  syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode).catch(err => {
+    console.error("[showBookmarks] Background sync pull failed:", err);
+  });
 }
 
 function showHistory() {
@@ -3673,9 +3684,25 @@ function setupEvents() {
     void pushCurrentBookSyncOnAction({ force: true });
   });
 
+  let visibilitySyncTimer = null;
   document.addEventListener('visibilitychange', () => {
     if (!autoSyncEnabled) return;
     restartAutoSyncInterval();
+
+    if (document.visibilityState === 'visible') {
+      if (visibilitySyncTimer) {
+        clearTimeout(visibilitySyncTimer);
+      }
+      visibilitySyncTimer = setTimeout(async () => {
+        console.log('[Visibility] Foreground detected. Triggering sync...');
+        try {
+          await pushCurrentBookSyncOnAction({ force: true });
+          await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
+        } catch (err) {
+          console.error('[Visibility] Auto sync failed:', err);
+        }
+      }, 2000);
+    }
   });
   // ズームボタン
   elements.toggleZoom?.addEventListener('click', handleToggleZoom);
