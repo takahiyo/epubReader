@@ -615,7 +615,7 @@ async function pullUpdatedBookStates(indexDelta) {
             if (!localState || (remoteMeta.updatedAt > (localState.updatedAt ?? 0))) {
                 debugLog(`[pullUpdatedBookStates] Pulling state for book: ${remoteMeta.title || cloudBookId}`);
                 const response = await _cloudSync.pullState(cloudBookId);
-                const remoteState = response?.state ?? response;
+                const remoteState = response?.state ?? response?.data ?? response;
 
                 if (remoteState && !isEmptyCloudState(remoteState)) {
                     debugLog(`[pullUpdatedBookStates] Pulled remote state for: ${cloudBookId}`, {
@@ -756,7 +756,7 @@ export async function resolveSyncedProgress(
 
         try {
         const response = await _cloudSync.pullState(resolvedCloudBookId);
-        const remoteState = response?.state ?? response;
+        const remoteState = response?.state ?? response?.data ?? response;
         if (isEmptyCloudState(remoteState)) {
             return localProgress;
         }
