@@ -139,9 +139,10 @@ export class CloudSync {
   normalizeCloudState(state, updatedAt) {
     const safeState = state ?? {};
     const safeBookmarks = Array.isArray(safeState.bookmarks) ? safeState.bookmarks : [];
+    const isProgressValid = typeof safeState.progress === "number" || typeof safeState.progress === "string";
     return {
       ...safeState,
-      progress: typeof safeState.progress === "number" ? safeState.progress : 0,
+      progress: isProgressValid ? Number(safeState.progress) : 0,
       lastCfi: safeState.lastCfi ?? null,
       location: safeState.location ?? safeState.lastCfi ?? null,
       bookmarks: safeBookmarks,
