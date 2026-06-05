@@ -67,7 +67,7 @@ function t(key, uiLanguage) {
 }
 
 function debugLog(...args) {
-    console.debug(...args);
+    console.log(...args);
 }
 
 function isEmptySyncResult(result) {
