@@ -350,6 +350,9 @@ function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
   if (!currentBookId || isBookLoading || isSyncResolving) return;
 
+  // 仮想書籍の場合は進捗を保存しない
+  if (currentBookInfo?.isVirtualImageBook) return;
+
   // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
   if (getCurrentTotalPages() <= 0) return;
 
@@ -1158,12 +1161,11 @@ async function handleFile(file, overrideBookId = null) {
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
     // 4. ファイル保存
-    //    ストリーミングモード: 本体を保存しない（メタデータのみ）
+    //    ストリーミングモード/仮想画像書籍: 本体を保存しない
     //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
     //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
-    if (useStreaming) {
-      console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
-      // 本体保存スキップ — メタデータのみライブラリに記録
+    if (useStreaming || file.isVirtualImageBook) {
+      console.log(`[Streaming/Temporary] skipping file body save for ${id.substring(0, 12)}...`);
     } else {
       console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
       if (isLargeFile) {
@@ -1191,9 +1193,12 @@ async function handleFile(file, overrideBookId = null) {
       lastOpened: Date.now(),
       // ストリーミング不要になった場合、過去の true を上書きしてスタブ状態を解除する
       isLargeFileStub: useStreaming,
+      isVirtualImageBook: file.isVirtualImageBook || false,
     };
 
-    storage.upsertBook(info);
+    if (!info.isVirtualImageBook) {
+      storage.upsertBook(info);
+    }
     currentBookId = id;
     currentBookInfo = info;
     resetLocalSaveTracking();
@@ -1963,6 +1968,11 @@ async function handleBookReady(payload) {
 function addBookmark() {
   if (!currentBookId) {
     alert(t("openBookPrompt"));
+    return;
+  }
+
+  if (currentBookInfo?.isVirtualImageBook) {
+    // 仮想書籍（単一画像・画像フォルダ）はしおり対象外
     return;
   }
 
