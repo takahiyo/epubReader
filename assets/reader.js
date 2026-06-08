@@ -2372,7 +2372,7 @@ export class ReaderController {
 
     // インデックス順（同じインデックスならIDありを優先、または出現順）にソート
     // 同一 Spine 内の分割を許容するため、spineIndex だけでなく id の有無も考慮してフィルタリング
-    const sortedToc = filteredToc
+    let sortedToc = filteredToc
       .sort((a, b) => {
         if (a.spineIndex !== b.spineIndex) return a.spineIndex - b.spineIndex;
         // 同じ spineIndex の場合、IDがない（先頭）ものを前に
@@ -2386,6 +2386,106 @@ export class ReaderController {
         // 同じ spineIndex かつ同じ ID（両方 null 含む）なら重複として除外
         return entry.spineIndex !== prev.spineIndex || entry.id !== prev.id;
       });
+
+    // EPUBごとの差異に対応するため、目次に明示されていない先頭ページ/目次ページを
+    // Spine の実体から検出して仮想項目として補完する。
+    // 例: アーサー王物語は spine[0]=cover, spine[1]=nav, 目次リンクは spine[2] から始まる。
+    // この場合「表紙」「目次」を別々の分割境界として追加し、本文の重複表示を避ける。
+    if (sortedToc.length > 0) {
+      const hasCoverEntry = sortedToc.some(entry => entry.isCoverEntry === true || entry._isVirtualCover === true);
+      const hasTocEntry = sortedToc.some(entry => entry.isTocEntry === true || entry._isVirtualToc === true);
+      const firstNarrativeEntry = sortedToc.find(entry => !entry.isCoverEntry && !entry.isTocEntry);
+      const firstNarrativeSpine = firstNarrativeEntry?.spineIndex ?? sortedToc[0].spineIndex;
+      const virtualEntries = [];
+
+      const getSpineItemMeta = (spineIndex) => {
+        const spineItem = this.book?.spine?.get?.(spineIndex) || {};
+        const archiveSpineItem = this.archiveHandler?.spine?.[spineIndex] || {};
+        return {
+          href: spineItem.href || archiveSpineItem.href || archiveSpineItem.fullPath || "",
+          id: spineItem.idref || spineItem.id || archiveSpineItem.id || "",
+          properties: [spineItem.properties, archiveSpineItem.properties]
+            .flatMap(value => Array.isArray(value) ? value : [value])
+            .filter(Boolean)
+            .join(" "),
+        };
+      };
+
+      const isLikelyTocSpine = (spineItem) => {
+        const href = (spineItem?.href || "").toLowerCase();
+        const id = (spineItem?.id || "").toLowerCase();
+        const properties = String(spineItem?.properties || "").toLowerCase();
+        return properties.includes("nav") || /(^|[/_-])(?:nav|toc|contents)(?:[._-]|$)/.test(href) || /(?:nav|toc|contents)/.test(id);
+      };
+
+      const addVirtualEntry = (entry) => {
+        const hasSameEntry = sortedToc.some(existing => existing.spineIndex === entry.spineIndex && (existing.id || null) === null) ||
+          virtualEntries.some(existing => existing.spineIndex === entry.spineIndex && (existing.id || null) === null);
+        if (hasSameEntry) return;
+        virtualEntries.push(entry);
+      };
+
+      for (let spineIndex = 0; spineIndex < firstNarrativeSpine; spineIndex += 1) {
+        const spineItem = getSpineItemMeta(spineIndex);
+        const href = spineItem.href || "";
+        if (!href) continue;
+
+        if (!hasCoverEntry && spineIndex === 0) {
+          addVirtualEntry({
+            title: "表紙",
+            href,
+            spineIndex,
+            id: null,
+            depth: 0,
+            isCoverEntry: true,
+            isTocEntry: false,
+            _isVirtualCover: true,
+          });
+          continue;
+        }
+
+        if (!hasTocEntry && !virtualEntries.some(entry => entry._isVirtualToc === true) && isLikelyTocSpine(spineItem)) {
+          addVirtualEntry({
+            title: "目次",
+            href,
+            spineIndex,
+            id: null,
+            depth: 0,
+            isCoverEntry: false,
+            isTocEntry: true,
+            _isVirtualToc: true,
+          });
+        }
+      }
+
+      if (virtualEntries.length > 0) {
+        sortedToc = [...virtualEntries, ...sortedToc]
+          .sort((a, b) => {
+            if (a.spineIndex !== b.spineIndex) return a.spineIndex - b.spineIndex;
+            if (!a.id && b.id) return -1;
+            if (a.id && !b.id) return 1;
+            return 0;
+          })
+          .filter((entry, index, self) => {
+            if (index === 0) return true;
+            const prev = self[index - 1];
+            return entry.spineIndex !== prev.spineIndex || entry.id !== prev.id;
+          });
+
+        if (Array.isArray(this.toc)) {
+          const tocAdditions = virtualEntries
+            .sort((a, b) => a.spineIndex - b.spineIndex)
+            .map(entry => ({
+              label: entry.title,
+              href: entry.href,
+              _isVirtualCover: entry._isVirtualCover === true,
+              _isVirtualToc: entry._isVirtualToc === true,
+              _isFrontmatter: true,
+            }));
+          this.toc = [...tocAdditions, ...this.toc];
+        }
+      }
+    }
 
     if (sortedToc.length === 0) {
       return [{ start: 0, end: spineLength - 1 }];
@@ -2403,6 +2503,8 @@ export class ReaderController {
         sourceHref: entry.href || null,
         isCoverGroup: entry.isCoverEntry === true,
         isTocGroup: entry.isTocEntry === true,
+        isVirtualCoverGroup: entry._isVirtualCover === true,
+        isVirtualTocGroup: entry._isVirtualToc === true,
       };
 
       if (nextEntry) {
@@ -2489,7 +2591,7 @@ export class ReaderController {
           return true;
         };
 
-        if (current.isFrontmatter || current.isCoverGroup || current.isTocGroup) {
+        if (current.isFrontmatter || current.isCoverGroup || current.isTocGroup || current.isVirtualCoverGroup || current.isVirtualTocGroup) {
           // 表紙・仮想巻頭・目次は、目次リンク位置を明確なページ分割点として保持する。
           // 末尾が挿絵だけでも次グループへ Forward Merge しない。
           merged.push(current);
