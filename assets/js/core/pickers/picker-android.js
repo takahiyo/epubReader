@@ -50,11 +50,19 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         // } else if (!acceptString) {
         //     acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
         // }
-        // [AFTER]
-        // Quest 3およびAndroid全般において、特定の拡張子を指定すると簡易メディアピッカーが強制起動するのを防ぐため、
-        // 常に acceptString を空（''）にして、外部ファイラーやGoogle Drive等が選べる高度なシステムピッカー（SAF）を強制起動します。
-        acceptString = '';
-        console.log(`[picker-android] Forcing acceptString to '' (empty) to ensure advanced system picker (SAF) on Android.`);
+        if (isQuest) {
+            // Quest 3においては、特定の拡張子を指定すると簡易メディアピッカーが強制起動するのを防ぐため、
+            // 常に acceptString を空（''）にして、外部ファイラー等が選べる高度なシステムピッカーを強制起動します。
+            acceptString = '';
+            console.log(`[picker-android] Quest 3 detected. Forcing acceptString to '' (empty) to ensure advanced system picker.`);
+        } else if (!acceptString) {
+            // Android, iOS, iPad などで、空のままだとカメラ（写真/動画）が選択肢に出てしまうため、
+            // デフォルトの対象拡張子およびMIMEタイプを指定して、カメラ等の不要な選択肢を非表示にします。
+            acceptString = '.epub,.zip,.cbz,.rar,.cbr,application/epub+zip,application/zip,application/x-cbz,application/x-cbr,application/vnd.rar,application/x-rar-compressed';
+            console.log(`[picker-android] Standard Android/iOS/iPad. Setting acceptString to restrict camera options.`);
+        } else {
+            console.log(`[picker-android] Standard Android/iOS/iPad. Using configured acceptString: ${acceptString}`);
+        }
         
         // [BEFORE]
         // const isMultiple = options.multiple !== false;
