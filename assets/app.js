@@ -3770,14 +3770,140 @@ function setupEvents() {
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
   });
 
-  window.addEventListener('drop', (e) => {
+  window.addEventListener('drop', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
 
-    const droppedFiles = Array.from(e.dataTransfer?.files ?? []);
-    if (droppedFiles.length > 0) {
-      handleFile(droppedFiles[0]);
+    const items = Array.from(e.dataTransfer?.items || []);
+    const entries = items.map(item => item.webkitGetAsEntry()).filter(Boolean);
+
+    // 通常のファイルフォールバック処理用のインナールーチン
+    const processSingleFile = async (file) => {
+      const name = file.name.toLowerCase();
+      const ext = '.' + name.split('.').pop();
+      if (SUPPORTED_FORMATS.IMAGES.includes(ext)) {
+        const JSZipLib = window.JSZip;
+        if (!JSZipLib) {
+          await handleFile(file);
+          return;
+        }
+        const zip = new JSZipLib();
+        zip.file(file.name, file);
+        const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+        const virtualZipFile = new File([zipBlob], file.name + ".zip", { type: "application/zip" });
+        await handleFile(virtualZipFile);
+      } else {
+        await handleFile(file);
+      }
+    };
+
+    if (entries.length === 0) {
+      const droppedFiles = Array.from(e.dataTransfer?.files ?? []);
+      if (droppedFiles.length > 0) {
+        showLoading();
+        try {
+          await processSingleFile(droppedFiles[0]);
+        } catch (err) {
+          console.error("[D&D] Fallback file process failed:", err);
+          hideLoading();
+          alert(translate('errorFileLoadFailed', uiLanguage));
+        }
+      }
+      return;
+    }
+
+    // 単一ファイルかつ、電子書籍 / 書庫 / テキストの場合は従来の handleFile で処理する
+    if (entries.length === 1 && entries[0].isFile) {
+      const file = await new Promise((resolve, reject) => entries[0].file(resolve, reject));
+      const name = file.name.toLowerCase();
+      const isEpubOrArchiveOrText = name.endsWith('.epub') || name.endsWith('.zip') || name.endsWith('.cbz') || name.endsWith('.rar') || name.endsWith('.cbr') || name.endsWith('.txt') || name.endsWith('.html');
+      if (isEpubOrArchiveOrText) {
+        await handleFile(file);
+        return;
+      }
+    }
+
+    showLoading();
+    try {
+      const imageFiles = [];
+      let rootFolderName = "";
+
+      // 単一フォルダドロップ時はフォルダ名を本タイトルにする
+      if (entries.length === 1 && entries[0].isDirectory) {
+        rootFolderName = entries[0].name;
+      }
+
+      // フォルダ内を再帰的に走査して画像を収集
+      const traverseEntry = async (entry, path = "") => {
+        if (entry.isFile) {
+          const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+          const ext = '.' + file.name.split('.').pop().toLowerCase();
+          if (SUPPORTED_FORMATS.IMAGES.includes(ext)) {
+            imageFiles.push({ file, path: path + file.name });
+          }
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const readAllEntries = async (dirReader) => {
+            let all = [];
+            const read = async () => {
+              const chunk = await new Promise((res, rej) => dirReader.readEntries(res, rej));
+              if (chunk.length > 0) {
+                all = all.concat(chunk);
+                await read();
+              }
+            };
+            await read();
+            return all;
+          };
+          const childEntries = await readAllEntries(reader);
+          for (const child of childEntries) {
+            await traverseEntry(child, path + entry.name + "/");
+          }
+        }
+      };
+
+      for (const entry of entries) {
+        await traverseEntry(entry);
+      }
+
+      if (imageFiles.length === 0) {
+        // 画像が含まれない場合は通常ファイル処理へフォールバック
+        if (entries.length > 0 && entries[0].isFile) {
+          const file = await new Promise((resolve, reject) => entries[0].file(resolve, reject));
+          await handleFile(file);
+        } else {
+          hideLoading();
+          alert(translate('errorFileLoadFailed', uiLanguage));
+        }
+        return;
+      }
+
+      // ファイルパス順（自然順）でソート
+      imageFiles.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+
+      // JSZipを用いて無圧縮 (STORE) で仮想ZIPを生成
+      const JSZipLib = window.JSZip;
+      if (!JSZipLib) {
+        throw new Error("JSZip is not loaded.");
+      }
+
+      const zip = new JSZipLib();
+      imageFiles.forEach(({ file, path }) => {
+        zip.file(path, file);
+      });
+
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+      const bookName = rootFolderName ? `${rootFolderName}.zip` : (imageFiles.length === 1 ? imageFiles[0].file.name + ".zip" : "images_archive.zip");
+      const virtualZipFile = new File([zipBlob], bookName, { type: "application/zip" });
+
+      console.log(`[D&D] Virtual ZIP created from ${imageFiles.length} image files: ${bookName}`);
+      await handleFile(virtualZipFile);
+
+    } catch (err) {
+      console.error("[D&D] Failed to handle dropped items:", err);
+      hideLoading();
+      alert(translate('errorFileLoadFailed', uiLanguage));
     }
   });
 
