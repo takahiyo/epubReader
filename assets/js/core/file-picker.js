@@ -19,6 +19,7 @@ const PICKER_MAP = {
     [PLATFORM_TYPES.ANDROID]: androidPicker,
     [PLATFORM_TYPES.WINDOWS]: windowsPicker,
     [PLATFORM_TYPES.IOS]: androidPicker, // iOSも現状はAndroid同様レガシーinputを利用する
+    [PLATFORM_TYPES.IPAD]: androidPicker, // iPadも現状はレガシーinputを利用する
 };
 
 /**

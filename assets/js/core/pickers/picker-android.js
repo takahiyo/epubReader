@@ -40,8 +40,7 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
         // const useBroadPicker = isQuest || options.broad;
         // [AFTER]
         const platform = detectPlatform();
-        const hasXR = typeof navigator !== 'undefined' && 'xr' in navigator;
-        const isQuest = platform === PLATFORM_TYPES.QUEST3 || hasXR || /Quest|Oculus|VR/i.test(navigator.userAgent);
+        const isQuest = platform === PLATFORM_TYPES.QUEST3;
         const useBroadPicker = isQuest || options.broad;
 
         // [BEFORE]
