@@ -1142,7 +1142,12 @@ async function handleFile(file, overrideBookId = null) {
     //    大容量EPUBは軽量ハッシュ（先頭1MB+末尾1MB+サイズ、ピークメモリ ~2MB）
     //    小容量EPUBは従来の全バッファハッシュ（高速）
     let contentHash;
-    if (isArchiveBook) {
+    const isTemporaryImageViewer = file.isVirtualImageBook === true;
+    if (isTemporaryImageViewer) {
+      // D&Dされた画像ファイル/画像フォルダは簡易ビューア扱いにし、
+      // ライブラリ・履歴・同期へ残さない一時IDを使用する。
+      contentHash = `virtual-image-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    } else if (isArchiveBook) {
       contentHash = await fileHandler.buildArchiveFingerprint(file);
     } else if (isLargeFile) {
       // 大容量EPUB: file.arrayBuffer() を呼ばずにハッシュ計算
@@ -1155,8 +1160,8 @@ async function handleFile(file, overrideBookId = null) {
     }
 
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
-    const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
-    const id = existingRecord?.id ?? contentHash;
+    const existingRecord = isTemporaryImageViewer ? null : fileHandler.findBookByContentHash(storage.data.library, contentHash);
+    let id = existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
@@ -1164,7 +1169,7 @@ async function handleFile(file, overrideBookId = null) {
     //    ストリーミングモード/仮想画像書籍: 本体を保存しない
     //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
     //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
-    if (useStreaming || file.isVirtualImageBook) {
+    if (useStreaming || isTemporaryImageViewer) {
       console.log(`[Streaming/Temporary] skipping file body save for ${id.substring(0, 12)}...`);
     } else {
       console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
@@ -1193,7 +1198,7 @@ async function handleFile(file, overrideBookId = null) {
       lastOpened: Date.now(),
       // ストリーミング不要になった場合、過去の true を上書きしてスタブ状態を解除する
       isLargeFileStub: useStreaming,
-      isVirtualImageBook: file.isVirtualImageBook || false,
+      isVirtualImageBook: isTemporaryImageViewer,
     };
 
     if (!info.isVirtualImageBook) {
@@ -1203,52 +1208,56 @@ async function handleFile(file, overrideBookId = null) {
     currentBookInfo = info;
     resetLocalSaveTracking();
 
-    let cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
-    if (cloudBookId) {
-      // 紐付け時（pendingCloudBookId がある場合）の照合チェック
-      if (pendingCloudBookId && syncLogic.isCloudSyncEnabled()) {
-        const cloudMeta = storage.data.cloudIndex?.[cloudBookId];
-        if (cloudMeta && cloudMeta.fingerprints && !cloudMeta.fingerprints.includes(contentHash)) {
-          const proceed = confirm(translate('linkMismatchWarning'));
-          if (!proceed) {
-            hideLoading();
-            pendingCloudBookId = null;
-            return;
-          }
-        }
-      }
-      storage.setBookLink(id, cloudBookId);
-    }
-    if (syncLogic.isCloudSyncEnabled()) {
-      if (!cloudBookId) {
-        try {
-          const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
-          if (matchResult?.cloudBookId) {
-            cloudBookId = matchResult.cloudBookId;
-          } else if (matchResult?.candidates?.length > 0) {
-            cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
-          }
-        } catch (error) {
-          console.warn("クラウドの照合に失敗しました:", error);
-        }
-      }
-      if (!cloudBookId) {
-        cloudBookId = fileHandler.generateCloudBookId();
-      }
+    let cloudBookId = null;
+    let syncedProgress = null;
+    if (!info.isVirtualImageBook) {
+      cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
       if (cloudBookId) {
+        // 紐付け時（pendingCloudBookId がある場合）の照合チェック
+        if (pendingCloudBookId && syncLogic.isCloudSyncEnabled()) {
+          const cloudMeta = storage.data.cloudIndex?.[cloudBookId];
+          if (cloudMeta && cloudMeta.fingerprints && !cloudMeta.fingerprints.includes(contentHash)) {
+            const proceed = confirm(translate('linkMismatchWarning'));
+            if (!proceed) {
+              hideLoading();
+              pendingCloudBookId = null;
+              return;
+            }
+          }
+        }
         storage.setBookLink(id, cloudBookId);
-        await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
-          storage,
-          cloudSync,
-          isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
-          uiLanguage
-        });
       }
+      if (syncLogic.isCloudSyncEnabled()) {
+        if (!cloudBookId) {
+          try {
+            const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
+            if (matchResult?.cloudBookId) {
+              cloudBookId = matchResult.cloudBookId;
+            } else if (matchResult?.candidates?.length > 0) {
+              cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
+            }
+          } catch (error) {
+            console.warn("クラウドの照合に失敗しました:", error);
+          }
+        }
+        if (!cloudBookId) {
+          cloudBookId = fileHandler.generateCloudBookId();
+        }
+        if (cloudBookId) {
+          storage.setBookLink(id, cloudBookId);
+          await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
+            storage,
+            cloudSync,
+            isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+            uiLanguage
+          });
+        }
+      }
+      syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     }
     pendingCloudBookId = null;
     currentCloudBookId = cloudBookId;
 
-    const syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     const startLocation = syncedProgress?.location;
     const startProgress = syncedProgress?.percentage;
 
@@ -1909,21 +1918,23 @@ async function handleBookReady(payload) {
 
   const title = metadata.title || currentBookInfo.title;
   currentBookInfo.title = title;
-  storage.upsertBook({ ...currentBookInfo, title });
-  if (currentCloudBookId) {
-    const author = metadata.creator || metadata.author || "";
-    fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
-      storage,
-      cloudSync,
-      isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
-      uiLanguage,
-      overrides: {
-        title,
-        author,
-      },
-    }).catch((error) => {
-      console.warn("クラウドメタデータの更新に失敗しました:", error);
-    });
+  if (!currentBookInfo.isVirtualImageBook) {
+    storage.upsertBook({ ...currentBookInfo, title });
+    if (currentCloudBookId) {
+      const author = metadata.creator || metadata.author || "";
+      fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
+        storage,
+        cloudSync,
+        isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+        uiLanguage,
+        overrides: {
+          title,
+          author,
+        },
+      }).catch((error) => {
+        console.warn("クラウドメタデータの更新に失敗しました:", error);
+      });
+    }
   }
   renderers.renderLibrary();
   renderers.renderToc(currentToc);
@@ -3802,6 +3813,7 @@ function setupEvents() {
         zip.file(file.name, file);
         const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
         const virtualZipFile = new File([zipBlob], file.name + ".zip", { type: "application/zip" });
+        virtualZipFile.isVirtualImageBook = true;
         await handleFile(virtualZipFile);
       } else {
         await handleFile(file);
@@ -3813,7 +3825,26 @@ function setupEvents() {
       if (droppedFiles.length > 0) {
         showLoading();
         try {
-          await processSingleFile(droppedFiles[0]);
+          const imageDroppedFiles = droppedFiles
+            .map((file) => ({ file, path: file.name }))
+            .filter(({ file }) => SUPPORTED_FORMATS.IMAGES.includes('.' + file.name.split('.').pop().toLowerCase()))
+            .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+
+          if (imageDroppedFiles.length > 0 && imageDroppedFiles.length === droppedFiles.length) {
+            const JSZipLib = window.JSZip;
+            if (!JSZipLib) {
+              throw new Error("JSZip is not loaded.");
+            }
+            const zip = new JSZipLib();
+            imageDroppedFiles.forEach(({ file, path }) => zip.file(path, file));
+            const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+            const bookName = imageDroppedFiles.length === 1 ? `${imageDroppedFiles[0].file.name}.zip` : "images_archive.zip";
+            const virtualZipFile = new File([zipBlob], bookName, { type: "application/zip" });
+            virtualZipFile.isVirtualImageBook = true;
+            await handleFile(virtualZipFile);
+          } else {
+            await processSingleFile(droppedFiles[0]);
+          }
         } catch (err) {
           console.error("[D&D] Fallback file process failed:", err);
           hideLoading();
@@ -3906,6 +3937,7 @@ function setupEvents() {
       const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
       const bookName = rootFolderName ? `${rootFolderName}.zip` : (imageFiles.length === 1 ? imageFiles[0].file.name + ".zip" : "images_archive.zip");
       const virtualZipFile = new File([zipBlob], bookName, { type: "application/zip" });
+      virtualZipFile.isVirtualImageBook = true;
 
       console.log(`[D&D] Virtual ZIP created from ${imageFiles.length} image files: ${bookName}`);
       await handleFile(virtualZipFile);
