@@ -2324,7 +2324,18 @@ export class ReaderController {
         const spineIndex = resolveSpineIndex(item.href);
         const id = item.href?.includes('#') ? item.href.split('#')[1] : null;
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label || "", spineIndex, id, depth });
+          const title = item.label || "";
+          const href = item.href || "";
+          const normalizedHref = href.toLowerCase();
+          const normalizedTitle = title.trim().toLowerCase();
+          const isCoverEntry = spineIndex === 0 && (
+            /表紙|cover/.test(normalizedTitle) ||
+            /(^|[/_-])(?:p-)?cover\.(?:x?html|html)$/.test(normalizedHref.split('#')[0])
+          );
+          const isTocEntry = /目次|contents|table\s*of\s*contents|toc/.test(normalizedTitle) ||
+            /(^|[/_-])(?:p-)?toc\.(?:x?html|html)$/.test(normalizedHref.split('#')[0]) ||
+            /navigation-documents\.(?:x?html|html)$/.test(normalizedHref.split('#')[0]);
+          allEntries.push({ title, href, spineIndex, id, depth, isCoverEntry, isTocEntry });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
@@ -2388,7 +2399,10 @@ export class ReaderController {
       const group = {
         start: entry.spineIndex,
         startId: entry.id || null,
-        title: entry.title
+        title: entry.title,
+        sourceHref: entry.href || null,
+        isCoverGroup: entry.isCoverEntry === true,
+        isTocGroup: entry.isTocEntry === true,
       };
 
       if (nextEntry) {
@@ -2414,7 +2428,8 @@ export class ReaderController {
     if (groups.length > 0) {
       const first = groups[0];
       if (first.start > 0 || first.startId !== null) {
-        // 巻頭グループの Spine インデックスを確定
+        // 目次データが先頭ページを指していない場合は、1ページ目へ戻るための仮想「表紙」項目を追加する。
+        // ここで作る巻頭グループは、後段の挿絵 Forward Merge で本文/目次側へ吸収しない。
         const frontmatterEnd = first.startId ? first.start : first.start - 1;
         const firstSpineHref = this.book?.spine?.get?.(0)?.href || "";
         groups.unshift({
@@ -2422,14 +2437,16 @@ export class ReaderController {
           startId: null,
           end: frontmatterEnd,
           endId: first.startId || null,
-          title: "表紙 / 巻頭",
-          isFrontmatter: true  // Forward Merge 対象外フラグ
+          title: "表紙",
+          sourceHref: firstSpineHref || null,
+          isFrontmatter: true,
+          isCoverGroup: true,
         });
-        // 目次メニューにも「表紙/巻頭」を追加する
+        // 目次メニューにも仮想「表紙」を追加する。
         if (Array.isArray(this.toc)) {
-          const alreadyHasFrontmatter = this.toc.some(t => t._isFrontmatter);
-          if (!alreadyHasFrontmatter) {
-            this.toc = [{ label: "表紙 / 巻頭", href: firstSpineHref, _isFrontmatter: true }, ...this.toc];
+          const alreadyHasVirtualCover = this.toc.some(t => t._isVirtualCover || t._isFrontmatter);
+          if (!alreadyHasVirtualCover) {
+            this.toc = [{ label: "表紙", href: firstSpineHref, _isVirtualCover: true, _isFrontmatter: true }, ...this.toc];
           }
         }
       }
@@ -2472,17 +2489,12 @@ export class ReaderController {
           return true;
         };
 
-        if (current.isFrontmatter) {
-          // 「表紙/巻頭」グループ：末尾の1ページのみが挿絵の場合、それは次の章の扉絵である可能性が高いため次グループに移す。
-          // 複数ページ（カラーイラストなど）は巻頭に残す。
-          if (current.end >= current.start && this.spineItems?.[current.end]?.isIllustrationOnly) {
-            console.log(`[JoinMode] 巻頭の末尾挿絵 (spine ${current.end}) を次グループ（扉絵）として移動`);
-            next.start = current.end;
-            current.end = current.end - 1;
-          }
+        if (current.isFrontmatter || current.isCoverGroup || current.isTocGroup) {
+          // 表紙・仮想巻頭・目次は、目次リンク位置を明確なページ分割点として保持する。
+          // 末尾が挿絵だけでも次グループへ Forward Merge しない。
           merged.push(current);
           current = next;
-        } else if (!current.isFrontmatter && (isCurrentIllustrationOnly() || isCurrentEndsWithImage)) {
+        } else if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
           current.endId = next.endId; // IDも継承
