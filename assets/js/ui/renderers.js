@@ -327,10 +327,12 @@ export function updateThemeToggleIcon() {
     if (!elements.toggleTheme) return;
     const isDark = _state.theme === "dark";
     
-    // クロップドアイコンの生成（右側が月、左側が太陽）
+    // クロップドアイコンの生成（右側が月、左側が太陽）+ テキストラベル
     const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
-    
-    elements.toggleTheme.replaceChildren(iconElement);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'btn-label';
+    labelSpan.textContent = t('themeButtonLabel');
+    elements.toggleTheme.replaceChildren(iconElement, labelSpan);
     elements.toggleTheme.setAttribute("aria-pressed", isDark ? "true" : "false");
 }
 

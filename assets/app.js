@@ -1055,9 +1055,12 @@ function updateFullscreenButtonLabel() {
   if (!elements.toggleFullscreen) return;
   const isFullscreen = !!document.fullscreenElement;
   
-  // プレミアムアイコン (スプライト)
+  // プレミアムアイコン + テキストラベル
   const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen, 24);
-  elements.toggleFullscreen.replaceChildren(iconElement);
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'btn-label';
+  labelSpan.textContent = t('fullscreenButtonLabel');
+  elements.toggleFullscreen.replaceChildren(iconElement, labelSpan);
   
   elements.toggleFullscreen.title = isFullscreen
     ? t('fullscreenExitTitle')
@@ -2316,7 +2319,11 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.openToc, UI_ICONS.MENU_TOC, strings.tocButton);
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32));
+    const iconEl = getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'btn-label';
+    labelSpan.textContent = strings.settingsButtonLabel;
+    elements.floatSettings.replaceChildren(iconEl, labelSpan);
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
   // トグルグループヘッダーのラベル設定
@@ -2325,7 +2332,11 @@ function applyUiLanguage(nextLanguage) {
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
   if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
   if (elements.openLangMenu) {
-    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32));
+    const iconEl = getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'btn-label';
+    labelSpan.textContent = strings.languageButtonLabel;
+    elements.openLangMenu.replaceChildren(iconEl, labelSpan);
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
   }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;

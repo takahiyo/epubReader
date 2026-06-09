@@ -220,6 +220,10 @@ body.google-auth-active .modal-backdrop {
 ===================================== */
 .float-settings {
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 /* =====================================
@@ -298,6 +302,10 @@ body.google-auth-active .modal-backdrop {
 /* トグルメニュー内での言語ボタン（インライン版） */
 .float-lang-toggle-inline {
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 /* =====================================
@@ -460,6 +468,27 @@ body.google-auth-active .modal-backdrop {
 #toggleTheme {
   font-size: 1.2rem;
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ボタン内テキストラベル共通スタイル */
+/* [REF]
+- HTML: .btn-label（アイコン+テキストラベルのボタン内 span）
+- JS: assets/app.js / assets/js/ui/renderers.js（動的生成）
+- STATE: なし
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.btn-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 /* =====================================
@@ -486,6 +515,10 @@ body.google-auth-active .modal-backdrop {
 #toggleFullscreen {
   font-size: 1.2rem;
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 /* =====================================
