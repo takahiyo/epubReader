@@ -190,8 +190,8 @@ export const UI_STRINGS_JA = Object.freeze({
   zoomOutTitle: "ズームを解除",
   fullscreenEnterTitle: "全画面表示",
   fullscreenExitTitle: "全画面解除",
-  fontIncreaseLabel: "A+",
-  fontDecreaseLabel: "A-",
+  fontIncreaseLabel: "フォントサイズ＋",
+  fontDecreaseLabel: "フォントサイズ－",
   untitledBook: "無題",
   candidateIdLabel: "ID: {id}",
 

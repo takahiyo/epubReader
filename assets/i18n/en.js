@@ -191,8 +191,8 @@ export const UI_STRINGS_EN = Object.freeze({
   zoomOutTitle: "Zoom out",
   fullscreenEnterTitle: "Fullscreen",
   fullscreenExitTitle: "Exit fullscreen",
-  fontIncreaseLabel: "A+",
-  fontDecreaseLabel: "A-",
+  fontIncreaseLabel: "Font Size +",
+  fontDecreaseLabel: "Font Size -",
   untitledBook: "Untitled",
   candidateIdLabel: "ID: {id}",
 
