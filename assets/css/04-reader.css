@@ -142,8 +142,15 @@
 ===================================== */
 .reader-fullscreen-img {
   max-width: 100%;
-  max-height: 100%;
+  max-height: 100vh;
   object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+/* 実寸表示モード（オーバーレイボタンで切り替え） */
+body.epub-img-original-size .reader-fullscreen-img {
+  max-height: none;
 }
 
 .reader-gaiji-img {
@@ -280,4 +287,51 @@
 .epub-scroll-nav-btn:hover {
   opacity: 0.8;
   background-color: var(--theme-surface-3, rgba(128, 128, 128, 0.3));
+}
+
+/* =====================================
+[REF]
+- HTML: JSで動的生成（.epub-img-size-toggle-btn）
+- JS: reader.js (_injectImageSizeToggleButtons)
+- STATE: なし
+- LAYER: z-index 10
+- SPLIT: COMPONENT
+===================================== */
+/* EPUB画像の実寸/縮小切替オーバーレイボタン */
+.epub-img-size-toggle-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  pointer-events: auto;
+}
+
+.epub-img-size-toggle-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] .epub-img-size-toggle-btn {
+  background: rgba(255, 255, 255, 0.7);
+  color: #333;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .epub-img-size-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.95);
 }

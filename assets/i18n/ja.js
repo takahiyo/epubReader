@@ -34,6 +34,8 @@ export const UI_STRINGS_JA = Object.freeze({
   menuBookmarks: "しおり",
   menuHistory: "履歴",
   menuWebNovel: "なろう・Web小説",
+  floatGroupBook: "書籍",
+  floatGroupDisplay: "表示",
   menuSettings: "設定",
 
   // 目次・しおり

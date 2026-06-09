@@ -34,6 +34,7 @@
   <link rel="stylesheet" href="./assets/css/19-zoom.css?v=11" />
   <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=11" />
   <link rel="stylesheet" href="./assets/css/21-quest3-picker.css?v=1" />
+  <link rel="stylesheet" href="./assets/css/22-float-menu-toggle.css?v=1" />
   <!-- <script src="https://accounts.google.com/gsi/client" async defer></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
@@ -539,45 +540,63 @@
 
     <div class="float-buttons">
       <div class="float-main-menu">
+        <!-- 目次 -->
         <button id="openToc" type="button"></button>
-        <button id="floatOpen" type="button"></button>
-
-        <button id="floatLibrary" type="button"></button>
-        <button id="floatSearch" type="button"></button>
-        <button id="floatWebNovel" type="button">🌐📝</button>
+        <!-- しおり -->
         <button id="floatBookmarks" type="button"></button>
-        <button id="floatHistory" type="button"></button>
+
+        <!-- 書籍グループ -->
+        <div class="float-menu-group" data-group="book">
+          <button class="float-menu-group-header" type="button">
+            <span></span>
+            <span class="float-menu-group-chevron">▼</span>
+          </button>
+          <div class="float-menu-group-items">
+            <button id="floatOpen" type="button"></button>
+            <button id="floatLibrary" type="button"></button>
+            <button id="floatHistory" type="button"></button>
+            <button id="floatWebNovel" type="button">🌐📝</button>
+          </div>
+        </div>
+
+        <!-- 表示グループ -->
+        <div class="float-menu-group" data-group="display">
+          <button class="float-menu-group-header" type="button">
+            <span></span>
+            <span class="float-menu-group-chevron">▼</span>
+          </button>
+          <div class="float-menu-group-items">
+            <button id="toggleReadingDirectionEpub" class="hidden" type="button"></button>
+            <button id="toggleReadingDirectionImage" class="hidden" type="button"></button>
+            <button id="toggleWritingMode" type="button"></button>
+            <button id="toggleSpreadMode" class="hidden" type="button"></button>
+            <button id="toggleFullscreen" type="button"></button>
+            <button id="toggleTheme" type="button"></button>
+            <button id="openLangMenu" class="float-lang-toggle-inline" type="button"></button>
+          </div>
+        </div>
+
+        <!-- テキスト検索 -->
+        <button id="floatSearch" type="button"></button>
+        <!-- 読書録 -->
         <button id="share-log-btn" type="button"></button>
+        <!-- 設定（最下部） -->
+        <button id="floatSettings" type="button"></button>
       </div>
 
-      <button id="floatSettings" class="float-settings" type="button"></button>
-
-      <!-- 右上 -->
-      <div class="float-top-right">
-        <button id="toggleReadingDirectionEpub" class="hidden" type="button"></button>
-        <button id="toggleReadingDirectionImage" class="hidden" type="button"></button>
-        <button id="toggleWritingMode" type="button"></button>
-        <button id="toggleSpreadMode" class="hidden" type="button"></button>
+      <!-- 右側: ズーム + フォントサイズのみ -->
+      <div class="float-right-controls">
+        <button id="toggleZoom" class="hidden" type="button"></button>
+        <div class="font-buttons">
+          <button id="fontPlus" type="button"></button>
+          <button id="fontMinus" type="button"></button>
+        </div>
       </div>
 
-      <!-- 右下 -->
-      <div class="font-buttons">
-        <button id="fontPlus" type="button"></button>
-        <button id="fontMinus" type="button"></button>
-      </div>
-
-      <!-- 右中央 -->
-      <button id="toggleTheme" type="button"></button>
-      <button id="toggleZoom" class="hidden" type="button"></button>
-      <button id="toggleFullscreen" type="button"></button>
-
-      <!-- 【追加】ズームスライダー用コンテナ -->
+      <!-- ズームスライダー -->
       <div id="zoomSliderContainer" class="zoom-slider-container">
         <input type="range" id="zoomSlider" min="1.0" max="5.0" step="0.1" value="1.0">
       </div>
-
-      <!-- 左下 (言語メニュー) -->
-      <button id="openLangMenu" class="float-lang-toggle" type="button"></button>
     </div>
 
     <div id="floatProgress">

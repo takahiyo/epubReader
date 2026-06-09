@@ -34,6 +34,8 @@ export const UI_STRINGS_EN = Object.freeze({
   menuBookmarks: "Bookmarks",
   menuHistory: "History",
   menuWebNovel: "Web Novel",
+  floatGroupBook: "Books",
+  floatGroupDisplay: "Display",
   menuSettings: "Settings",
 
   // TOC & Bookmarks

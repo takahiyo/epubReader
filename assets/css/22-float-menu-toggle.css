@@ -1,0 +1,81 @@
+/* ========================================
+   フロートメニュー トグル展開グループ
+======================================== */
+
+/* トグルグループコンテナ */
+.float-menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* グループヘッダー（クリックで展開/折り畳み） */
+.float-menu-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: auto;
+  min-width: 120px;
+  min-height: 44px;
+  padding: 8px 16px;
+  gap: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.85);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  text-align: left;
+}
+
+.float-menu-group-header:hover {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+[data-theme="light"] .float-menu-group-header {
+  background: #f0f0f0;
+  color: #111;
+  border: 1px solid #ccc;
+}
+
+[data-theme="light"] .float-menu-group-header:hover {
+  background: #e6e6e6;
+}
+
+/* シェブロン（展開インジケーター） */
+.float-menu-group-chevron {
+  font-size: 0.7rem;
+  transition: transform 0.25s ease;
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.float-menu-group.expanded .float-menu-group-chevron {
+  transform: rotate(180deg);
+}
+
+/* 子ボタン群（展開/折り畳みアニメーション） */
+.float-menu-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.25s ease, margin 0.25s ease;
+  margin-top: 0;
+}
+
+.float-menu-group.expanded .float-menu-group-items {
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 6px;
+}
+
+/* 子ボタンのインデント */
+.float-menu-group-items button {
+  margin-left: 16px;
+  min-width: 104px;
+}

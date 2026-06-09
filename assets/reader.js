@@ -4783,6 +4783,64 @@ export class ReaderController {
       const getSrc = () => img.src || img.getAttribute("href") || img.getAttribute("xlink:href") || img.getAttribute("data-src") || "";
       this.bindElementZoomHandlers(img, getSrc);
     });
+
+    // 大きな画像に対して実寸/縮小切替ボタンを挿入
+    this._injectImageSizeToggleButtons(container);
+  }
+
+  /**
+   * ビューポートより大きな画像に実寸/縮小切替オーバーレイボタンを挿入する
+   * @param {HTMLElement} container 
+   */
+  _injectImageSizeToggleButtons(container) {
+    if (!container) return;
+    const images = container.querySelectorAll(".reader-fullscreen-img");
+    images.forEach((img) => {
+      if (img.dataset.sizeToggleBound === "true") return;
+      img.dataset.sizeToggleBound = "true";
+
+      const addToggleButton = () => {
+        const natW = img.naturalWidth;
+        const natH = img.naturalHeight;
+        const vpW = window.innerWidth;
+        const vpH = window.innerHeight;
+
+        // 画像がビューポートより大きい場合のみボタンを表示
+        if (natW <= vpW && natH <= vpH) return;
+
+        // 画像の親要素をrelativeにしてボタンを配置
+        const parent = img.parentElement;
+        if (!parent) return;
+        if (getComputedStyle(parent).position === "static") {
+          parent.style.position = "relative";
+        }
+        parent.style.display = "inline-block";
+
+        const btn = document.createElement("button");
+        btn.className = "epub-img-size-toggle-btn";
+        btn.type = "button";
+        const isOriginal = document.body.classList.contains("epub-img-original-size");
+        btn.textContent = isOriginal ? "−" : "+";
+        btn.title = isOriginal ? "画面に合わせる" : "実寸表示";
+
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          document.body.classList.toggle("epub-img-original-size");
+          const nowOriginal = document.body.classList.contains("epub-img-original-size");
+          btn.textContent = nowOriginal ? "−" : "+";
+          btn.title = nowOriginal ? "画面に合わせる" : "実寸表示";
+        });
+
+        parent.appendChild(btn);
+      };
+
+      if (img.complete && img.naturalWidth > 0) {
+        addToggleButton();
+      } else {
+        img.addEventListener("load", addToggleButton, { once: true });
+      }
+    });
   }
 
 
@@ -4976,7 +5034,14 @@ export class ReaderController {
           }
         }
 
-        
+        // 長押しズーム解除直後のクリック判定を抑制するフラグ
+        // pointerup → click イベント伝播によるページ遷移やメニュー展開を防止する
+        this.longPressZoomJustEnded = true;
+        clearTimeout(this._longPressZoomGuardTimer);
+        this._longPressZoomGuardTimer = setTimeout(() => {
+          this.longPressZoomJustEnded = false;
+        }, LONG_PRESS_ZOOM_CONFIG.CLICK_GUARD_MS ?? 200);
+
         e.preventDefault();
         e.stopPropagation();
       } else {

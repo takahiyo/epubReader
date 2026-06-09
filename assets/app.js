@@ -811,6 +811,9 @@ const ui = new UIController({
 
   getEpubViewMode: () => epubViewMode,
 
+  /** 長押しズーム解除直後かどうかを返すコールバック */
+  isLongPressZoomJustEnded: () => !!reader.longPressZoomJustEnded,
+
   onFloatToggle: () => {
     renderers.toggleFloatOverlay();
   },
@@ -2316,6 +2319,11 @@ function applyUiLanguage(nextLanguage) {
     elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32));
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
+  // トグルグループヘッダーのラベル設定
+  const bookGroupHeader = document.querySelector('.float-menu-group[data-group="book"] .float-menu-group-header span:first-child');
+  if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
+  const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
+  if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
   if (elements.openLangMenu) {
     elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32));
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
@@ -3056,6 +3064,17 @@ function setupEvents() {
 
   elements.floatSettings?.addEventListener('click', () => {
     showSettings();
+  });
+
+  // トグルメニューグループの開閉ロジック
+  document.querySelectorAll('.float-menu-group-header').forEach((header) => {
+    header.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const group = header.closest('.float-menu-group');
+      if (group) {
+        group.classList.toggle('expanded');
+      }
+    });
   });
 
 

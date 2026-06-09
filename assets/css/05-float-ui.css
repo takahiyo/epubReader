@@ -204,6 +204,10 @@ body.google-auth-active .modal-backdrop {
   flex-direction: column;
   gap: 12px;
   pointer-events: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 
 /* =====================================
@@ -215,9 +219,7 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 .float-settings {
-  position: absolute;
-  top: var(--space-float-compact);
-  left: var(--space-float-compact);
+  pointer-events: auto;
 }
 
 /* =====================================
@@ -290,6 +292,11 @@ body.google-auth-active .modal-backdrop {
   left: var(--float-lang-toggle-left);
   bottom: var(--float-lang-toggle-bottom);
   font-size: var(--float-lang-toggle-font-size);
+  pointer-events: auto;
+}
+
+/* トグルメニュー内での言語ボタン（インライン版） */
+.float-lang-toggle-inline {
   pointer-events: auto;
 }
 
@@ -402,6 +409,19 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* 右側コントロール（ズーム + フォントサイズ） */
+.float-right-controls {
+  position: absolute;
+  right: var(--space-float-base);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+  align-items: center;
+}
+
 /* =====================================
 [REF]
 - HTML: #floatOverlay .float-top-right button
@@ -423,9 +443,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 .font-buttons {
-  position: absolute;
-  right: var(--space-float-base);
-  bottom: var(--space-float-base);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -441,10 +458,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleTheme {
-  position: absolute;
-  right: var(--space-float-base);
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 1.2rem;
   pointer-events: auto;
 }
@@ -458,10 +471,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleZoom {
-  position: absolute;
-  right: var(--space-float-base);
-  top: calc(50% + var(--space-toggle-zoom-offset));
-  transform: translateY(-50%);
   font-size: 1.2rem;
   pointer-events: auto;
 }
@@ -475,10 +484,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleFullscreen {
-  position: absolute;
-  right: var(--space-float-base);
-  top: calc(50% + var(--space-toggle-zoom-offset) + 56px);
-  transform: translateY(-50%);
   font-size: 1.2rem;
   pointer-events: auto;
 }
