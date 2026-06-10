@@ -36,6 +36,15 @@
   --float-lang-toggle-left: 24px;
   --float-lang-toggle-bottom: 24px;
   --float-lang-toggle-font-size: 1.5rem;
+  /* フロートメニューボタン（目次ボタン基準） */
+  --float-btn-icon-size: 24px;
+  --float-btn-font-size: 0.95rem;
+  --float-btn-font-weight: 500;
+  --float-btn-gap: 12px;
+  --float-btn-padding-x: 16px;
+  --float-btn-padding-y: 8px;
+  --float-btn-min-height: 44px;
+  --float-btn-min-width: 120px;
   --loading-animation-size: 120px;
   --space-float-base: 24px;
   --space-float-compact: 20px;

@@ -275,35 +275,34 @@ if (typeof document !== "undefined") {
 /**
  * プレミアムアイコン（画像）を取得
  */
-const getPremiumIcon = (path, size = 24) => {
+const getPremiumIcon = (path, size = null) => {
   const img = document.createElement("img");
   img.src = path;
-  img.style.width = `${size}px`;
-  img.style.height = `${size}px`;
-  img.style.verticalAlign = "middle";
-  img.style.objectFit = "contain";
+  if (size === null) {
+    img.className = "float-btn-icon";
+  } else {
+    img.style.width = `${size}px`;
+    img.style.height = `${size}px`;
+    img.style.objectFit = "contain";
+  }
+  img.alt = "";
   return img;
 };
 
 /**
  * 2枚1組のプレミアムアイコン（画像）をクロップして取得
  */
-const getPremiumIconCropped = (path, isRight, size = 32) => {
+const getPremiumIconCropped = (path, isRight, size = null) => {
   const container = document.createElement("div");
-  container.style.width = `${size}px`;
-  container.style.height = `${size}px`;
-  container.style.overflow = "hidden";
-  container.style.display = "inline-flex";
-  container.style.alignItems = "center";
-  container.style.justifyContent = "center";
-  container.style.verticalAlign = "middle";
+  container.className = "float-btn-icon-crop";
+  if (size !== null) {
+    container.style.width = `${size}px`;
+    container.style.height = `${size}px`;
+  }
 
   const img = document.createElement("img");
   img.src = path;
-  img.style.width = `${size * 2}px`;
-  img.style.height = `${size}px`;
-  img.style.maxWidth = "none";
-  img.style.objectFit = "cover";
+  img.alt = "";
   img.style.objectPosition = isRight ? "right" : "left";
 
   container.appendChild(img);
@@ -1054,14 +1053,10 @@ function toggleFullscreen() {
 function updateFullscreenButtonLabel() {
   if (!elements.toggleFullscreen) return;
   const isFullscreen = !!document.fullscreenElement;
-  
-  // プレミアムアイコン + テキストラベル
-  const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen, 24);
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'btn-label';
-  labelSpan.textContent = t('fullscreenButtonLabel');
-  elements.toggleFullscreen.replaceChildren(iconElement, labelSpan);
-  
+
+  const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen);
+  renderers.setFloatInlineLabel(elements.toggleFullscreen, iconElement, t('fullscreenButtonLabel'));
+
   elements.toggleFullscreen.title = isFullscreen
     ? t('fullscreenExitTitle')
     : t('fullscreenEnterTitle');
@@ -2271,27 +2266,7 @@ function applyUiLanguage(nextLanguage) {
     button.textContent = icon;
   };
   const setFloatLabel = (button, icon, text) => {
-    if (!button) return;
-    const iconMap = {
-      [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
-      [UI_ICONS.MENU_TOC]: PREMIUM_ICONS.TOC,
-      [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
-      [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
-      [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
-      [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.HISTORY,
-      [UI_ICONS.MENU_WEB_NOVEL]: PREMIUM_ICONS.WEBNOVEL,
-      [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
-      [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
-      [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
-    };
-    const premiumPath = iconMap[icon];
-    if (premiumPath) {
-      const img = getPremiumIcon(premiumPath, 24);
-      const label = document.createTextNode(` ${text}`);
-      button.replaceChildren(img, label);
-    } else {
-      button.textContent = `${icon} ${text}`;
-    }
+    renderers.setMaterialIconLabel(button, icon, text);
   };
   setMenuLabel(elements.menuOpenToc, UI_ICONS.MENU_TOC, strings.tocButton);
   setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
@@ -2319,11 +2294,7 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.openToc, UI_ICONS.MENU_TOC, strings.tocButton);
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    const iconEl = getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32);
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'btn-label';
-    labelSpan.textContent = strings.settingsButtonLabel;
-    elements.floatSettings.replaceChildren(iconEl, labelSpan);
+    setFloatLabel(elements.floatSettings, UI_ICONS.SETTINGS, strings.menuSettings);
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
   // トグルグループヘッダーのラベル設定
@@ -2332,11 +2303,7 @@ function applyUiLanguage(nextLanguage) {
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
   if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
   if (elements.openLangMenu) {
-    const iconEl = getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32);
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'btn-label';
-    labelSpan.textContent = strings.languageButtonLabel;
-    elements.openLangMenu.replaceChildren(iconEl, labelSpan);
+    setFloatLabel(elements.openLangMenu, UI_ICONS.LANGUAGE, strings.languageButtonLabel);
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
   }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;

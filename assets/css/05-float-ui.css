@@ -220,10 +220,6 @@ body.google-auth-active .modal-backdrop {
 ===================================== */
 .float-settings {
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
 }
 
 /* =====================================
@@ -236,22 +232,57 @@ body.google-auth-active .modal-backdrop {
 ===================================== */
 .float-buttons button {
   pointer-events: auto;
-  min-width: 120px;
-  min-height: 44px;
-  padding: 8px 16px;
+  min-width: var(--float-btn-min-width);
+  min-height: var(--float-btn-min-height);
+  padding: var(--float-btn-padding-y) var(--float-btn-padding-x);
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: var(--float-btn-gap);
   border-radius: 12px;
   border: 1px solid var(--border);
   background: rgba(17, 24, 39, 0.85);
   color: var(--text);
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: var(--float-btn-font-size);
+  font-weight: var(--float-btn-font-weight);
+  line-height: 1.2;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   text-align: left;
+}
+
+/* フロートボタンのアイコン枠（目次ボタン基準・SSOT） */
+.float-btn-icon {
+  width: var(--float-btn-icon-size);
+  height: var(--float-btn-icon-size);
+  flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
+.float-btn-icon-crop {
+  width: var(--float-btn-icon-size);
+  height: var(--float-btn-icon-size);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.float-btn-icon-crop img {
+  width: calc(var(--float-btn-icon-size) * 2);
+  height: var(--float-btn-icon-size);
+  max-width: none;
+  object-fit: cover;
+}
+
+.float-btn-icon-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--float-btn-icon-size) * 0.85);
+  line-height: 1;
 }
 
 /* =====================================
@@ -302,10 +333,6 @@ body.google-auth-active .modal-backdrop {
 /* トグルメニュー内での言語ボタン（インライン版） */
 .float-lang-toggle-inline {
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
 }
 
 /* =====================================
@@ -466,29 +493,7 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleTheme {
-  font-size: 1.2rem;
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-/* ボタン内テキストラベル共通スタイル */
-/* [REF]
-- HTML: .btn-label（アイコン+テキストラベルのボタン内 span）
-- JS: assets/app.js / assets/js/ui/renderers.js（動的生成）
-- STATE: なし
-- LAYER: なし
-- SPLIT: LAST
-===================================== */
-.btn-label {
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  line-height: 1;
-  opacity: 0.85;
-  white-space: nowrap;
 }
 
 /* =====================================
@@ -513,12 +518,7 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleFullscreen {
-  font-size: 1.2rem;
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
 }
 
 /* =====================================
