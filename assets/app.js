@@ -220,6 +220,42 @@ syncLogic.init({
   },
 });
 
+// 認証状態のキャッシュ
+let currentUserData = null;
+
+// メニュー上のログオン状態表示を更新する（左サイドメニュー + フロートメニュー）
+function updateMenuAuthStatus() {
+  const authStatusSlots = document.querySelectorAll("#menuAuthStatus, #floatAuthStatus");
+  if (!authStatusSlots.length) return;
+
+  const strings = getUiStrings(uiLanguage);
+  const authStatus = checkAuthStatus();
+  const activeUser = currentUserData || (authStatus.authenticated
+    ? { displayName: authStatus.userName, email: authStatus.userEmail }
+    : null);
+
+  authStatusSlots.forEach((slot) => {
+    const isFloatSlot = slot.id === "floatAuthStatus";
+    const baseClass = isFloatSlot ? "menu-auth-status float-auth-status" : "menu-auth-status";
+
+    if (activeUser) {
+      slot.className = `${baseClass} logged-in`;
+      const name = activeUser.displayName || activeUser.email || "User";
+      const statusText = strings.googleLoginStatusSignedIn.replace("{user}", name);
+      slot.innerHTML = `<span class="status-dot"></span><span>${statusText}</span>`;
+    } else {
+      slot.className = `${baseClass} logged-out`;
+      slot.innerHTML = `<span class="status-dot"></span><span>${strings.googleLoginStatusSignedOut}</span>`;
+    }
+  });
+}
+
+// 認証状態の変化を監視
+window.addEventListener("auth:status", (event) => {
+  currentUserData = event.detail.user;
+  updateMenuAuthStatus();
+});
+
 // 認証成功時の同期トリガー設定 (初期化後すぐに登録)
 window.addEventListener("auth:login", () => {
   console.log("[app] auth:login event received, starting sync...");
@@ -2529,6 +2565,7 @@ function applyUiLanguage(nextLanguage) {
     renderers.updateProgressBarDisplay();
     renderers.updateSearchButtonState();
     renderers.updateAuthStatusDisplay();
+    updateMenuAuthStatus();
   }
 }
 
@@ -3965,17 +4002,44 @@ function setupEvents() {
   });
 
   // ========================================
-  // Web Share Target: Service Worker からのファイル受信
-  // ファイラー等からの「共有」で送られてきたファイルを開く
+  // Web Share Target: IndexedDB 経由でのファイル受信処理定義
+  // ファイラー等からの「共有」で送られてきたファイルをDBから取り出す
   // ========================================
-  if (navigator.serviceWorker) {
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'share-target-file' && event.data?.file instanceof File) {
-        console.log('[share-target] Received shared file from SW:', event.data.file.name);
-        handleFile(event.data.file);
-      }
+  window.checkSharedFileFromDB = async function() {
+    return new Promise((resolve) => {
+      const request = indexedDB.open('ShareTargetDB', 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('shared_files')) {
+          db.createObjectStore('shared_files');
+        }
+      };
+      request.onsuccess = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('shared_files')) {
+          resolve(null);
+          return;
+        }
+        try {
+          const tx = db.transaction('shared_files', 'readwrite');
+          const store = tx.objectStore('shared_files');
+          const getReq = store.get('shared_book');
+          getReq.onsuccess = () => {
+            const file = getReq.result;
+            if (file) {
+              store.delete('shared_book'); // 取得後は削除
+            }
+            resolve(file);
+          };
+          getReq.onerror = () => resolve(null);
+        } catch (err) {
+          console.error('[share-target] Failed to read from DB:', err);
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
     });
-  }
+  };
 }
 
 // ========================================
@@ -4039,6 +4103,16 @@ function init() {
 
   // WebNovel UI初期化
   setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal: window.confirm, ui });
+
+  // Web Share Targetで共有されたファイルがあれば読み込む
+  if (typeof window.checkSharedFileFromDB === 'function') {
+    window.checkSharedFileFromDB().then((file) => {
+      if (file instanceof File || file instanceof Blob) {
+        console.log('[share-target] Found shared file in DB:', file.name || 'blob');
+        handleFile(file);
+      }
+    });
+  }
 
   console.log("Epub Reader initialized");
 }

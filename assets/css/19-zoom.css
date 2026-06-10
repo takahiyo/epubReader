@@ -6,13 +6,8 @@
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズームボタン配置 (テーマ切替ボタンの下) */
+/* ズームボタン配置 */
 #toggleZoom {
-  position: absolute;
-  right: var(--space-float-base);
-  top: calc(50% + var(--space-toggle-zoom-offset));
-  /* toggleThemeの約60px下 */
-  transform: translateY(-50%);
   font-size: 1.2rem;
   pointer-events: auto;
   transition: opacity 0.2s ease;
@@ -41,8 +36,8 @@ body.is-zoomed #floatOverlay .float-backdrop {
 - LAYER: なし
 - SPLIT: LAST
 ===================================== */
-/* ズーム時はズームボタン以外を非表示 */
-body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom) {
+/* ズーム時はズームボタンと右側コントロールコンテナ以外を非表示 */
+body.is-zoomed #floatOverlay .float-buttons>*:not(#toggleZoom):not(.float-right-controls) {
   opacity: 0;
   pointer-events: none;
 }
@@ -229,6 +224,7 @@ body.is-zoomed #floatOverlay {
 - SPLIT: LAST
 ===================================== */
 /* ズーム操作UIのみ操作許可 */
+body.is-zoomed .float-right-controls,
 body.is-zoomed #toggleZoom,
 body.is-zoomed .zoom-slider-container,
 body.is-zoomed .zoom-slider-container input {
