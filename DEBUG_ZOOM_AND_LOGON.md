@@ -19,10 +19,10 @@
 - メニュー画面で、現在ログインされているかどうかが分かるように端の方に状態表示する。
 
 ### 調査状況と工程:
-* **設計方針**: 左サイドメニューの最下部（言語切替ボタンの上部）に、ログオン状態（ログイン中／未ログイン）を表示する領域を追加する。
+* **設計方針**: 左サイドメニューのタイトルバナー（アプリロゴ）の直下に、ログオン状態（ログイン中／未ログイン）を常時固定で表示する領域を追加する（当初メニュー最下部に設置したが、視認性向上のためバナー直下に移動）。
 * **実装工程**:
-  1. `index.html` に `<div id="menuAuthStatus" class="menu-auth-status"></div>` を追加。
-  2. `assets/css/07-menu.css` に状態表示用のCSS（ログオン中に緑のドット、ログオフ中にグレーのドット）を追加。
+  1. `index.html` の `.menu-header`（タイトルバナーコンテナ）の直後に `<div id="menuAuthStatus" class="menu-auth-status"></div>` を配置。
+  2. `assets/css/07-menu.css` に状態表示用のCSS（ログオン中に緑のドット、ログオフ中にグレーのドット、下線および背景色）を追加・調整。
   3. `assets/auth.js` の `initGoogleLogin` 内で、認証状態の変化（ログイン／ログアウト）を `auth:status` イベントとしてユーザー詳細情報付きでディスパッチするように変更。
-  4. `assets/app.js` にて `auth:status` をリッスンし、ログイン中の名前や状態を多言語文字列（`strings.googleLoginStatusSignedIn` / `strings.googleLoginStatusSignedOut`）に基づいてレンダリングする関数 `updateMenuAuthStatus()` を実装。
+  4. `assets/app.js` にて `auth:status` をリッスンし、ログイン中の名前や状態を多言語文字列に基づいてレンダリングする関数 `updateMenuAuthStatus()` を実装。
   5. 言語切替時（`applyUiLanguage`）にも表示内容が即座に切り替わるように追従処理を追加。
