@@ -204,6 +204,10 @@ body.google-auth-active .modal-backdrop {
   flex-direction: column;
   gap: 12px;
   pointer-events: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 
 /* =====================================
@@ -215,9 +219,7 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 .float-settings {
-  position: absolute;
-  top: var(--space-float-compact);
-  left: var(--space-float-compact);
+  pointer-events: auto;
 }
 
 /* =====================================
@@ -230,22 +232,57 @@ body.google-auth-active .modal-backdrop {
 ===================================== */
 .float-buttons button {
   pointer-events: auto;
-  min-width: 120px;
-  min-height: 44px;
-  padding: 8px 16px;
+  min-width: var(--float-btn-min-width);
+  min-height: var(--float-btn-min-height);
+  padding: var(--float-btn-padding-y) var(--float-btn-padding-x);
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: var(--float-btn-gap);
   border-radius: 12px;
   border: 1px solid var(--border);
   background: rgba(17, 24, 39, 0.85);
   color: var(--text);
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: var(--float-btn-font-size);
+  font-weight: var(--float-btn-font-weight);
+  line-height: 1.2;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   text-align: left;
+}
+
+/* フロートボタンのアイコン枠（目次ボタン基準・SSOT） */
+.float-btn-icon {
+  width: var(--float-btn-icon-size);
+  height: var(--float-btn-icon-size);
+  flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
+.float-btn-icon-crop {
+  width: var(--float-btn-icon-size);
+  height: var(--float-btn-icon-size);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.float-btn-icon-crop img {
+  width: calc(var(--float-btn-icon-size) * 2);
+  height: var(--float-btn-icon-size);
+  max-width: none;
+  object-fit: cover;
+}
+
+.float-btn-icon-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--float-btn-icon-size) * 0.85);
+  line-height: 1;
 }
 
 /* =====================================
@@ -290,6 +327,11 @@ body.google-auth-active .modal-backdrop {
   left: var(--float-lang-toggle-left);
   bottom: var(--float-lang-toggle-bottom);
   font-size: var(--float-lang-toggle-font-size);
+  pointer-events: auto;
+}
+
+/* トグルメニュー内での言語ボタン（インライン版） */
+.float-lang-toggle-inline {
   pointer-events: auto;
 }
 
@@ -402,6 +444,19 @@ body.google-auth-active .modal-backdrop {
   pointer-events: auto;
 }
 
+/* 右側コントロール（ズーム + フォントサイズ） */
+.float-right-controls {
+  position: absolute;
+  right: var(--space-float-base);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+  align-items: center;
+}
+
 /* =====================================
 [REF]
 - HTML: #floatOverlay .float-top-right button
@@ -423,9 +478,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 .font-buttons {
-  position: absolute;
-  right: var(--space-float-base);
-  bottom: var(--space-float-base);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -441,11 +493,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleTheme {
-  position: absolute;
-  right: var(--space-float-base);
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.2rem;
   pointer-events: auto;
 }
 
@@ -458,10 +505,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleZoom {
-  position: absolute;
-  right: var(--space-float-base);
-  top: calc(50% + var(--space-toggle-zoom-offset));
-  transform: translateY(-50%);
   font-size: 1.2rem;
   pointer-events: auto;
 }
@@ -475,11 +518,6 @@ body.google-auth-active .modal-backdrop {
 - SPLIT: GROUP
 ===================================== */
 #toggleFullscreen {
-  position: absolute;
-  right: var(--space-float-base);
-  top: calc(50% + var(--space-toggle-zoom-offset) + 56px);
-  transform: translateY(-50%);
-  font-size: 1.2rem;
   pointer-events: auto;
 }
 

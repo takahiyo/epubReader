@@ -275,35 +275,34 @@ if (typeof document !== "undefined") {
 /**
  * プレミアムアイコン（画像）を取得
  */
-const getPremiumIcon = (path, size = 24) => {
+const getPremiumIcon = (path, size = null) => {
   const img = document.createElement("img");
   img.src = path;
-  img.style.width = `${size}px`;
-  img.style.height = `${size}px`;
-  img.style.verticalAlign = "middle";
-  img.style.objectFit = "contain";
+  if (size === null) {
+    img.className = "float-btn-icon";
+  } else {
+    img.style.width = `${size}px`;
+    img.style.height = `${size}px`;
+    img.style.objectFit = "contain";
+  }
+  img.alt = "";
   return img;
 };
 
 /**
  * 2枚1組のプレミアムアイコン（画像）をクロップして取得
  */
-const getPremiumIconCropped = (path, isRight, size = 32) => {
+const getPremiumIconCropped = (path, isRight, size = null) => {
   const container = document.createElement("div");
-  container.style.width = `${size}px`;
-  container.style.height = `${size}px`;
-  container.style.overflow = "hidden";
-  container.style.display = "inline-flex";
-  container.style.alignItems = "center";
-  container.style.justifyContent = "center";
-  container.style.verticalAlign = "middle";
+  container.className = "float-btn-icon-crop";
+  if (size !== null) {
+    container.style.width = `${size}px`;
+    container.style.height = `${size}px`;
+  }
 
   const img = document.createElement("img");
   img.src = path;
-  img.style.width = `${size * 2}px`;
-  img.style.height = `${size}px`;
-  img.style.maxWidth = "none";
-  img.style.objectFit = "cover";
+  img.alt = "";
   img.style.objectPosition = isRight ? "right" : "left";
 
   container.appendChild(img);
@@ -349,6 +348,9 @@ function shouldPersistLocalProgress(percentage) {
 function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
   if (!currentBookId || isBookLoading || isSyncResolving) return;
+
+  // 仮想書籍の場合は進捗を保存しない
+  if (currentBookInfo?.isVirtualImageBook) return;
 
   // リーダーが未初期化（ページ分割前）の場合は保存をスキップして位置の上書きを防ぐ
   if (getCurrentTotalPages() <= 0) return;
@@ -808,6 +810,9 @@ const ui = new UIController({
 
   getEpubViewMode: () => epubViewMode,
 
+  /** 長押しズーム解除直後かどうかを返すコールバック */
+  isLongPressZoomJustEnded: () => !!reader.longPressZoomJustEnded,
+
   onFloatToggle: () => {
     renderers.toggleFloatOverlay();
   },
@@ -1048,11 +1053,10 @@ function toggleFullscreen() {
 function updateFullscreenButtonLabel() {
   if (!elements.toggleFullscreen) return;
   const isFullscreen = !!document.fullscreenElement;
-  
-  // プレミアムアイコン (スプライト)
-  const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen, 24);
-  elements.toggleFullscreen.replaceChildren(iconElement);
-  
+
+  const iconElement = getPremiumIconCropped(PREMIUM_ICONS.FULLSCREEN_ENTER, isFullscreen);
+  renderers.setFloatInlineLabel(elements.toggleFullscreen, iconElement, t('fullscreenButtonLabel'));
+
   elements.toggleFullscreen.title = isFullscreen
     ? t('fullscreenExitTitle')
     : t('fullscreenEnterTitle');
@@ -1139,7 +1143,12 @@ async function handleFile(file, overrideBookId = null) {
     //    大容量EPUBは軽量ハッシュ（先頭1MB+末尾1MB+サイズ、ピークメモリ ~2MB）
     //    小容量EPUBは従来の全バッファハッシュ（高速）
     let contentHash;
-    if (isArchiveBook) {
+    const isTemporaryImageViewer = file.isVirtualImageBook === true;
+    if (isTemporaryImageViewer) {
+      // D&Dされた画像ファイル/画像フォルダは簡易ビューア扱いにし、
+      // ライブラリ・履歴・同期へ残さない一時IDを使用する。
+      contentHash = `virtual-image-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    } else if (isArchiveBook) {
       contentHash = await fileHandler.buildArchiveFingerprint(file);
     } else if (isLargeFile) {
       // 大容量EPUB: file.arrayBuffer() を呼ばずにハッシュ計算
@@ -1152,18 +1161,17 @@ async function handleFile(file, overrideBookId = null) {
     }
 
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
-    const existingRecord = fileHandler.findBookByContentHash(storage.data.library, contentHash);
-    const id = existingRecord?.id ?? contentHash;
+    const existingRecord = isTemporaryImageViewer ? null : fileHandler.findBookByContentHash(storage.data.library, contentHash);
+    let id = existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
     // 4. ファイル保存
-    //    ストリーミングモード: 本体を保存しない（メタデータのみ）
+    //    ストリーミングモード/仮想画像書籍: 本体を保存しない
     //    大容量: File オブジェクトを直接 OPFS に渡す（全バッファをメモリに載せない）
     //    小容量: arrayBuffer() で一括取得し IndexedDB に保存
-    if (useStreaming) {
-      console.log(`[Streaming] Stub mode: skipping file body save for ${id.substring(0, 12)}...`);
-      // 本体保存スキップ — メタデータのみライブラリに記録
+    if (useStreaming || isTemporaryImageViewer) {
+      console.log(`[Streaming/Temporary] skipping file body save for ${id.substring(0, 12)}...`);
     } else {
       console.log(`Saving file to storage with ID: ${id.substring(0, 12)}...`);
       if (isLargeFile) {
@@ -1191,59 +1199,66 @@ async function handleFile(file, overrideBookId = null) {
       lastOpened: Date.now(),
       // ストリーミング不要になった場合、過去の true を上書きしてスタブ状態を解除する
       isLargeFileStub: useStreaming,
+      isVirtualImageBook: isTemporaryImageViewer,
     };
 
-    storage.upsertBook(info);
+    if (!info.isVirtualImageBook) {
+      storage.upsertBook(info);
+    }
     currentBookId = id;
     currentBookInfo = info;
     resetLocalSaveTracking();
 
-    let cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
-    if (cloudBookId) {
-      // 紐付け時（pendingCloudBookId がある場合）の照合チェック
-      if (pendingCloudBookId && syncLogic.isCloudSyncEnabled()) {
-        const cloudMeta = storage.data.cloudIndex?.[cloudBookId];
-        if (cloudMeta && cloudMeta.fingerprints && !cloudMeta.fingerprints.includes(contentHash)) {
-          const proceed = confirm(translate('linkMismatchWarning'));
-          if (!proceed) {
-            hideLoading();
-            pendingCloudBookId = null;
-            return;
-          }
-        }
-      }
-      storage.setBookLink(id, cloudBookId);
-    }
-    if (syncLogic.isCloudSyncEnabled()) {
-      if (!cloudBookId) {
-        try {
-          const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
-          if (matchResult?.cloudBookId) {
-            cloudBookId = matchResult.cloudBookId;
-          } else if (matchResult?.candidates?.length > 0) {
-            cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
-          }
-        } catch (error) {
-          console.warn("クラウドの照合に失敗しました:", error);
-        }
-      }
-      if (!cloudBookId) {
-        cloudBookId = fileHandler.generateCloudBookId();
-      }
+    let cloudBookId = null;
+    let syncedProgress = null;
+    if (!info.isVirtualImageBook) {
+      cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
       if (cloudBookId) {
+        // 紐付け時（pendingCloudBookId がある場合）の照合チェック
+        if (pendingCloudBookId && syncLogic.isCloudSyncEnabled()) {
+          const cloudMeta = storage.data.cloudIndex?.[cloudBookId];
+          if (cloudMeta && cloudMeta.fingerprints && !cloudMeta.fingerprints.includes(contentHash)) {
+            const proceed = confirm(translate('linkMismatchWarning'));
+            if (!proceed) {
+              hideLoading();
+              pendingCloudBookId = null;
+              return;
+            }
+          }
+        }
         storage.setBookLink(id, cloudBookId);
-        await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
-          storage,
-          cloudSync,
-          isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
-          uiLanguage
-        });
       }
+      if (syncLogic.isCloudSyncEnabled()) {
+        if (!cloudBookId) {
+          try {
+            const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
+            if (matchResult?.cloudBookId) {
+              cloudBookId = matchResult.cloudBookId;
+            } else if (matchResult?.candidates?.length > 0) {
+              cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
+            }
+          } catch (error) {
+            console.warn("クラウドの照合に失敗しました:", error);
+          }
+        }
+        if (!cloudBookId) {
+          cloudBookId = fileHandler.generateCloudBookId();
+        }
+        if (cloudBookId) {
+          storage.setBookLink(id, cloudBookId);
+          await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
+            storage,
+            cloudSync,
+            isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+            uiLanguage
+          });
+        }
+      }
+      syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     }
     pendingCloudBookId = null;
     currentCloudBookId = cloudBookId;
 
-    const syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
     const startLocation = syncedProgress?.location;
     const startProgress = syncedProgress?.percentage;
 
@@ -1904,21 +1919,23 @@ async function handleBookReady(payload) {
 
   const title = metadata.title || currentBookInfo.title;
   currentBookInfo.title = title;
-  storage.upsertBook({ ...currentBookInfo, title });
-  if (currentCloudBookId) {
-    const author = metadata.creator || metadata.author || "";
-    fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
-      storage,
-      cloudSync,
-      isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
-      uiLanguage,
-      overrides: {
-        title,
-        author,
-      },
-    }).catch((error) => {
-      console.warn("クラウドメタデータの更新に失敗しました:", error);
-    });
+  if (!currentBookInfo.isVirtualImageBook) {
+    storage.upsertBook({ ...currentBookInfo, title });
+    if (currentCloudBookId) {
+      const author = metadata.creator || metadata.author || "";
+      fileHandler.upsertCloudIndexEntry(currentCloudBookId, currentBookInfo, currentBookInfo?.contentHash, {
+        storage,
+        cloudSync,
+        isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
+        uiLanguage,
+        overrides: {
+          title,
+          author,
+        },
+      }).catch((error) => {
+        console.warn("クラウドメタデータの更新に失敗しました:", error);
+      });
+    }
   }
   renderers.renderLibrary();
   renderers.renderToc(currentToc);
@@ -1963,6 +1980,11 @@ async function handleBookReady(payload) {
 function addBookmark() {
   if (!currentBookId) {
     alert(t("openBookPrompt"));
+    return;
+  }
+
+  if (currentBookInfo?.isVirtualImageBook) {
+    // 仮想書籍（単一画像・画像フォルダ）はしおり対象外
     return;
   }
 
@@ -2244,27 +2266,7 @@ function applyUiLanguage(nextLanguage) {
     button.textContent = icon;
   };
   const setFloatLabel = (button, icon, text) => {
-    if (!button) return;
-    const iconMap = {
-      [UI_ICONS.MENU_OPEN]: PREMIUM_ICONS.OPEN,
-      [UI_ICONS.MENU_TOC]: PREMIUM_ICONS.TOC,
-      [UI_ICONS.MENU_LIBRARY]: PREMIUM_ICONS.LIBRARY,
-      [UI_ICONS.MENU_SEARCH]: PREMIUM_ICONS.SEARCH,
-      [UI_ICONS.MENU_BOOKMARKS]: PREMIUM_ICONS.BOOKMARKS,
-      [UI_ICONS.MENU_HISTORY]: PREMIUM_ICONS.HISTORY,
-      [UI_ICONS.MENU_WEB_NOVEL]: PREMIUM_ICONS.WEBNOVEL,
-      [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
-      [UI_ICONS.SHARE]: PREMIUM_ICONS.SHARE,
-      [UI_ICONS.LANGUAGE]: PREMIUM_ICONS.LANGUAGE,
-    };
-    const premiumPath = iconMap[icon];
-    if (premiumPath) {
-      const img = getPremiumIcon(premiumPath, 24);
-      const label = document.createTextNode(` ${text}`);
-      button.replaceChildren(img, label);
-    } else {
-      button.textContent = `${icon} ${text}`;
-    }
+    renderers.setMaterialIconLabel(button, icon, text);
   };
   setMenuLabel(elements.menuOpenToc, UI_ICONS.MENU_TOC, strings.tocButton);
   setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
@@ -2292,11 +2294,16 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.openToc, UI_ICONS.MENU_TOC, strings.tocButton);
   if (elements.tocSectionTitle) elements.tocSectionTitle.textContent = strings.tocTitle;
   if (elements.floatSettings) {
-    elements.floatSettings.replaceChildren(getPremiumIcon(PREMIUM_ICONS.SETTINGS, 32));
+    setFloatLabel(elements.floatSettings, UI_ICONS.SETTINGS, strings.menuSettings);
     elements.floatSettings.setAttribute("aria-label", strings.menuSettings);
   }
+  // トグルグループヘッダーのラベル設定
+  const bookGroupHeader = document.querySelector('.float-menu-group[data-group="book"] .float-menu-group-header span:first-child');
+  if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
+  const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
+  if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
   if (elements.openLangMenu) {
-    elements.openLangMenu.replaceChildren(getPremiumIcon(PREMIUM_ICONS.LANGUAGE, 32));
+    setFloatLabel(elements.openLangMenu, UI_ICONS.LANGUAGE, strings.languageButtonLabel);
     elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
   }
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
@@ -3037,6 +3044,17 @@ function setupEvents() {
     showSettings();
   });
 
+  // トグルメニューグループの開閉ロジック
+  document.querySelectorAll('.float-menu-group-header').forEach((header) => {
+    header.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const group = header.closest('.float-menu-group');
+      if (group) {
+        group.classList.toggle('expanded');
+      }
+    });
+  });
+
 
   elements.menuSettings?.addEventListener('click', () => {
     showSettings();
@@ -3770,14 +3788,161 @@ function setupEvents() {
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
   });
 
-  window.addEventListener('drop', (e) => {
+  window.addEventListener('drop', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     document.body.classList.remove(UI_CLASSES.IS_FILE_DRAGGING);
 
-    const droppedFiles = Array.from(e.dataTransfer?.files ?? []);
-    if (droppedFiles.length > 0) {
-      handleFile(droppedFiles[0]);
+    const items = Array.from(e.dataTransfer?.items || []);
+    const entries = items.map(item => item.webkitGetAsEntry()).filter(Boolean);
+
+    // 通常のファイルフォールバック処理用のインナールーチン
+    const processSingleFile = async (file) => {
+      const name = file.name.toLowerCase();
+      const ext = '.' + name.split('.').pop();
+      if (SUPPORTED_FORMATS.IMAGES.includes(ext)) {
+        const JSZipLib = window.JSZip;
+        if (!JSZipLib) {
+          await handleFile(file);
+          return;
+        }
+        const zip = new JSZipLib();
+        zip.file(file.name, file);
+        const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+        const virtualZipFile = new File([zipBlob], file.name + ".zip", { type: "application/zip" });
+        virtualZipFile.isVirtualImageBook = true;
+        await handleFile(virtualZipFile);
+      } else {
+        await handleFile(file);
+      }
+    };
+
+    if (entries.length === 0) {
+      const droppedFiles = Array.from(e.dataTransfer?.files ?? []);
+      if (droppedFiles.length > 0) {
+        showLoading();
+        try {
+          const imageDroppedFiles = droppedFiles
+            .map((file) => ({ file, path: file.name }))
+            .filter(({ file }) => SUPPORTED_FORMATS.IMAGES.includes('.' + file.name.split('.').pop().toLowerCase()))
+            .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+
+          if (imageDroppedFiles.length > 0 && imageDroppedFiles.length === droppedFiles.length) {
+            const JSZipLib = window.JSZip;
+            if (!JSZipLib) {
+              throw new Error("JSZip is not loaded.");
+            }
+            const zip = new JSZipLib();
+            imageDroppedFiles.forEach(({ file, path }) => zip.file(path, file));
+            const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+            const bookName = imageDroppedFiles.length === 1 ? `${imageDroppedFiles[0].file.name}.zip` : "images_archive.zip";
+            const virtualZipFile = new File([zipBlob], bookName, { type: "application/zip" });
+            virtualZipFile.isVirtualImageBook = true;
+            await handleFile(virtualZipFile);
+          } else {
+            await processSingleFile(droppedFiles[0]);
+          }
+        } catch (err) {
+          console.error("[D&D] Fallback file process failed:", err);
+          hideLoading();
+          alert(translate('errorFileLoadFailed', uiLanguage));
+        }
+      }
+      return;
+    }
+
+    // 単一ファイルかつ、電子書籍 / 書庫 / テキストの場合は従来の handleFile で処理する
+    if (entries.length === 1 && entries[0].isFile) {
+      const file = await new Promise((resolve, reject) => entries[0].file(resolve, reject));
+      const name = file.name.toLowerCase();
+      const isEpubOrArchiveOrText = name.endsWith('.epub') || name.endsWith('.zip') || name.endsWith('.cbz') || name.endsWith('.rar') || name.endsWith('.cbr') || name.endsWith('.txt') || name.endsWith('.html');
+      if (isEpubOrArchiveOrText) {
+        await handleFile(file);
+        return;
+      }
+    }
+
+    showLoading();
+    try {
+      const imageFiles = [];
+      let rootFolderName = "";
+
+      // 単一フォルダドロップ時はフォルダ名を本タイトルにする
+      if (entries.length === 1 && entries[0].isDirectory) {
+        rootFolderName = entries[0].name;
+      }
+
+      // フォルダ内を再帰的に走査して画像を収集
+      const traverseEntry = async (entry, path = "") => {
+        if (entry.isFile) {
+          const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+          const ext = '.' + file.name.split('.').pop().toLowerCase();
+          if (SUPPORTED_FORMATS.IMAGES.includes(ext)) {
+            imageFiles.push({ file, path: path + file.name });
+          }
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const readAllEntries = async (dirReader) => {
+            let all = [];
+            const read = async () => {
+              const chunk = await new Promise((res, rej) => dirReader.readEntries(res, rej));
+              if (chunk.length > 0) {
+                all = all.concat(chunk);
+                await read();
+              }
+            };
+            await read();
+            return all;
+          };
+          const childEntries = await readAllEntries(reader);
+          for (const child of childEntries) {
+            await traverseEntry(child, path + entry.name + "/");
+          }
+        }
+      };
+
+      for (const entry of entries) {
+        await traverseEntry(entry);
+      }
+
+      if (imageFiles.length === 0) {
+        // 画像が含まれない場合は通常ファイル処理へフォールバック
+        if (entries.length > 0 && entries[0].isFile) {
+          const file = await new Promise((resolve, reject) => entries[0].file(resolve, reject));
+          await handleFile(file);
+        } else {
+          hideLoading();
+          alert(translate('errorFileLoadFailed', uiLanguage));
+        }
+        return;
+      }
+
+      // ファイルパス順（自然順）でソート
+      imageFiles.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+
+      // JSZipを用いて無圧縮 (STORE) で仮想ZIPを生成
+      const JSZipLib = window.JSZip;
+      if (!JSZipLib) {
+        throw new Error("JSZip is not loaded.");
+      }
+
+      const zip = new JSZipLib();
+      imageFiles.forEach(({ file, path }) => {
+        zip.file(path, file);
+      });
+
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+      const bookName = rootFolderName ? `${rootFolderName}.zip` : (imageFiles.length === 1 ? imageFiles[0].file.name + ".zip" : "images_archive.zip");
+      const virtualZipFile = new File([zipBlob], bookName, { type: "application/zip" });
+      virtualZipFile.isVirtualImageBook = true;
+
+      console.log(`[D&D] Virtual ZIP created from ${imageFiles.length} image files: ${bookName}`);
+      await handleFile(virtualZipFile);
+
+    } catch (err) {
+      console.error("[D&D] Failed to handle dropped items:", err);
+      hideLoading();
+      alert(translate('errorFileLoadFailed', uiLanguage));
     }
   });
 

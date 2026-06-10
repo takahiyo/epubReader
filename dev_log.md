@@ -507,3 +507,27 @@ C案: ADB経由での解除（非現実的）
 - **デバッグログの画面表示**: `index.html` に `Picker Log:` 表示領域を新設し、ファイルピッカー起動時に実行されたモジュールとパラメータ（例: `android (isQuest:true, multiple:true, accept:'')`）を画面に動的表示し、実機検証を容易にする。
 - キャッシュを `bookreader-v35` にバンプする。
 
+---
+
+## エントリ #15 - 2026-06-10（フロートメニューボタンのレイアウト統一）
+
+### 成功の境界線
+
+- 目次ボタンを基準に、フロート左メニュー全ボタンのアイコン・テキストを横並び（24px アイコン + 同一フォントサイズ）に統一。
+- 表示グループ内の子ボタン（全画面・テーマ・言語・横書き等）の縦積みレイアウトを解消。
+
+### 失敗の事象
+
+- 一部ボタン（しおり・設定・表示サブメニュー等）でアイコンサイズ（32px vs 24px）、テキスト位置（`.btn-label` による縦積み小文字）、フォントウェイト（600）が不均一。
+
+### 失敗の根本原因
+
+- `#toggleTheme` / `#toggleFullscreen` / `#floatSettings` / `.float-lang-toggle-inline` に `flex-direction: column` と `.btn-label`（0.6rem）が個別適用されていた。
+- アイコン生成が `getPremiumIcon(..., 32)` と `getPremiumIcon(..., 24)` で混在していた。
+
+### 次のアプローチ
+
+- CSS 変数（`--float-btn-icon-size` 等）と `.float-btn-icon` クラスで SSOT 化。
+- `setFloatInlineLabel` / `setMaterialIconLabel` にラベル更新を集約。
+- キャッシュバンプ: CSS v12/v15/v2、app.js v16。
+

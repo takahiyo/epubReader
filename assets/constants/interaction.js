@@ -73,5 +73,7 @@ export const LONG_PRESS_ZOOM_CONFIG = Object.freeze({
   DEFAULT_SCALE: 2.5,
   DELAY_MS: 300,
   MOVE_THRESHOLD_PX: 10,
+  /** 長押しズーム解除後、クリックイベントを無視する猶予期間（ms） */
+  CLICK_GUARD_MS: 200,
 });
 

@@ -34,6 +34,8 @@ export const UI_STRINGS_JA = Object.freeze({
   menuBookmarks: "しおり",
   menuHistory: "履歴",
   menuWebNovel: "なろう・Web小説",
+  floatGroupBook: "書籍",
+  floatGroupDisplay: "表示",
   menuSettings: "設定",
 
   // 目次・しおり
@@ -188,8 +190,12 @@ export const UI_STRINGS_JA = Object.freeze({
   zoomOutTitle: "ズームを解除",
   fullscreenEnterTitle: "全画面表示",
   fullscreenExitTitle: "全画面解除",
-  fontIncreaseLabel: "A+",
-  fontDecreaseLabel: "A-",
+  fullscreenButtonLabel: "全画面",
+  themeButtonLabel: "テーマ",
+  languageButtonLabel: "言語",
+  settingsButtonLabel: "設定",
+  fontIncreaseLabel: "フォントサイズ＋",
+  fontDecreaseLabel: "フォントサイズ－",
   untitledBook: "無題",
   candidateIdLabel: "ID: {id}",
 

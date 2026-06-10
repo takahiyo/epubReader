@@ -56,6 +56,8 @@ export class UIController {
     this.isSpreadMode = options.isSpreadMode || (() => false);
     this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
     this.getEpubViewMode = options.getEpubViewMode || (() => EPUB_VIEW_MODES.PAGINATED);
+    /** 長押しズーム解除直後かどうかを返すコールバック */
+    this.isLongPressZoomJustEnded = options.isLongPressZoomJustEnded || (() => false);
 
     this.leftMenuVisible = false;
     this.progressBarVisible = false;
@@ -174,6 +176,11 @@ export class UIController {
     // 統一されたクリックハンドラー
     const clickHandler = (e) => {
       if (document.body.classList.contains(UI_CLASSES.GOOGLE_AUTH_ACTIVE)) {
+        return;
+      }
+      // 長押しズーム解除直後のクリックはページ遷移・メニュー展開を防ぐためスキップ
+      if (this.isLongPressZoomJustEnded?.()) {
+        console.log('Click ignored (long press zoom just ended)');
         return;
       }
       // ズーム中は一切のクリック操作を無効化（ボタン以外）

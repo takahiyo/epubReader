@@ -34,6 +34,8 @@ export const UI_STRINGS_EN = Object.freeze({
   menuBookmarks: "Bookmarks",
   menuHistory: "History",
   menuWebNovel: "Web Novel",
+  floatGroupBook: "Books",
+  floatGroupDisplay: "Display",
   menuSettings: "Settings",
 
   // TOC & Bookmarks
@@ -189,8 +191,12 @@ export const UI_STRINGS_EN = Object.freeze({
   zoomOutTitle: "Zoom out",
   fullscreenEnterTitle: "Fullscreen",
   fullscreenExitTitle: "Exit fullscreen",
-  fontIncreaseLabel: "A+",
-  fontDecreaseLabel: "A-",
+  fullscreenButtonLabel: "Fullscreen",
+  themeButtonLabel: "Theme",
+  languageButtonLabel: "Language",
+  settingsButtonLabel: "Settings",
+  fontIncreaseLabel: "Font Size +",
+  fontDecreaseLabel: "Font Size -",
   untitledBook: "Untitled",
   candidateIdLabel: "ID: {id}",
 

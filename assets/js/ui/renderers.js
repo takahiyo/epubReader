@@ -72,39 +72,57 @@ export function setStatusClass(element, statusClass) {
 /**
  * プレミアムアイコン（画像）を取得
  */
-export function getPremiumIcon(path, size = 24) {
+export function getPremiumIcon(path, size = null) {
     const img = document.createElement("img");
     img.src = path;
-    img.style.width = `${size}px`;
-    img.style.height = `${size}px`;
-    img.style.verticalAlign = "middle";
-    img.style.objectFit = "contain";
+    img.className = "float-btn-icon";
+    if (size !== null) {
+        img.style.width = `${size}px`;
+        img.style.height = `${size}px`;
+    }
+    img.alt = "";
     return img;
 }
 
 /**
  * 2枚1組のプレミアムアイコン（画像）をクロップして取得
  */
-export function getPremiumIconCropped(path, isRight, size = 32) {
+export function getPremiumIconCropped(path, isRight, size = null) {
     const container = document.createElement("div");
-    container.style.width = `${size}px`;
-    container.style.height = `${size}px`;
-    container.style.overflow = "hidden";
-    container.style.display = "inline-flex";
-    container.style.alignItems = "center";
-    container.style.justifyContent = "center";
-    container.style.verticalAlign = "middle";
-    
+    container.className = "float-btn-icon-crop";
+    if (size !== null) {
+        container.style.width = `${size}px`;
+        container.style.height = `${size}px`;
+    }
+
     const img = document.createElement("img");
     img.src = path;
-    img.style.width = `${size * 2}px`;
-    img.style.height = `${size}px`;
-    img.style.maxWidth = "none";
-    img.style.objectFit = "cover";
+    img.alt = "";
     img.style.objectPosition = isRight ? "right" : "left";
-    
+
     container.appendChild(img);
     return container;
+}
+
+/**
+ * フロートボタンにアイコン＋テキストを横並びで設定（目次ボタン基準）
+ */
+export function setFloatInlineLabel(button, iconElement, text) {
+    if (!button) return;
+    const label = document.createTextNode(` ${text}`);
+    button.replaceChildren(iconElement, label);
+}
+
+/**
+ * 絵文字アイコン＋テキストでフロートボタンを設定
+ */
+export function setFloatEmojiLabel(button, emoji, text) {
+    if (!button) return;
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "float-btn-icon float-btn-icon-emoji";
+    iconSpan.setAttribute("aria-hidden", "true");
+    iconSpan.textContent = emoji;
+    setFloatInlineLabel(button, iconSpan, text);
 }
 
 export function setMaterialIconLabel(button, iconName, labelText) {
@@ -130,15 +148,14 @@ export function setMaterialIconLabel(button, iconName, labelText) {
     let iconElement;
 
     if (premiumPath) {
-        iconElement = getPremiumIcon(premiumPath, 24);
+        iconElement = getPremiumIcon(premiumPath);
     } else {
         iconElement = document.createElement("span");
-        iconElement.className = UI_CLASSES.MATERIAL_ICON;
+        iconElement.className = `${UI_CLASSES.MATERIAL_ICON} float-btn-icon float-btn-icon-emoji`;
         iconElement.textContent = iconName;
     }
 
-    const label = document.createTextNode(` ${labelText}`);
-    button.replaceChildren(iconElement, label);
+    setFloatInlineLabel(button, iconElement, labelText);
 }
 
 export function showArchiveWarnings(warningTypes = []) {
@@ -253,9 +270,7 @@ export function updateFloatingUIButtons() {
         // 読書録は目次と同様、常に表示し未オープン時のみ無効化（非表示にすると空状態で項目が消えて見える）
         setElementVisibility(elements.shareLogButton, true);
         elements.shareLogButton.disabled = !isBookOpen;
-        const icon = getPremiumIcon(PREMIUM_ICONS.SHARE, 24);
-        const label = document.createTextNode(` ${t("share_reading_log")}`);
-        elements.shareLogButton.replaceChildren(icon, label);
+        setMaterialIconLabel(elements.shareLogButton, UI_ICONS.SHARE, t("share_reading_log"));
     }
 
     if (elements.menuShareLog) {
@@ -310,27 +325,28 @@ export function updateSpreadModeButtonLabel() {
 export function updateReadingDirectionButtonLabel() {
     if (!elements.toggleReadingDirectionImage || !_reader) return;
     const isRtl = _reader.imageReadingDirection === READING_DIRECTIONS.RTL;
-    elements.toggleReadingDirectionImage.textContent = isRtl ? t("pageDirectionRtlButton") : t("pageDirectionLtrButton");
+    const label = isRtl ? t("pageDirectionRtlButton") : t("pageDirectionLtrButton");
+    setFloatEmojiLabel(elements.toggleReadingDirectionImage, UI_ICONS.READING_DIRECTION_TOGGLE, label);
     elements.toggleReadingDirectionImage.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
 }
 
 export function updateWritingModeToggleLabel() {
     if (!elements.toggleWritingMode) return;
     const isVertical = _state.writingMode === WRITING_MODES.VERTICAL;
-    elements.toggleWritingMode.textContent = isVertical
+    const label = isVertical
         ? t("writingModeToggleVertical")
         : t("writingModeToggleHorizontal");
+    const emoji = isVertical ? "↕" : "↔";
+    setFloatEmojiLabel(elements.toggleWritingMode, emoji, label);
     elements.toggleWritingMode.setAttribute("aria-pressed", isVertical ? "true" : "false");
 }
 
 export function updateThemeToggleIcon() {
     if (!elements.toggleTheme) return;
     const isDark = _state.theme === "dark";
-    
-    // クロップドアイコンの生成（右側が月、左側が太陽）
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark, 32);
-    
-    elements.toggleTheme.replaceChildren(iconElement);
+
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.THEME_DARK, isDark);
+    setFloatInlineLabel(elements.toggleTheme, iconElement, t("themeButtonLabel"));
     elements.toggleTheme.setAttribute("aria-pressed", isDark ? "true" : "false");
 }
 
@@ -357,7 +373,8 @@ export function updateEpubScrollMode() {
 export function updateReadingDirectionEpubButtonLabel() {
     if (!elements.toggleReadingDirectionEpub) return;
     const isRtl = _state.pageDirection === READING_DIRECTIONS.RTL;
-    elements.toggleReadingDirectionEpub.textContent = isRtl ? t("pageDirectionRtlButton") : t("pageDirectionLtrButton");
+    const label = isRtl ? t("pageDirectionRtlButton") : t("pageDirectionLtrButton");
+    setFloatEmojiLabel(elements.toggleReadingDirectionEpub, UI_ICONS.READING_DIRECTION_TOGGLE, label);
     elements.toggleReadingDirectionEpub.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
 }
 
@@ -366,7 +383,7 @@ export function updateZoomButtonLabel() {
     const isZoomed = _reader.imageZoomed;
     
     // クロップドアイコンの生成（右側がマイナス、左側がプラス）
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed, 32);
+    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed);
     
     elements.toggleZoom.replaceChildren(iconElement);
     elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");

@@ -2324,7 +2324,18 @@ export class ReaderController {
         const spineIndex = resolveSpineIndex(item.href);
         const id = item.href?.includes('#') ? item.href.split('#')[1] : null;
         if (spineIndex >= 0) {
-          allEntries.push({ title: item.label || "", spineIndex, id, depth });
+          const title = item.label || "";
+          const href = item.href || "";
+          const normalizedHref = href.toLowerCase();
+          const normalizedTitle = title.trim().toLowerCase();
+          const isCoverEntry = spineIndex === 0 && (
+            /表紙|cover/.test(normalizedTitle) ||
+            /(^|[/_-])(?:p-)?cover\.(?:x?html|html)$/.test(normalizedHref.split('#')[0])
+          );
+          const isTocEntry = /目次|contents|table\s*of\s*contents|toc/.test(normalizedTitle) ||
+            /(^|[/_-])(?:p-)?toc\.(?:x?html|html)$/.test(normalizedHref.split('#')[0]) ||
+            /navigation-documents\.(?:x?html|html)$/.test(normalizedHref.split('#')[0]);
+          allEntries.push({ title, href, spineIndex, id, depth, isCoverEntry, isTocEntry });
         }
         if (item.subitems && item.subitems.length > 0) {
           traverseToc(item.subitems, depth + 1);
@@ -2361,7 +2372,7 @@ export class ReaderController {
 
     // インデックス順（同じインデックスならIDありを優先、または出現順）にソート
     // 同一 Spine 内の分割を許容するため、spineIndex だけでなく id の有無も考慮してフィルタリング
-    const sortedToc = filteredToc
+    let sortedToc = filteredToc
       .sort((a, b) => {
         if (a.spineIndex !== b.spineIndex) return a.spineIndex - b.spineIndex;
         // 同じ spineIndex の場合、IDがない（先頭）ものを前に
@@ -2376,6 +2387,106 @@ export class ReaderController {
         return entry.spineIndex !== prev.spineIndex || entry.id !== prev.id;
       });
 
+    // EPUBごとの差異に対応するため、目次に明示されていない先頭ページ/目次ページを
+    // Spine の実体から検出して仮想項目として補完する。
+    // 例: アーサー王物語は spine[0]=cover, spine[1]=nav, 目次リンクは spine[2] から始まる。
+    // この場合「表紙」「目次」を別々の分割境界として追加し、本文の重複表示を避ける。
+    if (sortedToc.length > 0) {
+      const hasCoverEntry = sortedToc.some(entry => entry.isCoverEntry === true || entry._isVirtualCover === true);
+      const hasTocEntry = sortedToc.some(entry => entry.isTocEntry === true || entry._isVirtualToc === true);
+      const firstNarrativeEntry = sortedToc.find(entry => !entry.isCoverEntry && !entry.isTocEntry);
+      const firstNarrativeSpine = firstNarrativeEntry?.spineIndex ?? sortedToc[0].spineIndex;
+      const virtualEntries = [];
+
+      const getSpineItemMeta = (spineIndex) => {
+        const spineItem = this.book?.spine?.get?.(spineIndex) || {};
+        const archiveSpineItem = this.archiveHandler?.spine?.[spineIndex] || {};
+        return {
+          href: spineItem.href || archiveSpineItem.href || archiveSpineItem.fullPath || "",
+          id: spineItem.idref || spineItem.id || archiveSpineItem.id || "",
+          properties: [spineItem.properties, archiveSpineItem.properties]
+            .flatMap(value => Array.isArray(value) ? value : [value])
+            .filter(Boolean)
+            .join(" "),
+        };
+      };
+
+      const isLikelyTocSpine = (spineItem) => {
+        const href = (spineItem?.href || "").toLowerCase();
+        const id = (spineItem?.id || "").toLowerCase();
+        const properties = String(spineItem?.properties || "").toLowerCase();
+        return properties.includes("nav") || /(^|[/_-])(?:nav|toc|contents)(?:[._-]|$)/.test(href) || /(?:nav|toc|contents)/.test(id);
+      };
+
+      const addVirtualEntry = (entry) => {
+        const hasSameEntry = sortedToc.some(existing => existing.spineIndex === entry.spineIndex && (existing.id || null) === null) ||
+          virtualEntries.some(existing => existing.spineIndex === entry.spineIndex && (existing.id || null) === null);
+        if (hasSameEntry) return;
+        virtualEntries.push(entry);
+      };
+
+      for (let spineIndex = 0; spineIndex < firstNarrativeSpine; spineIndex += 1) {
+        const spineItem = getSpineItemMeta(spineIndex);
+        const href = spineItem.href || "";
+        if (!href) continue;
+
+        if (!hasCoverEntry && spineIndex === 0) {
+          addVirtualEntry({
+            title: "表紙",
+            href,
+            spineIndex,
+            id: null,
+            depth: 0,
+            isCoverEntry: true,
+            isTocEntry: false,
+            _isVirtualCover: true,
+          });
+          continue;
+        }
+
+        if (!hasTocEntry && !virtualEntries.some(entry => entry._isVirtualToc === true) && isLikelyTocSpine(spineItem)) {
+          addVirtualEntry({
+            title: "目次",
+            href,
+            spineIndex,
+            id: null,
+            depth: 0,
+            isCoverEntry: false,
+            isTocEntry: true,
+            _isVirtualToc: true,
+          });
+        }
+      }
+
+      if (virtualEntries.length > 0) {
+        sortedToc = [...virtualEntries, ...sortedToc]
+          .sort((a, b) => {
+            if (a.spineIndex !== b.spineIndex) return a.spineIndex - b.spineIndex;
+            if (!a.id && b.id) return -1;
+            if (a.id && !b.id) return 1;
+            return 0;
+          })
+          .filter((entry, index, self) => {
+            if (index === 0) return true;
+            const prev = self[index - 1];
+            return entry.spineIndex !== prev.spineIndex || entry.id !== prev.id;
+          });
+
+        if (Array.isArray(this.toc)) {
+          const tocAdditions = virtualEntries
+            .sort((a, b) => a.spineIndex - b.spineIndex)
+            .map(entry => ({
+              label: entry.title,
+              href: entry.href,
+              _isVirtualCover: entry._isVirtualCover === true,
+              _isVirtualToc: entry._isVirtualToc === true,
+              _isFrontmatter: true,
+            }));
+          this.toc = [...tocAdditions, ...this.toc];
+        }
+      }
+    }
+
     if (sortedToc.length === 0) {
       return [{ start: 0, end: spineLength - 1 }];
     }
@@ -2388,7 +2499,12 @@ export class ReaderController {
       const group = {
         start: entry.spineIndex,
         startId: entry.id || null,
-        title: entry.title
+        title: entry.title,
+        sourceHref: entry.href || null,
+        isCoverGroup: entry.isCoverEntry === true,
+        isTocGroup: entry.isTocEntry === true,
+        isVirtualCoverGroup: entry._isVirtualCover === true,
+        isVirtualTocGroup: entry._isVirtualToc === true,
       };
 
       if (nextEntry) {
@@ -2414,7 +2530,8 @@ export class ReaderController {
     if (groups.length > 0) {
       const first = groups[0];
       if (first.start > 0 || first.startId !== null) {
-        // 巻頭グループの Spine インデックスを確定
+        // 目次データが先頭ページを指していない場合は、1ページ目へ戻るための仮想「表紙」項目を追加する。
+        // ここで作る巻頭グループは、後段の挿絵 Forward Merge で本文/目次側へ吸収しない。
         const frontmatterEnd = first.startId ? first.start : first.start - 1;
         const firstSpineHref = this.book?.spine?.get?.(0)?.href || "";
         groups.unshift({
@@ -2422,14 +2539,16 @@ export class ReaderController {
           startId: null,
           end: frontmatterEnd,
           endId: first.startId || null,
-          title: "表紙 / 巻頭",
-          isFrontmatter: true  // Forward Merge 対象外フラグ
+          title: "表紙",
+          sourceHref: firstSpineHref || null,
+          isFrontmatter: true,
+          isCoverGroup: true,
         });
-        // 目次メニューにも「表紙/巻頭」を追加する
+        // 目次メニューにも仮想「表紙」を追加する。
         if (Array.isArray(this.toc)) {
-          const alreadyHasFrontmatter = this.toc.some(t => t._isFrontmatter);
-          if (!alreadyHasFrontmatter) {
-            this.toc = [{ label: "表紙 / 巻頭", href: firstSpineHref, _isFrontmatter: true }, ...this.toc];
+          const alreadyHasVirtualCover = this.toc.some(t => t._isVirtualCover || t._isFrontmatter);
+          if (!alreadyHasVirtualCover) {
+            this.toc = [{ label: "表紙", href: firstSpineHref, _isVirtualCover: true, _isFrontmatter: true }, ...this.toc];
           }
         }
       }
@@ -2472,17 +2591,12 @@ export class ReaderController {
           return true;
         };
 
-        if (current.isFrontmatter) {
-          // 「表紙/巻頭」グループ：末尾の1ページのみが挿絵の場合、それは次の章の扉絵である可能性が高いため次グループに移す。
-          // 複数ページ（カラーイラストなど）は巻頭に残す。
-          if (current.end >= current.start && this.spineItems?.[current.end]?.isIllustrationOnly) {
-            console.log(`[JoinMode] 巻頭の末尾挿絵 (spine ${current.end}) を次グループ（扉絵）として移動`);
-            next.start = current.end;
-            current.end = current.end - 1;
-          }
+        if (current.isFrontmatter || current.isCoverGroup || current.isTocGroup || current.isVirtualCoverGroup || current.isVirtualTocGroup) {
+          // 表紙・仮想巻頭・目次は、目次リンク位置を明確なページ分割点として保持する。
+          // 末尾が挿絵だけでも次グループへ Forward Merge しない。
           merged.push(current);
           current = next;
-        } else if (!current.isFrontmatter && (isCurrentIllustrationOnly() || isCurrentEndsWithImage)) {
+        } else if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
           current.endId = next.endId; // IDも継承
@@ -4669,6 +4783,64 @@ export class ReaderController {
       const getSrc = () => img.src || img.getAttribute("href") || img.getAttribute("xlink:href") || img.getAttribute("data-src") || "";
       this.bindElementZoomHandlers(img, getSrc);
     });
+
+    // 大きな画像に対して実寸/縮小切替ボタンを挿入
+    this._injectImageSizeToggleButtons(container);
+  }
+
+  /**
+   * ビューポートより大きな画像に実寸/縮小切替オーバーレイボタンを挿入する
+   * @param {HTMLElement} container 
+   */
+  _injectImageSizeToggleButtons(container) {
+    if (!container) return;
+    const images = container.querySelectorAll(".reader-fullscreen-img");
+    images.forEach((img) => {
+      if (img.dataset.sizeToggleBound === "true") return;
+      img.dataset.sizeToggleBound = "true";
+
+      const addToggleButton = () => {
+        const natW = img.naturalWidth;
+        const natH = img.naturalHeight;
+        const vpW = window.innerWidth;
+        const vpH = window.innerHeight;
+
+        // 画像がビューポートより大きい場合のみボタンを表示
+        if (natW <= vpW && natH <= vpH) return;
+
+        // 画像の親要素をrelativeにしてボタンを配置
+        const parent = img.parentElement;
+        if (!parent) return;
+        if (getComputedStyle(parent).position === "static") {
+          parent.style.position = "relative";
+        }
+        parent.style.display = "inline-block";
+
+        const btn = document.createElement("button");
+        btn.className = "epub-img-size-toggle-btn";
+        btn.type = "button";
+        const isOriginal = document.body.classList.contains("epub-img-original-size");
+        btn.textContent = isOriginal ? "−" : "+";
+        btn.title = isOriginal ? "画面に合わせる" : "実寸表示";
+
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          document.body.classList.toggle("epub-img-original-size");
+          const nowOriginal = document.body.classList.contains("epub-img-original-size");
+          btn.textContent = nowOriginal ? "−" : "+";
+          btn.title = nowOriginal ? "画面に合わせる" : "実寸表示";
+        });
+
+        parent.appendChild(btn);
+      };
+
+      if (img.complete && img.naturalWidth > 0) {
+        addToggleButton();
+      } else {
+        img.addEventListener("load", addToggleButton, { once: true });
+      }
+    });
   }
 
 
@@ -4862,7 +5034,14 @@ export class ReaderController {
           }
         }
 
-        
+        // 長押しズーム解除直後のクリック判定を抑制するフラグ
+        // pointerup → click イベント伝播によるページ遷移やメニュー展開を防止する
+        this.longPressZoomJustEnded = true;
+        clearTimeout(this._longPressZoomGuardTimer);
+        this._longPressZoomGuardTimer = setTimeout(() => {
+          this.longPressZoomJustEnded = false;
+        }, LONG_PRESS_ZOOM_CONFIG.CLICK_GUARD_MS ?? 200);
+
         e.preventDefault();
         e.stopPropagation();
       } else {
