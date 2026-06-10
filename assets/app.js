@@ -223,21 +223,31 @@ syncLogic.init({
 // 認証状態のキャッシュ
 let currentUserData = null;
 
-// メニュー上のログオン状態表示を更新する
+// メニュー上のログオン状態表示を更新する（左サイドメニュー + フロートメニュー）
 function updateMenuAuthStatus() {
-  const menuAuthStatus = document.getElementById("menuAuthStatus");
-  if (!menuAuthStatus) return;
+  const authStatusSlots = document.querySelectorAll("#menuAuthStatus, #floatAuthStatus");
+  if (!authStatusSlots.length) return;
 
   const strings = getUiStrings(uiLanguage);
-  if (currentUserData) {
-    menuAuthStatus.className = "menu-auth-status logged-in";
-    const name = currentUserData.displayName || currentUserData.email || "User";
-    const statusText = strings.googleLoginStatusSignedIn.replace("{user}", name);
-    menuAuthStatus.innerHTML = `<span class="status-dot"></span><span>${statusText}</span>`;
-  } else {
-    menuAuthStatus.className = "menu-auth-status logged-out";
-    menuAuthStatus.innerHTML = `<span class="status-dot"></span><span>${strings.googleLoginStatusSignedOut}</span>`;
-  }
+  const authStatus = checkAuthStatus();
+  const activeUser = currentUserData || (authStatus.authenticated
+    ? { displayName: authStatus.userName, email: authStatus.userEmail }
+    : null);
+
+  authStatusSlots.forEach((slot) => {
+    const isFloatSlot = slot.id === "floatAuthStatus";
+    const baseClass = isFloatSlot ? "menu-auth-status float-auth-status" : "menu-auth-status";
+
+    if (activeUser) {
+      slot.className = `${baseClass} logged-in`;
+      const name = activeUser.displayName || activeUser.email || "User";
+      const statusText = strings.googleLoginStatusSignedIn.replace("{user}", name);
+      slot.innerHTML = `<span class="status-dot"></span><span>${statusText}</span>`;
+    } else {
+      slot.className = `${baseClass} logged-out`;
+      slot.innerHTML = `<span class="status-dot"></span><span>${strings.googleLoginStatusSignedOut}</span>`;
+    }
+  });
 }
 
 // 認証状態の変化を監視
