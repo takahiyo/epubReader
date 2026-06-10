@@ -92,17 +92,27 @@ self.addEventListener('fetch', (event) => {
                 const files = formData.getAll('book');
 
                 if (files.length > 0) {
-                    // 全クライアント（開いているタブ）にファイルを転送
-                    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-
-                    for (const client of allClients) {
-                        for (const file of files) {
-                            client.postMessage({
-                                type: 'share-target-file',
-                                file: file,
-                            });
-                        }
-                    }
+                    // 最初のファイルをIndexedDBに保存する（PWA起動時にapp.jsが読み取る）
+                    const file = files[0];
+                    await new Promise((resolve, reject) => {
+                        const request = indexedDB.open('ShareTargetDB', 1);
+                        request.onupgradeneeded = (e) => {
+                            const db = e.target.result;
+                            if (!db.objectStoreNames.contains('shared_files')) {
+                                db.createObjectStore('shared_files');
+                            }
+                        };
+                        request.onsuccess = (e) => {
+                            const db = e.target.result;
+                            const tx = db.transaction('shared_files', 'readwrite');
+                            const store = tx.objectStore('shared_files');
+                            store.put(file, 'shared_book');
+                            tx.oncomplete = () => resolve();
+                            tx.onerror = () => reject(tx.error);
+                        };
+                        request.onerror = () => reject(request.error);
+                    });
+                    console.log('[SW] Saved shared file to IndexedDB:', file.name);
                 }
             } catch (err) {
                 console.error('[SW] share-target handling failed:', err);

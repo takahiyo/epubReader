@@ -3965,17 +3965,44 @@ function setupEvents() {
   });
 
   // ========================================
-  // Web Share Target: Service Worker からのファイル受信
-  // ファイラー等からの「共有」で送られてきたファイルを開く
+  // Web Share Target: IndexedDB 経由でのファイル受信処理定義
+  // ファイラー等からの「共有」で送られてきたファイルをDBから取り出す
   // ========================================
-  if (navigator.serviceWorker) {
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'share-target-file' && event.data?.file instanceof File) {
-        console.log('[share-target] Received shared file from SW:', event.data.file.name);
-        handleFile(event.data.file);
-      }
+  window.checkSharedFileFromDB = async function() {
+    return new Promise((resolve) => {
+      const request = indexedDB.open('ShareTargetDB', 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('shared_files')) {
+          db.createObjectStore('shared_files');
+        }
+      };
+      request.onsuccess = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('shared_files')) {
+          resolve(null);
+          return;
+        }
+        try {
+          const tx = db.transaction('shared_files', 'readwrite');
+          const store = tx.objectStore('shared_files');
+          const getReq = store.get('shared_book');
+          getReq.onsuccess = () => {
+            const file = getReq.result;
+            if (file) {
+              store.delete('shared_book'); // 取得後は削除
+            }
+            resolve(file);
+          };
+          getReq.onerror = () => resolve(null);
+        } catch (err) {
+          console.error('[share-target] Failed to read from DB:', err);
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
     });
-  }
+  };
 }
 
 // ========================================
@@ -4039,6 +4066,16 @@ function init() {
 
   // WebNovel UI初期化
   setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal: window.confirm, ui });
+
+  // Web Share Targetで共有されたファイルがあれば読み込む
+  if (typeof window.checkSharedFileFromDB === 'function') {
+    window.checkSharedFileFromDB().then((file) => {
+      if (file instanceof File || file instanceof Blob) {
+        console.log('[share-target] Found shared file in DB:', file.name || 'blob');
+        handleFile(file);
+      }
+    });
+  }
 
   console.log("Epub Reader initialized");
 }
