@@ -349,3 +349,37 @@
 .btn-icon {
   margin-right: 0.5rem;
 }
+
+/* =====================================
+[REF]
+- HTML: #menuAuthStatus.menu-auth-status
+- JS: assets/app.js (認証状態変更時にUI更新)
+- STATE: .logged-in / .logged-out
+- LAYER: なし
+- SPLIT: LAST
+===================================== */
+.menu-auth-status {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-auth-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.menu-auth-status.logged-in .status-dot {
+  background: var(--status-success-color);
+}
+
+.menu-auth-status.logged-out .status-dot {
+  background: var(--status-neutral-color);
+}

@@ -86,9 +86,11 @@ export function initGoogleLogin() {
   onAuthStateChanged(auth, (user) => {
     if (user) {
       console.log("User state changed: Logged in");
+      window.dispatchEvent(new CustomEvent("auth:status", { detail: { user } }));
       window.dispatchEvent(new Event("auth:login"));
     } else {
       console.log("User state changed: Logged out");
+      window.dispatchEvent(new CustomEvent("auth:status", { detail: { user: null } }));
     }
   });
 }

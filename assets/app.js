@@ -220,6 +220,32 @@ syncLogic.init({
   },
 });
 
+// 認証状態のキャッシュ
+let currentUserData = null;
+
+// メニュー上のログオン状態表示を更新する
+function updateMenuAuthStatus() {
+  const menuAuthStatus = document.getElementById("menuAuthStatus");
+  if (!menuAuthStatus) return;
+
+  const strings = getUiStrings(uiLanguage);
+  if (currentUserData) {
+    menuAuthStatus.className = "menu-auth-status logged-in";
+    const name = currentUserData.displayName || currentUserData.email || "User";
+    const statusText = strings.googleLoginStatusSignedIn.replace("{user}", name);
+    menuAuthStatus.innerHTML = `<span class="status-dot"></span><span>${statusText}</span>`;
+  } else {
+    menuAuthStatus.className = "menu-auth-status logged-out";
+    menuAuthStatus.innerHTML = `<span class="status-dot"></span><span>${strings.googleLoginStatusSignedOut}</span>`;
+  }
+}
+
+// 認証状態の変化を監視
+window.addEventListener("auth:status", (event) => {
+  currentUserData = event.detail.user;
+  updateMenuAuthStatus();
+});
+
 // 認証成功時の同期トリガー設定 (初期化後すぐに登録)
 window.addEventListener("auth:login", () => {
   console.log("[app] auth:login event received, starting sync...");
@@ -2529,6 +2555,7 @@ function applyUiLanguage(nextLanguage) {
     renderers.updateProgressBarDisplay();
     renderers.updateSearchButtonState();
     renderers.updateAuthStatusDisplay();
+    updateMenuAuthStatus();
   }
 }
 
