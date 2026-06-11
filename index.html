@@ -166,12 +166,17 @@
     </nav>
 
     <div class="menu-language">
-      <button id="langJa" class="lang-btn" type="button">
-        <img src="assets/Flag_Japan.svg" alt="" />
+      <button id="langToggle" class="lang-btn" type="button">
+        <img id="langToggleIcon" src="assets/Flag_Japan.svg" alt="" />
       </button>
-      <button id="langEn" class="lang-btn" type="button">
-        <img src="assets/Flag_America.svg" alt="" />
-      </button>
+      <div id="leftLangMenu" class="left-lang-menu hidden">
+        <button id="leftLangJa" class="lang-option-btn" type="button">
+          <img src="assets/Flag_Japan.svg" alt="" />
+        </button>
+        <button id="leftLangEn" class="lang-option-btn" type="button">
+          <img src="assets/Flag_America.svg" alt="" />
+        </button>
+      </div>
     </div>
 
     <div id="tocSection" class="toc-section hidden">
@@ -587,13 +592,17 @@
             <button id="toggleSpreadMode" class="hidden" type="button"></button>
             <button id="toggleFullscreen" type="button"></button>
             <button id="toggleTheme" type="button"></button>
-            <button id="openLangMenu" class="float-lang-toggle-inline" type="button"></button>
-            <button id="floatLangJa" class="lang-option-btn float-lang-flag-inline" type="button">
-              <img src="assets/Flag_Japan.svg" alt="" />
-            </button>
-            <button id="floatLangEn" class="lang-option-btn float-lang-flag-inline" type="button">
-              <img src="assets/Flag_America.svg" alt="" />
-            </button>
+            <span class="float-lang-wrap">
+              <button id="openLangMenu" class="float-lang-toggle-inline" type="button"></button>
+              <div id="floatLangMenu" class="float-lang-menu hidden">
+                <button id="floatLangJa" class="lang-option-btn" type="button">
+                  <img src="assets/Flag_Japan.svg" alt="" />
+                </button>
+                <button id="floatLangEn" class="lang-option-btn" type="button">
+                  <img src="assets/Flag_America.svg" alt="" />
+                </button>
+              </div>
+            </span>
           </div>
         </div>
 
