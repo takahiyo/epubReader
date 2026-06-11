@@ -294,11 +294,20 @@
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
-  font-size: 1.25rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.25rem;
   border-radius: 10px;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lang-btn img {
+  width: 28px;
+  height: 28px;
+  border-radius: 2px;
+  display: block;
 }
 
 /* =====================================

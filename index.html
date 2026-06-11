@@ -166,8 +166,12 @@
     </nav>
 
     <div class="menu-language">
-      <button id="langJa" class="lang-btn" type="button"></button>
-      <button id="langEn" class="lang-btn" type="button"></button>
+      <button id="langJa" class="lang-btn" type="button">
+        <img src="assets/Flag_Japan.svg" alt="" />
+      </button>
+      <button id="langEn" class="lang-btn" type="button">
+        <img src="assets/Flag_America.svg" alt="" />
+      </button>
     </div>
 
     <div id="tocSection" class="toc-section hidden">
@@ -584,6 +588,12 @@
             <button id="toggleFullscreen" type="button"></button>
             <button id="toggleTheme" type="button"></button>
             <button id="openLangMenu" class="float-lang-toggle-inline" type="button"></button>
+            <button id="floatLangJa" class="lang-option-btn float-lang-flag-inline" type="button">
+              <img src="assets/Flag_Japan.svg" alt="" />
+            </button>
+            <button id="floatLangEn" class="lang-option-btn float-lang-flag-inline" type="button">
+              <img src="assets/Flag_America.svg" alt="" />
+            </button>
           </div>
         </div>
 
@@ -618,16 +628,6 @@
         <div id="floatProgressThumb"></div>
       </div>
     </div>
-  </div>
-
-  <!-- 言語選択メニュー（フロート用・地球儀ボタン横） -->
-  <div id="floatLangMenu" class="float-lang-menu hidden">
-    <button id="floatLangJa" class="lang-option-btn">
-      <img src="assets/Flag_Japan.svg" alt="" />
-    </button>
-    <button id="floatLangEn" class="lang-option-btn">
-      <img src="assets/Flag_America.svg" alt="" />
-    </button>
   </div>
 
   <!-- ローディングオーバーレイ -->

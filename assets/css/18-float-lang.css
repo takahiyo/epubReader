@@ -84,3 +84,25 @@
   height: 28px;
   border-radius: 2px;
 }
+
+/* =====================================
+[REF]
+- HTML: .float-lang-flag-inline（フロート表示グループ内の国旗ボタン）
+- JS: assets/app.js（言語切替）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-lang-flag-inline {
+  pointer-events: auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.float-lang-flag-inline:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
