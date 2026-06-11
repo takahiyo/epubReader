@@ -287,17 +287,17 @@
   position: absolute;
   right: 1.5rem;
   bottom: 100%;
-  min-width: 160px;
+  min-width: 200px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 4px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  z-index: 100;
-  margin-bottom: 4px;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  gap: 4px;
+  z-index: 1000;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .left-lang-menu.hidden {

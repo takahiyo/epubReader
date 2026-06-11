@@ -3113,7 +3113,9 @@ function setupEvents() {
 
 
   // 左メニュー言語トグル
+  console.log('[setupEvents] elements.menuLang:', elements.menuLang);
   elements.menuLang?.addEventListener('click', (e) => {
+    console.log('[menuLang] Clicked!');
     e.stopPropagation();
     elements.leftLangMenu?.classList.toggle(UI_CLASSES.HIDDEN);
   });
