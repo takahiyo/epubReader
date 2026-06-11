@@ -172,6 +172,8 @@ export const elements = {
     deviceColorInput: getById(DOM_IDS.DEVICE_COLOR_INPUT),
     deviceNameLabel: getById(DOM_IDS.DEVICE_NAME_LABEL),
     deviceNameInput: getById(DOM_IDS.DEVICE_NAME_INPUT),
+    appVersionLabel: getById(DOM_IDS.APP_VERSION_LABEL),
+    appVersionInput: getById(DOM_IDS.APP_VERSION_INPUT),
     settingsAccountTitle: getById(DOM_IDS.SETTINGS_ACCOUNT_TITLE),
     settingsNotionTitle: getById(DOM_IDS.SETTINGS_NOTION_TITLE),
     googleLoginButton: getById(DOM_IDS.GOOGLE_LOGIN_BUTTON),

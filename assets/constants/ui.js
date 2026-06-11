@@ -294,6 +294,8 @@ export const DOM_IDS = Object.freeze({
   DEVICE_COLOR_INPUT: "deviceColor",
   DEVICE_NAME_LABEL: "deviceNameLabel",
   DEVICE_NAME_INPUT: "deviceName",
+  APP_VERSION_LABEL: "appVersionLabel",
+  APP_VERSION_INPUT: "appVersion",
   SETTINGS_ACCOUNT_TITLE: "settingsAccountTitle",
   ID_SHARE_BUTTON: "share-log-btn",
   GOOGLE_LOGIN_BUTTON: "googleLoginButton",

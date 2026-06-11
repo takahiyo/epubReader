@@ -102,6 +102,7 @@ export const UI_STRINGS_JA = Object.freeze({
   deviceIdLabel: "デバイスID",
   deviceColorLabel: "デバイスカラー",
   deviceNameLabel: "デバイス名",
+  appVersionLabel: "アプリバージョン",
   syncHint: "※ 同期がうまく行かない場合は、広告ブロック機能をこのサイトで「無効」に設定してください。",
   settingsSyncTitle: "Cloudflare D1 (Workers)",
   googleLoginLabel: "Googleログイン",
