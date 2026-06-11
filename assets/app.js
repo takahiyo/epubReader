@@ -2247,9 +2247,6 @@ function applyUiLanguage(nextLanguage) {
   uiLanguage = nextLanguage;
   storage.setSettings({ uiLanguage });
   document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
-  if (elements.langToggleIcon) {
-    elements.langToggleIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
-  }
   if (elements.langIcon) {
     elements.langIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
   }
@@ -2323,9 +2320,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuShareLog || document.getElementById('menuShareLog'), UI_ICONS.SHARE, strings.share_reading_log);
   setMenuLabel(elements.menuWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
-  if (elements.langToggleIcon) {
-    elements.langToggleIcon.alt = uiLanguage === "ja" ? strings.languageOptionJa : strings.languageOptionEn;
-  }
+  setMenuLabel(elements.menuLang, UI_ICONS.LANGUAGE, strings.languageButtonLabel);
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
@@ -3118,7 +3113,7 @@ function setupEvents() {
 
 
   // 左メニュー言語トグル
-  elements.langToggle?.addEventListener('click', (e) => {
+  elements.menuLang?.addEventListener('click', (e) => {
     e.stopPropagation();
     elements.leftLangMenu?.classList.toggle(UI_CLASSES.HIDDEN);
   });
@@ -3133,7 +3128,7 @@ function setupEvents() {
   // 左メニュー言語ポップアップを外側クリックで閉じる
   document.addEventListener('click', (e) => {
     if (elements.leftLangMenu && !elements.leftLangMenu.classList.contains(UI_CLASSES.HIDDEN)) {
-      if (!elements.langToggle?.contains(e.target) && !elements.leftLangMenu?.contains(e.target)) {
+      if (!elements.menuLang?.contains(e.target) && !elements.leftLangMenu?.contains(e.target)) {
         elements.leftLangMenu.classList.add(UI_CLASSES.HIDDEN);
       }
     }

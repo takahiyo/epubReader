@@ -531,6 +531,9 @@ export class UIController {
 
     if (leftMenu) leftMenu.classList.remove(UI_CLASSES.VISIBLE);
     if (leftMenuBackdrop) leftMenuBackdrop.classList.remove(UI_CLASSES.VISIBLE);
+    // 言語ポップアップを強制クローズ
+    const leftLangMenu = getById('leftLangMenu');
+    if (leftLangMenu) leftLangMenu.classList.add(UI_CLASSES.HIDDEN);
     if (!this.progressBarPinned) {
       if (progressBar) progressBar.classList.remove(UI_CLASSES.VISIBLE);
       if (progressBarBackdrop) progressBarBackdrop.classList.remove(UI_CLASSES.VISIBLE);
