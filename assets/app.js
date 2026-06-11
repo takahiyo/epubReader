@@ -2320,7 +2320,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuShareLog || document.getElementById('menuShareLog'), UI_ICONS.SHARE, strings.share_reading_log);
   setMenuLabel(elements.menuWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
-  setMenuLabel(elements.menuLang, UI_ICONS.LANGUAGE, strings.languageButtonLabel);
+  setMenuLabel(document.getElementById('menuLang'), UI_ICONS.LANGUAGE, strings.languageButtonLabel);
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
@@ -3112,26 +3112,30 @@ function setupEvents() {
   });
 
 
-  // 左メニュー言語トグル
-  console.log('[setupEvents] elements.menuLang:', elements.menuLang);
-  elements.menuLang?.addEventListener('click', (e) => {
+  // 左メニュー言語トグル（elements.jsのキャッシュはモジュールロード時のため、ここで直接取得）
+  const menuLangEl = document.getElementById('menuLang');
+  const leftLangMenuEl = document.getElementById('leftLangMenu');
+  const leftLangJaEl = document.getElementById('leftLangJa');
+  const leftLangEnEl = document.getElementById('leftLangEn');
+  console.log('[setupEvents] menuLangEl:', menuLangEl);
+  menuLangEl?.addEventListener('click', (e) => {
     console.log('[menuLang] Clicked!');
     e.stopPropagation();
-    elements.leftLangMenu?.classList.toggle(UI_CLASSES.HIDDEN);
+    leftLangMenuEl?.classList.toggle(UI_CLASSES.HIDDEN);
   });
-  elements.leftLangJa?.addEventListener('click', () => {
+  leftLangJaEl?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    elements.leftLangMenu?.classList.add(UI_CLASSES.HIDDEN);
+    leftLangMenuEl?.classList.add(UI_CLASSES.HIDDEN);
   });
-  elements.leftLangEn?.addEventListener('click', () => {
+  leftLangEnEl?.addEventListener('click', () => {
     applyUiLanguage("en");
-    elements.leftLangMenu?.classList.add(UI_CLASSES.HIDDEN);
+    leftLangMenuEl?.classList.add(UI_CLASSES.HIDDEN);
   });
   // 左メニュー言語ポップアップを外側クリックで閉じる
   document.addEventListener('click', (e) => {
-    if (elements.leftLangMenu && !elements.leftLangMenu.classList.contains(UI_CLASSES.HIDDEN)) {
-      if (!elements.menuLang?.contains(e.target) && !elements.leftLangMenu?.contains(e.target)) {
-        elements.leftLangMenu.classList.add(UI_CLASSES.HIDDEN);
+    if (leftLangMenuEl && !leftLangMenuEl.classList.contains(UI_CLASSES.HIDDEN)) {
+      if (!menuLangEl?.contains(e.target) && !leftLangMenuEl?.contains(e.target)) {
+        leftLangMenuEl.classList.add(UI_CLASSES.HIDDEN);
       }
     }
   });
