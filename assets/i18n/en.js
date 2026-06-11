@@ -102,6 +102,7 @@ export const UI_STRINGS_EN = Object.freeze({
   deviceIdLabel: "Device ID",
   deviceColorLabel: "Device color",
   deviceNameLabel: "Device Name",
+  appVersionLabel: "App Version",
   syncHint: "If sync fails, disable ad blockers for this site.",
   settingsSyncTitle: "Cloudflare D1 (Workers)",
   googleLoginLabel: "Sign in with Google",

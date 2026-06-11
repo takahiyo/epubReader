@@ -2447,6 +2447,12 @@ function applyUiLanguage(nextLanguage) {
     // storage.js の getDeviceInfo を使用
     elements.deviceNameInput.value = typeof getDeviceInfo === "function" ? getDeviceInfo() : "Unknown";
   }
+  if (elements.appVersionLabel) {
+    elements.appVersionLabel.textContent = strings.appVersionLabel;
+  }
+  if (elements.appVersionInput) {
+    elements.appVersionInput.value = APP_INFO.VERSION;
+  }
 
   // 画面表示用のデバッグ情報を設定モーダルに反映する
   const debugCacheName = document.getElementById("debugCacheName");
