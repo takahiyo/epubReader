@@ -5,6 +5,6 @@ export const APP_INFO = Object.freeze({
   NAME: "BookReader",
   SHORT_NAME: "BookReader",
   DESCRIPTION: "ブラウザで動く軽量なEPUB/画像リーダー",
-  VERSION: "1.1.0",
+  VERSION: "1.1.4",
   DOCUMENT_TITLE: "Epub Reader",
 });

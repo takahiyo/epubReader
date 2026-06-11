@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="./assets/css/04-reader.css?v=11" />
   <link rel="stylesheet" href="./assets/css/05-float-ui.css?v=16" />
   <link rel="stylesheet" href="./assets/css/06-reader-extras.css?v=11" />
-  <link rel="stylesheet" href="./assets/css/07-menu.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/07-menu.css?v=12" />
   <link rel="stylesheet" href="./assets/css/08-progress.css?v=11" />
   <link rel="stylesheet" href="./assets/css/09-bookmark.css?v=11" />
   <link rel="stylesheet" href="./assets/css/10-modal.css?v=11" />
@@ -30,7 +30,7 @@
   <link rel="stylesheet" href="./assets/css/15-responsive.css?v=11" />
   <link rel="stylesheet" href="./assets/css/16-candidate.css?v=11" />
   <link rel="stylesheet" href="./assets/css/17-loading.css?v=11" />
-  <link rel="stylesheet" href="./assets/css/18-float-lang.css?v=11" />
+  <link rel="stylesheet" href="./assets/css/18-float-lang.css?v=12" />
   <link rel="stylesheet" href="./assets/css/19-zoom.css?v=11" />
   <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=11" />
   <link rel="stylesheet" href="./assets/css/21-quest3-picker.css?v=1" />
@@ -163,11 +163,21 @@
         <span class="menu-icon"></span>
         <span></span>
       </button>
+      <button id="menuLang" class="menu-item">
+        <span class="menu-icon"></span>
+        <span></span>
+      </button>
     </nav>
 
     <div class="menu-language">
-      <button id="langJa" class="lang-btn" type="button"></button>
-      <button id="langEn" class="lang-btn" type="button"></button>
+      <div id="leftLangMenu" class="left-lang-menu hidden">
+        <button id="leftLangJa" class="lang-option-btn" type="button">
+          <img src="assets/Flag_Japan.svg" alt="" />
+        </button>
+        <button id="leftLangEn" class="lang-option-btn" type="button">
+          <img src="assets/Flag_America.svg" alt="" />
+        </button>
+      </div>
     </div>
 
     <div id="tocSection" class="toc-section hidden">
@@ -583,7 +593,22 @@
             <button id="toggleSpreadMode" class="hidden" type="button"></button>
             <button id="toggleFullscreen" type="button"></button>
             <button id="toggleTheme" type="button"></button>
-            <button id="openLangMenu" class="float-lang-toggle-inline" type="button"></button>
+          </div>
+        </div>
+
+        <!-- 言語グループ -->
+        <div class="float-menu-group" data-group="lang">
+          <button class="float-menu-group-header" type="button">
+            <span></span>
+            <span class="float-menu-group-chevron">▼</span>
+          </button>
+          <div class="float-menu-group-items">
+            <button id="floatLangJa" class="lang-option-btn" type="button">
+              <img src="assets/Flag_Japan.svg" alt="" />
+            </button>
+            <button id="floatLangEn" class="lang-option-btn" type="button">
+              <img src="assets/Flag_America.svg" alt="" />
+            </button>
           </div>
         </div>
 
@@ -620,16 +645,6 @@
     </div>
   </div>
 
-  <!-- 言語選択メニュー（フロート用・地球儀ボタン横） -->
-  <div id="floatLangMenu" class="float-lang-menu hidden">
-    <button id="floatLangJa" class="lang-option-btn">
-      <img src="assets/Flag_Japan.svg" alt="" />
-    </button>
-    <button id="floatLangEn" class="lang-option-btn">
-      <img src="assets/Flag_America.svg" alt="" />
-    </button>
-  </div>
-
   <!-- ローディングオーバーレイ -->
   <div id="loadingOverlay" class="loading-overlay">
     <div id="lottie-loader" class="loading-animation"></div>
@@ -648,7 +663,7 @@
 
   <script type="module" src="./assets/config.js?v=11"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
-  <script type="module" src="./assets/app.js?v=16"></script>
+  <script type="module" src="./assets/app.js?v=17"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

@@ -43,6 +43,13 @@ export function setupWebNovelUI({ elements, openModal, closeModal, openExclusive
         elements.closeWebNovelTocModal.addEventListener("click", () => closeModal(elements.webNovelTocModal));
     }
 
+    // モーダル外クリックで閉じる
+    if (elements.webNovelSearchModal) {
+        elements.webNovelSearchModal.querySelector('.modal-backdrop')?.addEventListener('click', () => {
+            closeModal(elements.webNovelSearchModal);
+        });
+    }
+
     // 検索処理
     if (elements.webNovelSearchBtn && elements.webNovelSearchInput) {
         elements.webNovelSearchBtn.addEventListener("click", async () => {

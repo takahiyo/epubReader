@@ -2247,8 +2247,6 @@ function applyUiLanguage(nextLanguage) {
   uiLanguage = nextLanguage;
   storage.setSettings({ uiLanguage });
   document.documentElement.lang = uiLanguage === "en" ? "en" : "ja";
-  elements.langJa?.classList.toggle(UI_CLASSES.ACTIVE, uiLanguage === "ja");
-  elements.langEn?.classList.toggle(UI_CLASSES.ACTIVE, uiLanguage === "en");
   if (elements.langIcon) {
     elements.langIcon.src = uiLanguage === "ja" ? ASSET_PATHS.FLAG_JAPAN : ASSET_PATHS.FLAG_AMERICA;
   }
@@ -2322,10 +2320,11 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuShareLog || document.getElementById('menuShareLog'), UI_ICONS.SHARE, strings.share_reading_log);
   setMenuLabel(elements.menuWebNovel, UI_ICONS.MENU_WEB_NOVEL, strings.menuWebNovel);
   setMenuLabel(elements.menuSettings, UI_ICONS.SETTINGS, strings.menuSettings);
-  if (elements.langJa) elements.langJa.textContent = strings.languageLabelJa;
-  if (elements.langEn) elements.langEn.textContent = strings.languageLabelEn;
+  setMenuLabel(document.getElementById('menuLang'), UI_ICONS.LANGUAGE, strings.languageButtonLabel);
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
+  setFloatLabel(elements.floatLangJa, '🇯🇵', strings.languageOptionJa);
+  setFloatLabel(elements.floatLangEn, '🇺🇸', strings.languageOptionEn);
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
   setFloatLabel(elements.floatPrevBook, UI_ICONS.AREA_LEFT, strings.menuPrevBook);
   setFloatLabel(elements.floatNextBook, UI_ICONS.AREA_RIGHT, strings.menuNextBook);
@@ -2347,10 +2346,8 @@ function applyUiLanguage(nextLanguage) {
   if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
   if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
-  if (elements.openLangMenu) {
-    setFloatLabel(elements.openLangMenu, UI_ICONS.LANGUAGE, strings.languageButtonLabel);
-    elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
-  }
+  const langGroupHeader = document.querySelector('.float-menu-group[data-group="lang"] .float-menu-group-header span:first-child');
+  if (langGroupHeader) langGroupHeader.textContent = `🌐 ${strings.languageButtonLabel}`;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
   if (elements.addBookmarkBtn) {
     elements.addBookmarkBtn.textContent = `${UI_ICONS.ADD} ${strings.addBookmark}`;
@@ -2380,6 +2377,8 @@ function applyUiLanguage(nextLanguage) {
   setIconOnly(elements.closeSettingsModal, UI_ICONS.CLOSE);
   setIconOnly(elements.closeImageModal, UI_ICONS.CLOSE);
   setIconOnly(elements.closeCandidateModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeWebNovelSearchModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeWebNovelTocModal, UI_ICONS.CLOSE);
   if (elements.closeCandidateModal) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
@@ -3113,8 +3112,33 @@ function setupEvents() {
   });
 
 
-  elements.langJa?.addEventListener('click', () => applyUiLanguage("ja"));
-  elements.langEn?.addEventListener('click', () => applyUiLanguage("en"));
+  // 左メニュー言語トグル（elements.jsのキャッシュはモジュールロード時のため、ここで直接取得）
+  const menuLangEl = document.getElementById('menuLang');
+  const leftLangMenuEl = document.getElementById('leftLangMenu');
+  const leftLangJaEl = document.getElementById('leftLangJa');
+  const leftLangEnEl = document.getElementById('leftLangEn');
+  console.log('[setupEvents] menuLangEl:', menuLangEl);
+  menuLangEl?.addEventListener('click', (e) => {
+    console.log('[menuLang] Clicked!');
+    e.stopPropagation();
+    leftLangMenuEl?.classList.toggle(UI_CLASSES.HIDDEN);
+  });
+  leftLangJaEl?.addEventListener('click', () => {
+    applyUiLanguage("ja");
+    leftLangMenuEl?.classList.add(UI_CLASSES.HIDDEN);
+  });
+  leftLangEnEl?.addEventListener('click', () => {
+    applyUiLanguage("en");
+    leftLangMenuEl?.classList.add(UI_CLASSES.HIDDEN);
+  });
+  // 左メニュー言語ポップアップを外側クリックで閉じる
+  document.addEventListener('click', (e) => {
+    if (leftLangMenuEl && !leftLangMenuEl.classList.contains(UI_CLASSES.HIDDEN)) {
+      if (!menuLangEl?.contains(e.target) && !leftLangMenuEl?.contains(e.target)) {
+        leftLangMenuEl.classList.add(UI_CLASSES.HIDDEN);
+      }
+    }
+  });
 
   elements.toggleWritingMode?.addEventListener('click', async () => {
     // スクロールモード中は「縦書き」への切り替えを禁止
@@ -3173,19 +3197,15 @@ function setupEvents() {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
   });
 
-  // 言語メニュー（フロートUI用・地球儀ボタン横）
-  elements.openLangMenu?.addEventListener('click', () => {
-    elements.floatLangMenu?.classList.toggle(UI_CLASSES.HIDDEN);
-  });
-
+  // フロート言語グループ（.float-menu-group[data-group="lang"]）
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    elements.floatLangMenu?.classList.add(UI_CLASSES.HIDDEN);
+    document.querySelector('.float-menu-group[data-group="lang"]')?.classList.remove('expanded');
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
-    elements.floatLangMenu?.classList.add(UI_CLASSES.HIDDEN);
+    document.querySelector('.float-menu-group[data-group="lang"]')?.classList.remove('expanded');
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {
