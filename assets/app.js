@@ -2323,6 +2323,8 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(document.getElementById('menuLang'), UI_ICONS.LANGUAGE, strings.languageButtonLabel);
   if (elements.floatLangJaImg) elements.floatLangJaImg.alt = strings.languageOptionJa;
   if (elements.floatLangEnImg) elements.floatLangEnImg.alt = strings.languageOptionEn;
+  setFloatLabel(elements.floatLangJa, '🇯🇵', strings.languageOptionJa);
+  setFloatLabel(elements.floatLangEn, '🇺🇸', strings.languageOptionEn);
   setFloatLabel(elements.floatOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
   setFloatLabel(elements.floatPrevBook, UI_ICONS.AREA_LEFT, strings.menuPrevBook);
   setFloatLabel(elements.floatNextBook, UI_ICONS.AREA_RIGHT, strings.menuNextBook);
@@ -2344,10 +2346,8 @@ function applyUiLanguage(nextLanguage) {
   if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
   if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
-  if (elements.openLangMenu) {
-    setFloatLabel(elements.openLangMenu, UI_ICONS.LANGUAGE, strings.languageButtonLabel);
-    elements.openLangMenu.setAttribute("aria-label", strings.languageMenuLabel);
-  }
+  const langGroupHeader = document.querySelector('.float-menu-group[data-group="lang"] .float-menu-group-header span:first-child');
+  if (langGroupHeader) langGroupHeader.textContent = `🌐 ${strings.languageButtonLabel}`;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
   if (elements.addBookmarkBtn) {
     elements.addBookmarkBtn.textContent = `${UI_ICONS.ADD} ${strings.addBookmark}`;
@@ -3197,19 +3197,15 @@ function setupEvents() {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
   });
 
-  // フロート言語トグル（地球儀ボタン横）
-  elements.openLangMenu?.addEventListener('click', () => {
-    elements.floatLangMenu?.classList.toggle(UI_CLASSES.HIDDEN);
-  });
-
+  // フロート言語グループ（.float-menu-group[data-group="lang"]）
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    elements.floatLangMenu?.classList.add(UI_CLASSES.HIDDEN);
+    document.querySelector('.float-menu-group[data-group="lang"]')?.classList.remove('expanded');
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
-    elements.floatLangMenu?.classList.add(UI_CLASSES.HIDDEN);
+    document.querySelector('.float-menu-group[data-group="lang"]')?.classList.remove('expanded');
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {
