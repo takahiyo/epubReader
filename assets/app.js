@@ -2346,7 +2346,7 @@ function applyUiLanguage(nextLanguage) {
   if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
   if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
-  const langGroupHeader = document.querySelector('.float-menu-group[data-group="lang"] .float-menu-group-header span:first-child');
+  const langGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"] .float-menu-group-header span:first-child');
   if (langGroupHeader) langGroupHeader.textContent = `🌐 ${strings.languageButtonLabel}`;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
   if (elements.addBookmarkBtn) {
@@ -3197,15 +3197,15 @@ function setupEvents() {
     applyUiLanguage(uiLanguage === "ja" ? "en" : "ja");
   });
 
-  // フロート言語グループ（.float-menu-group[data-group="lang"]）
+  // フロート言語グループ（表示グループ内 .float-menu-group[data-group="lang"]）
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    document.querySelector('.float-menu-group[data-group="lang"]')?.classList.remove('expanded');
+    document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]')?.classList.remove('expanded');
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
-    document.querySelector('.float-menu-group[data-group="lang"]')?.classList.remove('expanded');
+    document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]')?.classList.remove('expanded');
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {

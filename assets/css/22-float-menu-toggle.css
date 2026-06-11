@@ -76,7 +76,7 @@
 }
 
 /* 子ボタンのインデント */
-.float-menu-group-items button {
+.float-menu-group-items > button {
   margin-left: 16px;
   min-width: 104px;
 }
