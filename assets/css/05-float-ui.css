@@ -129,6 +129,35 @@ body.google-auth-active .modal-backdrop {
 
 /* =====================================
 [REF]
+- HTML: .float-title-top
+- JS: なし
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-title-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* =====================================
+[REF]
+- HTML: #floatVersion.float-version
+- JS: assets/app.js（updateMenuVersion）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.float-version {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+/* =====================================
+[REF]
 - HTML: #floatAuthStatus.menu-auth-status.float-auth-status
 - JS: assets/app.js（updateMenuAuthStatus）
 - STATE: .logged-in / .logged-out

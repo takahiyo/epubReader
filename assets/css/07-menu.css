@@ -162,6 +162,21 @@
 
 /* =====================================
 [REF]
+- HTML: #menuVersion.menu-version
+- JS: assets/app.js（updateMenuVersion）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.menu-version {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+/* =====================================
+[REF]
 - HTML: #leftMenu .menu-nav
 - JS: なし
 - STATE: なし

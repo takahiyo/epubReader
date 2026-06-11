@@ -250,6 +250,15 @@ function updateMenuAuthStatus() {
   });
 }
 
+// メニュー上のバージョン表示を更新する（左サイドメニュー + フロートメニュー）
+function updateMenuVersion() {
+  const versionSlots = document.querySelectorAll("#menuVersion, #floatVersion");
+  if (!versionSlots.length) return;
+  versionSlots.forEach((slot) => {
+    slot.textContent = APP_INFO.VERSION;
+  });
+}
+
 // 認証状態の変化を監視
 window.addEventListener("auth:status", (event) => {
   currentUserData = event.detail.user;
@@ -4106,6 +4115,9 @@ function init() {
 
   // 全画面ボタンの初期ラベルを設定
   updateFullscreenButtonLabel();
+
+  // メニューバージョン表示
+  updateMenuVersion();
 
   // WebNovel UI初期化
   setupWebNovelUI({ elements, openModal, closeModal, openExclusiveMenu, confirmModal: window.confirm, ui });
