@@ -2380,6 +2380,8 @@ function applyUiLanguage(nextLanguage) {
   setIconOnly(elements.closeSettingsModal, UI_ICONS.CLOSE);
   setIconOnly(elements.closeImageModal, UI_ICONS.CLOSE);
   setIconOnly(elements.closeCandidateModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeWebNovelSearchModal, UI_ICONS.CLOSE);
+  setIconOnly(elements.closeWebNovelTocModal, UI_ICONS.CLOSE);
   if (elements.closeCandidateModal) {
     elements.closeCandidateModal.setAttribute("aria-label", strings.closeButtonLabel);
   }
