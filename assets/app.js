@@ -458,6 +458,22 @@ function saveCurrentProgress(options = {}) {
   return progressSnapshot;
 }
 
+function updateProgressOverlay(percentage) {
+  const overlay = elements.progressOverlay;
+  if (!overlay) return;
+  const enabled = settings?.progressOverlayEnabled;
+  if (!enabled || percentage == null || currentBookId == null) {
+    overlay.classList.remove('visible');
+    overlay.classList.add('hidden');
+    return;
+  }
+  const pos = settings?.progressOverlayPosition || 'bottom-left';
+  overlay.className = 'progress-overlay ' + pos;
+  overlay.classList.remove('hidden');
+  overlay.textContent = Math.round(percentage) + '%';
+  overlay.classList.add('visible');
+}
+
 /**
  * 読書録の共有テキストを生成する（内部共通処理）
  */
@@ -735,6 +751,7 @@ const reader = new ReaderController({
     const progressSnapshot = getProgressSnapshot({ location, percentage });
 
     ui.updateProgress(progressSnapshot.pageIndex, progressSnapshot.totalPages, progressSnapshot.percentage);
+    updateProgressOverlay(progressSnapshot.percentage);
     const savedSnapshot = saveCurrentProgress({ progressSnapshot });
     requestCloudSyncIfNeeded({ progressSnapshot: savedSnapshot });
   },
@@ -877,6 +894,9 @@ const ui = new UIController({
     if (action === 'show') {
       const total = reader.pagination ? reader.pagination.pages.length : 0;
       ui.updateProgress(reader.currentPageIndex, total);
+      if (total > 0) {
+        updateProgressOverlay(Math.round(((reader.currentPageIndex + 1) / total) * 100));
+      }
     }
   },
   onBookmarkMenu: (action) => {
@@ -1442,6 +1462,7 @@ function openCloudOnlyBook(cloudBookId) {
   currentBookId = null;
   currentBookInfo = null;
   renderers.updateFloatBookTitle();
+  updateProgressOverlay();
   currentCloudBookId = cloudBookId;
   resetLocalSaveTracking();
 
@@ -1883,6 +1904,7 @@ async function seekToPercentage(percentage) {
         }
         // UI側の進捗表示を即時更新
         ui.updateProgress(pageIndex, totalPages);
+        updateProgressOverlay(percentage);
         return;
       }
       console.warn('Locations not generated yet');
@@ -2438,6 +2460,24 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsLongPressZoomScale) {
     elements.settingsLongPressZoomScale.value = String(longPressZoomScale);
   }
+  if (elements.settingsProgressOverlayLabel) {
+    elements.settingsProgressOverlayLabel.textContent = strings.settingsProgressOverlayLabel;
+  }
+  if (elements.settingsProgressOverlay) {
+    elements.settingsProgressOverlay.checked = !!settings.progressOverlayEnabled;
+  }
+  if (elements.settingsProgressOverlayPositionLabel) {
+    elements.settingsProgressOverlayPositionLabel.textContent = strings.settingsProgressOverlayPositionLabel;
+  }
+  if (elements.settingsProgressOverlayPosition) {
+    elements.settingsProgressOverlayPosition.value = settings.progressOverlayPosition || 'bottom-left';
+    // option ラベル設定
+    const posOpts = elements.settingsProgressOverlayPosition.options;
+    if (posOpts[0]) posOpts[0].textContent = strings.progressOverlayPosTopLeft || 'Top Left';
+    if (posOpts[1]) posOpts[1].textContent = strings.progressOverlayPosTopRight || 'Top Right';
+    if (posOpts[2]) posOpts[2].textContent = strings.progressOverlayPosBottomLeft || 'Bottom Left';
+    if (posOpts[3]) posOpts[3].textContent = strings.progressOverlayPosBottomRight || 'Bottom Right';
+  }
 
 
   // デバイス情報の値をセット
@@ -2918,6 +2958,7 @@ async function commitPendingDeletes() {
 }
 
 function showLibrary() {
+  updateProgressOverlay();
   // 削除マークをリセット（前回の状態をクリア）
   pendingDeletes.clear();
 
@@ -3348,6 +3389,20 @@ function setupEvents() {
     if (reader) {
       reader.setLongPressZoomScale(scale);
     }
+  });
+
+  elements.settingsProgressOverlay?.addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    settings.progressOverlayEnabled = enabled;
+    storage.setSettings({ progressOverlayEnabled: enabled });
+    updateProgressOverlay();
+  });
+
+  elements.settingsProgressOverlayPosition?.addEventListener('change', (e) => {
+    const pos = e.target.value;
+    settings.progressOverlayPosition = pos;
+    storage.setSettings({ progressOverlayPosition: pos });
+    updateProgressOverlay();
   });
 
 

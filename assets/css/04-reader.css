@@ -335,3 +335,45 @@ body.epub-img-original-size .reader-fullscreen-img {
 [data-theme="light"] .epub-img-size-toggle-btn:hover {
   background: rgba(255, 255, 255, 0.95);
 }
+
+/* =====================================
+[REF]
+- HTML: #progressOverlay（進捗%表示）
+- JS: assets/app.js（updateProgressOverlay）
+- STATE: .visible, .top-left, .top-right, .bottom-left, .bottom-right
+- LAYER: z-index（--z-progress-panel）
+- SPLIT: GROUP
+===================================== */
+.progress-overlay {
+  position: fixed;
+  z-index: calc(var(--z-progress-panel) + 1);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.progress-overlay.visible {
+  opacity: 1;
+}
+.progress-overlay.top-left {
+  top: 12px;
+  left: 12px;
+}
+.progress-overlay.top-right {
+  top: 12px;
+  right: 12px;
+}
+.progress-overlay.bottom-left {
+  bottom: 12px;
+  left: 12px;
+}
+.progress-overlay.bottom-right {
+  bottom: 12px;
+  right: 12px;
+}

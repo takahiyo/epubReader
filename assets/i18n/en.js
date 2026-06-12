@@ -94,6 +94,12 @@ export const UI_STRINGS_EN = Object.freeze({
   settingsOneBookmarkPerBookLabel: "Only keep the most recent bookmark per book",
   settingsLongPressZoomLabel: "Long press to zoom (PerfectViewer style)",
   settingsLongPressZoomScaleLabel: "Long press zoom scale",
+  settingsProgressOverlayLabel: "Show progress % always",
+  settingsProgressOverlayPositionLabel: "Progress % position",
+  progressOverlayPosTopLeft: "Top Left",
+  progressOverlayPosTopRight: "Top Right",
+  progressOverlayPosBottomLeft: "Bottom Left",
+  progressOverlayPosBottomRight: "Bottom Right",
 
 
   // Account
