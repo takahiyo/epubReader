@@ -645,6 +645,37 @@
     </div>
   </div>
 
+  <!-- Quest 3 ファイル選択モーダル -->
+  <div id="quest3PickerModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="quest3PickerTitle"></h3>
+        <button id="closeQuest3Picker" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div class="network-url-section" style="margin-bottom:1rem;">
+          <input type="url" id="networkUrlInput" class="search-input" placeholder="https://..." style="width:100%;margin-bottom:0.5rem;" />
+          <button id="networkFetchBtn" class="primary-btn" type="button"></button>
+          <details class="network-auth-section" style="margin-top:0.5rem;">
+            <summary style="cursor:pointer;font-size:0.85rem;color:var(--text-secondary);">Basic 認証</summary>
+            <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+              <input type="text" id="networkAuthUser" class="search-input" placeholder="User" style="flex:1;" />
+              <input type="password" id="networkAuthPass" class="search-input" placeholder="Password" style="flex:1;" />
+            </div>
+          </details>
+        </div>
+
+        <div id="networkHistory" class="network-history" style="max-height:150px;overflow-y:auto;margin-bottom:1rem;"></div>
+
+        <div style="display:flex;gap:0.5rem;">
+          <button id="quest3LocalFileBtn" class="secondary-btn" type="button"></button>
+          <button id="quest3LibraryBtn" class="secondary-btn" type="button"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ローディングオーバーレイ -->
   <div id="loadingOverlay" class="loading-overlay">
     <div id="lottie-loader" class="loading-animation"></div>

@@ -59,6 +59,7 @@ import {
   SHARE_MARKDOWN_TEMPLATE,
   detectPlatform,
   PWA_CONFIG,
+  DEFAULT_KEY_BINDINGS,
 } from "./constants.js";
 
 // ========================================
@@ -3660,9 +3661,18 @@ function setupEvents() {
     lastWheelTime = now;
   }, { passive: false });
 
-  // キーボード操作
+  // キーボード操作（設定からキーバインドを取得、未設定ならデフォルト）
+  const keyMap = (() => {
+    const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
+    const map = {};
+    for (const [action, keys] of Object.entries(bindings)) {
+      for (const key of keys) {
+        map[key] = action;
+      }
+    }
+    return map;
+  })();
   document.addEventListener('keydown', (e) => {
-    // モーダルが開いている場合は無視
     if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
       !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||
       !elements.settingsModal?.classList.contains(UI_CLASSES.HIDDEN) ||
@@ -3671,104 +3681,43 @@ function setupEvents() {
       return;
     }
 
-
+    const action = keyMap[e.key];
+    if (!action) return;
 
     const isEpubScroll = epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB;
-    const isVertical = reader && reader.writingMode === WRITING_MODES.VERTICAL;
-    const isRtl = pageDirection === READING_DIRECTIONS.RTL;
+    const isEpubScrollVertical = isEpubScroll && reader && reader.writingMode === WRITING_MODES.VERTICAL;
 
-    switch (e.key) {
-      case 'ArrowLeft':
-        if (isEpubScroll && !isVertical) return; // 横書きのスクロールでは左右キーは無視
-        if (isEpubScroll && isVertical) {
-          // 縦書きスクロール時の左キー（通常は下のテキストへ＝次のページ方向）
-          // （ネイティブスクロールに任せるためデフォルトアクションを妨げない）
-          return;
-        }
-        if (pageDirection === READING_DIRECTIONS.RTL) {
-          if (isEpubScroll && isVertical) return;
-          reader.next(); // 右開きの場合、左キーで次ページ
-        } else {
-          if (isEpubScroll && isVertical) return;
-          reader.prev();
-        }
-        break;
-      case 'ArrowRight':
-        if (isEpubScroll && !isVertical) return;
-        if (isEpubScroll && isVertical) {
-          return;
-        }
-        if (pageDirection === READING_DIRECTIONS.RTL) {
-          if (isEpubScroll && isVertical) return;
-          reader.prev(); // 右開きの場合、右キーで前ページ
-        } else {
-          if (isEpubScroll && isVertical) return;
-          reader.next();
-        }
-        break;
-// [BEFORE]
-//      case 'ArrowUp':
-//        if (isEpubScroll) return;
-//        reader.prev();
-//        break;
-//      case 'ArrowDown':
-//        if (isEpubScroll) return;
-//        reader.next();
-//        break;
-// [AFTER]
-// [BEFORE]
-//      case 'ArrowUp':
-//        if (isEpubScroll) return;
-//        // 画像書庫の見開き表示時は単ページ進め/戻し（ズレ調整）
-//        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
-//          if (reader.imageReadingDirection === READING_DIRECTIONS.RTL) {
-//            reader.next(1); // 右開きなら上で進む
-//          } else {
-//            reader.prev(1); // 左開きなら上で戻る
-//          }
-//        } else {
-//          reader.prev();
-//        }
-//        break;
-//      case 'ArrowDown':
-//        if (isEpubScroll) return;
-//        // 画像書庫の見開き表示時は単ページ進め/戻し（ズレ調整）
-//        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
-//          if (reader.imageReadingDirection === READING_DIRECTIONS.RTL) {
-//            reader.prev(1); // 右開きなら下で戻る
-//          } else {
-//            reader.next(1); // 左開きなら下で進む
-//          }
-//        } else {
-//          reader.next();
-//        }
-//        break;
-// [AFTER]
-      case 'ArrowUp':
+    switch (action) {
+      case 'pagePrev': {
         if (isEpubScroll) return;
-        // 画像書庫の見開き表示時は単ページ戻り（ズレ調整）
-        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+        if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
           reader.prev(1);
         } else {
           reader.prev();
         }
         break;
-      case 'ArrowDown':
+      }
+      case 'pageNext': {
         if (isEpubScroll) return;
-        // 画像書庫の見開き表示時は単ページ進め（ズレ調整）
-        if (reader.isImageBook() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+        if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
           reader.next(1);
         } else {
           reader.next();
         }
         break;
-      case 'Enter':
-        // 書籍を閲覧中のみ全画面を切り替える
+      }
+      case 'toggleFullscreen': {
         if (currentBookId) {
           e.preventDefault();
           toggleFullscreen();
         }
         break;
+      }
+      case 'toggleMenu': {
+        e.preventDefault();
+        renderers.toggleFloatOverlay();
+        break;
+      }
     }
   });
 
