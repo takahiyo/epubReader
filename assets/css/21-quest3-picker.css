@@ -1,7 +1,0 @@
-/* Quest 3 ピッカー専用のスタイル */
-.quest3-source-btn:hover {
-  background: var(--bg-hover) !important;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s ease;
-}

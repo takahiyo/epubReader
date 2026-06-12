@@ -237,12 +237,5 @@ export const elements = {
     floatWebNovel: getById(DOM_IDS.FLOAT_WEB_NOVEL),
     menuWebNovel: getById(DOM_IDS.MENU_WEB_NOVEL),
 
-    // Quest 3 Picker
-    quest3PickerModal: getById(DOM_IDS.QUEST3_PICKER_MODAL),
-    quest3PickerTitle: getById(DOM_IDS.QUEST3_PICKER_TITLE),
-    closeQuest3Picker: getById(DOM_IDS.CLOSE_QUEST3_PICKER),
-    quest3LocalFileBtn: getById(DOM_IDS.QUEST3_LOCAL_FILE_BTN),
-    quest3LocalFileLabel: getById(DOM_IDS.QUEST3_LOCAL_FILE_LABEL),
-    quest3LibraryBtn: getById(DOM_IDS.QUEST3_LIBRARY_BTN),
-    quest3LibraryLabel: getById(DOM_IDS.QUEST3_LIBRARY_LABEL),
+    // Quest 3 Picker (no modal needed; uses showOpenFilePicker or input fallback)
 };

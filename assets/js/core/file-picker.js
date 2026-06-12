@@ -15,7 +15,7 @@ let dependencies = {
 };
 
 const PICKER_MAP = {
-    [PLATFORM_TYPES.QUEST3]: androidPicker, // Quest 3: SAFフルシステムピッカー（左ペイン＋サードパーティファイラー）
+    [PLATFORM_TYPES.QUEST3]: quest3Picker, // Quest 3: showOpenFilePicker → input fallback（全ファイル選択可）
     [PLATFORM_TYPES.ANDROID]: androidPicker,
     [PLATFORM_TYPES.WINDOWS]: windowsPicker,
     [PLATFORM_TYPES.IOS]: androidPicker, // iOSも現状はAndroid同様レガシーinputを利用する
