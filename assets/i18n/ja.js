@@ -94,6 +94,12 @@ export const UI_STRINGS_JA = Object.freeze({
   settingsOneBookmarkPerBookLabel: "1つの書籍に作成するしおりは一つだけにする",
   settingsLongPressZoomLabel: "長押しでズーム（PerfectViewer風）",
   settingsLongPressZoomScaleLabel: "長押しズーム倍率",
+  settingsProgressOverlayLabel: "進捗%を常時表示",
+  settingsProgressOverlayPositionLabel: "進捗%の表示位置",
+  progressOverlayPosTopLeft: "左上",
+  progressOverlayPosTopRight: "右上",
+  progressOverlayPosBottomLeft: "左下",
+  progressOverlayPosBottomRight: "右下",
 
 
   // アカウント
