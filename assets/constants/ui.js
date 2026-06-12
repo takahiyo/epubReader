@@ -185,6 +185,7 @@ export const DOM_IDS = Object.freeze({
   FLOAT_PROGRESS_MARKS: "floatProgressMarks",
   FLOAT_PROGRESS_FILL: "floatProgressFill",
   FLOAT_PROGRESS_THUMB: "floatProgressThumb",
+  FLOAT_BOOK_TITLE: "floatBookTitle",
   MODAL_OVERLAY: "modalOverlay",
   FONT_PLUS: "fontPlus",
   FONT_MINUS: "fontMinus",

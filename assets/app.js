@@ -1252,6 +1252,7 @@ async function handleFile(file, overrideBookId = null) {
     }
     currentBookId = id;
     currentBookInfo = info;
+    renderers.updateFloatBookTitle();
     resetLocalSaveTracking();
 
     let cloudBookId = null;
@@ -1439,6 +1440,7 @@ function openCloudOnlyBook(cloudBookId) {
   const state = storage.getCloudState(cloudBookId);
   currentBookId = null;
   currentBookInfo = null;
+  renderers.updateFloatBookTitle();
   currentCloudBookId = cloudBookId;
   resetLocalSaveTracking();
 
@@ -4193,6 +4195,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
     providerName: novelInfo.providerName,
     type: BOOK_TYPES.WEB_NOVEL
   };
+  renderers.updateFloatBookTitle();
 
   closeModal(elements.webNovelTocModal);
   closeModal(elements.webNovelSearchModal);
