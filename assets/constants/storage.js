@@ -80,5 +80,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   oneBookmarkPerBook: false, // 1冊につき最後に作成したしおり1つだけを保持する
   longPressZoomEnabled: true,
   longPressZoomScale: 2.5,
+  keyBindings: null,
 });
 
