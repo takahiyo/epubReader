@@ -53,7 +53,7 @@
   opacity: 0.7;
 }
 
-.float-menu-group.expanded .float-menu-group-chevron {
+.float-menu-group.expanded > .float-menu-group-header .float-menu-group-chevron {
   transform: rotate(180deg);
 }
 
@@ -69,14 +69,21 @@
   margin-top: 0;
 }
 
-.float-menu-group.expanded .float-menu-group-items {
+.float-menu-group.expanded > .float-menu-group-items {
   max-height: 500px;
   opacity: 1;
   margin-top: 6px;
 }
 
 /* 子ボタンのインデント */
-.float-menu-group-items > button {
+.float-menu-group-items > button,
+.float-menu-group-items > .float-menu-group > .float-menu-group-header {
   margin-left: 16px;
+  min-width: 104px;
+}
+
+/* ネストされたグループ内の子ボタンはさらにインデント */
+.float-menu-group-items > .float-menu-group .float-menu-group-items > button {
+  margin-left: 32px;
   min-width: 104px;
 }
