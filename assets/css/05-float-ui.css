@@ -605,6 +605,32 @@ body.google-auth-active .modal-backdrop {
 
 /* =====================================
 [REF]
+- HTML: #floatBookTitle（フロート本のタイトル）
+- JS: assets/js/ui/renderers.js（updateFloatBookTitle）
+- STATE: なし
+- LAYER: z-index（--z-float-progress）
+- SPLIT: GROUP
+===================================== */
+#floatBookTitle {
+  position: absolute;
+  bottom: calc(var(--space-float-progress-bottom) + 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 60%);
+  pointer-events: auto;
+  z-index: var(--z-float-progress);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 1rem;
+}
+
+/* =====================================
+[REF]
 - HTML: #floatProgress（フロート進捗バー）
 - JS: assets/ui.js（updateProgress）
 - STATE: なし

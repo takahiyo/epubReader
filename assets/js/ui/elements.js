@@ -43,6 +43,7 @@ export const elements = {
     floatProgressMarks: getById(DOM_IDS.FLOAT_PROGRESS_MARKS),
     floatProgressFill: getById(DOM_IDS.FLOAT_PROGRESS_FILL),
     floatProgressThumb: getById(DOM_IDS.FLOAT_PROGRESS_THUMB),
+    floatBookTitle: getById(DOM_IDS.FLOAT_BOOK_TITLE),
     modalOverlay: getById(DOM_IDS.MODAL_OVERLAY),
     fontPlus: getById(DOM_IDS.FONT_PLUS),
     fontMinus: getById(DOM_IDS.FONT_MINUS),

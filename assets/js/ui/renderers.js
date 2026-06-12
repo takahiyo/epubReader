@@ -295,6 +295,7 @@ export function toggleFloatOverlay(forceVisible) {
         elements.floatOverlay.classList.add(UI_CLASSES.VISIBLE);
         elements.floatOverlay.setAttribute("aria-hidden", "false");
         updateFloatingUIButtons();
+        updateFloatBookTitle();
 
         // プログレスバーの更新
         const progress = _storage.getProgress(_state.currentBookId);
@@ -303,6 +304,18 @@ export function toggleFloatOverlay(forceVisible) {
     } else {
         elements.floatOverlay.classList.remove(UI_CLASSES.VISIBLE);
         elements.floatOverlay.setAttribute("aria-hidden", "true");
+    }
+}
+
+/**
+ * フロートオーバーレイの本のタイトルを更新
+ */
+export function updateFloatBookTitle() {
+    if (!elements.floatBookTitle) return;
+    if (_state.currentBookInfo?.title) {
+        elements.floatBookTitle.textContent = _state.currentBookInfo.title;
+    } else {
+        elements.floatBookTitle.textContent = '';
     }
 }
 
