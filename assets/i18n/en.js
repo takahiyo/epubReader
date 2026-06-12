@@ -100,6 +100,9 @@ export const UI_STRINGS_EN = Object.freeze({
   progressOverlayPosTopRight: "Top Right",
   progressOverlayPosBottomLeft: "Bottom Left",
   progressOverlayPosBottomRight: "Bottom Right",
+  quest3LocalFileLabel: "Select local file",
+  quest3LibraryLabel: "Choose from library",
+  quest3PickerTitle: "Open File",
 
 
   // Account

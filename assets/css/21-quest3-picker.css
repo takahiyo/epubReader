@@ -5,12 +5,3 @@
   box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
 }
-
-.network-history .history-item:hover {
-  background: var(--bg-hover);
-  border-radius: 4px;
-}
-
-.network-auth-section summary:hover {
-  color: var(--accent) !important;
-}

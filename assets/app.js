@@ -2471,12 +2471,20 @@ function applyUiLanguage(nextLanguage) {
   }
   if (elements.settingsProgressOverlayPosition) {
     elements.settingsProgressOverlayPosition.value = settings.progressOverlayPosition || 'bottom-left';
-    // option ラベル設定
     const posOpts = elements.settingsProgressOverlayPosition.options;
     if (posOpts[0]) posOpts[0].textContent = strings.progressOverlayPosTopLeft || 'Top Left';
     if (posOpts[1]) posOpts[1].textContent = strings.progressOverlayPosTopRight || 'Top Right';
     if (posOpts[2]) posOpts[2].textContent = strings.progressOverlayPosBottomLeft || 'Bottom Left';
     if (posOpts[3]) posOpts[3].textContent = strings.progressOverlayPosBottomRight || 'Bottom Right';
+  }
+  if (elements.quest3PickerTitle) {
+    elements.quest3PickerTitle.textContent = strings.quest3PickerTitle || 'Open File';
+  }
+  if (elements.quest3LocalFileLabel) {
+    elements.quest3LocalFileLabel.textContent = strings.quest3LocalFileLabel;
+  }
+  if (elements.quest3LibraryLabel) {
+    elements.quest3LibraryLabel.textContent = strings.quest3LibraryLabel;
   }
 
 
