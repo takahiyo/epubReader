@@ -100,9 +100,6 @@ export const UI_STRINGS_JA = Object.freeze({
   progressOverlayPosTopRight: "右上",
   progressOverlayPosBottomLeft: "左下",
   progressOverlayPosBottomRight: "右下",
-  quest3LocalFileLabel: "ローカルファイルを選択",
-  quest3LibraryLabel: "ライブラリから選択",
-  quest3PickerTitle: "ファイルを開く",
 
 
   // アカウント

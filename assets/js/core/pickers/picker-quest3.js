@@ -2,93 +2,55 @@
  * picker-quest3.js
  * 
  * Quest 3 専用ピッカーモジュール。
- * Quest 3 の Scoped Storage 制限を回避するため、専用モーダルを開き、
- * ローカルファイル選択（全ファイル対応）とライブラリの2つの入口を提供する。
+ * まず File System Access API (showOpenFilePicker) を試行し、
+ * 非対応・失敗時は <input type="file"> にフォールバックする。
+ * accept 制限なし・multiple 有効で SAF フルシステムピッカーを起動する。
  */
 import { createFileInput } from './picker-base.js';
-import { elements } from '../../ui/elements.js';
-
-let modalResolve = null;
 
 export const openFilePicker = async (options = {}, dependencies = {}) => {
-    return new Promise((resolve) => {
-        if (modalResolve) {
-            modalResolve([]);
-        }
-        modalResolve = resolve;
-        setupQuest3Modal();
-        openModal();
-    });
-};
-
-const openModal = () => {
-    if (elements.quest3PickerModal) {
-        elements.quest3PickerModal.classList.remove('hidden');
-    } else {
-        console.error('[picker-quest3] Modal element not found');
-        cleanupAndResolve([]);
-    }
-};
-
-const closeModal = () => {
-    if (elements.quest3PickerModal) {
-        elements.quest3PickerModal.classList.add('hidden');
-    }
-};
-
-const cleanupAndResolve = (files) => {
-    closeModal();
-    if (modalResolve) {
-        modalResolve(files);
-        modalResolve = null;
-    }
-};
-
-let isModalSetup = false;
-
-const setupQuest3Modal = () => {
-    if (isModalSetup) return;
-    isModalSetup = true;
-
-    if (elements.closeQuest3Picker) {
-        elements.closeQuest3Picker.addEventListener('click', () => cleanupAndResolve([]));
-    }
-    const backdrop = elements.quest3PickerModal?.querySelector('.modal-backdrop');
-    if (backdrop) {
-        backdrop.addEventListener('click', () => cleanupAndResolve([]));
-    }
-
-    // ローカルファイルを選択（全ファイル対応、accept制限なし）
-    if (elements.quest3LocalFileBtn) {
-        elements.quest3LocalFileBtn.addEventListener('click', () => {
-            const randomId = `q3_picker_${Math.floor(Math.random() * 10000)}`;
-            const input = createFileInput(randomId, '', false, true);
-
-            const handleFocus = () => {
-                setTimeout(() => {
-                    window.removeEventListener('focus', handleFocus);
-                    if (input.parentNode) input.remove();
-                }, 1000);
+    // モダン API の試行
+    if (window.showOpenFilePicker) {
+        try {
+            const pickerOptions = {
+                multiple: true,
+                excludeAcceptAllOption: false,
+                startIn: 'documents',
             };
+            const handles = await window.showOpenFilePicker(pickerOptions);
+            return await Promise.all(handles.map(h => h.getFile()));
+        } catch (e) {
+            console.warn('[picker-quest3] showOpenFilePicker failed or cancelled:', e);
+            if (e.name === 'AbortError') return [];
+        }
+    }
 
-            input.addEventListener('change', (e) => {
+    // フォールバック: input type="file" (accept制限なし、multiple)
+    return new Promise((resolve) => {
+        const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.LEGACY_FILE_INPUT || 'legacy-file-input-fallback';
+        const input = createFileInput(inputId, '', true, true);
+
+        const debugPickerLog = document.getElementById("debugPickerLog");
+        if (debugPickerLog) {
+            debugPickerLog.textContent = `quest3-fallback (multiple:true, accept:'')`;
+        }
+
+        const handleFocus = () => {
+            const timeoutDelay = 3000;
+            setTimeout(() => {
                 window.removeEventListener('focus', handleFocus);
-                const files = Array.from(e.target.files || []);
-                input.remove();
-                cleanupAndResolve(files);
-            }, { once: true });
+                resolve([]);
+            }, timeoutDelay);
+        };
 
-            window.addEventListener('focus', handleFocus);
-            input.click();
-        });
-    }
+        input.addEventListener("change", (e) => {
+            window.removeEventListener('focus', handleFocus);
+            const files = Array.from(e.target.files || []);
+            e.target.value = "";
+            resolve(files);
+        }, { once: true });
 
-    // ライブラリから選択
-    if (elements.quest3LibraryBtn) {
-        elements.quest3LibraryBtn.addEventListener('click', () => {
-            cleanupAndResolve([]);
-            const menuLibrary = document.getElementById('menuLibrary');
-            if (menuLibrary) menuLibrary.click();
-        });
-    }
+        window.addEventListener('focus', handleFocus);
+        input.click();
+    });
 };

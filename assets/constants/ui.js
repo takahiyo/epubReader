@@ -350,14 +350,7 @@ export const DOM_IDS = Object.freeze({
   FLOAT_WEB_NOVEL: "floatWebNovel",
   MENU_WEB_NOVEL: "menuWebNovel",
 
-  // Quest 3 Picker
-  QUEST3_PICKER_MODAL: "quest3PickerModal",
-  QUEST3_PICKER_TITLE: "quest3PickerTitle",
-  CLOSE_QUEST3_PICKER: "closeQuest3Picker",
-  QUEST3_LOCAL_FILE_BTN: "quest3LocalFileBtn",
-  QUEST3_LOCAL_FILE_LABEL: "quest3LocalFileLabel",
-  QUEST3_LIBRARY_BTN: "quest3LibraryBtn",
-  QUEST3_LIBRARY_LABEL: "quest3LibraryLabel",
+  // Quest 3 Picker (no modal needed; uses showOpenFilePicker or input fallback)
 });
 
 export const DOM_SELECTORS = Object.freeze({

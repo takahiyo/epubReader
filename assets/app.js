@@ -2477,15 +2477,6 @@ function applyUiLanguage(nextLanguage) {
     if (posOpts[2]) posOpts[2].textContent = strings.progressOverlayPosBottomLeft || 'Bottom Left';
     if (posOpts[3]) posOpts[3].textContent = strings.progressOverlayPosBottomRight || 'Bottom Right';
   }
-  if (elements.quest3PickerTitle) {
-    elements.quest3PickerTitle.textContent = strings.quest3PickerTitle || 'Open File';
-  }
-  if (elements.quest3LocalFileLabel) {
-    elements.quest3LocalFileLabel.textContent = strings.quest3LocalFileLabel;
-  }
-  if (elements.quest3LibraryLabel) {
-    elements.quest3LibraryLabel.textContent = strings.quest3LibraryLabel;
-  }
 
 
   // デバイス情報の値をセット
