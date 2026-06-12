@@ -404,6 +404,29 @@
     </div>
   </div>
 
+  <!-- Quest 3 ファイル選択モーダル（サードパーティファイラー対応） -->
+  <div id="quest3PickerModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-medium">
+      <div class="modal-header">
+        <h3 id="quest3PickerTitle"></h3>
+        <button id="closeQuest3Picker" class="close-btn"></button>
+      </div>
+      <div class="modal-body">
+        <div class="quest3-picker-sources">
+          <button id="quest3LocalFileBtn" class="quest3-source-btn" type="button">
+            <span class="quest3-source-icon">📁</span>
+            <span class="quest3-source-label" id="quest3LocalFileLabel"></span>
+          </button>
+          <button id="quest3LibraryBtn" class="quest3-source-btn" type="button">
+            <span class="quest3-source-icon">📚</span>
+            <span class="quest3-source-label" id="quest3LibraryLabel"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 設定モーダル -->
   <div id="settingsModal" class="modal hidden">
     <div class="modal-backdrop"></div>
