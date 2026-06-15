@@ -27,7 +27,7 @@ import {
 } from "./constants.js";
 
 import { createArchiveHandler, EpubArchiveHandler } from "./js/core/archive-handler.js";
-import { calculateProgressPercentage } from "./js/core/progress-utils.js";
+import { calculateProgressPercentage, roundProgressPercentage } from "./js/core/progress-utils.js";
 import { WebNovelViewer } from "./js/core/web-novel-viewer.js";
 
 const TEXT_SEGMENT_STEP = READER_CONFIG.TEXT_SEGMENT_STEP;
@@ -3020,7 +3020,14 @@ export class ReaderController {
         this._lastValidScrollRatio = scrollRatio;
       }
 
-      currentIndex = Math.min(this.currentPageIndex + scrollRatio, totalPages - 1);
+      // 最終章でも scrollRatio を反映させるため totalPages を上限とする
+      currentIndex = Math.min(this.currentPageIndex + scrollRatio, totalPages);
+    }
+
+    // スクロールモード: totalPages を分母にする（最終章のスクロール位置も進捗に反映）
+    if (this.epubViewMode === "scroll") {
+      const percentage = (currentIndex / totalPages) * 100;
+      return roundProgressPercentage(Math.min(100, Math.max(0, percentage)));
     }
 
     return calculateProgressPercentage(currentIndex, totalPages);
