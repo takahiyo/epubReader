@@ -743,9 +743,13 @@ export function applyCloudStateToLocal(localBookId, cloudBookId, state) {
         const nextPercentage = shouldPreservePercentage
             ? existing.percentage
             : (isProgressValid ? Number(state.progress) : existing.percentage);
+        // 進捗率をローカル維持する場合、位置情報もローカルを維持する（古い位置で上書きしない）
+        const nextLocation = shouldPreservePercentage
+            ? existing.location
+            : (state.lastCfi ?? existing.location);
         const newProgress = {
             ...existing,
-            location: state.lastCfi ?? existing.location,
+            location: nextLocation,
             percentage: nextPercentage,
             // 読書環境の復元
             writingMode: state.writingMode ?? existing.writingMode,
