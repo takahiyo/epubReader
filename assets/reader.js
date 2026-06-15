@@ -579,10 +579,21 @@ export class ReaderController {
           currentLocator.segmentIndex
         );
         if (newIndex >= 0) {
-          if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL && currentLocator.segmentIndex > 0) {
-            this._pendingScrollToSegment = currentLocator.segmentIndex;
-            this._pendingScrollSearchQuery = currentLocator.visibleText || null;
-            this._pendingScrollHighlight = false; // リサイズ時はハイライトさせない
+          if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
+            // [修正] バックグラウンド復帰時など位置計測が0（先頭）になった場合でも、
+            // 最後に有効だった位置を使って挿絵位置へのリセットを防止する
+            let segmentForScroll = currentLocator.segmentIndex;
+            if ((!segmentForScroll || segmentForScroll === 0) &&
+                this._lastValidScrollLocation &&
+                this._lastValidScrollLocation.segmentIndex > 0 &&
+                this._lastValidScrollLocation.spineIndex === currentLocator.spineIndex) {
+              segmentForScroll = this._lastValidScrollLocation.segmentIndex;
+            }
+            if (segmentForScroll > 0) {
+              this._pendingScrollToSegment = segmentForScroll;
+              this._pendingScrollSearchQuery = currentLocator.visibleText || this._lastValidScrollLocation?.visibleText || null;
+              this._pendingScrollHighlight = false; // リサイズ時はハイライトさせない
+            }
           }
           this.pageController.goTo(newIndex);
         }
@@ -3014,7 +3025,12 @@ export class ReaderController {
 
     // 有効な（章の先頭ではない）位置を取得できた場合はキャッシュに保存
     if (locator && (locator.segmentIndex > 0 || this.currentPageIndex > 0)) {
-      this._lastValidScrollLocation = { ...locator };
+      // [修正] 有効なキャッシュ（segmentIndex > 0）を0で上書きしない
+      if (!(locator.segmentIndex === 0 &&
+            this._lastValidScrollLocation?.segmentIndex > 0 &&
+            this._lastValidScrollLocation?.spineIndex === locator.spineIndex)) {
+        this._lastValidScrollLocation = { ...locator };
+      }
     }
 
     const fallbackLocator = locator ? null : this.getFallbackLocator();
