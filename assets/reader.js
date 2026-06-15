@@ -590,11 +590,11 @@ export class ReaderController {
         );
         if (newIndex >= 0) {
           if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
-            // [修正] スクロールモードでは getPageLocator(currentPageIndex) が実際の
-            // スクロール位置ではなく可視ページ先頭のセグメントを返す可能性がある。
-            // 最後に有効だったスクロール位置(_lastValidScrollLocation)を常に優先する。
+            // [修正] バックグラウンド復帰時など位置計測が0（先頭）になった場合でも、
+            // 最後に有効だった位置を使って挿絵位置へのリセットを防止する
             let segmentForScroll = currentLocator.segmentIndex;
-            if (this._lastValidScrollLocation &&
+            if ((!segmentForScroll || segmentForScroll === 0) &&
+                this._lastValidScrollLocation &&
                 this._lastValidScrollLocation.segmentIndex > 0 &&
                 this._lastValidScrollLocation.spineIndex === currentLocator.spineIndex) {
               segmentForScroll = this._lastValidScrollLocation.segmentIndex;
