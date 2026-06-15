@@ -345,10 +345,20 @@ export class ReaderController {
     if (!this._hasBoundScrollEvent) {
       this._hasBoundScrollEvent = true;
       let scrollTimeout;
+      this._lastScrollUpdateTime = 0;
 
       this.viewer.addEventListener('scroll', () => {
         // type が EPUB で、スクロールモードの場合のみ処理する
         if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== EPUB_VIEW_MODES.SCROLL || !this.pagination) return;
+
+        // スクロール中も200ms間隔で進捗を更新（ユーザーの読み進みに追随）
+        const now = Date.now();
+        if (now - this._lastScrollUpdateTime >= 200) {
+          this._lastScrollUpdateTime = now;
+          if (this.pagination && this.pagination.pages) {
+            this.updateProgressFromPagination(this.pagination.pages.length);
+          }
+        }
 
         clearTimeout(scrollTimeout);
         scrollTimeout = setTimeout(() => {
