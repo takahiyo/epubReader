@@ -104,10 +104,14 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Operation
   settingsOperationTitle: "Operation",
-  keyPagePrev: "Previous page",
-  keyPageNext: "Next page",
+  keyPagePrev: "Previous page (2-page)",
+  keyPageNext: "Next page (2-page)",
+  keySinglePrev: "Previous page (1-page)",
+  keySingleNext: "Next page (1-page)",
   keyToggleFullscreen: "Toggle full screen",
   keyToggleMenu: "Toggle menu",
+  keyToggleToc: "Table of Contents",
+  keyToggleBookmark: "Bookmark",
   keybindingReset: "Reset",
   keybindingResetAll: "Reset all to defaults",
   keybindingRecording: "Press a key...",

@@ -2280,6 +2280,8 @@ function applyUiLanguage(nextLanguage) {
 
   const strings = getUiStrings(nextLanguage);
   document.title = strings.documentTitle;
+  renderers.updateThemeToggleIcon?.();
+  updateFullscreenButtonLabel?.();
   const appIconAlt = strings.appIconAlt ?? strings.documentTitle;
   if (elements.emptyStateIcon) elements.emptyStateIcon.alt = appIconAlt;
   if (elements.menuTitleImage) elements.menuTitleImage.alt = appIconAlt;
@@ -3420,7 +3422,7 @@ function setupEvents() {
     if (!container) return;
     const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
     const strings = getUiStrings(uiLanguage);
-    const actionOrder = ['pagePrev', 'pageNext', 'toggleFullscreen', 'toggleMenu'];
+    const actionOrder = Object.keys(DEFAULT_KEY_BINDINGS);
     container.innerHTML = '';
     for (const action of actionOrder) {
       const keys = bindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
@@ -3428,18 +3430,38 @@ function setupEvents() {
       const label = strings[labelKey] || action;
       const row = document.createElement('div');
       row.className = 'keybinding-row';
-      row.innerHTML = `<span class="keybinding-label">${label}</span>
-        <div class="keybinding-badges" data-action="${action}"></div>
-        <button class="keybinding-reset-btn" data-action="${action}">${strings.keybindingReset || 'Reset'}</button>`;
-      const badgesContainer = row.querySelector('.keybinding-badges');
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'keybinding-label';
+      labelSpan.textContent = label;
+      row.appendChild(labelSpan);
+      const badgesContainer = document.createElement('div');
+      badgesContainer.className = 'keybinding-badges';
+      badgesContainer.dataset.action = action;
       for (let i = 0; i < keys.length; i++) {
         const badge = document.createElement('span');
         badge.className = 'keybinding-badge';
         badge.dataset.slot = i;
-        badge.textContent = keys[i];
-        badge.title = strings.keybindingRecording || 'Press a key...';
+        const keyText = document.createElement('span');
+        keyText.textContent = keys[i];
+        badge.appendChild(keyText);
+        if (keys.length > 1) {
+          const removeBtn = document.createElement('span');
+          removeBtn.className = 'keybinding-remove';
+          removeBtn.textContent = '×';
+          badge.appendChild(removeBtn);
+        }
         badgesContainer.appendChild(badge);
       }
+      const addBtn = document.createElement('span');
+      addBtn.className = 'keybinding-add';
+      addBtn.textContent = '+';
+      badgesContainer.appendChild(addBtn);
+      row.appendChild(badgesContainer);
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'keybinding-reset-btn';
+      resetBtn.dataset.action = action;
+      resetBtn.textContent = strings.keybindingReset || 'Reset';
+      row.appendChild(resetBtn);
       container.appendChild(row);
     }
   }
@@ -3485,11 +3507,37 @@ function setupEvents() {
   }, true);
 
   elements.keybindingsList?.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest?.('.keybinding-remove');
+    if (removeBtn) {
+      const badge = removeBtn.closest('.keybinding-badge');
+      const row = badge?.closest('[data-action]');
+      const action = row?.dataset.action;
+      const slot = parseInt(badge?.dataset?.slot, 10);
+      if (action && !isNaN(slot)) {
+        const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
+        const keys = [...(bindings[action] || DEFAULT_KEY_BINDINGS[action] || [])];
+        keys.splice(slot, 1);
+        if (keys.length === 0) keys.push(DEFAULT_KEY_BINDINGS[action][0]);
+        bindings[action] = keys;
+        settings.keyBindings = bindings;
+        storage.setSettings({ keyBindings: bindings });
+        rebuildKeyMap();
+        renderKeybindings();
+      }
+      return;
+    }
+    const addBtn = e.target.closest?.('.keybinding-add');
+    if (addBtn) {
+      const row = addBtn.closest('[data-action]');
+      const action = row?.dataset.action;
+      if (action) enterRecording(action, -1);
+      return;
+    }
     const badge = e.target.closest?.('.keybinding-badge');
     if (badge) {
       const row = badge.closest('[data-action]');
       const action = row?.dataset.action;
-      const slot = parseInt(badge.dataset.slot);
+      const slot = parseInt(badge.dataset.slot, 10);
       if (action && !isNaN(slot)) {
         enterRecording(action, slot);
       }
@@ -3869,20 +3917,12 @@ function setupEvents() {
     switch (resolvedAction) {
       case 'pagePrev': {
         if (isEpubScroll) return;
-        if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
-          reader.prev(1);
-        } else {
-          reader.prev();
-        }
+        reader.prev();
         break;
       }
       case 'pageNext': {
         if (isEpubScroll) return;
-        if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
-          reader.next(1);
-        } else {
-          reader.next();
-        }
+        reader.next();
         break;
       }
       case 'toggleFullscreen': {
@@ -3892,9 +3932,31 @@ function setupEvents() {
         }
         break;
       }
+      case 'singlePrev': {
+        if (isEpubScroll) return;
+        reader.prev(1);
+        break;
+      }
+      case 'singleNext': {
+        if (isEpubScroll) return;
+        reader.next(1);
+        break;
+      }
       case 'toggleMenu': {
         e.preventDefault();
         renderers.toggleFloatOverlay();
+        break;
+      }
+      case 'toggleToc': {
+        e.preventDefault();
+        if (!currentBookInfo || currentBookInfo.type !== BOOK_TYPES.EPUB) break;
+        openExclusiveMenu(elements.tocModal);
+        break;
+      }
+      case 'toggleBookmark': {
+        e.preventDefault();
+        if (!currentBookId) break;
+        showBookmarks();
         break;
       }
     }

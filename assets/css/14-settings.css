@@ -289,3 +289,45 @@
   border-color: var(--accent);
 }
 
+.keybinding-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 0.6rem;
+  line-height: 1;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: rgba(255, 80, 80, 0.2);
+  color: #ff6666;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.keybinding-remove:hover {
+  background: rgba(255, 80, 80, 0.5);
+}
+
+.keybinding-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.keybinding-add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
