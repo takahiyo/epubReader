@@ -102,6 +102,20 @@ export const UI_STRINGS_JA = Object.freeze({
   progressOverlayPosBottomRight: "右下",
 
 
+  // 操作設定
+  settingsOperationTitle: "操作設定",
+  keyPagePrev: "前のページ（見開き）",
+  keyPageNext: "次のページ（見開き）",
+  keySinglePrev: "前のページ（単ページ）",
+  keySingleNext: "次のページ（単ページ）",
+  keyToggleFullscreen: "全画面切替",
+  keyToggleMenu: "メニュー切替",
+  keyToggleToc: "目次",
+  keyToggleBookmark: "しおり",
+  keybindingReset: "リセット",
+  keybindingResetAll: "すべてデフォルトに戻す",
+  keybindingRecording: "キーを押してください...",
+
   // アカウント
   settingsAccountTitle: "アカウント",
   settingsDeviceTitle: "デバイス",

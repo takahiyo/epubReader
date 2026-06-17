@@ -2280,6 +2280,8 @@ function applyUiLanguage(nextLanguage) {
 
   const strings = getUiStrings(nextLanguage);
   document.title = strings.documentTitle;
+  renderers.updateThemeToggleIcon?.();
+  updateFullscreenButtonLabel?.();
   const appIconAlt = strings.appIconAlt ?? strings.documentTitle;
   if (elements.emptyStateIcon) elements.emptyStateIcon.alt = appIconAlt;
   if (elements.menuTitleImage) elements.menuTitleImage.alt = appIconAlt;
@@ -2426,6 +2428,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
+  if (elements.settingsOperationTitle) elements.settingsOperationTitle.textContent = strings.settingsOperationTitle;
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
   if (elements.settingsDefaultWritingModeLabel) {
     elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
@@ -2478,6 +2481,9 @@ function applyUiLanguage(nextLanguage) {
     if (posOpts[3]) posOpts[3].textContent = strings.progressOverlayPosBottomRight || 'Bottom Right';
   }
 
+  if (elements.resetAllKeybindings) {
+    elements.resetAllKeybindings.textContent = strings.keybindingResetAll || 'Reset all to defaults';
+  }
 
   // デバイス情報の値をセット
   const deviceSettings = storage.getSettings();
@@ -3032,6 +3038,7 @@ function showSettings() {
   const currentSettings = storage.getSettings();
 
   renderers.updateAuthStatusDisplay();
+  renderKeybindings();
 }
 
 // ========================================
@@ -3207,6 +3214,7 @@ function setupEvents() {
   // 左開き/右開き切替ボタン (画像用)
   elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     reader.toggleImageReadingDirection();
+    pageDirection = reader.imageReadingDirection;
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
   });
@@ -3402,6 +3410,158 @@ function setupEvents() {
     settings.progressOverlayPosition = pos;
     storage.setSettings({ progressOverlayPosition: pos });
     updateProgressOverlay();
+  });
+
+
+  // === キーバインド設定 ===
+  let recordingAction = null;
+  let recordingSlot = null;
+
+  function renderKeybindings() {
+    const container = elements.keybindingsList;
+    if (!container) return;
+    const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
+    const strings = getUiStrings(uiLanguage);
+    const actionOrder = Object.keys(DEFAULT_KEY_BINDINGS);
+    container.innerHTML = '';
+    for (const action of actionOrder) {
+      const keys = bindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
+      const labelKey = KEY_ACTION_LABELS[action];
+      const label = strings[labelKey] || action;
+      const row = document.createElement('div');
+      row.className = 'keybinding-row';
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'keybinding-label';
+      labelSpan.textContent = label;
+      row.appendChild(labelSpan);
+      const badgesContainer = document.createElement('div');
+      badgesContainer.className = 'keybinding-badges';
+      badgesContainer.dataset.action = action;
+      for (let i = 0; i < keys.length; i++) {
+        const badge = document.createElement('span');
+        badge.className = 'keybinding-badge';
+        badge.dataset.slot = i;
+        const keyText = document.createElement('span');
+        keyText.textContent = keys[i];
+        badge.appendChild(keyText);
+        if (keys.length > 1) {
+          const removeBtn = document.createElement('span');
+          removeBtn.className = 'keybinding-remove';
+          removeBtn.textContent = '×';
+          badge.appendChild(removeBtn);
+        }
+        badgesContainer.appendChild(badge);
+      }
+      const addBtn = document.createElement('span');
+      addBtn.className = 'keybinding-add';
+      addBtn.textContent = '+';
+      badgesContainer.appendChild(addBtn);
+      row.appendChild(badgesContainer);
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'keybinding-reset-btn';
+      resetBtn.dataset.action = action;
+      resetBtn.textContent = strings.keybindingReset || 'Reset';
+      row.appendChild(resetBtn);
+      container.appendChild(row);
+    }
+  }
+
+  function enterRecording(action, slot) {
+    recordingAction = action;
+    recordingSlot = slot;
+    const strings = getUiStrings(uiLanguage);
+    const badges = document.querySelectorAll('.keybinding-badge');
+    badges.forEach(b => {
+      if (b.closest('[data-action]')?.dataset.action === action && parseInt(b.dataset.slot) === slot) {
+        b.classList.add('recording');
+        b.textContent = '...';
+      }
+    });
+  }
+
+  function finishRecording(e) {
+    if (!recordingAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const key = e.key;
+    const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
+    const keys = [...(bindings[recordingAction] || DEFAULT_KEY_BINDINGS[recordingAction] || [])];
+    if (recordingSlot >= 0 && recordingSlot < keys.length) {
+      keys[recordingSlot] = key;
+    } else {
+      keys.push(key);
+    }
+    bindings[recordingAction] = keys;
+    settings.keyBindings = bindings;
+    storage.setSettings({ keyBindings: bindings });
+    rebuildKeyMap();
+    recordingAction = null;
+    recordingSlot = null;
+    renderKeybindings();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (recordingAction !== null) {
+      finishRecording(e);
+    }
+  }, true);
+
+  elements.keybindingsList?.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest?.('.keybinding-remove');
+    if (removeBtn) {
+      const badge = removeBtn.closest('.keybinding-badge');
+      const row = badge?.closest('[data-action]');
+      const action = row?.dataset.action;
+      const slot = parseInt(badge?.dataset?.slot, 10);
+      if (action && !isNaN(slot)) {
+        const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
+        const keys = [...(bindings[action] || DEFAULT_KEY_BINDINGS[action] || [])];
+        keys.splice(slot, 1);
+        if (keys.length === 0) keys.push(DEFAULT_KEY_BINDINGS[action][0]);
+        bindings[action] = keys;
+        settings.keyBindings = bindings;
+        storage.setSettings({ keyBindings: bindings });
+        rebuildKeyMap();
+        renderKeybindings();
+      }
+      return;
+    }
+    const addBtn = e.target.closest?.('.keybinding-add');
+    if (addBtn) {
+      const row = addBtn.closest('[data-action]');
+      const action = row?.dataset.action;
+      if (action) enterRecording(action, -1);
+      return;
+    }
+    const badge = e.target.closest?.('.keybinding-badge');
+    if (badge) {
+      const row = badge.closest('[data-action]');
+      const action = row?.dataset.action;
+      const slot = parseInt(badge.dataset.slot, 10);
+      if (action && !isNaN(slot)) {
+        enterRecording(action, slot);
+      }
+      return;
+    }
+    const resetBtn = e.target.closest?.('.keybinding-reset-btn');
+    if (resetBtn) {
+      const action = resetBtn.dataset.action;
+      if (action) {
+        const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
+        bindings[action] = [...DEFAULT_KEY_BINDINGS[action]];
+        settings.keyBindings = bindings;
+        storage.setSettings({ keyBindings: bindings });
+        rebuildKeyMap();
+        renderKeybindings();
+      }
+    }
+  });
+
+  elements.resetAllKeybindings?.addEventListener('click', () => {
+    settings.keyBindings = null;
+    storage.setSettings({ keyBindings: null });
+    rebuildKeyMap();
+    renderKeybindings();
   });
 
 
@@ -3716,16 +3876,19 @@ function setupEvents() {
   }, { passive: false });
 
   // キーボード操作（設定からキーバインドを取得、未設定ならデフォルト）
-  const keyMap = (() => {
-    const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
-    const map = {};
-    for (const [action, keys] of Object.entries(bindings)) {
+  let keyMap = {};
+  function rebuildKeyMap() {
+    const userBindings = settings.keyBindings || {};
+    keyMap = {};
+    const allActions = [...new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(userBindings)])];
+    for (const action of allActions) {
+      const keys = userBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
       for (const key of keys) {
-        map[key] = action;
+        keyMap[key] = action;
       }
     }
-    return map;
-  })();
+  }
+  rebuildKeyMap();
   document.addEventListener('keydown', (e) => {
     if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
       !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||
@@ -3738,26 +3901,28 @@ function setupEvents() {
     const action = keyMap[e.key];
     if (!action) return;
 
+    // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
+    let resolvedAction = action;
+    if ((action === 'pagePrev' || action === 'pageNext') &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
+      if (readingDirection === READING_DIRECTIONS.RTL) {
+        resolvedAction = action === 'pagePrev' ? 'pageNext' : 'pagePrev';
+      }
+    }
+
     const isEpubScroll = epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB;
     const isEpubScrollVertical = isEpubScroll && reader && reader.writingMode === WRITING_MODES.VERTICAL;
 
-    switch (action) {
+    switch (resolvedAction) {
       case 'pagePrev': {
         if (isEpubScroll) return;
-        if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
-          reader.prev(1);
-        } else {
-          reader.prev();
-        }
+        reader.prev();
         break;
       }
       case 'pageNext': {
         if (isEpubScroll) return;
-        if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
-          reader.next(1);
-        } else {
-          reader.next();
-        }
+        reader.next();
         break;
       }
       case 'toggleFullscreen': {
@@ -3767,9 +3932,31 @@ function setupEvents() {
         }
         break;
       }
+      case 'singlePrev': {
+        if (isEpubScroll) return;
+        reader.prev(1);
+        break;
+      }
+      case 'singleNext': {
+        if (isEpubScroll) return;
+        reader.next(1);
+        break;
+      }
       case 'toggleMenu': {
         e.preventDefault();
         renderers.toggleFloatOverlay();
+        break;
+      }
+      case 'toggleToc': {
+        e.preventDefault();
+        if (!currentBookInfo || currentBookInfo.type !== BOOK_TYPES.EPUB) break;
+        openExclusiveMenu(elements.tocModal);
+        break;
+      }
+      case 'toggleBookmark': {
+        e.preventDefault();
+        if (!currentBookId) break;
+        showBookmarks();
         break;
       }
     }
