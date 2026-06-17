@@ -60,6 +60,7 @@ import {
   detectPlatform,
   PWA_CONFIG,
   DEFAULT_KEY_BINDINGS,
+  KEY_ACTION_LABELS,
 } from "./constants.js";
 
 // ========================================
