@@ -3414,6 +3414,8 @@ function setupEvents() {
   });
 
 
+}
+
   // === キーバインド設定 ===
   let recordingAction = null;
   let recordingSlot = null;
@@ -4268,7 +4270,6 @@ function setupEvents() {
       request.onerror = () => resolve(null);
     });
   };
-}
 
 // ========================================
 // 初期化
