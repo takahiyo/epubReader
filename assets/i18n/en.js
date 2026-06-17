@@ -102,6 +102,16 @@ export const UI_STRINGS_EN = Object.freeze({
   progressOverlayPosBottomRight: "Bottom Right",
 
 
+  // Operation
+  settingsOperationTitle: "Operation",
+  keyPagePrev: "Previous page",
+  keyPageNext: "Next page",
+  keyToggleFullscreen: "Toggle full screen",
+  keyToggleMenu: "Toggle menu",
+  keybindingReset: "Reset",
+  keybindingResetAll: "Reset all to defaults",
+  keybindingRecording: "Press a key...",
+
   // Account
   settingsAccountTitle: "Account",
   settingsDeviceTitle: "Device",

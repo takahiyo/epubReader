@@ -281,6 +281,7 @@ export const DOM_IDS = Object.freeze({
   HISTORY_MODAL_TITLE: "historyModalTitle",
   SETTINGS_MODAL_TITLE: "settingsModalTitle",
   SETTINGS_DISPLAY_TITLE: "settingsDisplayTitle",
+  SETTINGS_OPERATION_TITLE: "settingsOperationTitle",
   SETTINGS_DEVICE_TITLE: "settingsDeviceTitle",
   SETTINGS_DEFAULT_WRITING_MODE_LABEL: "settingsDefaultWritingModeLabel",
   SETTINGS_DEFAULT_PAGE_DIRECTION_LABEL: "settingsDefaultPageDirectionLabel",

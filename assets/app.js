@@ -2426,6 +2426,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
+  if (elements.settingsOperationTitle) elements.settingsOperationTitle.textContent = strings.settingsOperationTitle;
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
   if (elements.settingsDefaultWritingModeLabel) {
     elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
@@ -2478,6 +2479,9 @@ function applyUiLanguage(nextLanguage) {
     if (posOpts[3]) posOpts[3].textContent = strings.progressOverlayPosBottomRight || 'Bottom Right';
   }
 
+  if (elements.resetAllKeybindings) {
+    elements.resetAllKeybindings.textContent = strings.keybindingResetAll || 'Reset all to defaults';
+  }
 
   // デバイス情報の値をセット
   const deviceSettings = storage.getSettings();
@@ -3032,6 +3036,7 @@ function showSettings() {
   const currentSettings = storage.getSettings();
 
   renderers.updateAuthStatusDisplay();
+  renderKeybindings();
 }
 
 // ========================================
@@ -3207,6 +3212,7 @@ function setupEvents() {
   // 左開き/右開き切替ボタン (画像用)
   elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     reader.toggleImageReadingDirection();
+    pageDirection = reader.imageReadingDirection;
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
   });
@@ -3402,6 +3408,112 @@ function setupEvents() {
     settings.progressOverlayPosition = pos;
     storage.setSettings({ progressOverlayPosition: pos });
     updateProgressOverlay();
+  });
+
+
+  // === キーバインド設定 ===
+  let recordingAction = null;
+  let recordingSlot = null;
+
+  function renderKeybindings() {
+    const container = elements.keybindingsList;
+    if (!container) return;
+    const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
+    const strings = getUiStrings(uiLanguage);
+    const actionOrder = ['pagePrev', 'pageNext', 'toggleFullscreen', 'toggleMenu'];
+    container.innerHTML = '';
+    for (const action of actionOrder) {
+      const keys = bindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
+      const labelKey = KEY_ACTION_LABELS[action];
+      const label = strings[labelKey] || action;
+      const row = document.createElement('div');
+      row.className = 'keybinding-row';
+      row.innerHTML = `<span class="keybinding-label">${label}</span>
+        <div class="keybinding-badges" data-action="${action}"></div>
+        <button class="keybinding-reset-btn" data-action="${action}">${strings.keybindingReset || 'Reset'}</button>`;
+      const badgesContainer = row.querySelector('.keybinding-badges');
+      for (let i = 0; i < keys.length; i++) {
+        const badge = document.createElement('span');
+        badge.className = 'keybinding-badge';
+        badge.dataset.slot = i;
+        badge.textContent = keys[i];
+        badge.title = strings.keybindingRecording || 'Press a key...';
+        badgesContainer.appendChild(badge);
+      }
+      container.appendChild(row);
+    }
+  }
+
+  function enterRecording(action, slot) {
+    recordingAction = action;
+    recordingSlot = slot;
+    const strings = getUiStrings(uiLanguage);
+    const badges = document.querySelectorAll('.keybinding-badge');
+    badges.forEach(b => {
+      if (b.closest('[data-action]')?.dataset.action === action && parseInt(b.dataset.slot) === slot) {
+        b.classList.add('recording');
+        b.textContent = '...';
+      }
+    });
+  }
+
+  function finishRecording(e) {
+    if (!recordingAction) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const key = e.key;
+    const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
+    const keys = [...(bindings[recordingAction] || DEFAULT_KEY_BINDINGS[recordingAction] || [])];
+    if (recordingSlot >= 0 && recordingSlot < keys.length) {
+      keys[recordingSlot] = key;
+    } else {
+      keys.push(key);
+    }
+    bindings[recordingAction] = keys;
+    settings.keyBindings = bindings;
+    storage.setSettings({ keyBindings: bindings });
+    rebuildKeyMap();
+    recordingAction = null;
+    recordingSlot = null;
+    renderKeybindings();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (recordingAction !== null) {
+      finishRecording(e);
+    }
+  }, true);
+
+  elements.keybindingsList?.addEventListener('click', (e) => {
+    const badge = e.target.closest?.('.keybinding-badge');
+    if (badge) {
+      const row = badge.closest('[data-action]');
+      const action = row?.dataset.action;
+      const slot = parseInt(badge.dataset.slot);
+      if (action && !isNaN(slot)) {
+        enterRecording(action, slot);
+      }
+      return;
+    }
+    const resetBtn = e.target.closest?.('.keybinding-reset-btn');
+    if (resetBtn) {
+      const action = resetBtn.dataset.action;
+      if (action) {
+        const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
+        bindings[action] = [...DEFAULT_KEY_BINDINGS[action]];
+        settings.keyBindings = bindings;
+        storage.setSettings({ keyBindings: bindings });
+        rebuildKeyMap();
+        renderKeybindings();
+      }
+    }
+  });
+
+  elements.resetAllKeybindings?.addEventListener('click', () => {
+    settings.keyBindings = null;
+    storage.setSettings({ keyBindings: null });
+    rebuildKeyMap();
+    renderKeybindings();
   });
 
 
@@ -3716,16 +3828,19 @@ function setupEvents() {
   }, { passive: false });
 
   // キーボード操作（設定からキーバインドを取得、未設定ならデフォルト）
-  const keyMap = (() => {
-    const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
-    const map = {};
-    for (const [action, keys] of Object.entries(bindings)) {
+  let keyMap = {};
+  function rebuildKeyMap() {
+    const userBindings = settings.keyBindings || {};
+    keyMap = {};
+    const allActions = [...new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(userBindings)])];
+    for (const action of allActions) {
+      const keys = userBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
       for (const key of keys) {
-        map[key] = action;
+        keyMap[key] = action;
       }
     }
-    return map;
-  })();
+  }
+  rebuildKeyMap();
   document.addEventListener('keydown', (e) => {
     if (!elements.openFileModal?.classList.contains(UI_CLASSES.HIDDEN) ||
       !elements.historyModal?.classList.contains(UI_CLASSES.HIDDEN) ||
@@ -3738,10 +3853,20 @@ function setupEvents() {
     const action = keyMap[e.key];
     if (!action) return;
 
+    // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
+    let resolvedAction = action;
+    if ((action === 'pagePrev' || action === 'pageNext') &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
+      if (readingDirection === READING_DIRECTIONS.RTL) {
+        resolvedAction = action === 'pagePrev' ? 'pageNext' : 'pagePrev';
+      }
+    }
+
     const isEpubScroll = epubViewMode === 'scroll' && reader && reader.type === BOOK_TYPES.EPUB;
     const isEpubScrollVertical = isEpubScroll && reader && reader.writingMode === WRITING_MODES.VERTICAL;
 
-    switch (action) {
+    switch (resolvedAction) {
       case 'pagePrev': {
         if (isEpubScroll) return;
         if (reader.isImageBook?.() && reader.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {

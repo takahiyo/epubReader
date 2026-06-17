@@ -214,3 +214,78 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* =====================================
+[REF]
+- HTML: #keybindingsList .keybinding-row
+- JS: assets/app.js（キーバインド設定）
+- STATE: なし
+- LAYER: なし
+- SPLIT: GROUP
+===================================== */
+.keybinding-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.keybinding-label {
+  flex: 0 0 120px;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.keybinding-badges {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.keybinding-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.keybinding-badge:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent);
+}
+
+.keybinding-badge.recording {
+  background: rgba(255, 200, 0, 0.15);
+  border-color: #ffc107;
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.6; }
+}
+
+.keybinding-reset-btn {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.keybinding-reset-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
