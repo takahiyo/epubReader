@@ -60,6 +60,7 @@ import {
   detectPlatform,
   PWA_CONFIG,
   DEFAULT_KEY_BINDINGS,
+  KEY_ACTION_LABELS,
 } from "./constants.js";
 
 // ========================================
@@ -3413,6 +3414,8 @@ function setupEvents() {
   });
 
 
+}
+
   // === キーバインド設定 ===
   let recordingAction = null;
   let recordingSlot = null;
@@ -3903,8 +3906,7 @@ function setupEvents() {
 
     // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
     let resolvedAction = action;
-    if ((action === 'pagePrev' || action === 'pageNext') &&
-        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    if (action === 'pagePrev' || action === 'pageNext') {
       const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
       if (readingDirection === READING_DIRECTIONS.RTL) {
         resolvedAction = action === 'pagePrev' ? 'pageNext' : 'pagePrev';
@@ -4267,7 +4269,6 @@ function setupEvents() {
       request.onerror = () => resolve(null);
     });
   };
-}
 
 // ========================================
 // 初期化
