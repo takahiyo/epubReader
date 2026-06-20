@@ -868,6 +868,11 @@ export function renderBookmarks(mode = "current") {
                     _reader.goTo(bookmark);
                 } else if (isCloudOnly) {
                     // クラウドのみの書籍の場合はインポートを促す
+                    // しおり位置を保存しておき、handleFile で使用する
+                    if (_actions.setPendingBookmark) _actions.setPendingBookmark({
+                        location: bookmark.location,
+                        percentage: bookmark.percentage,
+                    });
                     if (_actions.openCloudOnlyBook) await _actions.openCloudOnlyBook(cloudBookId);
                 } else if (_actions.openFromLibrary) {
                     await _actions.openFromLibrary(bookId, { bookmark });
