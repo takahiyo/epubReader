@@ -762,8 +762,11 @@ export function renderHistory() {
 
         const meta = document.createElement("div");
         meta.className = "history-meta";
-        const lastOpened = _syncLogic.formatLibraryMeta({ progressPercentage: 0, timestamp: entry.openedAt }, _state.uiLanguage).split(" / ").pop();
-        meta.textContent = lastOpened;
+        const bookProgress = _storage.getProgress?.(entry.bookId);
+        meta.textContent = _syncLogic.formatLibraryMeta({
+            progressPercentage: bookProgress?.percentage ?? 0,
+            timestamp: entry.openedAt,
+        }, _state.uiLanguage);
 
         info.append(title, meta);
 
@@ -868,6 +871,11 @@ export function renderBookmarks(mode = "current") {
                     _reader.goTo(bookmark);
                 } else if (isCloudOnly) {
                     // クラウドのみの書籍の場合はインポートを促す
+                    // しおり位置を保存しておき、handleFile で使用する
+                    if (_actions.setPendingBookmark) _actions.setPendingBookmark({
+                        location: bookmark.location,
+                        percentage: bookmark.percentage,
+                    });
                     if (_actions.openCloudOnlyBook) await _actions.openCloudOnlyBook(cloudBookId);
                 } else if (_actions.openFromLibrary) {
                     await _actions.openFromLibrary(bookId, { bookmark });

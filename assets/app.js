@@ -78,6 +78,7 @@ let currentCloudBookId = null;
 let isBookLoading = false;
 let isSyncResolving = false;
 let pendingCloudBookId = null;
+let pendingBookmark = null;
 let deferredPrompt = null;
 
 let theme = settings.theme ?? UI_DEFAULTS.theme;
@@ -957,6 +958,8 @@ renderers.init({
       return reader.paginator.isComplete ? reader.pagination?.pages?.length : null;
     },
     setPendingCloudBookId: (id) => { pendingCloudBookId = id; },
+    setPendingBookmark: (bm) => { pendingBookmark = bm; },
+    clearPendingBookmark: () => { pendingBookmark = null; },
 
   }
 });
@@ -1327,8 +1330,9 @@ async function handleFile(file, overrideBookId = null) {
     pendingCloudBookId = null;
     currentCloudBookId = cloudBookId;
 
-    const startLocation = syncedProgress?.location;
-    const startProgress = syncedProgress?.percentage;
+    const startLocation = pendingBookmark?.location ?? syncedProgress?.location;
+    const startProgress = pendingBookmark?.percentage ?? syncedProgress?.percentage;
+    pendingBookmark = null;
 
     renderers.hideCloudEmptyState();
 
@@ -1457,9 +1461,21 @@ function showStreamingNotice() {
   }
 }
 
-function openCloudOnlyBook(cloudBookId) {
+async function openCloudOnlyBook(cloudBookId) {
   const meta = storage.data.cloudIndex?.[cloudBookId];
-  const state = storage.getCloudState(cloudBookId);
+  let state = storage.getCloudState(cloudBookId);
+  if (syncLogic.isCloudSyncEnabled() && cloudBookId) {
+    try {
+      const response = await cloudSync.pullState(cloudBookId);
+      const remoteState = response?.state ?? response?.data ?? response;
+      if (remoteState && !syncLogic.isEmptyCloudState(remoteState)) {
+        storage.setCloudState(cloudBookId, remoteState);
+        state = remoteState;
+      }
+    } catch (error) {
+      console.warn("[openCloudOnlyBook] Failed to pull cloud state:", error);
+    }
+  }
   currentBookId = null;
   currentBookInfo = null;
   renderers.updateFloatBookTitle();

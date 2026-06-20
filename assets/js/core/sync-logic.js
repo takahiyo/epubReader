@@ -67,7 +67,7 @@ function t(key, uiLanguage) {
 }
 
 function debugLog(...args) {
-    console.log(...args);
+    console.debug(...args);
 }
 
 function isEmptySyncResult(result) {
@@ -272,6 +272,8 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             const remote = await _cloudSync.pullIndex();
             debugLog('[syncAllBooksFromCloud] Pull index result:', remote);
 
+            let indexDelta = {};
+
             if (remote?.unchanged === true) {
                 debugLog('[syncAllBooksFromCloud] Index is unchanged, data is up-to-date');
                 didApplyIndex = true;
@@ -299,8 +301,17 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 const updatedAt = rawUpdatedAt ?? Date.now();
                 const safeUpdatedAt = Math.min(updatedAt, Date.now() + 60000);
 
+                // 変更のあった書籍のみを抽出（差分更新）
+                const oldCloudIndex = _storage.data.cloudIndex ?? {};
+                const changedIds = Object.keys(index).filter(cloudBookId => {
+                    const old = oldCloudIndex[cloudBookId];
+                    if (!old) return true;
+                    return (index[cloudBookId]?.updatedAt ?? 0) > (old?.updatedAt ?? 0);
+                });
+                changedIds.forEach(id => { indexDelta[id] = index[id]; });
                 debugLog('[syncAllBooksFromCloud] Index received, merging...', {
-                    items: Object.keys(index).length,
+                    total: Object.keys(index).length,
+                    changed: changedIds.length,
                     updatedAt: safeUpdatedAt,
                     format: hasIndexProp ? 'wrapped' : 'flat'
                 });
@@ -308,8 +319,6 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 _storage.mergeCloudIndex(index, safeUpdatedAt);
                 didApplyIndex = true;
 
-                // [修正] 状態プル (pullUpdatedBookStates) の前に自動紐付けを実行
-                // これにより、プルされた状態が即座にローカルの progress にマージされる
                 const currentLibrary = _storage.data.library || {};
                 Object.keys(currentLibrary).forEach((localBookId) => {
                     if (!_storage.getCloudBookId(localBookId)) {
@@ -327,11 +336,11 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 });
             }
 
-            // インデックスの取得結果（新規あり・なし）に関わらず、
-            // ローカルにstateが存在しない書籍があれば確実に取得する
-            if (isCloudSyncEnabled()) {
-                const fullCloudIndex = _storage.data.cloudIndex ?? {};
-                await pullUpdatedBookStates(fullCloudIndex);
+            // インデックスに変更があった書籍についてのみ状態をプル
+            if (isCloudSyncEnabled() && !isEmptySyncResult(indexDelta)) {
+                await pullUpdatedBookStates(indexDelta);
+            } else if (indexDelta && Object.keys(indexDelta).length === 0) {
+                debugLog('[syncAllBooksFromCloud] No index changes, skipping state pull');
             }
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
@@ -636,10 +645,11 @@ async function pullUpdatedBookStates(indexDelta) {
             const localState = _storage.getCloudState(cloudBookId);
 
             // cloudState が存在しない場合は無条件でプル
-            // 存在する場合でも、remoteMeta の updatedAt がローカルより新しければプル
+            // 存在する場合でも、remoteMeta の updatedAt が最後のstateプル時刻より新しければプル
+            const statePulledAt = localState?.statePulledAt ?? 0;
             const needsPull = !localState
                 || !localState.progress  // progress が 0 / undefined の場合もプル
-                || (remoteMeta?.updatedAt && remoteMeta.updatedAt > (localState.updatedAt ?? 0));
+                || (remoteMeta?.updatedAt && remoteMeta.updatedAt > statePulledAt);
 
             if (!needsPull) {
                 skipCount++;
@@ -652,6 +662,7 @@ async function pullUpdatedBookStates(indexDelta) {
 
             if (remoteState && !isEmptyCloudState(remoteState)) {
                 successCount++;
+                remoteState.statePulledAt = Date.now();
                 debugLog(`[pullUpdatedBookStates] ✓ ${remoteMeta?.title || cloudBookId}: progress=${remoteState.progress}%, bookmarks=${remoteState.bookmarks?.length ?? 0}`);
                 if (localId) {
                     applyCloudStateToLocal(localId, cloudBookId, remoteState);
@@ -660,6 +671,10 @@ async function pullUpdatedBookStates(indexDelta) {
                 }
             } else {
                 emptyCount++;
+                if (localState) {
+                    localState.statePulledAt = Date.now();
+                    _storage.setCloudState(cloudBookId, localState);
+                }
             }
         } catch (error) {
             console.warn(`[pullUpdatedBookStates] Failed to pull state for ${cloudBookId}:`, error);

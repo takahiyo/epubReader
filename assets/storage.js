@@ -615,9 +615,13 @@ export class StorageService {
     const incomingUpdatedAt = state?.updatedAt ?? 0;
     const existingUpdatedAt = existing?.updatedAt ?? 0;
     if (!existing || incomingUpdatedAt >= existingUpdatedAt) {
+      const mergedState = {
+        ...state,
+        statePulledAt: state.statePulledAt ?? existing?.statePulledAt,
+      };
       this.data.cloudStates = {
         ...(this.data.cloudStates ?? {}),
-        [cloudBookId]: state,
+        [cloudBookId]: mergedState,
       };
       this.save();
     }

@@ -300,6 +300,7 @@ export class ReaderController {
     this._pendingScrollToSegment = null;
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
+    this._resizeScrollRatio = null;
 
     // [New] Scroll position caching for Android/mobile backgrounding stability
     this._lastValidScrollLocation = null;
@@ -458,6 +459,7 @@ export class ReaderController {
     this._pendingScrollToSegment = null;
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
+    this._resizeScrollRatio = null;
     this._isInitialReadyCalled = false;
     this._lastValidScrollLocation = null;
     this._lastValidScrollRatio = 0;
@@ -590,19 +592,12 @@ export class ReaderController {
         );
         if (newIndex >= 0) {
           if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
-            // [修正] バックグラウンド復帰時など位置計測が0（先頭）になった場合でも、
-            // 最後に有効だった位置を使って挿絵位置へのリセットを防止する
-            let segmentForScroll = currentLocator.segmentIndex;
-            if ((!segmentForScroll || segmentForScroll === 0) &&
-                this._lastValidScrollLocation &&
-                this._lastValidScrollLocation.segmentIndex > 0 &&
-                this._lastValidScrollLocation.spineIndex === currentLocator.spineIndex) {
-              segmentForScroll = this._lastValidScrollLocation.segmentIndex;
-            }
-            if (segmentForScroll > 0) {
-              this._pendingScrollToSegment = segmentForScroll;
-              this._pendingScrollSearchQuery = currentLocator.visibleText || this._lastValidScrollLocation?.visibleText || null;
-              this._pendingScrollHighlight = false; // リサイズ時はハイライトさせない
+            // [修正] リサイズ時は scrollTop 比率で位置を保存（テキスト検索・インデックス検索より高信頼）
+            if (this.viewer) {
+              const scrollableHeight = this.viewer.scrollHeight - this.viewer.clientHeight;
+              if (scrollableHeight > 0) {
+                this._resizeScrollRatio = this.viewer.scrollTop / scrollableHeight;
+              }
             }
           }
           this.pageController.goTo(newIndex);
@@ -2887,22 +2882,32 @@ export class ReaderController {
           this._scrollTargetNode = null;
 
           if (this.epubViewMode === "scroll") {
-            const alignToEnd = this._scrollPositionOnNextRender === 'end';
-            this._scrollPositionOnNextRender = null; // リセット
-            this._currentAlignToEnd = alignToEnd;    // ResizeObserver用に保持
-
-            const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
-            if (isVerticalScroll) {
-              if (alignToEnd) {
-                this.viewer.scrollLeft = -this.viewer.scrollWidth;
-              } else {
-                this.viewer.scrollLeft = 0;
-              }
+            // [修正] リサイズ時に保存されたスクロール比率で位置を復元
+            const savedResizeRatio = this._resizeScrollRatio;
+            if (savedResizeRatio != null) {
+              this._resizeScrollRatio = null;
+              this._scrollPositionOnNextRender = null;
+              this._currentAlignToEnd = false;
+              const scrollableHeight = this.viewer.scrollHeight - this.viewer.clientHeight;
+              this.viewer.scrollTop = savedResizeRatio * Math.max(0, scrollableHeight);
             } else {
-              if (alignToEnd) {
-                this.viewer.scrollTop = this.viewer.scrollHeight;
+              const alignToEnd = this._scrollPositionOnNextRender === 'end';
+              this._scrollPositionOnNextRender = null; // リセット
+              this._currentAlignToEnd = alignToEnd;    // ResizeObserver用に保持
+
+              const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
+              if (isVerticalScroll) {
+                if (alignToEnd) {
+                  this.viewer.scrollLeft = -this.viewer.scrollWidth;
+                } else {
+                  this.viewer.scrollLeft = 0;
+                }
               } else {
-                this.viewer.scrollTop = 0;
+                if (alignToEnd) {
+                  this.viewer.scrollTop = this.viewer.scrollHeight;
+                } else {
+                  this.viewer.scrollTop = 0;
+                }
               }
             }
           }
