@@ -119,7 +119,11 @@ export class CloudSync {
         }
         return response;
       } catch (error) {
-        if (attempt < SYNC_RETRY_MAX) {
+        // ネットワークエラー（TypeError: Failed to fetch）はサーバー不在を示すため
+        // リトライ回数を減らして早期に失敗させる
+        const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+        const maxRetry = isNetworkError ? 0 : SYNC_RETRY_MAX;
+        if (attempt < maxRetry) {
           await this.sleep(this.getRetryDelayMs(attempt));
           continue;
         }
