@@ -1073,16 +1073,16 @@ export class ReaderController {
       console.error('[JoinMode] Error during better TOC extraction:', e);
     }
 
-    // 縦書き・横書きを自動判別
+    // 縦書き・横書きを自動判別（optionsで明示指定がある場合は上書きしない）
     const detectedReading = await this.detectReadingDirectionFromBook();
-    if (detectedReading?.pageDirection) {
+    if (detectedReading?.pageDirection && !options.pageDirection) {
       this.pageDirection = detectedReading.pageDirection;
       console.log("Detected page direction:", this.pageDirection);
     }
     if (this.preferredWritingMode) {
       this.writingMode = this.preferredWritingMode;
       console.log("Using preferred writing mode:", this.writingMode);
-    } else if (detectedReading?.writingMode) {
+    } else if (detectedReading?.writingMode && !options.writingMode) {
       this.writingMode = detectedReading.writingMode;
       console.log("Detected writing mode:", this.writingMode);
     }
@@ -1262,6 +1262,19 @@ export class ReaderController {
           this._pendingScrollSearchQuery = startLocation.searchQuery || null;
         }
         return pageIndex;
+      }
+      // フォールバック: デバイス間でページ境界が異なる場合、同一spineの先頭ページを探す
+      const fallbackPageIndex = this.pagination?.pages?.findIndex(p => p.spineIndex === locator.spineIndex);
+      if (fallbackPageIndex >= 0) {
+        console.log(`[位置復元デバッグ] findPageContaining失敗のためspine先頭(${locator.spineIndex})にフォールバック: pageIndex=${fallbackPageIndex}`);
+        if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
+          this._pendingScrollToSegment = locator.segmentIndex;
+          this._pendingScrollTargetSpineIndex = locator.spineIndex;
+          if (visibleText) {
+            this._pendingScrollSearchQuery = visibleText;
+          }
+        }
+        return fallbackPageIndex;
       }
       return null;
     }
@@ -1745,7 +1758,15 @@ export class ReaderController {
 
   goToSegment(spineIndex, segmentIndex, searchQuery, shouldHighlight = true) {
     if (!this.pagination?.pages?.length) return;
-    const pageIndex = this.findPageContaining(spineIndex, segmentIndex);
+    let pageIndex = this.findPageContaining(spineIndex, segmentIndex);
+    // フォールバック: ページ境界不一致時に同一spineの先頭ページを探す
+    if (pageIndex < 0) {
+      pageIndex = this.pagination.pages.findIndex(p => p.spineIndex === spineIndex);
+      if (pageIndex >= 0) {
+        console.log(`[goToSegment] findPageContaining失敗のためspine先頭(${spineIndex})にフォールバック: pageIndex=${pageIndex}`);
+        this._pendingScrollTargetSpineIndex = spineIndex;
+      }
+    }
     if (pageIndex >= 0) {
       // 指定位置までDOMスクロール/ハイライトするための情報を保持
       this._pendingScrollToSegment = segmentIndex;
