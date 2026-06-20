@@ -1580,11 +1580,17 @@ export class ReaderController {
     // ツリーを走査し、テキスト全体をつなぎ合わせた文字列を構築するとともに、
     // セグメント位置情報をマッピングする
     let fullText = "";
+    let lastParent = null;
 
     while (node) {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || "";
         const length = text.length;
+
+        const currentParent = node.parentElement;
+        if (lastParent && currentParent !== lastParent && fullText.length > 0) {
+          fullText += "\n";
+        }
 
         segments.push({
           type: "text",
@@ -1595,6 +1601,7 @@ export class ReaderController {
 
         fullText += text;
         currentSegment += Math.ceil(length / TEXT_SEGMENT_STEP);
+        lastParent = currentParent;
       } else {
         // 画像等はテキストには追加されないが、セグメントを1つ消費する
         currentSegment += 1;
@@ -1801,7 +1808,7 @@ export class ReaderController {
     const normalizedQuery = query.replace(/\s+/g, ' ').trim();
     // 各文字をエスケープし、文字間に任意の空白（改行含む）を許容
     const escapedChars = Array.from(normalizedQuery).map(char => {
-      if (char === ' ') return '\\s+'; // スペース箇所は1文字以上の空白を要求
+      if (char === ' ') return '\\s*'; // スペース箇所も任意の空白を許容（要素境界で空白消失するケースに対応）
       return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     });
     const pattern = escapedChars.join('\\s*');
@@ -1914,17 +1921,21 @@ export class ReaderController {
       this._applyTemporaryHighlight(matchDataArray, searchQuery);
     }
 
-    // スクロールモードで対象が見つからなかった場合（コンテナ自体が空など）の最終フォールバック
+    // スクロールモードで対象が見つからなかった場合の最終フォールバック
     if (!targetElement && this.epubViewMode === "scroll") {
       console.warn("[ジャンプデバッグ] 最終的なターゲットが見つからなかったため、章の先頭へフォールバックします");
       this._scrollTargetNode = null;
-      // フォールバック：先頭へ
-      const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
-      if (this.viewer) {
-        if (isVerticalScroll) {
-          this.viewer.scrollLeft = 0;
-        } else {
-          this.viewer.scrollTop = 0;
+      // 特定の章コンテナが特定できている場合は、その先頭へスクロール
+      if (targetContainer && targetContainer !== container && targetContainer.scrollIntoView) {
+        targetContainer.scrollIntoView({ block: "start", behavior: "instant" });
+      } else {
+        const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
+        if (this.viewer) {
+          if (isVerticalScroll) {
+            this.viewer.scrollLeft = 0;
+          } else {
+            this.viewer.scrollTop = 0;
+          }
         }
       }
     }
@@ -2105,11 +2116,24 @@ export class ReaderController {
     if (textNodes.length === 0) return null;
 
     // 2. 全テキストノードの文字列を結合し、各ノードの開始位置を記録
+    // 異なる親要素のテキストノード間には改行を挿入（段落境界を保持）
     let fullText = "";
     const nodePositions = [];
+    let lastParent = null;
 
     for (let index = 0; index < textNodes.length; index++) {
       const textNode = textNodes[index];
+      const currentParent = textNode.parentElement;
+      if (lastParent && currentParent !== lastParent && fullText.length > 0) {
+        const sepStart = fullText.length;
+        fullText += "\n";
+        nodePositions.push({
+          node: textNode,
+          start: sepStart,
+          end: fullText.length,
+          isSeparator: true
+        });
+      }
       const startPos = fullText.length;
       fullText += textNode.textContent;
       nodePositions.push({
@@ -2117,6 +2141,7 @@ export class ReaderController {
         start: startPos,
         end: fullText.length
       });
+      lastParent = currentParent;
     }
 
     // 空白文字（改行やスペース）の違いを吸収するため正規表現を組み立てる (共通ロジックを使用)
