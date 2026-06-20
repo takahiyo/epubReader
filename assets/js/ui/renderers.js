@@ -762,8 +762,11 @@ export function renderHistory() {
 
         const meta = document.createElement("div");
         meta.className = "history-meta";
-        const lastOpened = _syncLogic.formatLibraryMeta({ progressPercentage: 0, timestamp: entry.openedAt }, _state.uiLanguage).split(" / ").pop();
-        meta.textContent = lastOpened;
+        const bookProgress = _storage.getProgress?.(entry.bookId);
+        meta.textContent = _syncLogic.formatLibraryMeta({
+            progressPercentage: bookProgress?.percentage ?? 0,
+            timestamp: entry.openedAt,
+        }, _state.uiLanguage);
 
         info.append(title, meta);
 
