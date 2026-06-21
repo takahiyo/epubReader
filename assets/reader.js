@@ -1199,6 +1199,8 @@ export class ReaderController {
     const directLocator = startLocation.location;
     // テキストベースの解決を試みる（visibleText がある場合）
     const visibleText = startLocation.visibleText || directLocator?.visibleText;
+    let textResolvedSpineIndex = null; // フォールバックパスに引き継ぐ
+    let textMatchedQuery = null;
 
     if (visibleText) {
       // テキストベースの解決には spineItems が必要。
@@ -1216,7 +1218,10 @@ export class ReaderController {
         const segmentIndex = this.resolveLocationByText(resolvedSpineIndex, visibleText, "resolveStart");
         if (segmentIndex !== null) {
           const effectiveSpine = this._resolvedSpineIndex ?? resolvedSpineIndex;
+          textResolvedSpineIndex = effectiveSpine;
+          textMatchedQuery = this._matchedSearchQuery;
           this._resolvedSpineIndex = null;
+          this._matchedSearchQuery = null;
           const pageIndex = this.findPageContaining(effectiveSpine, segmentIndex, this.pagination?.pages ?? []);
           if (pageIndex >= 0) {
             console.log(`[位置復元デバッグ][resolveStartPageIndexIfReady] テキスト解決により pageIndex=${pageIndex}, segmentIndex=${segmentIndex}, spineIndex=${effectiveSpine} を特定`);
@@ -1224,9 +1229,7 @@ export class ReaderController {
               this._pendingScrollToSegment = segmentIndex;
               this._pendingScrollTargetSpineIndex = effectiveSpine;
             }
-            // マッチした短いサブクエリを優先（spineまたぎvisibleTextを避ける）
-            this._pendingScrollSearchQuery = this._matchedSearchQuery || visibleText;
-            this._matchedSearchQuery = null;
+            this._pendingScrollSearchQuery = textMatchedQuery || visibleText;
             this._pendingScrollHighlight = false;
             return pageIndex;
           }
@@ -1288,14 +1291,13 @@ export class ReaderController {
         if (group) {
           const groupPageIndex = this.pagination?.pages?.findIndex(p => p.spineIndex === group.start);
           if (groupPageIndex >= 0) {
-            const effectiveSpine = this._resolvedSpineIndex ?? locator.spineIndex;
+            const effectiveSpine = textResolvedSpineIndex ?? locator.spineIndex;
             console.log(`[位置復元デバッグ] spineIndex ${locator.spineIndex} is in joined group [${group.start}-${group.end}], effectiveSpine=${effectiveSpine}`);
             if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
               this._pendingScrollToSegment = locator.segmentIndex;
               this._pendingScrollTargetSpineIndex = effectiveSpine;
-              if (this._matchedSearchQuery) {
-                this._pendingScrollSearchQuery = this._matchedSearchQuery;
-                this._matchedSearchQuery = null;
+              if (textMatchedQuery) {
+                this._pendingScrollSearchQuery = textMatchedQuery;
               } else if (visibleText) {
                 this._pendingScrollSearchQuery = visibleText;
               }
