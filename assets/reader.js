@@ -301,6 +301,7 @@ export class ReaderController {
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
     this._resizeScrollRatio = null;
+    this._resolvedSpineIndex = null;
 
     // [New] Scroll position caching for Android/mobile backgrounding stability
     this._lastValidScrollLocation = null;
@@ -1209,18 +1210,20 @@ export class ReaderController {
 
       const spineIndex = directLocator?.spineIndex != null ? directLocator.spineIndex : null;
       if (spineIndex != null) {
-        const segmentIndex = this.resolveLocationByText(spineIndex, visibleText, "resolveStart");
+        const resolvedSpineIndex = this._resolvedSpineIndex ?? spineIndex;
+        this._resolvedSpineIndex = null;
+        const segmentIndex = this.resolveLocationByText(resolvedSpineIndex, visibleText, "resolveStart");
         if (segmentIndex !== null) {
-          const pageIndex = this.findPageContaining(spineIndex, segmentIndex, this.pagination?.pages ?? []);
+          const effectiveSpine = this._resolvedSpineIndex ?? resolvedSpineIndex;
+          this._resolvedSpineIndex = null;
+          const pageIndex = this.findPageContaining(effectiveSpine, segmentIndex, this.pagination?.pages ?? []);
           if (pageIndex >= 0) {
-            console.log(`[位置復元デバッグ][resolveStartPageIndexIfReady] テキスト解決により pageIndex=${pageIndex}, segmentIndex=${segmentIndex} を特定`);
+            console.log(`[位置復元デバッグ][resolveStartPageIndexIfReady] テキスト解決により pageIndex=${pageIndex}, segmentIndex=${segmentIndex}, spineIndex=${effectiveSpine} を特定`);
             if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
-              // スクロールモード: 検索結果ジャンプと同じ仕組み（即時ジャンプ）を使い、ピンポイントで位置を復元
               this._pendingScrollToSegment = segmentIndex;
+              this._pendingScrollTargetSpineIndex = effectiveSpine;
             }
-            // 検索キーワード（SSOT）として visibleText を共有し、レンダリング後に即時ジャンプを発火させる
             this._pendingScrollSearchQuery = visibleText;
-            // 位置復元時はハイライトを表示させない
             this._pendingScrollHighlight = false;
             return pageIndex;
           }
@@ -1696,6 +1699,34 @@ export class ReaderController {
     if (matches && matches.length > 0) {
       console.log(`[位置復元デバッグ][${debugTag}] 解決成功: segmentIndex=${matches[0].segmentIndex}`);
       return matches[0].segmentIndex;
+    }
+
+    // Join ModeではvisibleTextが複数spineにまたがることがあるため、
+    // 短いサブクエリで再試行する（20文字ずつ、先頭/末尾/中央）
+    const subQueries = [];
+    const q20 = visibleText.substring(0, 20);
+    const qEnd = visibleText.length > 20 ? visibleText.substring(visibleText.length - 20) : null;
+    const qMid = visibleText.length > 30 ? visibleText.substring(10, 30) : null;
+    if (q20) subQueries.push(q20);
+    if (qEnd && qEnd !== q20) subQueries.push(qEnd);
+    if (qMid && qMid !== q20 && qMid !== qEnd) subQueries.push(qMid);
+
+    const searchItems = [spineIndex];
+    // 隣接spineも試行対象に追加（扉絵spine→本文spineの救済）
+    searchItems.push(spineIndex + 1, spineIndex - 1, spineIndex + 2);
+
+    for (const subQuery of subQueries) {
+      for (const si of searchItems) {
+        const item = this.spineItems[si];
+        if (!item?.htmlString) continue;
+        const matches = this.findSearchMatchesInSpine(item, subQuery);
+        if (matches && matches.length > 0) {
+          console.log(`[位置復元デバッグ][${debugTag}] 解決成功: spineIndex=${si}, segmentIndex=${matches[0].segmentIndex}, subQuery="${subQuery.substring(0, 20)}"`);
+          // 解決したspineIndexを呼び出し元に伝えるためインスタンス変数に保存
+          this._resolvedSpineIndex = si;
+          return matches[0].segmentIndex;
+        }
+      }
     }
 
     console.warn(`[位置復元デバッグ][${debugTag}] 解決失敗: 指定されたテキストが本文内に見つかりませんでした`);
@@ -2852,8 +2883,11 @@ export class ReaderController {
 
       // 位置復元
       if (currentSpineIndex != null) {
+        this._resolvedSpineIndex = null;
         const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "toggleTocSource") ?? 0;
-        this.goToSegment(currentSpineIndex, segmentIndex, null, false);
+        const effectiveSpine = this._resolvedSpineIndex ?? currentSpineIndex;
+        this._resolvedSpineIndex = null;
+        this.goToSegment(effectiveSpine, segmentIndex, null, false);
       }
       
       this.onRepaginationEnd?.();
@@ -4457,11 +4491,14 @@ export class ReaderController {
           await this.paginationPromise;
         }
 
+        this._resolvedSpineIndex = null;
         const segmentIndex = this.resolveLocationByText(spineIndex, visibleText, "goToBookmark");
         if (segmentIndex !== null) {
-          console.log(`[位置復元デバッグ][goTo] テキスト解決成功: spineIndex=${spineIndex}, segmentIndex=${segmentIndex}`);
+          const effectiveSpine = this._resolvedSpineIndex ?? spineIndex;
+          this._resolvedSpineIndex = null;
+          console.log(`[位置復元デバッグ][goTo] テキスト解決成功: spineIndex=${effectiveSpine}, segmentIndex=${segmentIndex}`);
           const shouldHighlight = bookmark.shouldHighlight !== undefined ? bookmark.shouldHighlight : !!bookmark.searchQuery;
-          this.goToSegment(spineIndex, segmentIndex, bookmark.searchQuery, shouldHighlight);
+          this.goToSegment(effectiveSpine, segmentIndex, bookmark.searchQuery, shouldHighlight);
           return;
         }
       }
@@ -4633,13 +4670,16 @@ export class ReaderController {
         });
         if (currentSpineIndex != null) {
           if (visibleText) {
+            this._resolvedSpineIndex = null;
             const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "applyReadingDirection");
             if (segmentIndex !== null) {
+              const effectiveSpine = this._resolvedSpineIndex ?? currentSpineIndex;
+              this._resolvedSpineIndex = null;
               console.log(`[位置復元デバッグ][applyReadingDirection] ステップ4: ジャンプ実行`, {
-                spineIndex: currentSpineIndex,
+                spineIndex: effectiveSpine,
                 segmentIndex: segmentIndex,
               });
-              this.goToSegment(currentSpineIndex, segmentIndex, null, false);
+              this.goToSegment(effectiveSpine, segmentIndex, null, false);
               restored = true;
             }
           }
@@ -4741,13 +4781,16 @@ export class ReaderController {
         });
         if (currentSpineIndex != null) {
           if (visibleText) {
+            this._resolvedSpineIndex = null;
             const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "applyEpubViewMode");
             if (segmentIndex !== null) {
+              const effectiveSpine = this._resolvedSpineIndex ?? currentSpineIndex;
+              this._resolvedSpineIndex = null;
               console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ4: ジャンプ実行`, {
-                spineIndex: currentSpineIndex,
+                spineIndex: effectiveSpine,
                 segmentIndex: segmentIndex,
               });
-              this.goToSegment(currentSpineIndex, segmentIndex, null, false);
+              this.goToSegment(effectiveSpine, segmentIndex, null, false);
               restored = true;
             }
           }
