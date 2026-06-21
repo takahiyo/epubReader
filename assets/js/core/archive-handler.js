@@ -982,7 +982,8 @@ export class EpubArchiveHandler extends ZipHandler {
 
     // [追加] 目次が極端に少ない場合のフォールバック (Spine ベース補完)
     // 0468.epub のように、目次ドキュメントに「表紙」「奥付」しかないケースに対応
-    if (this.spine.length > 5 && this.toc.length < this.spine.length / 3) {
+    // 閾値: spine数/5（各章に平均3-4spineある構造でもNCXを採用するため）
+    if (this.spine.length > 5 && this.toc.length < Math.ceil(this.spine.length / 5)) {
       console.log(`[EpubArchiveHandler] TOC is sparse (${this.toc.length} items for ${this.spine.length} spine items). Falling back to spine-based TOC.`);
       const spineToc = this.spine.map((s, i) => {
         // ファイル名から「p-001」などのラベルを推測。なければ index

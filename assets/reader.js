@@ -1276,6 +1276,24 @@ export class ReaderController {
         }
         return fallbackPageIndex;
       }
+      // Join Mode: マージされたスパインをグループの親スパインにマッピング
+      if (Array.isArray(this._spineGroups)) {
+        const group = this._spineGroups.find(g => locator.spineIndex >= g.start && locator.spineIndex <= g.end);
+        if (group) {
+          const groupPageIndex = this.pagination?.pages?.findIndex(p => p.spineIndex === group.start);
+          if (groupPageIndex >= 0) {
+            console.log(`[位置復元デバッグ] spineIndex ${locator.spineIndex} is in joined group [${group.start}-${group.end}], using group start`);
+            if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
+              this._pendingScrollToSegment = locator.segmentIndex;
+              this._pendingScrollTargetSpineIndex = locator.spineIndex;
+              if (visibleText) {
+                this._pendingScrollSearchQuery = visibleText;
+              }
+            }
+            return groupPageIndex;
+          }
+        }
+      }
       return null;
     }
     return this.paginationComplete
@@ -1768,6 +1786,17 @@ export class ReaderController {
       if (pageIndex >= 0) {
         console.log(`[goToSegment] findPageContaining失敗のためspine先頭(${spineIndex})にフォールバック: pageIndex=${pageIndex}`);
         this._pendingScrollTargetSpineIndex = spineIndex;
+      }
+    }
+    // Join Mode: マージされたスパインをグループの親スパインにマッピング
+    if (pageIndex < 0 && Array.isArray(this._spineGroups)) {
+      const group = this._spineGroups.find(g => spineIndex >= g.start && spineIndex <= g.end);
+      if (group) {
+        console.log(`[goToSegment] spineIndex ${spineIndex} is in joined group [${group.start}-${group.end}], using group start`);
+        pageIndex = this.pagination.pages.findIndex(p => p.spineIndex === group.start);
+        if (pageIndex >= 0) {
+          this._pendingScrollTargetSpineIndex = spineIndex;
+        }
       }
     }
     if (pageIndex >= 0) {
