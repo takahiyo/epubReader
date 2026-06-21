@@ -1580,17 +1580,11 @@ export class ReaderController {
     // ツリーを走査し、テキスト全体をつなぎ合わせた文字列を構築するとともに、
     // セグメント位置情報をマッピングする
     let fullText = "";
-    let lastParent = null;
 
     while (node) {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || "";
         const length = text.length;
-
-        const currentParent = node.parentElement;
-        if (lastParent && currentParent !== lastParent && fullText.length > 0) {
-          fullText += "\n";
-        }
 
         segments.push({
           type: "text",
@@ -1601,7 +1595,6 @@ export class ReaderController {
 
         fullText += text;
         currentSegment += Math.ceil(length / TEXT_SEGMENT_STEP);
-        lastParent = currentParent;
       } else {
         // 画像等はテキストには追加されないが、セグメントを1つ消費する
         currentSegment += 1;
@@ -1609,13 +1602,16 @@ export class ReaderController {
       node = walker.nextNode();
     }
 
-    // 空白の差異を吸収するあいまい検索（正規表現を使用） (SSOT)
+    // 全文を正規化してから検索（全角半角・空白の差異を吸収）
+    const normalizedFullText = this._normalizeForSearch(fullText);
     const searchRegex = this._getFlexibleSearchRegex(query);
     const matches = [];
 
     let regexMatch;
-    while ((regexMatch = searchRegex.exec(fullText)) !== null && matches.length < 5) {
-      const matchIndex = regexMatch.index;
+    while ((regexMatch = searchRegex.exec(normalizedFullText)) !== null && matches.length < 5) {
+      const normalizedMatchIndex = regexMatch.index;
+      // 正規化済みインデックスを元テキストのインデックスにマッピング
+      const matchIndex = this._mapNormalizedIndexToOriginal(fullText, normalizedMatchIndex);
 
       // 前後のコンテキストを取得（50文字ずつ）
       const start = Math.max(0, matchIndex - 50);
@@ -1797,22 +1793,59 @@ export class ReaderController {
   }
 
   /**
-   * 空白や改行の差異を吸収する「あいまい検索」用の正規表現を生成する (SSOT)
+   * テキストを検索用に正規化する
+   * - 全角英数字・記号を半角に変換 (U+FF01-U+FF5E → U+0021-U+007E)
+   * - 全角スペース(U+3000)を半角スペースに変換
+   * - すべての空白文字を除去
+   */
+  _normalizeForSearch(text) {
+    if (!text) return '';
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code >= 0xFF01 && code <= 0xFF5E) {
+        result += String.fromCharCode(code - 0xFEE0);
+      } else if (code === 0x3000) {
+        result += ' ';
+      } else {
+        result += text[i];
+      }
+    }
+    return result.replace(/\s+/g, '');
+  }
+
+  /**
+   * 正規化済みテキスト上のインデックスを元テキスト上のインデックスにマッピングする
+   */
+  _mapNormalizedIndexToOriginal(originalText, normalizedIndex) {
+    let normCount = 0;
+    for (let i = 0; i < originalText.length; i++) {
+      const code = originalText.charCodeAt(i);
+      let ch = originalText[i];
+      if (code >= 0xFF01 && code <= 0xFF5E) ch = String.fromCharCode(code - 0xFEE0);
+      else if (code === 0x3000) ch = ' ';
+      if (/\s/.test(ch)) continue;
+      if (normCount === normalizedIndex) return i;
+      normCount++;
+    }
+    return originalText.length - 1;
+  }
+
+  /**
+   * 空白や改行・全角半角の差異を吸収する「あいまい検索」用の正規表現を生成する (SSOT)
    * @param {string} query 
    * @param {string} flags 正規表現フラグ (デフォルト 'gi')
    * @returns {RegExp}
    */
   _getFlexibleSearchRegex(query, flags = 'gi') {
     if (!query) return /$./;
-    // クエリ内の連続する空白を1つのスペースに変換後、トリム
-    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
-    // 各文字をエスケープし、文字間に任意の空白（改行含む）を許容
-    const escapedChars = Array.from(normalizedQuery).map(char => {
-      if (char === ' ') return '\\s*'; // スペース箇所も任意の空白を許容（要素境界で空白消失するケースに対応）
-      return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    });
-    const pattern = escapedChars.join('\\s*');
-    return new RegExp(pattern, flags);
+    // 正規化：全角→半角 + 空白除去
+    const normalizedQuery = this._normalizeForSearch(query);
+    if (!normalizedQuery) return /$./;
+    const escapedChars = Array.from(normalizedQuery).map(char =>
+      char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    return new RegExp(escapedChars.join('\\s*'), flags);
   }
 
   /**
@@ -1870,7 +1903,7 @@ export class ReaderController {
         NodeFilter.SHOW_TEXT,
         {
           acceptNode: (node) => {
-            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            if (!node.textContent || node.textContent.length === 0) return NodeFilter.FILTER_REJECT;
             return NodeFilter.FILTER_ACCEPT;
           }
         }
@@ -2116,24 +2149,11 @@ export class ReaderController {
     if (textNodes.length === 0) return null;
 
     // 2. 全テキストノードの文字列を結合し、各ノードの開始位置を記録
-    // 異なる親要素のテキストノード間には改行を挿入（段落境界を保持）
     let fullText = "";
     const nodePositions = [];
-    let lastParent = null;
 
     for (let index = 0; index < textNodes.length; index++) {
       const textNode = textNodes[index];
-      const currentParent = textNode.parentElement;
-      if (lastParent && currentParent !== lastParent && fullText.length > 0) {
-        const sepStart = fullText.length;
-        fullText += "\n";
-        nodePositions.push({
-          node: textNode,
-          start: sepStart,
-          end: fullText.length,
-          isSeparator: true
-        });
-      }
       const startPos = fullText.length;
       fullText += textNode.textContent;
       nodePositions.push({
@@ -2141,20 +2161,20 @@ export class ReaderController {
         start: startPos,
         end: fullText.length
       });
-      lastParent = currentParent;
     }
 
-    // 空白文字（改行やスペース）の違いを吸収するため正規表現を組み立てる (共通ロジックを使用)
+    // 全角半角・空白の差異を吸収するため正規化してから検索
+    const normalizedFullText = this._normalizeForSearch(fullText);
     const regex = this._getFlexibleSearchRegex(searchText, "i");
 
-    // fullTextから対象文字列を正規表現検索
-    const match = fullText.match(regex);
+    // 正規化済みテキストから対象文字列を正規表現検索
+    const match = normalizedFullText.match(regex);
 
     if (!match) return null;
 
-    // 3. 一致した位置に該当するノード群を返す
-    const matchIndex = match.index;
-    const matchEndIndex = matchIndex + match[0].length;
+    // 正規化済みインデックスを元テキストのインデックスにマッピング
+    const matchIndex = this._mapNormalizedIndexToOriginal(fullText, match.index);
+    const matchEndIndex = matchIndex + (match[0]?.length || 0);
     const matchingNodes = [];
 
     for (let index = 0; index < nodePositions.length; index++) {
