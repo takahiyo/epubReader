@@ -2748,6 +2748,10 @@ export class ReaderController {
           // 末尾が挿絵だけでも次グループへ Forward Merge しない。
           merged.push(current);
           current = next;
+        } else if (current.title && next.title && isCurrentEndsWithImage) {
+          // 両方に目次タイトルがある場合、章境界を維持。末尾画像は現在の章の末尾として扱う
+          merged.push(current);
+          current = next;
         } else if (isCurrentIllustrationOnly() || isCurrentEndsWithImage) {
           console.log(`[JoinMode] 画像を次へ結合 (Forward Merge): Spine ${current.end} -> ${next.start}`);
           current.end = next.end;
