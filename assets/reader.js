@@ -302,6 +302,7 @@ export class ReaderController {
     this._pendingScrollHighlight = true;
     this._resizeScrollRatio = null;
     this._resolvedSpineIndex = null;
+    this._matchedSearchQuery = null;
 
     // [New] Scroll position caching for Android/mobile backgrounding stability
     this._lastValidScrollLocation = null;
@@ -1223,7 +1224,9 @@ export class ReaderController {
               this._pendingScrollToSegment = segmentIndex;
               this._pendingScrollTargetSpineIndex = effectiveSpine;
             }
-            this._pendingScrollSearchQuery = visibleText;
+            // マッチした短いサブクエリを優先（spineまたぎvisibleTextを避ける）
+            this._pendingScrollSearchQuery = this._matchedSearchQuery || visibleText;
+            this._matchedSearchQuery = null;
             this._pendingScrollHighlight = false;
             return pageIndex;
           }
@@ -1285,11 +1288,15 @@ export class ReaderController {
         if (group) {
           const groupPageIndex = this.pagination?.pages?.findIndex(p => p.spineIndex === group.start);
           if (groupPageIndex >= 0) {
-            console.log(`[位置復元デバッグ] spineIndex ${locator.spineIndex} is in joined group [${group.start}-${group.end}], using group start`);
+            const effectiveSpine = this._resolvedSpineIndex ?? locator.spineIndex;
+            console.log(`[位置復元デバッグ] spineIndex ${locator.spineIndex} is in joined group [${group.start}-${group.end}], effectiveSpine=${effectiveSpine}`);
             if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
               this._pendingScrollToSegment = locator.segmentIndex;
-              this._pendingScrollTargetSpineIndex = locator.spineIndex;
-              if (visibleText) {
+              this._pendingScrollTargetSpineIndex = effectiveSpine;
+              if (this._matchedSearchQuery) {
+                this._pendingScrollSearchQuery = this._matchedSearchQuery;
+                this._matchedSearchQuery = null;
+              } else if (visibleText) {
                 this._pendingScrollSearchQuery = visibleText;
               }
             }
@@ -1722,8 +1729,9 @@ export class ReaderController {
         const matches = this.findSearchMatchesInSpine(item, subQuery);
         if (matches && matches.length > 0) {
           console.log(`[位置復元デバッグ][${debugTag}] 解決成功: spineIndex=${si}, segmentIndex=${matches[0].segmentIndex}, subQuery="${subQuery.substring(0, 20)}"`);
-          // 解決したspineIndexを呼び出し元に伝えるためインスタンス変数に保存
+          // 解決したspineIndexと呼び出し元に伝えるためインスタンス変数に保存
           this._resolvedSpineIndex = si;
+          this._matchedSearchQuery = subQuery;
           return matches[0].segmentIndex;
         }
       }
