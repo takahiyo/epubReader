@@ -1154,6 +1154,7 @@ function updateFullscreenButtonLabel() {
 async function handleFile(file, overrideBookId = null) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
+  isBookLoading = true;
   showLoading();
   userOverrodeDirection = false;
   isSyncResolving = true; // ロック開始
@@ -1442,6 +1443,8 @@ async function handleFile(file, overrideBookId = null) {
 
     hideLoading();
     alert(userMessage);
+  } finally {
+    isBookLoading = false;
   }
 }
 
