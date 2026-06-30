@@ -4967,7 +4967,7 @@ export class ReaderController {
     const container = this.pageContainer || this.viewer;
     if (!container) return;
 
-    container.querySelectorAll(DOM_SELECTORS.IMAGE).forEach((img) => {
+    container.querySelectorAll(DOM_SELECTORS.IMAGE_WITH_SVG).forEach((img) => {
       if (img.dataset.zoomBound === "true") return;
       img.style.cursor = "default";
       const getSrc = () => img.src || img.getAttribute("href") || img.getAttribute("xlink:href") || img.getAttribute("data-src") || "";
