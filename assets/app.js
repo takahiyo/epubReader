@@ -1301,6 +1301,24 @@ async function handleFile(file, overrideBookId = null) {
         storage.setBookLink(id, cloudBookId);
       }
       if (syncLogic.isCloudSyncEnabled()) {
+        try {
+          // ファイル読み込み前に最新のインデックスをプルして競合を防ぐ
+          await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
+        } catch (err) {
+          console.warn("ファイル読み込み前の同期プルに失敗しました:", err);
+        }
+
+        if (!cloudBookId) {
+          const cloudIndex = storage.data.cloudIndex ?? {};
+          const localMatch = Object.values(cloudIndex).find(
+            (entry) => entry.fingerprints && entry.fingerprints.includes(contentHash)
+          );
+          if (localMatch && localMatch.cloudBookId) {
+            console.log(`[handleFile] Matched book in local cloud index: ${localMatch.cloudBookId}`);
+            cloudBookId = localMatch.cloudBookId;
+          }
+        }
+
         if (!cloudBookId) {
           try {
             const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
@@ -3992,7 +4010,10 @@ function setupEvents() {
     if (!autoSyncEnabled) return;
     restartAutoSyncInterval();
 
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'hidden') {
+      console.log('[Visibility] Background detected. Syncing progress...');
+      void pushCurrentBookSyncOnAction({ force: true });
+    } else if (document.visibilityState === 'visible') {
       if (visibilitySyncTimer) {
         clearTimeout(visibilitySyncTimer);
       }
