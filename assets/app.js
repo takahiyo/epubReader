@@ -1308,6 +1308,14 @@ async function handleFile(file, overrideBookId = null) {
           console.warn("ファイル読み込み前の同期プルに失敗しました:", err);
         }
 
+        if (cloudBookId) {
+          const cloudEntry = storage.data.cloudIndex?.[cloudBookId];
+          if (!cloudEntry || !cloudEntry.fingerprints || !cloudEntry.fingerprints.includes(contentHash)) {
+            console.log(`[handleFile] Existing cloudBookId ${cloudBookId} has no matching fingerprint; resetting for fingerprint search`);
+            cloudBookId = null;
+          }
+        }
+
         if (!cloudBookId) {
           const cloudIndex = storage.data.cloudIndex ?? {};
           const localMatch = Object.values(cloudIndex).find(
