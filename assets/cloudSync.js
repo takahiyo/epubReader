@@ -234,6 +234,14 @@ export class CloudSync {
     return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, { since }, settings);
   }
 
+  async pullIndexFull(settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("d1", settings);
+    if (resolvedSource !== "d1") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, {}, settings);
+  }
+
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {
     const resolvedSource = this.resolveSource("d1", settings);
     if (resolvedSource !== "d1") {

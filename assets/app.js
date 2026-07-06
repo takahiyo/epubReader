@@ -1332,6 +1332,24 @@ async function handleFile(file, overrideBookId = null) {
           }
         }
         if (!cloudBookId) {
+          try {
+            console.log('[handleFile] Fingerprint not found in local cache; attempting full index pull...');
+            const fullIndex = await cloudSync.pullIndexFull();
+            if (fullIndex && typeof fullIndex === 'object' && Object.keys(fullIndex).length > 0) {
+              const fullMatch = Object.values(fullIndex).find(
+                (entry) => entry.fingerprints && entry.fingerprints.includes(contentHash)
+              );
+              if (fullMatch && fullMatch.cloudBookId) {
+                console.log(`[handleFile] Matched book in fresh full index: ${fullMatch.cloudBookId}`);
+                cloudBookId = fullMatch.cloudBookId;
+                storage.mergeCloudIndex({ [cloudBookId]: fullMatch }, Date.now());
+              }
+            }
+          } catch (error) {
+            console.warn("フルインデックスプルに失敗しました:", error);
+          }
+        }
+        if (!cloudBookId) {
           cloudBookId = fileHandler.generateCloudBookId();
         }
         if (cloudBookId) {
