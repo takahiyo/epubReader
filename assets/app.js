@@ -1154,6 +1154,7 @@ function updateFullscreenButtonLabel() {
 async function handleFile(file, overrideBookId = null) {
   clearArchiveWarnings();
   await pushCurrentBookSyncOnAction();
+  isBookLoading = true;
   showLoading();
   userOverrodeDirection = false;
   isSyncResolving = true; // ロック開始
@@ -1300,6 +1301,24 @@ async function handleFile(file, overrideBookId = null) {
         storage.setBookLink(id, cloudBookId);
       }
       if (syncLogic.isCloudSyncEnabled()) {
+        try {
+          // ファイル読み込み前に最新のインデックスをプルして競合を防ぐ
+          await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
+        } catch (err) {
+          console.warn("ファイル読み込み前の同期プルに失敗しました:", err);
+        }
+
+        if (!cloudBookId) {
+          const cloudIndex = storage.data.cloudIndex ?? {};
+          const localMatch = Object.values(cloudIndex).find(
+            (entry) => entry.fingerprints && entry.fingerprints.includes(contentHash)
+          );
+          if (localMatch && localMatch.cloudBookId) {
+            console.log(`[handleFile] Matched book in local cloud index: ${localMatch.cloudBookId}`);
+            cloudBookId = localMatch.cloudBookId;
+          }
+        }
+
         if (!cloudBookId) {
           try {
             const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
@@ -1310,6 +1329,24 @@ async function handleFile(file, overrideBookId = null) {
             }
           } catch (error) {
             console.warn("クラウドの照合に失敗しました:", error);
+          }
+        }
+        if (!cloudBookId) {
+          try {
+            console.log('[handleFile] Fingerprint not found in local cache; attempting full index pull...');
+            const fullIndex = await cloudSync.pullIndexFull();
+            if (fullIndex && typeof fullIndex === 'object' && Object.keys(fullIndex).length > 0) {
+              const fullMatch = Object.values(fullIndex).find(
+                (entry) => entry.fingerprints && entry.fingerprints.includes(contentHash)
+              );
+              if (fullMatch && fullMatch.cloudBookId) {
+                console.log(`[handleFile] Matched book in fresh full index: ${fullMatch.cloudBookId}`);
+                cloudBookId = fullMatch.cloudBookId;
+                storage.mergeCloudIndex({ [cloudBookId]: fullMatch }, Date.now());
+              }
+            }
+          } catch (error) {
+            console.warn("フルインデックスプルに失敗しました:", error);
           }
         }
         if (!cloudBookId) {
@@ -1442,6 +1479,8 @@ async function handleFile(file, overrideBookId = null) {
 
     hideLoading();
     alert(userMessage);
+  } finally {
+    isBookLoading = false;
   }
 }
 
@@ -3989,7 +4028,10 @@ function setupEvents() {
     if (!autoSyncEnabled) return;
     restartAutoSyncInterval();
 
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'hidden') {
+      console.log('[Visibility] Background detected. Syncing progress...');
+      void pushCurrentBookSyncOnAction({ force: true });
+    } else if (document.visibilityState === 'visible') {
       if (visibilitySyncTimer) {
         clearTimeout(visibilitySyncTimer);
       }

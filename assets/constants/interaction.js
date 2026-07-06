@@ -30,8 +30,8 @@ export const INTERACTION_GRID_CONFIG = Object.freeze({
 export const INTERACTION_AREA_CODES = Object.freeze({
   MENU_TOGGLE: "M3",
   VERTICAL_NAV: Object.freeze({
-    PREV: Object.freeze(["M1", "M2"]),
-    NEXT: Object.freeze(["M4", "M5"]),
+    PREV: Object.freeze(["U1", "U2", "M1", "M2", "B1", "B2"]),
+    NEXT: Object.freeze(["U4", "U5", "M4", "M5", "B4", "B5"]),
   }),
   HORIZONTAL_NAV: Object.freeze({
     PREV: "U3",
@@ -52,7 +52,7 @@ export const INTERACTION_AREA_LABELS = Object.freeze({
 });
 
 export const TOUCH_CONFIG = Object.freeze({
-  MIN_SWIPE_DISTANCE: 40,
+  MIN_SWIPE_DISTANCE: 80,
   AXIS_DIFFERENCE: 20,
 });
 
