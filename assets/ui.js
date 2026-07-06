@@ -178,6 +178,10 @@ export class UIController {
       if (document.body.classList.contains(UI_CLASSES.GOOGLE_AUTH_ACTIVE)) {
         return;
       }
+      if (this._swipeHandled) {
+        console.log('Click ignored (swipe handled)');
+        return;
+      }
       // 長押しズーム解除直後のクリックはページ遷移・メニュー展開を防ぐためスキップ
       if (this.isLongPressZoomJustEnded?.()) {
         console.log('Click ignored (long press zoom just ended)');
@@ -296,6 +300,8 @@ export class UIController {
         if (mode === WRITING_MODES.VERTICAL || this.isImageBook?.()) {
           const direction = this.getReadingDirection?.() || READING_DIRECTIONS.RTL;
           if (absDeltaX >= minSwipeDistance && (absDeltaX - absDeltaY) >= axisDifference) {
+            this._swipeHandled = true;
+            setTimeout(() => { this._swipeHandled = false; }, 300);
             if (deltaX > 0) {
               // 右方向へのスワイプ
               if (direction === READING_DIRECTIONS.LTR) {
@@ -313,6 +319,8 @@ export class UIController {
             }
           }
         } else if (absDeltaY >= minSwipeDistance && (absDeltaY - absDeltaX) >= axisDifference) {
+          this._swipeHandled = true;
+          setTimeout(() => { this._swipeHandled = false; }, 300);
           if (deltaY > 0) {
             this.onPagePrev?.();
           } else {
