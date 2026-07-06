@@ -297,7 +297,7 @@ export function buildCloudMeta({ cloudBookId, info, fingerprint, storage, overri
         title: info.title,
         author: info.author,
         fingerprints: Array.from(fingerprints),
-        updatedAt: Date.now(),
+        updatedAt: overrides.updatedAt ?? Date.now(),
     };
     return meta;
 }

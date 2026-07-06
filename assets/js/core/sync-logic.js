@@ -340,7 +340,25 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             if (isCloudSyncEnabled() && !isEmptySyncResult(indexDelta)) {
                 await pullUpdatedBookStates(indexDelta);
             } else if (indexDelta && Object.keys(indexDelta).length === 0) {
-                debugLog('[syncAllBooksFromCloud] No index changes, skipping state pull');
+                // インデックス変更がなくても、リンク済み書籍の状態はプルしておく
+                // （前回の同期でプル漏れがあった場合のセーフガード）
+                const bookLinkMap = _storage.data.bookLinkMap ?? {};
+                const linkedCloudIds = Object.values(bookLinkMap);
+                if (linkedCloudIds.length > 0) {
+                    const remoteIndex = _storage.data.cloudIndex ?? {};
+                    const linkedDelta = {};
+                    linkedCloudIds.forEach(cid => {
+                        if (remoteIndex[cid]) {
+                            linkedDelta[cid] = remoteIndex[cid];
+                        }
+                    });
+                    debugLog(`[syncAllBooksFromCloud] No index changes, falling back to pull states for ${Object.keys(linkedDelta).length} linked books`);
+                    if (Object.keys(linkedDelta).length > 0) {
+                        await pullUpdatedBookStates(linkedDelta);
+                    }
+                } else {
+                    debugLog('[syncAllBooksFromCloud] No index changes, skipping state pull');
+                }
             }
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
