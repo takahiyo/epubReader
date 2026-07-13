@@ -319,22 +319,24 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 _storage.mergeCloudIndex(index, safeUpdatedAt);
                 didApplyIndex = true;
 
-                const currentLibrary = _storage.data.library || {};
-                Object.keys(currentLibrary).forEach((localBookId) => {
-                    if (!_storage.getCloudBookId(localBookId)) {
-                        const book = currentLibrary[localBookId];
-                        if (book && book.contentHash) {
-                            const match = Object.values(index).find(
-                                (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
-                            );
-                            if (match && match.cloudBookId) {
-                                debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId} (Pre-pull)`);
-                                _storage.setBookLink(localBookId, match.cloudBookId);
-                            }
+            }
+
+            // 未リンクのローカル書籍とクラウドインデックスの自動紐付け
+            const currentLibrary = _storage.data.library || {};
+            Object.keys(currentLibrary).forEach((localBookId) => {
+                if (!_storage.getCloudBookId(localBookId)) {
+                    const book = currentLibrary[localBookId];
+                    if (book && book.contentHash) {
+                        const match = Object.values(index).find(
+                            (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+                        );
+                        if (match && match.cloudBookId) {
+                            debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId} (Pre-pull)`);
+                            _storage.setBookLink(localBookId, match.cloudBookId);
                         }
                     }
-                });
-            }
+                }
+            });
 
             // インデックスに変更があった書籍についてのみ状態をプル
             if (isCloudSyncEnabled() && !isEmptySyncResult(indexDelta)) {
@@ -472,23 +474,15 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             console.error('[syncAllBooksFromCloud] Failed to push book states:', error);
         }
 
+        const syncedAt = Date.now();
+        debugLog('[syncAllBooksFromCloud] Sync successful, setting lastSyncAt:', syncedAt);
+        const settingsUpdate = { lastSyncAt: syncedAt };
         if (didApplyIndex) {
-            const syncedAt = Date.now();
-            debugLog('[syncAllBooksFromCloud] Sync successful, setting lastIndexSyncAt:', syncedAt);
-            _storage.setSettings({
-                lastSyncAt: syncedAt,
-                lastIndexSyncAt: syncedAt,
-            });
-            _storage.save();
-            debugLog('[syncAllBooksFromCloud] Storage state after sync:', {
-                lastSyncAt: _storage.getSettings().lastSyncAt,
-                lastIndexSyncAt: _storage.getSettings().lastIndexSyncAt,
-                cloudIndexUpdatedAt: _storage.data.cloudIndexUpdatedAt
-            });
-            uiCallbacks.updateSyncStatusDisplay();
-        } else {
-            debugLog('[syncAllBooksFromCloud] No index was applied, sync status not updated');
+            settingsUpdate.lastIndexSyncAt = syncedAt;
         }
+        _storage.setSettings(settingsUpdate);
+        _storage.save();
+        uiCallbacks.updateSyncStatusDisplay();
 
         if (uiInitialized) {
             uiCallbacks.renderLibrary();
@@ -520,7 +514,7 @@ export async function handleAuthLogin() {
 /**
  * 同期競合解決のプロンプト
  */
-export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo }, uiLanguage) {
+export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo, localPercentage, remotePercentage }, uiLanguage) {
     return new Promise((resolve) => {
         if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
             resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
@@ -533,14 +527,18 @@ export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDe
 
         if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
         if (elements.syncModalMessage) {
-            const message = preferRemote
+            let message = preferRemote
                 ? deviceLabel
                     ? tReplace("syncPromptMessageWithDevice", { device: deviceLabel }, uiLanguage)
                     : strings.syncPromptMessage
                 : deviceLabel
                     ? tReplace("syncPromptLocalMessageWithDevice", { device: deviceLabel }, uiLanguage)
                     : strings.syncPromptLocalMessage;
-            elements.syncModalMessage.textContent = message;
+            
+            if (typeof localPercentage === 'number' && typeof remotePercentage === 'number') {
+                 message += `\n\n【ローカル】${localPercentage.toFixed(1)}%\n【クラウド】${remotePercentage.toFixed(1)}%`;
+            }
+            elements.syncModalMessage.innerText = message;
         }
         if (elements.syncUseRemote) {
             const timeText = formatRelativeTime(remoteUpdatedAt, uiLanguage);
@@ -838,6 +836,7 @@ export async function resolveSyncedProgress(
             return false;
         };
         const isSameLocation = locationsAreEqual(localLocation, remoteLocation);
+        const progressDiff = Math.abs(localPercentage - remotePercentage);
 
         // 1. クラウド側のデータが新しい（または初回）が、中身が同じ（位置が同じ）場合は自動適用
         if (remoteUpdatedAt >= localUpdatedAt && isSameLocation) {
@@ -845,12 +844,11 @@ export async function resolveSyncedProgress(
             return _storage.getProgress(localBookId);
         }
 
-        // 2. ユーザー要望：別端末に「新しい日付」の進捗データがあり、かつ「位置が異なる」場合にのみ確認
-        // 同一位置なら自動で最新化するのが自然（「どちらで開くか」の選択肢が同じになるため）
-        if (remoteUpdatedAt > localUpdatedAt && !isSameLocation) {
-            console.log(`[resolveSyncedProgress] Conflict detected: remote is newer (${remoteUpdatedAt}) but distance is different.`);
+        // 2. ユーザー要望：ローカルとリモートに進捗1%以上の差がある場合は（新旧関係なく）ダイアログを出す
+        if (progressDiff >= 1.0) {
+            console.log(`[resolveSyncedProgress] Conflict detected: diff is ${progressDiff}%. local: ${localPercentage}%, remote: ${remotePercentage}%`);
             const choice = await promptSyncResolution(
-                { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null },
+                { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null, localPercentage, remotePercentage },
                 uiLanguage
             );
 
@@ -858,7 +856,7 @@ export async function resolveSyncedProgress(
                 applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
                 _storage.setSettings({ lastSyncAt: Date.now() });
                 uiCallbacks.updateSyncStatusDisplay();
-                } else {
+            } else {
                 // ローカルを選択した場合: クラウドの状態をローカルにキャッシュしつつ、
                 // 次回の保存時にローカルのほうが新しければクラウドへ上書きされるようにする
                 _storage.setCloudState(resolvedCloudBookId, remoteState);
@@ -867,7 +865,7 @@ export async function resolveSyncedProgress(
             return _storage.getProgress(localBookId);
         }
 
-        // 3. ローカルのほうが新しい（または未同期の位置データがある）場合
+        // 3. それ以外（1%未満の差）で、ローカルのほうが新しい（または未同期の位置データがある）場合
         if (localUpdatedAt > remoteUpdatedAt && localLocation !== null) {
             // ローカルが最新であることをクラウド側に認識させるため、最新情報をプッシュ
             _storage.setCloudState(resolvedCloudBookId, remoteState); // 一旦リモートをキャッシュ

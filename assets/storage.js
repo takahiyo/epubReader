@@ -302,9 +302,18 @@ export class StorageService {
       map.set(key, pickNewerBookmark(existing, bookmark));
     });
 
-    const mergedList = Array.from(map.values())
-      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-      .slice(0, MAX_BOOKMARKS_PER_BOOK);
+    let mergedList = Array.from(map.values())
+      .sort((a, b) => {
+        const timeA = getBookmarkUpdatedAt(a);
+        const timeB = getBookmarkUpdatedAt(b);
+        return timeB - timeA;
+      });
+
+    if (this.getSettings().oneBookmarkPerBook) {
+      mergedList = mergedList.slice(0, 1);
+    } else {
+      mergedList = mergedList.slice(0, MAX_BOOKMARKS_PER_BOOK);
+    }
 
     console.log(`[Storage] Merged bookmarks for ${bookId}: ${currentList.length} -> ${mergedList.length}`);
     this.data.bookmarks[bookId] = mergedList;
@@ -495,9 +504,18 @@ export class StorageService {
         const existing = map.get(key);
         map.set(key, pickNewerBookmark(existing, bookmark));
       });
-      const mergedList = Array.from(map.values())
-        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-        .slice(0, STORAGE_CONFIG.MAX_BOOKMARKS_PER_BOOK);
+      let mergedList = Array.from(map.values())
+        .sort((a, b) => {
+          const timeA = getBookmarkUpdatedAt(a);
+          const timeB = getBookmarkUpdatedAt(b);
+          return timeB - timeA;
+        });
+      
+      if (this.getSettings().oneBookmarkPerBook) {
+        mergedList = mergedList.slice(0, 1);
+      } else {
+        mergedList = mergedList.slice(0, STORAGE_CONFIG.MAX_BOOKMARKS_PER_BOOK);
+      }
       mergedBookmarks[bookId] = mergedList;
     });
 

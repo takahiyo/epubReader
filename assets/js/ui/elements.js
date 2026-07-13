@@ -102,6 +102,7 @@ export const elements = {
     // しおりメニュー
     bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
     bookmarkList: getById(DOM_IDS.BOOKMARK_LIST),
+    bookmarkSearchInput: getById("bookmark-search-input"),
     addBookmarkBtn: getById(DOM_IDS.ADD_BOOKMARK_BTN),
     closeBookmarkMenu: getById(DOM_IDS.CLOSE_BOOKMARK_MENU),
 

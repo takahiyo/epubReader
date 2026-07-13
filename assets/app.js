@@ -3077,6 +3077,9 @@ function showSearch() {
 }
 
 function showBookmarks() {
+  if (elements.bookmarkSearchInput) {
+    elements.bookmarkSearchInput.value = "";
+  }
   bookmarkMenuMode = "all";
   renderers.renderBookmarks(bookmarkMenuMode);
   openExclusiveMenu(elements.bookmarkMenu);
@@ -3747,6 +3750,9 @@ function setupEvents() {
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
   elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
+  elements.bookmarkSearchInput?.addEventListener('input', (e) => {
+    renderers.filterBookmarks(e.target.value);
+  });
   elements.archiveWarningClose?.addEventListener('click', () => clearArchiveWarnings());
 
   // 検索機能

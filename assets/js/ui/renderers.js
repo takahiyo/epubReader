@@ -859,6 +859,8 @@ export function renderBookmarks(mode = "current") {
         entries.forEach(({ bookId, cloudBookId, book, bookmark, isCloudOnly }) => {
             const item = document.createElement("li");
             item.className = "bookmark-item";
+            item.dataset.title = (book.title || "").toLowerCase();
+            item.dataset.label = (bookmark.label || t("bookmarkDefault")).toLowerCase();
             if (isCloudOnly) item.classList.add("cloud-only"); // CSSスタイル用
             if (bookmark.deviceColor) item.style.borderLeftColor = bookmark.deviceColor;
 
@@ -953,6 +955,8 @@ export function renderBookmarks(mode = "current") {
     bookmarks.forEach((bookmark) => {
         const item = document.createElement("li");
         item.className = "bookmark-item";
+        item.dataset.title = (_state.currentBookInfo?.title || "").toLowerCase();
+        item.dataset.label = (bookmark.label || t("bookmarkDefault")).toLowerCase();
         if (bookmark.deviceColor) item.style.borderLeftColor = bookmark.deviceColor;
 
         const info = document.createElement("div");
@@ -1279,6 +1283,25 @@ export function hideCloudEmptyState() {
 export function updateInstallButton(isInstallable) {
     if (!elements.installButton || !elements.installContainer) return;
 
-    elements.installButton.textContent = t("installApp");
-    setElementVisibility(elements.installContainer, isInstallable);
+    if (isInstallable) {
+        elements.installContainer.classList.remove("hidden");
+        elements.installButton.textContent = t("installAppLabel");
+    } else {
+        elements.installContainer.classList.add("hidden");
+    }
+}
+
+/**
+ * しおりのフィルタリング
+ */
+export function filterBookmarks(query) {
+    const items = elements.bookmarkList?.querySelectorAll(".bookmark-item");
+    if (!items) return;
+    const lowerQuery = (query || "").toLowerCase().trim();
+    items.forEach((item) => {
+        const title = item.dataset.title || "";
+        const label = item.dataset.label || "";
+        const matches = !lowerQuery || title.includes(lowerQuery) || label.includes(lowerQuery);
+        item.style.display = matches ? "" : "none";
+    });
 }
