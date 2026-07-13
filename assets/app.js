@@ -1263,7 +1263,7 @@ async function handleFile(file, overrideBookId = null) {
     // type: "epub" | "zip" | "rar" として正式に保存
     const info = {
       id,
-      title: (!useEpubMetadataTitle && storage.data.library[id]?.title) ? storage.data.library[id].title : fileHandler.fileTitle(file.name),
+      title: fileHandler.fileTitle(file.name),
       type: type, // "epub" | "zip" | "rar"
       fileName: file.name,
       size: file.size,
