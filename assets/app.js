@@ -103,6 +103,7 @@ if (!pageDirection) pageDirection = UI_DEFAULTS.pageDirection;
 let defaultWritingMode = settings.defaultWritingMode ?? UI_DEFAULTS.writingMode;
 let defaultPageDirection = settings.defaultPageDirection ?? UI_DEFAULTS.defaultDirection;
 let defaultImageViewMode = settings.defaultImageViewMode ?? UI_DEFAULTS.imageViewMode;
+let useEpubMetadataTitle = settings.useEpubMetadataTitle ?? DEFAULT_SETTINGS.useEpubMetadataTitle;
 let oneBookmarkPerBook = settings.oneBookmarkPerBook ?? DEFAULT_SETTINGS.oneBookmarkPerBook;
 let longPressZoomEnabled = settings.longPressZoomEnabled ?? DEFAULT_SETTINGS.longPressZoomEnabled;
 let longPressZoomScale = settings.longPressZoomScale ?? DEFAULT_SETTINGS.longPressZoomScale;
@@ -2051,7 +2052,7 @@ async function handleBookReady(payload) {
     renderers.updateProgressBarDirection(); // 進捗バーの方向更新
   }
 
-  const title = metadata.title || currentBookInfo.title;
+  const title = (useEpubMetadataTitle && metadata.title) || currentBookInfo.title;
   currentBookInfo.title = title;
   if (!currentBookInfo.isVirtualImageBook) {
     storage.upsertBook({ ...currentBookInfo, title });
@@ -2509,6 +2510,12 @@ function applyUiLanguage(nextLanguage) {
   if (elements.deviceIdLabel) elements.deviceIdLabel.textContent = strings.deviceIdLabel;
   if (elements.deviceColorLabel) elements.deviceColorLabel.textContent = strings.deviceColorLabel;
   if (elements.deviceNameLabel) elements.deviceNameLabel.textContent = strings.deviceNameLabel;
+  if (elements.settingsUseEpubMetadataTitleLabel) {
+    elements.settingsUseEpubMetadataTitleLabel.textContent = strings.settingsUseEpubMetadataTitleLabel;
+  }
+  if (elements.settingsUseEpubMetadataTitle) {
+    elements.settingsUseEpubMetadataTitle.checked = !!useEpubMetadataTitle;
+  }
   if (elements.settingsOneBookmarkPerBookLabel) {
     elements.settingsOneBookmarkPerBookLabel.textContent = strings.settingsOneBookmarkPerBookLabel;
   }
@@ -3077,6 +3084,9 @@ function showSearch() {
 }
 
 function showBookmarks() {
+  if (elements.bookmarkSearchInput) {
+    elements.bookmarkSearchInput.value = "";
+  }
   bookmarkMenuMode = "all";
   renderers.renderBookmarks(bookmarkMenuMode);
   openExclusiveMenu(elements.bookmarkMenu);
@@ -3438,6 +3448,11 @@ function setupEvents() {
     applyProgressDisplayMode(e.target.value);
   });
 
+  elements.settingsUseEpubMetadataTitle?.addEventListener('change', (e) => {
+    useEpubMetadataTitle = e.target.checked;
+    storage.setSettings({ useEpubMetadataTitle: e.target.checked });
+  });
+
   elements.settingsOneBookmarkPerBook?.addEventListener('change', (e) => {
     const enabled = e.target.checked;
     oneBookmarkPerBook = enabled;
@@ -3747,6 +3762,9 @@ function setupEvents() {
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));
   elements.closeBookmarkMenu?.addEventListener('click', () => closeModal(elements.bookmarkMenu));
+  elements.bookmarkSearchInput?.addEventListener('input', (e) => {
+    renderers.filterBookmarks(e.target.value);
+  });
   elements.archiveWarningClose?.addEventListener('click', () => clearArchiveWarnings());
 
   // 検索機能

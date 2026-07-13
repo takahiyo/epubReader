@@ -102,6 +102,7 @@ export const elements = {
     // しおりメニュー
     bookmarkMenu: getById(DOM_IDS.BOOKMARK_MENU),
     bookmarkList: getById(DOM_IDS.BOOKMARK_LIST),
+    bookmarkSearchInput: getById("bookmark-search-input"),
     addBookmarkBtn: getById(DOM_IDS.ADD_BOOKMARK_BTN),
     closeBookmarkMenu: getById(DOM_IDS.CLOSE_BOOKMARK_MENU),
 
@@ -170,6 +171,8 @@ export const elements = {
     writingModeLabel: getById(DOM_IDS.WRITING_MODE_LABEL),
     pageDirectionLabel: getById(DOM_IDS.PAGE_DIRECTION_LABEL),
     progressDisplayModeLabel: getById(DOM_IDS.PROGRESS_DISPLAY_MODE_LABEL),
+    settingsUseEpubMetadataTitle: getById(DOM_IDS.SETTINGS_USE_EPUB_METADATA_TITLE),
+    settingsUseEpubMetadataTitleLabel: getById(DOM_IDS.SETTINGS_USE_EPUB_METADATA_TITLE_LABEL),
     settingsOneBookmarkPerBook: getById(DOM_IDS.SETTINGS_ONE_BOOKMARK_PER_BOOK),
     settingsOneBookmarkPerBookLabel: getById(DOM_IDS.SETTINGS_ONE_BOOKMARK_PER_BOOK_LABEL),
     settingsLongPressZoom: getById(DOM_IDS.SETTINGS_LONG_PRESS_ZOOM),
