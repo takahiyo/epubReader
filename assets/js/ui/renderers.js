@@ -762,8 +762,11 @@ export function renderHistory() {
 
         const meta = document.createElement("div");
         meta.className = "history-meta";
-        const lastOpened = _syncLogic.formatLibraryMeta({ progressPercentage: 0, timestamp: entry.openedAt }, _state.uiLanguage).split(" / ").pop();
-        meta.textContent = lastOpened;
+        const bookProgress = _storage.getProgress?.(entry.bookId);
+        meta.textContent = _syncLogic.formatLibraryMeta({
+            progressPercentage: bookProgress?.percentage ?? 0,
+            timestamp: entry.openedAt,
+        }, _state.uiLanguage);
 
         info.append(title, meta);
 
@@ -856,6 +859,8 @@ export function renderBookmarks(mode = "current") {
         entries.forEach(({ bookId, cloudBookId, book, bookmark, isCloudOnly }) => {
             const item = document.createElement("li");
             item.className = "bookmark-item";
+            item.dataset.title = (book.title || "").toLowerCase();
+            item.dataset.label = (bookmark.label || t("bookmarkDefault")).toLowerCase();
             if (isCloudOnly) item.classList.add("cloud-only"); // CSSスタイル用
             if (bookmark.deviceColor) item.style.borderLeftColor = bookmark.deviceColor;
 
@@ -868,6 +873,11 @@ export function renderBookmarks(mode = "current") {
                     _reader.goTo(bookmark);
                 } else if (isCloudOnly) {
                     // クラウドのみの書籍の場合はインポートを促す
+                    // しおり位置を保存しておき、handleFile で使用する
+                    if (_actions.setPendingBookmark) _actions.setPendingBookmark({
+                        location: bookmark.location,
+                        percentage: bookmark.percentage,
+                    });
                     if (_actions.openCloudOnlyBook) await _actions.openCloudOnlyBook(cloudBookId);
                 } else if (_actions.openFromLibrary) {
                     await _actions.openFromLibrary(bookId, { bookmark });
@@ -945,6 +955,8 @@ export function renderBookmarks(mode = "current") {
     bookmarks.forEach((bookmark) => {
         const item = document.createElement("li");
         item.className = "bookmark-item";
+        item.dataset.title = (_state.currentBookInfo?.title || "").toLowerCase();
+        item.dataset.label = (bookmark.label || t("bookmarkDefault")).toLowerCase();
         if (bookmark.deviceColor) item.style.borderLeftColor = bookmark.deviceColor;
 
         const info = document.createElement("div");
@@ -1271,6 +1283,25 @@ export function hideCloudEmptyState() {
 export function updateInstallButton(isInstallable) {
     if (!elements.installButton || !elements.installContainer) return;
 
-    elements.installButton.textContent = t("installApp");
-    setElementVisibility(elements.installContainer, isInstallable);
+    if (isInstallable) {
+        elements.installContainer.classList.remove("hidden");
+        elements.installButton.textContent = t("installAppLabel");
+    } else {
+        elements.installContainer.classList.add("hidden");
+    }
+}
+
+/**
+ * しおりのフィルタリング
+ */
+export function filterBookmarks(query) {
+    const items = elements.bookmarkList?.querySelectorAll(".bookmark-item");
+    if (!items) return;
+    const lowerQuery = (query || "").toLowerCase().trim();
+    items.forEach((item) => {
+        const title = item.dataset.title || "";
+        const label = item.dataset.label || "";
+        const matches = !lowerQuery || title.includes(lowerQuery) || label.includes(lowerQuery);
+        item.style.display = matches ? "" : "none";
+    });
 }

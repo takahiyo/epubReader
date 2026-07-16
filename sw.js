@@ -132,11 +132,13 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(event.request, { cache: 'no-cache' })
                 .catch(() => caches.match(event.request))
+                .then(response => response || new Response('Offline', { status: 503 }))
         );
     } else {
         // CDN等の外部リソース / 画像等: 従来のネットワーク優先
         event.respondWith(
             fetch(event.request).catch(() => caches.match(event.request))
+                .then(response => response || new Response('Offline', { status: 503 }))
         );
     }
 });

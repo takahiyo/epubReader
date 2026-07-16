@@ -225,6 +225,9 @@
         <button id="closeBookmarkMenu" class="close-btn"></button>
       </div>
       <div class="modal-body">
+        <div class="search-input-container" style="margin-bottom: 1rem;">
+          <input type="text" id="bookmark-search-input" class="search-input" placeholder="しおりを検索..." />
+        </div>
         <ul id="bookmarkList" class="bookmark-list"></ul>
       </div>
     </div>
@@ -450,6 +453,10 @@
                 <option value="single"></option>
                 <option value="spread"></option>
               </select>
+            </div>
+            <div class="setting-item">
+              <label for="settingsUseEpubMetadataTitle" id="settingsUseEpubMetadataTitleLabel"></label>
+              <input type="checkbox" id="settingsUseEpubMetadataTitle" />
             </div>
             <div class="setting-item">
               <label for="settingsOneBookmarkPerBook" id="settingsOneBookmarkPerBookLabel"></label>

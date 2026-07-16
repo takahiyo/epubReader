@@ -1,6 +1,6 @@
 export const DEFAULT_KEY_BINDINGS = Object.freeze({
-  pagePrev: ['ArrowLeft'],
-  pageNext: ['ArrowRight'],
+  pagePrev: ['ArrowRight'],
+  pageNext: ['ArrowLeft'],
   singlePrev: ['ArrowUp'],
   singleNext: ['ArrowDown'],
   toggleFullscreen: ['Enter'],

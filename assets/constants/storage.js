@@ -77,6 +77,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultWritingMode: UI_DEFAULTS.writingMode,
   defaultPageDirection: UI_DEFAULTS.defaultDirection,
   defaultImageViewMode: UI_DEFAULTS.imageViewMode,
+  useEpubMetadataTitle: false, // false=ファイル名, true=EPUBメタデータの書名
   oneBookmarkPerBook: false, // 1冊につき最後に作成したしおり1つだけを保持する
   longPressZoomEnabled: true,
   longPressZoomScale: 2.5,

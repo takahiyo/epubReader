@@ -291,6 +291,8 @@ export const DOM_IDS = Object.freeze({
   WRITING_MODE_LABEL: "writingModeLabel",
   PAGE_DIRECTION_LABEL: "pageDirectionLabel",
   PROGRESS_DISPLAY_MODE_LABEL: "progressDisplayModeLabel",
+  SETTINGS_USE_EPUB_METADATA_TITLE: "settingsUseEpubMetadataTitle",
+  SETTINGS_USE_EPUB_METADATA_TITLE_LABEL: "settingsUseEpubMetadataTitleLabel",
   SETTINGS_ONE_BOOKMARK_PER_BOOK: "settingsOneBookmarkPerBook",
   SETTINGS_ONE_BOOKMARK_PER_BOOK_LABEL: "settingsOneBookmarkPerBookLabel",
   SETTINGS_LONG_PRESS_ZOOM: "settingsLongPressZoom",

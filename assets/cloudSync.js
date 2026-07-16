@@ -119,7 +119,11 @@ export class CloudSync {
         }
         return response;
       } catch (error) {
-        if (attempt < SYNC_RETRY_MAX) {
+        // ネットワークエラー（TypeError: Failed to fetch）はサーバー不在を示すため
+        // リトライ回数を減らして早期に失敗させる
+        const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
+        const maxRetry = isNetworkError ? 0 : SYNC_RETRY_MAX;
+        if (attempt < maxRetry) {
           await this.sleep(this.getRetryDelayMs(attempt));
           continue;
         }
@@ -169,6 +173,7 @@ export class CloudSync {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, ...payload }),
+      keepalive: true,
     });
 
     if (!response.ok) {
@@ -227,6 +232,14 @@ export class CloudSync {
     // 差分同期: 最後の同期時刻以降の更新のみ取得
     const since = this.storage.data.cloudIndexUpdatedAt ?? null;
     return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, { since }, settings);
+  }
+
+  async pullIndexFull(settings = this.storage.getSettings()) {
+    const resolvedSource = this.resolveSource("d1", settings);
+    if (resolvedSource !== "d1") {
+      return { source: resolvedSource, status: "skipped" };
+    }
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, {}, settings);
   }
 
   async pushIndexDelta(indexDelta, updatedAt, settings = this.storage.getSettings()) {

@@ -91,6 +91,7 @@ export const UI_STRINGS_EN = Object.freeze({
   settingsDefaultWritingModeLabel: "Default Writing Mode",
   settingsDefaultPageDirectionLabel: "Default Page Direction",
   settingsDefaultImageViewModeLabel: "Default View Mode",
+  settingsUseEpubMetadataTitleLabel: "Use EPUB metadata title",
   settingsOneBookmarkPerBookLabel: "Only keep the most recent bookmark per book",
   settingsLongPressZoomLabel: "Long press to zoom (PerfectViewer style)",
   settingsLongPressZoomScaleLabel: "Long press zoom scale",

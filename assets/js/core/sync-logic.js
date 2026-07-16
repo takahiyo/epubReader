@@ -67,7 +67,7 @@ function t(key, uiLanguage) {
 }
 
 function debugLog(...args) {
-    console.log(...args);
+    console.debug(...args);
 }
 
 function isEmptySyncResult(result) {
@@ -272,6 +272,8 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             const remote = await _cloudSync.pullIndex();
             debugLog('[syncAllBooksFromCloud] Pull index result:', remote);
 
+            let indexDelta = {};
+
             if (remote?.unchanged === true) {
                 debugLog('[syncAllBooksFromCloud] Index is unchanged, data is up-to-date');
                 didApplyIndex = true;
@@ -299,8 +301,17 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 const updatedAt = rawUpdatedAt ?? Date.now();
                 const safeUpdatedAt = Math.min(updatedAt, Date.now() + 60000);
 
+                // 変更のあった書籍のみを抽出（差分更新）
+                const oldCloudIndex = _storage.data.cloudIndex ?? {};
+                const changedIds = Object.keys(index).filter(cloudBookId => {
+                    const old = oldCloudIndex[cloudBookId];
+                    if (!old) return true;
+                    return (index[cloudBookId]?.updatedAt ?? 0) > (old?.updatedAt ?? 0);
+                });
+                changedIds.forEach(id => { indexDelta[id] = index[id]; });
                 debugLog('[syncAllBooksFromCloud] Index received, merging...', {
-                    items: Object.keys(index).length,
+                    total: Object.keys(index).length,
+                    changed: changedIds.length,
                     updatedAt: safeUpdatedAt,
                     format: hasIndexProp ? 'wrapped' : 'flat'
                 });
@@ -308,30 +319,48 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 _storage.mergeCloudIndex(index, safeUpdatedAt);
                 didApplyIndex = true;
 
-                // [修正] 状態プル (pullUpdatedBookStates) の前に自動紐付けを実行
-                // これにより、プルされた状態が即座にローカルの progress にマージされる
-                const currentLibrary = _storage.data.library || {};
-                Object.keys(currentLibrary).forEach((localBookId) => {
-                    if (!_storage.getCloudBookId(localBookId)) {
-                        const book = currentLibrary[localBookId];
-                        if (book && book.contentHash) {
-                            const match = Object.values(index).find(
-                                (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
-                            );
-                            if (match && match.cloudBookId) {
-                                debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId} (Pre-pull)`);
-                                _storage.setBookLink(localBookId, match.cloudBookId);
-                            }
-                        }
-                    }
-                });
             }
 
-            // インデックスの取得結果（新規あり・なし）に関わらず、
-            // ローカルにstateが存在しない書籍があれば確実に取得する
-            if (isCloudSyncEnabled()) {
-                const fullCloudIndex = _storage.data.cloudIndex ?? {};
-                await pullUpdatedBookStates(fullCloudIndex);
+            // 未リンクのローカル書籍とクラウドインデックスの自動紐付け
+            const currentLibrary = _storage.data.library || {};
+            Object.keys(currentLibrary).forEach((localBookId) => {
+                if (!_storage.getCloudBookId(localBookId)) {
+                    const book = currentLibrary[localBookId];
+                    if (book && book.contentHash) {
+                        const match = Object.values(index).find(
+                            (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+                        );
+                        if (match && match.cloudBookId) {
+                            debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId} (Pre-pull)`);
+                            _storage.setBookLink(localBookId, match.cloudBookId);
+                        }
+                    }
+                }
+            });
+
+            // インデックスに変更があった書籍についてのみ状態をプル
+            if (isCloudSyncEnabled() && !isEmptySyncResult(indexDelta)) {
+                await pullUpdatedBookStates(indexDelta);
+            } else if (indexDelta && Object.keys(indexDelta).length === 0) {
+                // インデックス変更がなくても、リンク済み書籍の状態はプルしておく
+                // （前回の同期でプル漏れがあった場合のセーフガード）
+                const bookLinkMap = _storage.data.bookLinkMap ?? {};
+                const linkedCloudIds = Object.values(bookLinkMap);
+                if (linkedCloudIds.length > 0) {
+                    const remoteIndex = _storage.data.cloudIndex ?? {};
+                    const linkedDelta = {};
+                    linkedCloudIds.forEach(cid => {
+                        if (remoteIndex[cid]) {
+                            linkedDelta[cid] = remoteIndex[cid];
+                        }
+                    });
+                    debugLog(`[syncAllBooksFromCloud] No index changes, falling back to pull states for ${Object.keys(linkedDelta).length} linked books`);
+                    if (Object.keys(linkedDelta).length > 0) {
+                        await pullUpdatedBookStates(linkedDelta);
+                    }
+                } else {
+                    debugLog('[syncAllBooksFromCloud] No index changes, skipping state pull');
+                }
             }
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to pull index:', error);
@@ -445,23 +474,15 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             console.error('[syncAllBooksFromCloud] Failed to push book states:', error);
         }
 
+        const syncedAt = Date.now();
+        debugLog('[syncAllBooksFromCloud] Sync successful, setting lastSyncAt:', syncedAt);
+        const settingsUpdate = { lastSyncAt: syncedAt };
         if (didApplyIndex) {
-            const syncedAt = Date.now();
-            debugLog('[syncAllBooksFromCloud] Sync successful, setting lastIndexSyncAt:', syncedAt);
-            _storage.setSettings({
-                lastSyncAt: syncedAt,
-                lastIndexSyncAt: syncedAt,
-            });
-            _storage.save();
-            debugLog('[syncAllBooksFromCloud] Storage state after sync:', {
-                lastSyncAt: _storage.getSettings().lastSyncAt,
-                lastIndexSyncAt: _storage.getSettings().lastIndexSyncAt,
-                cloudIndexUpdatedAt: _storage.data.cloudIndexUpdatedAt
-            });
-            uiCallbacks.updateSyncStatusDisplay();
-        } else {
-            debugLog('[syncAllBooksFromCloud] No index was applied, sync status not updated');
+            settingsUpdate.lastIndexSyncAt = syncedAt;
         }
+        _storage.setSettings(settingsUpdate);
+        _storage.save();
+        uiCallbacks.updateSyncStatusDisplay();
 
         if (uiInitialized) {
             uiCallbacks.renderLibrary();
@@ -493,7 +514,7 @@ export async function handleAuthLogin() {
 /**
  * 同期競合解決のプロンプト
  */
-export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo }, uiLanguage) {
+export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo, localPercentage, remotePercentage }, uiLanguage) {
     return new Promise((resolve) => {
         if (!elements.syncModal || !elements.syncUseRemote || !elements.syncUseLocal) {
             resolve(remoteUpdatedAt >= localUpdatedAt ? "remote" : "local");
@@ -506,14 +527,18 @@ export function promptSyncResolution({ localUpdatedAt, remoteUpdatedAt, remoteDe
 
         if (elements.syncModalTitle) elements.syncModalTitle.textContent = strings.syncPromptTitle;
         if (elements.syncModalMessage) {
-            const message = preferRemote
+            let message = preferRemote
                 ? deviceLabel
                     ? tReplace("syncPromptMessageWithDevice", { device: deviceLabel }, uiLanguage)
                     : strings.syncPromptMessage
                 : deviceLabel
                     ? tReplace("syncPromptLocalMessageWithDevice", { device: deviceLabel }, uiLanguage)
                     : strings.syncPromptLocalMessage;
-            elements.syncModalMessage.textContent = message;
+            
+            if (typeof localPercentage === 'number' && typeof remotePercentage === 'number') {
+                 message += `\n\n【ローカル】${localPercentage.toFixed(1)}%\n【クラウド】${remotePercentage.toFixed(1)}%`;
+            }
+            elements.syncModalMessage.innerText = message;
         }
         if (elements.syncUseRemote) {
             const timeText = formatRelativeTime(remoteUpdatedAt, uiLanguage);
@@ -636,10 +661,11 @@ async function pullUpdatedBookStates(indexDelta) {
             const localState = _storage.getCloudState(cloudBookId);
 
             // cloudState が存在しない場合は無条件でプル
-            // 存在する場合でも、remoteMeta の updatedAt がローカルより新しければプル
+            // 存在する場合でも、remoteMeta の updatedAt が最後のstateプル時刻より新しければプル
+            const statePulledAt = localState?.statePulledAt ?? 0;
             const needsPull = !localState
                 || !localState.progress  // progress が 0 / undefined の場合もプル
-                || (remoteMeta?.updatedAt && remoteMeta.updatedAt > (localState.updatedAt ?? 0));
+                || (remoteMeta?.updatedAt && remoteMeta.updatedAt > statePulledAt);
 
             if (!needsPull) {
                 skipCount++;
@@ -652,6 +678,7 @@ async function pullUpdatedBookStates(indexDelta) {
 
             if (remoteState && !isEmptyCloudState(remoteState)) {
                 successCount++;
+                remoteState.statePulledAt = Date.now();
                 debugLog(`[pullUpdatedBookStates] ✓ ${remoteMeta?.title || cloudBookId}: progress=${remoteState.progress}%, bookmarks=${remoteState.bookmarks?.length ?? 0}`);
                 if (localId) {
                     applyCloudStateToLocal(localId, cloudBookId, remoteState);
@@ -660,6 +687,10 @@ async function pullUpdatedBookStates(indexDelta) {
                 }
             } else {
                 emptyCount++;
+                if (localState) {
+                    localState.statePulledAt = Date.now();
+                    _storage.setCloudState(cloudBookId, localState);
+                }
             }
         } catch (error) {
             console.warn(`[pullUpdatedBookStates] Failed to pull state for ${cloudBookId}:`, error);
@@ -805,6 +836,7 @@ export async function resolveSyncedProgress(
             return false;
         };
         const isSameLocation = locationsAreEqual(localLocation, remoteLocation);
+        const progressDiff = Math.abs(localPercentage - remotePercentage);
 
         // 1. クラウド側のデータが新しい（または初回）が、中身が同じ（位置が同じ）場合は自動適用
         if (remoteUpdatedAt >= localUpdatedAt && isSameLocation) {
@@ -812,12 +844,11 @@ export async function resolveSyncedProgress(
             return _storage.getProgress(localBookId);
         }
 
-        // 2. ユーザー要望：別端末に「新しい日付」の進捗データがあり、かつ「位置が異なる」場合にのみ確認
-        // 同一位置なら自動で最新化するのが自然（「どちらで開くか」の選択肢が同じになるため）
-        if (remoteUpdatedAt > localUpdatedAt && !isSameLocation) {
-            console.log(`[resolveSyncedProgress] Conflict detected: remote is newer (${remoteUpdatedAt}) but distance is different.`);
+        // 2. ユーザー要望：ローカルとリモートに進捗1%以上の差がある場合は（新旧関係なく）ダイアログを出す
+        if (progressDiff >= 1.0) {
+            console.log(`[resolveSyncedProgress] Conflict detected: diff is ${progressDiff}%. local: ${localPercentage}%, remote: ${remotePercentage}%`);
             const choice = await promptSyncResolution(
-                { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null },
+                { localUpdatedAt, remoteUpdatedAt, remoteDeviceInfo: remoteState?.deviceInfo ?? null, localPercentage, remotePercentage },
                 uiLanguage
             );
 
@@ -825,7 +856,7 @@ export async function resolveSyncedProgress(
                 applyCloudStateToLocal(localBookId, resolvedCloudBookId, remoteState);
                 _storage.setSettings({ lastSyncAt: Date.now() });
                 uiCallbacks.updateSyncStatusDisplay();
-                } else {
+            } else {
                 // ローカルを選択した場合: クラウドの状態をローカルにキャッシュしつつ、
                 // 次回の保存時にローカルのほうが新しければクラウドへ上書きされるようにする
                 _storage.setCloudState(resolvedCloudBookId, remoteState);
@@ -834,7 +865,7 @@ export async function resolveSyncedProgress(
             return _storage.getProgress(localBookId);
         }
 
-        // 3. ローカルのほうが新しい（または未同期の位置データがある）場合
+        // 3. それ以外（1%未満の差）で、ローカルのほうが新しい（または未同期の位置データがある）場合
         if (localUpdatedAt > remoteUpdatedAt && localLocation !== null) {
             // ローカルが最新であることをクラウド側に認識させるため、最新情報をプッシュ
             _storage.setCloudState(resolvedCloudBookId, remoteState); // 一旦リモートをキャッシュ
