@@ -3505,10 +3505,19 @@ function setupEvents() {
     const strings = getUiStrings(uiLanguage);
     const actionOrder = Object.keys(DEFAULT_KEY_BINDINGS);
     container.innerHTML = '';
-    for (const action of actionOrder) {
-      const keys = bindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
-      const labelKey = KEY_ACTION_LABELS[action];
-      const label = strings[labelKey] || action;
+    for (const originalAction of actionOrder) {
+      let dataAction = originalAction;
+      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
+      if (readingDirection === READING_DIRECTIONS.LTR) {
+        if (originalAction === 'pagePrev') dataAction = 'pageNext';
+        else if (originalAction === 'pageNext') dataAction = 'pagePrev';
+        else if (originalAction === 'singlePrev') dataAction = 'singleNext';
+        else if (originalAction === 'singleNext') dataAction = 'singlePrev';
+      }
+
+      const keys = bindings[dataAction] || DEFAULT_KEY_BINDINGS[dataAction] || [];
+      const labelKey = KEY_ACTION_LABELS[originalAction];
+      const label = strings[labelKey] || originalAction;
       const row = document.createElement('div');
       row.className = 'keybinding-row';
       const labelSpan = document.createElement('span');
@@ -3517,7 +3526,7 @@ function setupEvents() {
       row.appendChild(labelSpan);
       const badgesContainer = document.createElement('div');
       badgesContainer.className = 'keybinding-badges';
-      badgesContainer.dataset.action = action;
+      badgesContainer.dataset.action = dataAction;
       for (let i = 0; i < keys.length; i++) {
         const badge = document.createElement('span');
         badge.className = 'keybinding-badge';
@@ -3987,10 +3996,13 @@ function setupEvents() {
 
     // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
     let resolvedAction = action;
-    if (action === 'pagePrev' || action === 'pageNext') {
+    if (action === 'pagePrev' || action === 'pageNext' || action === 'singlePrev' || action === 'singleNext') {
       const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
-      if (readingDirection === READING_DIRECTIONS.RTL) {
-        resolvedAction = action === 'pagePrev' ? 'pageNext' : 'pagePrev';
+      if (readingDirection === READING_DIRECTIONS.LTR) {
+        if (action === 'pagePrev') resolvedAction = 'pageNext';
+        else if (action === 'pageNext') resolvedAction = 'pagePrev';
+        else if (action === 'singlePrev') resolvedAction = 'singleNext';
+        else if (action === 'singleNext') resolvedAction = 'singlePrev';
       }
     }
 
