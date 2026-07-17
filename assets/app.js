@@ -3549,7 +3549,7 @@ function setupEvents() {
       row.appendChild(badgesContainer);
       const resetBtn = document.createElement('button');
       resetBtn.className = 'keybinding-reset-btn';
-      resetBtn.dataset.action = action;
+      resetBtn.dataset.action = dataAction;
       resetBtn.textContent = strings.keybindingReset || 'Reset';
       row.appendChild(resetBtn);
       container.appendChild(row);
