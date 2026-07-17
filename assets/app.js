@@ -3549,7 +3549,7 @@ function setupEvents() {
       row.appendChild(badgesContainer);
       const resetBtn = document.createElement('button');
       resetBtn.className = 'keybinding-reset-btn';
-      resetBtn.dataset.action = action;
+      resetBtn.dataset.action = dataAction;
       resetBtn.textContent = strings.keybindingReset || 'Reset';
       row.appendChild(resetBtn);
       container.appendChild(row);
@@ -3573,7 +3573,7 @@ function setupEvents() {
     if (!recordingAction) return;
     e.preventDefault();
     e.stopPropagation();
-    const key = e.key;
+    const key = e.key.toLowerCase();
     const bindings = { ...(settings.keyBindings || DEFAULT_KEY_BINDINGS) };
     const keys = [...(bindings[recordingAction] || DEFAULT_KEY_BINDINGS[recordingAction] || [])];
     if (recordingSlot >= 0 && recordingSlot < keys.length) {
@@ -3977,7 +3977,7 @@ function setupEvents() {
     for (const action of allActions) {
       const keys = userBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
       for (const key of keys) {
-        keyMap[key] = action;
+        keyMap[key.toLowerCase()] = action;
       }
     }
   }
@@ -3991,7 +3991,7 @@ function setupEvents() {
       return;
     }
 
-    const action = keyMap[e.key];
+    const action = keyMap[e.key.toLowerCase()];
     if (!action) return;
 
     // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
