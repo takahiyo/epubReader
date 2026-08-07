@@ -89,7 +89,6 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // デフォルト設定
   settingsDefaultWritingModeLabel: "デフォルトの書字方向",
-  settingsDefaultPageDirectionLabel: "デフォルトの開き方向",
   settingsDefaultImageViewModeLabel: "デフォルトの表示モード",
   settingsUseEpubMetadataTitleLabel: "EPUBメタデータの書名を使用する",
   settingsOneBookmarkPerBookLabel: "1つの書籍に作成するしおりは一つだけにする",
