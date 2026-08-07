@@ -936,6 +936,7 @@ renderers.init({
     get progressDisplayMode() { return progressDisplayMode; },
     get floatVisible() { return floatVisible; },
     get pageDirection() { return pageDirection; },
+    get defaultPageDirection() { return defaultPageDirection; },
     get bookmarkMenuMode() { return bookmarkMenuMode; },
     get pendingDeletes() { return pendingDeletes; },
     get writingMode() { return writingMode; },
@@ -1409,8 +1410,8 @@ async function handleFile(file, overrideBookId = null) {
           location: startLocation,
           percentage: startProgress,
           epubViewMode: syncedProgress?.epubViewMode || epubViewMode,
-          writingMode: syncedProgress?.writingMode || writingMode,
-          pageDirection: syncedProgress?.pageDirection || pageDirection,
+          writingMode: syncedProgress?.writingMode || defaultWritingMode,
+          pageDirection: syncedProgress?.pageDirection || defaultPageDirection,
         });
         console.timeEnd('[handleFile] openEpub');
       } catch (epubError) {
@@ -1800,8 +1801,8 @@ async function openFromLibrary(bookId, options = {}) {
         location: start,
         percentage: startProgress,
         epubViewMode: normalizedProgress?.epubViewMode || epubViewMode,
-        writingMode: normalizedProgress?.writingMode || writingMode,
-        pageDirection: normalizedProgress?.pageDirection || pageDirection,
+        writingMode: normalizedProgress?.writingMode || defaultWritingMode,
+        pageDirection: normalizedProgress?.pageDirection || defaultPageDirection,
       });
       console.timeEnd('[libraryLoad] openEpub');
     } else {
@@ -1860,9 +1861,9 @@ function resetLocalSaveTracking() {
 }
 
 async function applyReadingState(progress) {
-  // 書籍ごとの記録がない場合はリーダーの自動検出値を優先し、検出もなければデフォルト設定を使用
+  // 書籍ごとの記録がなければデフォルト設定を使用
   const targetWritingMode = progress?.writingMode || reader.writingMode || defaultWritingMode;
-  const targetPageDirection = progress?.pageDirection || reader.pageDirection || defaultPageDirection;
+  const targetPageDirection = progress?.pageDirection || defaultPageDirection;
   const targetImageViewMode = progress?.imageViewMode || defaultImageViewMode;
   const targetEpubViewMode = progress?.epubViewMode || reader.epubViewMode || epubViewMode;
 
@@ -2498,9 +2499,6 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsDefaultWritingModeLabel) {
     elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
   }
-  if (elements.settingsDefaultPageDirectionLabel) {
-    elements.settingsDefaultPageDirectionLabel.textContent = strings.settingsDefaultPageDirectionLabel;
-  }
   if (elements.settingsDefaultImageViewModeLabel) elements.settingsDefaultImageViewModeLabel.textContent = strings.settingsDefaultImageViewModeLabel;
   if (elements.settingsEpubViewModeLabel) elements.settingsEpubViewModeLabel.textContent = strings.settingsEpubViewModeLabel;
   if (elements.progressDisplayModeLabel) elements.progressDisplayModeLabel.textContent = strings.progressDisplayModeLabel;
@@ -2655,12 +2653,6 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.writingModeHorizontal; // "横書き"
     if (options[1]) options[1].textContent = strings.writingModeVertical;   // "縦書き"
     elements.settingsDefaultWritingMode.value = defaultWritingMode;
-  }
-  if (elements.settingsDefaultPageDirection) {
-    const options = elements.settingsDefaultPageDirection.options;
-    if (options[0]) options[0].textContent = strings.pageDirectionRtl; // "右開き"
-    if (options[1]) options[1].textContent = strings.pageDirectionLtr; // "左開き"
-    elements.settingsDefaultPageDirection.value = defaultPageDirection;
   }
   if (elements.settingsDefaultImageViewMode) {
     const options = elements.settingsDefaultImageViewMode.options;
@@ -3287,14 +3279,25 @@ function setupEvents() {
 
   // 左開き/右開き切替ボタン (画像用)
   elements.toggleReadingDirectionImage?.addEventListener('click', () => {
-    reader.toggleImageReadingDirection();
-    pageDirection = reader.imageReadingDirection;
+    const nextDirection = reader.toggleImageReadingDirection();
+    pageDirection = nextDirection;
+    persistReadingState({ pageDirection });
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
   });
 
   // 左開き/右開き切替ボタン (EPUB用)
+  // 書籍未オープン時はアカウントのデフォルト開き方向、オープン時はその書籍の開き方向を変更する
   elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
+    const isBookOpen = !!currentBookInfo?.type;
+    if (!isBookOpen) {
+      const nextDirection =
+        defaultPageDirection === READING_DIRECTIONS.RTL ? READING_DIRECTIONS.LTR : READING_DIRECTIONS.RTL;
+      defaultPageDirection = nextDirection;
+      storage.setSettings({ defaultPageDirection });
+      renderers.updateReadingDirectionEpubButtonLabel();
+      return;
+    }
     userOverrodeDirection = true;
     const nextDirection =
       pageDirection === READING_DIRECTIONS.RTL ? READING_DIRECTIONS.LTR : READING_DIRECTIONS.RTL;
@@ -3432,11 +3435,6 @@ function setupEvents() {
   elements.settingsDefaultWritingMode?.addEventListener('change', (e) => {
     defaultWritingMode = e.target.value;
     storage.setSettings({ defaultWritingMode });
-  });
-
-  elements.settingsDefaultPageDirection?.addEventListener('change', (e) => {
-    defaultPageDirection = e.target.value;
-    storage.setSettings({ defaultPageDirection });
   });
 
   elements.settingsDefaultImageViewMode?.addEventListener('change', (e) => {

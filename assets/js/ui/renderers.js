@@ -242,7 +242,7 @@ export function updateFloatingUIButtons() {
     }
 
     if (elements.toggleReadingDirectionEpub) {
-        if (isEpub) {
+        if (isEpub || !isBookOpen) {
             setElementVisibility(elements.toggleReadingDirectionEpub, true);
             elements.toggleReadingDirectionEpub.disabled = false;
             elements.toggleReadingDirectionEpub.style.opacity = "";
@@ -385,7 +385,9 @@ export function updateEpubScrollMode() {
 
 export function updateReadingDirectionEpubButtonLabel() {
     if (!elements.toggleReadingDirectionEpub) return;
-    const isRtl = _state.pageDirection === READING_DIRECTIONS.RTL;
+    const isBookOpen = !!_state.currentBookInfo?.type;
+    const current = isBookOpen ? _state.pageDirection : _state.defaultPageDirection;
+    const isRtl = current === READING_DIRECTIONS.RTL;
     const label = isRtl ? t("pageDirectionRtlButton") : t("pageDirectionLtrButton");
     setFloatEmojiLabel(elements.toggleReadingDirectionEpub, UI_ICONS.READING_DIRECTION_TOGGLE, label);
     elements.toggleReadingDirectionEpub.title = isRtl ? t("readingDirectionRtlTitle") : t("readingDirectionLtrTitle");
