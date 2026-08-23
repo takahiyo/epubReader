@@ -1313,8 +1313,7 @@ async function handleFile(file, overrideBookId = null) {
         if (cloudBookId) {
           const cloudEntry = storage.data.cloudIndex?.[cloudBookId];
           if (!cloudEntry || !cloudEntry.fingerprints || !cloudEntry.fingerprints.includes(contentHash)) {
-            console.log(`[handleFile] Existing cloudBookId ${cloudBookId} has no matching fingerprint; resetting for fingerprint search`);
-            cloudBookId = null;
+            console.log(`[handleFile] Existing cloudBookId ${cloudBookId} has no matching fingerprint. Keeping the link to update the cloud index.`);
           }
         }
 
