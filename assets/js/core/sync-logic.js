@@ -453,7 +453,7 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                             const info = _storage.data.library[localBookId];
                             if (info) {
                                 const indexMeta = _storage.data.cloudIndex?.[cloudBookId];
-                                const fingerprint = indexMeta?.fingerprint || info.fingerprint;
+                                const fingerprint = indexMeta?.fingerprints?.[0] || info.contentHash;
                                 await upsertCloudIndexEntry(cloudBookId, info, fingerprint, {
                                     storage: _storage,
                                     cloudSync: _cloudSync,
@@ -912,7 +912,7 @@ export async function pushCurrentBookSync(currentBookId, currentCloudBookId) {
                 console.log(`[pushCurrentBookSync] Updating cloud index meta for ${currentBookId}...`);
                 const settings = _storage.getSettings();
                 const indexMeta = _storage.data.cloudIndex?.[currentCloudBookId];
-                const fingerprint = indexMeta?.fingerprint || info.fingerprint;
+                const fingerprint = indexMeta?.fingerprints?.[0] || info.contentHash;
 
                 await upsertCloudIndexEntry(currentCloudBookId, info, fingerprint, {
                     storage: _storage,
