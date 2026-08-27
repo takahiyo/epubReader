@@ -4051,6 +4051,11 @@ function setupEvents() {
         showBookmarks();
         break;
       }
+      case 'openFile': {
+        e.preventDefault();
+        openFileDialog();
+        break;
+      }
     }
   });
 
