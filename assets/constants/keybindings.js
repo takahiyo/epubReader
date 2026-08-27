@@ -7,6 +7,7 @@ export const DEFAULT_KEY_BINDINGS = Object.freeze({
   toggleMenu: [' '],
   toggleToc: ['t', 'T'],
   toggleBookmark: ['b', 'B'],
+  openFile: ['o', 'O'],
 });
 
 export const KEY_ACTION_LABELS = Object.freeze({
@@ -18,4 +19,5 @@ export const KEY_ACTION_LABELS = Object.freeze({
   toggleMenu: 'keyToggleMenu',
   toggleToc: 'keyToggleToc',
   toggleBookmark: 'keyToggleBookmark',
+  openFile: 'keyOpenFile',
 });

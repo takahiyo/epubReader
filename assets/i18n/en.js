@@ -112,6 +112,7 @@ export const UI_STRINGS_EN = Object.freeze({
   keyToggleMenu: "Toggle menu",
   keyToggleToc: "Table of Contents",
   keyToggleBookmark: "Bookmark",
+  keyOpenFile: "Open",
   keybindingReset: "Reset",
   keybindingResetAll: "Reset all to defaults",
   keybindingRecording: "Press a key...",

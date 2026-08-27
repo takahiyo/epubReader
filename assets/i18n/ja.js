@@ -112,6 +112,7 @@ export const UI_STRINGS_JA = Object.freeze({
   keyToggleMenu: "メニュー切替",
   keyToggleToc: "目次",
   keyToggleBookmark: "しおり",
+  keyOpenFile: "開く",
   keybindingReset: "リセット",
   keybindingResetAll: "すべてデフォルトに戻す",
   keybindingRecording: "キーを押してください...",

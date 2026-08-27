@@ -171,6 +171,7 @@ export function buildLibraryEntries(uiLanguage) {
 
     Object.entries(cloudIndex).forEach(([cloudBookId, meta]) => {
         if (!cloudBookId || !meta) return;
+        if (meta.isDeleted) return;
         const normalizedMeta = { ...meta, cloudBookId: meta.cloudBookId ?? cloudBookId };
         const localBookId = localByCloudId[cloudBookId] ?? null;
         const localInfo = localBookId ? localLibrary[localBookId] : null;
@@ -327,9 +328,17 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 if (!_storage.getCloudBookId(localBookId)) {
                     const book = currentLibrary[localBookId];
                     if (book && book.contentHash) {
-                        const match = Object.values(index).find(
-                            (cloudItem) => cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+                        let match = Object.values(index).find(
+                            (cloudItem) => !cloudItem.isDeleted && cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
                         );
+                        if (!match) {
+                            match = Object.values(index).find(
+                                (cloudItem) => !cloudItem.isDeleted && cloudItem.title === book.title && (cloudItem.author || "") === (book.author || "")
+                            );
+                            if (match) {
+                                debugLog(`[Sync] Fallback title-matching local book "${book.title}" to cloud ID: ${match.cloudBookId}`);
+                            }
+                        }
                         if (match && match.cloudBookId) {
                             debugLog(`[Sync] Auto-linking local book "${book.title}" to cloud ID: ${match.cloudBookId} (Pre-pull)`);
                             _storage.setBookLink(localBookId, match.cloudBookId);
@@ -389,9 +398,17 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 }
 
                 if (!cloudBookId) {
-                    const matchEntry = Object.values(remoteIndex).find(
-                        (entry) => entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
+                    let matchEntry = Object.values(remoteIndex).find(
+                        (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
                     );
+                    if (!matchEntry) {
+                        matchEntry = Object.values(remoteIndex).find(
+                            (entry) => !entry.isDeleted && entry.title === localBook.title && (entry.author || "") === (localBook.author || "")
+                        );
+                        if (matchEntry) {
+                            debugLog(`[Sync] Fallback title-matching local book "${localBook.title}" to cloud ID: ${matchEntry.cloudBookId}`);
+                        }
+                    }
 
                     if (matchEntry && matchEntry.cloudBookId) {
                         debugLog(`[Sync] Linking local book "${localBook.title}" to existing cloud book: ${matchEntry.cloudBookId}`);
@@ -658,6 +675,10 @@ async function pullUpdatedBookStates(indexDelta) {
         try {
             const localId = findLocalIdByCloudId(cloudBookId);
             const remoteMeta = indexDelta[cloudBookId];
+            if (remoteMeta?.isDeleted) {
+                _storage.removeCloudData(cloudBookId);
+                continue;
+            }
             const localState = _storage.getCloudState(cloudBookId);
 
             // cloudState が存在しない場合は無条件でプル
