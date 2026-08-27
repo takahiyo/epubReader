@@ -1319,9 +1319,17 @@ async function handleFile(file, overrideBookId = null) {
 
         if (!cloudBookId) {
           const cloudIndex = storage.data.cloudIndex ?? {};
-          const localMatch = Object.values(cloudIndex).find(
-            (entry) => entry.fingerprints && entry.fingerprints.includes(contentHash)
+          let localMatch = Object.values(cloudIndex).find(
+            (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(contentHash)
           );
+          if (!localMatch) {
+            localMatch = Object.values(cloudIndex).find(
+              (entry) => !entry.isDeleted && entry.title === info.title && (entry.author || "") === (info.author || "")
+            );
+            if (localMatch) {
+              console.log(`[handleFile] Fallback matched book by title/author in local cloud index: ${localMatch.cloudBookId}`);
+            }
+          }
           if (localMatch && localMatch.cloudBookId) {
             console.log(`[handleFile] Matched book in local cloud index: ${localMatch.cloudBookId}`);
             cloudBookId = localMatch.cloudBookId;
@@ -1345,9 +1353,17 @@ async function handleFile(file, overrideBookId = null) {
             console.log('[handleFile] Fingerprint not found in local cache; attempting full index pull...');
             const fullIndex = await cloudSync.pullIndexFull();
             if (fullIndex && typeof fullIndex === 'object' && Object.keys(fullIndex).length > 0) {
-              const fullMatch = Object.values(fullIndex).find(
-                (entry) => entry.fingerprints && entry.fingerprints.includes(contentHash)
+              let fullMatch = Object.values(fullIndex).find(
+                (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(contentHash)
               );
+              if (!fullMatch) {
+                fullMatch = Object.values(fullIndex).find(
+                  (entry) => !entry.isDeleted && entry.title === info.title && (entry.author || "") === (info.author || "")
+                );
+                if (fullMatch) {
+                  console.log(`[handleFile] Fallback matched in fresh full index by title/author: ${fullMatch.cloudBookId}`);
+                }
+              }
               if (fullMatch && fullMatch.cloudBookId) {
                 console.log(`[handleFile] Matched book in fresh full index: ${fullMatch.cloudBookId}`);
                 cloudBookId = fullMatch.cloudBookId;
@@ -3006,13 +3022,27 @@ async function commitPendingDeletes() {
   for (const { id, type } of pendingDeletes.values()) {
     try {
       if (type === 'local') {
+        const cloudBookId = storage.getCloudBookId(id);
         // ローカルファイル削除
         await deleteBook(id);
         // storageからも削除（リンクされたクラウドデータ含む）
         storage.removeBook(id);
+        
+        if (cloudBookId && syncLogic.isCloudSyncEnabled()) {
+          const meta = storage.data.cloudIndex[cloudBookId];
+          if (meta) {
+            await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
+          }
+        }
       } else if (type === 'cloud') {
         // クラウドデータのみ削除
         storage.removeCloudData(id);
+        if (syncLogic.isCloudSyncEnabled()) {
+          const meta = storage.data.cloudIndex[id];
+          if (meta) {
+            await cloudSync.pushIndexDelta({ [id]: meta }, meta.updatedAt);
+          }
+        }
       }
       console.log(`[commitPendingDeletes] 削除完了 (${type}): ${id}`);
     } catch (error) {

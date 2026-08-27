@@ -384,7 +384,12 @@ export class StorageService {
    */
   removeCloudData(cloudBookId) {
     if (!cloudBookId) return;
-    delete this.data.cloudIndex[cloudBookId];
+    const meta = this.data.cloudIndex[cloudBookId] ?? {};
+    this.data.cloudIndex[cloudBookId] = {
+      ...meta,
+      isDeleted: true,
+      updatedAt: Date.now(),
+    };
     delete this.data.cloudStates[cloudBookId];
     this.save();
   }
