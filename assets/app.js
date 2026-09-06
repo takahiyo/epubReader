@@ -3577,12 +3577,14 @@ function setupEvents() {
     if (key === ' ' || key.toLowerCase() === 'space') {
       return strings.keyNameSpace || 'スペース';
     }
+    if (key.toLowerCase() === 'enter') {
+      return strings.keyNameEnter || 'エンター';
+    }
     const specialMap = {
       arrowleft: '←',
       arrowright: '→',
       arrowup: '↑',
       arrowdown: '↓',
-      enter: 'Enter',
       escape: 'Esc',
       backspace: 'Backspace',
       tab: 'Tab',

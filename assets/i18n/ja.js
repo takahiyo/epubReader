@@ -126,6 +126,7 @@ export const UI_STRINGS_JA = Object.freeze({
   keybindingResetAll: "すべてデフォルトに戻す",
   keybindingRecording: "キーを押してください...",
   keyNameSpace: "スペース",
+  keyNameEnter: "エンター",
 
   // アカウント
   settingsAccountTitle: "アカウント",
