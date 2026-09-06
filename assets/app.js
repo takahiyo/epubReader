@@ -4042,14 +4042,28 @@ function setupEvents() {
     let userBindings = settings.keyBindings;
     // 既存設定の自動マイグレーション: 過去の逆転バグで pagePrev に z / pageNext に x が入っていたら正常な順序（z=進む, x=戻る）に補正
     if (userBindings) {
+      let changed = false;
       const prevKeys = (userBindings.pagePrev || []).map(k => k.toLowerCase());
       const nextKeys = (userBindings.pageNext || []).map(k => k.toLowerCase());
       if (prevKeys.includes('z') || nextKeys.includes('x')) {
         const fixedPrev = (userBindings.pagePrev || []).filter(k => k.toLowerCase() !== 'z' && k.toLowerCase() !== 'x');
-        if (!fixedPrev.some(k => k.toLowerCase() === 'x')) fixedPrev.push('x');
+        if (!fixedPrev.some(k => k.toLowerCase() === 'x')) fixedPrev.unshift('x');
         const fixedNext = (userBindings.pageNext || []).filter(k => k.toLowerCase() !== 'z' && k.toLowerCase() !== 'x');
-        if (!fixedNext.some(k => k.toLowerCase() === 'z')) fixedNext.push('z');
+        if (!fixedNext.some(k => k.toLowerCase() === 'z')) fixedNext.unshift('z');
         userBindings = { ...userBindings, pagePrev: fixedPrev, pageNext: fixedNext };
+        changed = true;
+      }
+      const sPrevKeys = (userBindings.singlePrev || []).map(k => k.toLowerCase());
+      const sNextKeys = (userBindings.singleNext || []).map(k => k.toLowerCase());
+      if (sPrevKeys.includes('a') || sNextKeys.includes('s')) {
+        const fixedSPrev = (userBindings.singlePrev || []).filter(k => k.toLowerCase() !== 'a' && k.toLowerCase() !== 's');
+        if (!fixedSPrev.some(k => k.toLowerCase() === 's')) fixedSPrev.unshift('s');
+        const fixedSNext = (userBindings.singleNext || []).filter(k => k.toLowerCase() !== 'a' && k.toLowerCase() !== 's');
+        if (!fixedSNext.some(k => k.toLowerCase() === 'a')) fixedSNext.unshift('a');
+        userBindings = { ...userBindings, singlePrev: fixedSPrev, singleNext: fixedSNext };
+        changed = true;
+      }
+      if (changed) {
         settings.keyBindings = userBindings;
         storage.setSettings({ keyBindings: userBindings });
       }
