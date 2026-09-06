@@ -2511,6 +2511,12 @@ function applyUiLanguage(nextLanguage) {
   if (elements.librarySearchInput) {
     elements.librarySearchInput.placeholder = strings.library_search_placeholder;
   }
+  const sortDateOpt = document.getElementById("librarySortDateOpt");
+  if (sortDateOpt) sortDateOpt.textContent = strings.librarySortDate;
+  const sortTitleOpt = document.getElementById("librarySortTitleOpt");
+  if (sortTitleOpt) sortTitleOpt.textContent = strings.librarySortTitle;
+  const sortProgressOpt = document.getElementById("librarySortProgressOpt");
+  if (sortProgressOpt) sortProgressOpt.textContent = strings.librarySortProgress;
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
@@ -3401,6 +3407,18 @@ function setupEvents() {
 
   elements.libraryViewGrid?.addEventListener('click', () => applyLibraryViewMode("grid"));
   elements.libraryViewList?.addEventListener('click', () => applyLibraryViewMode("list"));
+
+  elements.librarySortKey?.addEventListener('change', (e) => {
+    storage.saveSettings({ librarySortKey: e.target.value });
+    renderers.renderLibrary();
+  });
+
+  elements.librarySortOrder?.addEventListener('click', () => {
+    const currentOrder = storage.getSettings().librarySortOrder ?? "desc";
+    const nextOrder = currentOrder === "asc" ? "desc" : "asc";
+    storage.saveSettings({ librarySortOrder: nextOrder });
+    renderers.renderLibrary();
+  });
 
   // 進捗バーのページ入力
   let isEditingProgress = false;

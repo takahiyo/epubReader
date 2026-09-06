@@ -15,6 +15,8 @@
   inset: 0;
   background: var(--reader-bg);
   color: var(--reader-text);
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 /* モードインジケーター (Paginated / Scroll) */
@@ -234,8 +236,13 @@ body.epub-img-original-size .reader-fullscreen-img {
 - LAYER: なし
 - SPLIT: GROUP
 ===================================== */
+.fullscreen-reader:has(#imageViewer:not(.hidden)) .click-overlay,
 .viewer.visible~.click-overlay {
   display: block;
+}
+
+.fullscreen-reader:has(#imageViewer:not(.hidden)) .click-overlay {
+  z-index: 25;
 }
 
 /* =====================================

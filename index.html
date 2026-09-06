@@ -317,6 +317,14 @@
           <div class="library-controls">
             <h4 id="librarySectionTitle"></h4>
             <input type="text" id="library-search-input" class="library-search-input" placeholder="" />
+            <div class="library-sort-container">
+              <select id="librarySortKey" class="library-sort-select" aria-label="並び替え">
+                <option value="date" id="librarySortDateOpt">読書日付</option>
+                <option value="title" id="librarySortTitleOpt">書籍名</option>
+                <option value="progress" id="librarySortProgressOpt">進捗</option>
+              </select>
+              <button id="librarySortOrder" class="library-sort-order-btn" type="button" aria-label="昇降順切替" title="降順">↓</button>
+            </div>
             <div class="library-view-toggle">
               <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="">🔲</button>
               <button id="libraryViewList" class="library-view-btn" type="button" aria-label="">📄</button>

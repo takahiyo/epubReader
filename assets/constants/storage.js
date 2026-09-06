@@ -84,5 +84,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   progressOverlayEnabled: false,
   progressOverlayPosition: "bottom-left",
   keyBindings: null,
+  librarySortKey: "date",
+  librarySortOrder: "desc",
 });
 
