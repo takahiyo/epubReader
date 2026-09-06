@@ -3578,21 +3578,10 @@ function setupEvents() {
     const strings = getUiStrings(uiLanguage);
     const actionOrder = Object.keys(DEFAULT_KEY_BINDINGS);
     container.innerHTML = '';
-    for (const originalAction of actionOrder) {
-      let dataAction = originalAction;
-      const readingDirection = reader?.type === BOOK_TYPES.EPUB
-        ? (pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL)
-        : (reader?.imageReadingDirection || defaultPageDirection || READING_DIRECTIONS.RTL);
-      if (readingDirection === READING_DIRECTIONS.LTR) {
-        if (originalAction === 'pagePrev') dataAction = 'pageNext';
-        else if (originalAction === 'pageNext') dataAction = 'pagePrev';
-        else if (originalAction === 'singlePrev') dataAction = 'singleNext';
-        else if (originalAction === 'singleNext') dataAction = 'singlePrev';
-      }
-
-      const keys = bindings[dataAction] || DEFAULT_KEY_BINDINGS[dataAction] || [];
-      const labelKey = KEY_ACTION_LABELS[originalAction];
-      const label = strings[labelKey] || originalAction;
+    for (const action of actionOrder) {
+      const keys = bindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
+      const labelKey = KEY_ACTION_LABELS[action];
+      const label = strings[labelKey] || action;
       const row = document.createElement('div');
       row.className = 'keybinding-row';
       const labelSpan = document.createElement('span');
@@ -3601,7 +3590,7 @@ function setupEvents() {
       row.appendChild(labelSpan);
       const badgesContainer = document.createElement('div');
       badgesContainer.className = 'keybinding-badges';
-      badgesContainer.dataset.action = dataAction;
+      badgesContainer.dataset.action = action;
       for (let i = 0; i < keys.length; i++) {
         const badge = document.createElement('span');
         badge.className = 'keybinding-badge';
@@ -4046,11 +4035,26 @@ function setupEvents() {
   // キーボード操作（設定からキーバインドを取得、未設定ならデフォルト）
   let keyMap = {};
   function rebuildKeyMap() {
-    const userBindings = settings.keyBindings || {};
+    let userBindings = settings.keyBindings;
+    // 既存設定の自動マイグレーション: 過去の逆転バグで pagePrev に z / pageNext に x が入っていたら正常な順序（z=進む, x=戻る）に補正
+    if (userBindings) {
+      const prevKeys = (userBindings.pagePrev || []).map(k => k.toLowerCase());
+      const nextKeys = (userBindings.pageNext || []).map(k => k.toLowerCase());
+      if (prevKeys.includes('z') || nextKeys.includes('x')) {
+        const fixedPrev = (userBindings.pagePrev || []).filter(k => k.toLowerCase() !== 'z' && k.toLowerCase() !== 'x');
+        if (!fixedPrev.some(k => k.toLowerCase() === 'x')) fixedPrev.push('x');
+        const fixedNext = (userBindings.pageNext || []).filter(k => k.toLowerCase() !== 'z' && k.toLowerCase() !== 'x');
+        if (!fixedNext.some(k => k.toLowerCase() === 'z')) fixedNext.push('z');
+        userBindings = { ...userBindings, pagePrev: fixedPrev, pageNext: fixedNext };
+        settings.keyBindings = userBindings;
+        storage.setSettings({ keyBindings: userBindings });
+      }
+    }
+    const currentBindings = userBindings || {};
     keyMap = {};
-    const allActions = [...new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(userBindings)])];
+    const allActions = [...new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(currentBindings)])];
     for (const action of allActions) {
-      const keys = userBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
+      const keys = currentBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
       for (const key of keys) {
         keyMap[key.toLowerCase()] = action;
       }
