@@ -224,6 +224,11 @@ syncLogic.init({
   },
 });
 
+// 起動時にローカルの重複クラウドデータを整理
+syncLogic.deduplicateCloudIndex?.().catch((err) => {
+  console.warn("起動時クラウドインデックス重複整理エラー:", err);
+});
+
 // 認証状態のキャッシュ
 let currentUserData = null;
 

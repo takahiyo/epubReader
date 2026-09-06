@@ -227,8 +227,151 @@ export function buildLibraryEntries(uiLanguage) {
         });
     });
 
-    entries.sort((a, b) => (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0));
-    return entries;
+    // タイトル + 著者での重複排除（クラウド同士、またはクラウドと未リンクローカルが重複した場合のセーフガード）
+    const deduplicatedEntries = [];
+    const seenMap = new Map();
+
+    for (const entry of entries) {
+        const key = `${entry.title}:::${entry.author || ""}`;
+        if (!seenMap.has(key)) {
+            seenMap.set(key, entry);
+            deduplicatedEntries.push(entry);
+        } else {
+            const existing = seenMap.get(key);
+            // 既存よりローカルファイルがある方を優先、または進捗率が高い／日時が新しい方を優先
+            const preferNew = 
+                (!existing.hasLocalFile && entry.hasLocalFile) ||
+                (existing.hasLocalFile === entry.hasLocalFile && entry.progressPercentage > existing.progressPercentage) ||
+                (existing.hasLocalFile === entry.hasLocalFile && entry.progressPercentage === existing.progressPercentage && (entry.lastTimestamp ?? 0) > (existing.lastTimestamp ?? 0));
+
+            if (preferNew) {
+                const idx = deduplicatedEntries.indexOf(existing);
+                if (idx !== -1) {
+                    deduplicatedEntries[idx] = entry;
+                }
+                seenMap.set(key, entry);
+            }
+        }
+    }
+
+    deduplicatedEntries.sort((a, b) => (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0));
+    return deduplicatedEntries;
+}
+
+/**
+ * cloudIndex 内の重複（同一タイトル・同一著者）を検出し、1つに統合して不要な方を isDeleted で削除・同期する
+ */
+export async function deduplicateCloudIndex() {
+    if (!_storage) return;
+    const cloudIndex = _storage.data.cloudIndex ?? {};
+    const entries = Object.entries(cloudIndex).filter(([_, meta]) => meta && !meta.isDeleted);
+    if (entries.length <= 1) return;
+
+    // タイトル + 著者 でグループ化
+    const groups = new Map();
+    for (const [cloudBookId, meta] of entries) {
+        const title = meta.title ?? "";
+        if (!title) continue;
+        const key = `${title}:::${meta.author ?? ""}`;
+        if (!groups.has(key)) {
+            groups.set(key, []);
+        }
+        groups.get(key).push({ cloudBookId, meta });
+    }
+
+    const deltaToPush = {};
+    let hasChanges = false;
+    const bookLinkMap = _storage.data.bookLinkMap ?? {};
+    const localByCloudId = Object.entries(bookLinkMap).reduce((acc, [localId, cloudId]) => {
+        acc[cloudId] = localId;
+        return acc;
+    }, {});
+
+    for (const [key, list] of groups.entries()) {
+        if (list.length <= 1) continue;
+
+        debugLog(`[Sync] Found duplicate cloud entries for "${key}":`, list.map(item => item.cloudBookId));
+
+        // 優先度順にソート:
+        // 1. ローカル本とリンクされているものを優先
+        // 2. クラウド読書進捗が高い方を優先
+        // 3. 更新日時が新しい方を優先
+        list.sort((a, b) => {
+            const hasLocalA = Boolean(localByCloudId[a.cloudBookId]);
+            const hasLocalB = Boolean(localByCloudId[b.cloudBookId]);
+            if (hasLocalA !== hasLocalB) return hasLocalA ? -1 : 1;
+
+            const stateA = _storage.getCloudState(a.cloudBookId);
+            const stateB = _storage.getCloudState(b.cloudBookId);
+            const progA = stateA?.progress ?? 0;
+            const progB = stateB?.progress ?? 0;
+            if (progA !== progB) return progB - progA;
+
+            const timeA = stateA?.updatedAt ?? a.meta.updatedAt ?? 0;
+            const timeB = stateB?.updatedAt ?? b.meta.updatedAt ?? 0;
+            return timeB - timeA;
+        });
+
+        const primary = list[0];
+        const duplicates = list.slice(1);
+
+        // 指紋（fingerprints）をプライマリに統合
+        const mergedFingerprints = new Set(primary.meta.fingerprints ?? []);
+        duplicates.forEach(d => {
+            (d.meta.fingerprints ?? []).forEach(fp => mergedFingerprints.add(fp));
+        });
+
+        const primaryMeta = {
+            ...primary.meta,
+            fingerprints: Array.from(mergedFingerprints),
+            updatedAt: Date.now()
+        };
+
+        // ローカルの cloudIndex にプライマリを保存
+        _storage.data.cloudIndex[primary.cloudBookId] = primaryMeta;
+        deltaToPush[primary.cloudBookId] = primaryMeta;
+        hasChanges = true;
+
+        // 重複側を削除フラグ (isDeleted: true) にし、リンクをプライマリへ付け替え
+        for (const dup of duplicates) {
+            const dupMeta = {
+                ...dup.meta,
+                isDeleted: true,
+                updatedAt: Date.now()
+            };
+            _storage.data.cloudIndex[dup.cloudBookId] = dupMeta;
+            deltaToPush[dup.cloudBookId] = dupMeta;
+
+            // ローカルリンクの付け替え
+            for (const [localId, linkedCloudId] of Object.entries(_storage.data.bookLinkMap ?? {})) {
+                if (linkedCloudId === dup.cloudBookId) {
+                    debugLog(`[Sync] Re-linking local book ${localId} from duplicate ${dup.cloudBookId} to primary ${primary.cloudBookId}`);
+                    _storage.setBookLink(localId, primary.cloudBookId);
+                }
+            }
+
+            // クラウドステータスの統合・クリーンアップ
+            const dupState = _storage.getCloudState(dup.cloudBookId);
+            const primaryState = _storage.getCloudState(primary.cloudBookId);
+            if (dupState && (!primaryState || (dupState.progress ?? 0) > (primaryState.progress ?? 0))) {
+                _storage.setCloudState(primary.cloudBookId, dupState);
+            }
+            _storage.removeCloudData(dup.cloudBookId);
+        }
+    }
+
+    if (hasChanges) {
+        _storage.save();
+        if (isCloudSyncEnabled() && _cloudSync?.pushIndexDelta) {
+            try {
+                debugLog("[Sync] Pushing deduplication tombstone delta to D1:", deltaToPush);
+                await _cloudSync.pushIndexDelta(deltaToPush, Date.now());
+                debugLog("[Sync] Successfully pushed deduplication tombstone delta to D1.");
+            } catch (err) {
+                console.warn("[Sync] Failed to push deduplication delta to D1:", err);
+            }
+        }
+    }
 }
 
 /**
@@ -320,6 +463,8 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 _storage.mergeCloudIndex(index, safeUpdatedAt);
                 didApplyIndex = true;
 
+                // 重複したクラウド書籍があれば自動統合しD1へ削除同期
+                await deduplicateCloudIndex();
             }
 
             // 未リンクのローカル書籍とクラウドインデックスの自動紐付け
@@ -327,11 +472,14 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
             Object.keys(currentLibrary).forEach((localBookId) => {
                 if (!_storage.getCloudBookId(localBookId)) {
                     const book = currentLibrary[localBookId];
-                    if (book && book.contentHash) {
-                        let match = Object.values(index).find(
-                            (cloudItem) => !cloudItem.isDeleted && cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
-                        );
-                        if (!match) {
+                    if (book && (book.contentHash || book.title)) {
+                        let match = null;
+                        if (book.contentHash) {
+                            match = Object.values(index).find(
+                                (cloudItem) => !cloudItem.isDeleted && cloudItem.fingerprints && cloudItem.fingerprints.includes(book.contentHash)
+                            );
+                        }
+                        if (!match && book.title) {
                             match = Object.values(index).find(
                                 (cloudItem) => !cloudItem.isDeleted && cloudItem.title === book.title && (cloudItem.author || "") === (book.author || "")
                             );
@@ -398,10 +546,13 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                 }
 
                 if (!cloudBookId) {
-                    let matchEntry = Object.values(remoteIndex).find(
-                        (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
-                    );
-                    if (!matchEntry) {
+                    let matchEntry = null;
+                    if (localBook.contentHash) {
+                        matchEntry = Object.values(remoteIndex).find(
+                            (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(localBook.contentHash)
+                        );
+                    }
+                    if (!matchEntry && localBook.title) {
                         matchEntry = Object.values(remoteIndex).find(
                             (entry) => !entry.isDeleted && entry.title === localBook.title && (entry.author || "") === (localBook.author || "")
                         );
@@ -426,6 +577,8 @@ export async function syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode, opt
                     }
                 }
             }
+            // プッシュ後にも重複チェック＆削除同期を実行
+            await deduplicateCloudIndex();
         } catch (error) {
             console.error('[syncAllBooksFromCloud] Failed to upload local books:', error);
             console.warn("ローカル書籍のアップロードに失敗しました:", error);
