@@ -234,7 +234,7 @@ export class ReaderController {
     this.imageLoadToken = 0;
     this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
-    this.imageReadingDirection = READING_DIRECTIONS.LTR; // READING_DIRECTIONS.LTR = 左開き, READING_DIRECTIONS.RTL = 右開き
+    this.imageReadingDirection = READING_DIRECTIONS.RTL; // READING_DIRECTIONS.LTR = 左綴じ, READING_DIRECTIONS.RTL = 右綴じ
     this.imageZoomed = false;
     this.longPressZoomEnabled = true;
     this.longPressZoomScale = LONG_PRESS_ZOOM_CONFIG.DEFAULT_SCALE;
@@ -243,7 +243,7 @@ export class ReaderController {
     this.repaginationRequestId = 0;
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
-    this.pageDirection = READING_DIRECTIONS.LTR;
+    this.pageDirection = READING_DIRECTIONS.RTL;
     this.epubViewMode = EPUB_VIEW_MODES.PAGINATED;
     this.preferredWritingMode = null;
     this.paginator = null;
@@ -453,6 +453,7 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageReadingDirection = READING_DIRECTIONS.RTL;
     this.imageZoomed = false;
     if (this.currentPaginationRun) {
       this.currentPaginationRun.cancelled = true;
@@ -3656,6 +3657,9 @@ export class ReaderController {
 
   async openImageBook(file, startPage = 0, bookType = null, options = {}) {
     this.resetReaderState();
+    if (options.readingDirection === READING_DIRECTIONS.LTR || options.readingDirection === READING_DIRECTIONS.RTL) {
+      this.imageReadingDirection = options.readingDirection;
+    }
     this.toc = [];
     void bookType;
     this.imageArchiveSize = file?.size ?? 0;

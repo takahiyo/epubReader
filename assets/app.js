@@ -1452,7 +1452,10 @@ async function handleFile(file, overrideBookId = null) {
         fileToOpen,
         typeof startLocation === "number" ? startLocation : 0,
         type,
-        { streaming: useStreaming }
+        {
+          streaming: useStreaming,
+          readingDirection: syncedProgress?.pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL,
+        }
       );
     }
 
@@ -1836,7 +1839,10 @@ async function openFromLibrary(bookId, options = {}) {
 
       // 通常保存された画像書庫でも、現在の端末メモリに対して大きすぎる場合はストリーミングに切替
       const streamingNeeded = (info.type === BOOK_TYPES.ZIP) && fileHandler.shouldUseStreaming(file);
-      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, { streaming: streamingNeeded });
+      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, {
+        streaming: streamingNeeded,
+        readingDirection: normalizedProgress?.pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL,
+      });
     }
     } // End of else (not WEB_NOVEL)
 
@@ -3330,7 +3336,7 @@ function setupEvents() {
     renderers.updateSpreadModeButtonLabel();
   });
 
-  // 左開き/右開き切替ボタン (画像用)
+  // 左綴じ/右綴じ切替ボタン (画像用)
   elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     const nextDirection = reader.toggleImageReadingDirection();
     pageDirection = nextDirection;
@@ -3339,8 +3345,8 @@ function setupEvents() {
     renderers.updateProgressBarDirection();
   });
 
-  // 左開き/右開き切替ボタン (EPUB用)
-  // 書籍未オープン時はアカウントのデフォルト開き方向、オープン時はその書籍の開き方向を変更する
+  // 左綴じ/右綴じ切替ボタン (EPUB用)
+  // 書籍未オープン時はアカウントのデフォルト綴じ方向、オープン時はその書籍の綴じ方向を変更する
   elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
     const isBookOpen = !!currentBookInfo?.type;
     if (!isBookOpen) {
@@ -3574,7 +3580,9 @@ function setupEvents() {
     container.innerHTML = '';
     for (const originalAction of actionOrder) {
       let dataAction = originalAction;
-      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
+      const readingDirection = reader?.type === BOOK_TYPES.EPUB
+        ? (pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL)
+        : (reader?.imageReadingDirection || defaultPageDirection || READING_DIRECTIONS.RTL);
       if (readingDirection === READING_DIRECTIONS.LTR) {
         if (originalAction === 'pagePrev') dataAction = 'pageNext';
         else if (originalAction === 'pageNext') dataAction = 'pagePrev';
@@ -4061,10 +4069,12 @@ function setupEvents() {
     const action = keyMap[e.key.toLowerCase()];
     if (!action) return;
 
-    // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
+    // 綴じ方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
     let resolvedAction = action;
     if (action === 'pagePrev' || action === 'pageNext' || action === 'singlePrev' || action === 'singleNext') {
-      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
+      const readingDirection = reader?.type === BOOK_TYPES.EPUB
+        ? (pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL)
+        : (reader?.imageReadingDirection || defaultPageDirection || READING_DIRECTIONS.RTL);
       if (readingDirection === READING_DIRECTIONS.LTR) {
         if (action === 'pagePrev') resolvedAction = 'pageNext';
         else if (action === 'pageNext') resolvedAction = 'pagePrev';

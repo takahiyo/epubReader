@@ -32,12 +32,12 @@ export const UI_DEFAULTS = Object.freeze({
   uiLanguage: "en",
   fontSize: 16,
   progressDisplayMode: "page",
-  defaultDirection: READING_DIRECTIONS.LTR,
+  defaultDirection: READING_DIRECTIONS.RTL,
   libraryViewMode: "grid",
   imageViewMode: IMAGE_VIEW_MODES.SINGLE,
   epubViewMode: EPUB_VIEW_MODES.PAGINATED,
   writingMode: WRITING_MODES.HORIZONTAL,
-  pageDirection: READING_DIRECTIONS.LTR,
+  pageDirection: READING_DIRECTIONS.RTL,
   bookmarkMenuMode: "current",
   legacyDirectionMap: Object.freeze({
     [READING_DIRECTIONS.RTL]: Object.freeze({

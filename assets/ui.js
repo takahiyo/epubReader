@@ -54,7 +54,7 @@ export class UIController {
     this.isFloatVisible = options.isFloatVisible || (() => false);
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
-    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
+    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.RTL);
     this.getEpubViewMode = options.getEpubViewMode || (() => EPUB_VIEW_MODES.PAGINATED);
     /** 長押しズーム解除直後かどうかを返すコールバック */
     this.isLongPressZoomJustEnded = options.isLongPressZoomJustEnded || (() => false);
