@@ -113,6 +113,9 @@ export const elements = {
     libraryGrid: getById(DOM_IDS.LIBRARY_GRID),
     libraryViewGrid: getById(DOM_IDS.LIBRARY_VIEW_GRID),
     libraryViewList: getById(DOM_IDS.LIBRARY_VIEW_LIST),
+    libraryViewToggle: getById(DOM_IDS.LIBRARY_VIEW_TOGGLE),
+    librarySortKey: getById(DOM_IDS.LIBRARY_SORT_KEY),
+    librarySortOrder: getById(DOM_IDS.LIBRARY_SORT_ORDER),
     librarySearchInput: getById("library-search-input"),
 
     // 履歴
@@ -155,6 +158,7 @@ export const elements = {
     settingsModalTitle: getById(DOM_IDS.SETTINGS_MODAL_TITLE),
     settingsDisplayTitle: getById(DOM_IDS.SETTINGS_DISPLAY_TITLE),
     settingsOperationTitle: getById(DOM_IDS.SETTINGS_OPERATION_TITLE),
+    keybindingsHint: getById("keybindingsHint"),
     keybindingsList: getById("keybindingsList"),
     resetAllKeybindings: getById("resetAllKeybindings"),
     settingsDeviceTitle: getById(DOM_IDS.SETTINGS_DEVICE_TITLE),

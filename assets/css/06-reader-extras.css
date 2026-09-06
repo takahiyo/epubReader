@@ -18,6 +18,8 @@
   background: var(--reader-bg);
   padding: var(--reader-safe-block) var(--reader-safe-inline);
   touch-action: none;
+  overscroll-behavior: none;
+  cursor: pointer;
   -webkit-user-drag: none;
   user-select: none;
 }
@@ -75,7 +77,7 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  cursor: default;
+  cursor: pointer;
   transform-origin: 0 0;
   will-change: transform;
   touch-action: none;
@@ -106,6 +108,8 @@
   transform-origin: 0 0;
   will-change: transform;
   touch-action: none;
+  overscroll-behavior: none;
+  cursor: pointer;
   -webkit-user-drag: none;
   user-select: none;
 }

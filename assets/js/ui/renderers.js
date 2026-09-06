@@ -589,8 +589,41 @@ export function updateFloatProgressBar(percentage) {
 export function renderLibrary() {
     if (!elements.libraryGrid || !_syncLogic) return;
 
+    // ソート設定の取得とUIコントロールの同期
+    const settings = _storage ? _storage.getSettings() : {};
+    const sortKey = settings.librarySortKey ?? "date";
+    const sortOrder = settings.librarySortOrder ?? "desc";
+
+    if (elements.librarySortKey && elements.librarySortKey.value !== sortKey) {
+        elements.librarySortKey.value = sortKey;
+    }
+    if (elements.librarySortOrder) {
+        elements.librarySortOrder.textContent = sortOrder === "asc" ? "↑" : "↓";
+        elements.librarySortOrder.title = sortOrder === "asc" ? t("librarySortAsc") : t("librarySortDesc");
+    }
+
     elements.libraryGrid.innerHTML = "";
     const entries = _syncLogic.buildLibraryEntries(_state.uiLanguage);
+
+    // ソート実行
+    entries.sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === "title") {
+            cmp = (a.title || "").localeCompare(b.title || "", _state.uiLanguage, { numeric: true, sensitivity: "base" });
+            if (cmp === 0) {
+                cmp = (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0);
+            }
+        } else if (sortKey === "progress") {
+            cmp = (a.progressPercentage ?? 0) - (b.progressPercentage ?? 0);
+            if (cmp === 0) {
+                cmp = (b.lastTimestamp ?? 0) - (a.lastTimestamp ?? 0);
+            }
+        } else {
+            // "date" (デフォルト)
+            cmp = (a.lastTimestamp ?? 0) - (b.lastTimestamp ?? 0);
+        }
+        return sortOrder === "asc" ? cmp : -cmp;
+    });
 
     if (!entries.length) {
         const empty = document.createElement("p");

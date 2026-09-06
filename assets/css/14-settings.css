@@ -222,6 +222,17 @@
 - LAYER: なし
 - SPLIT: GROUP
 ===================================== */
+.keybindings-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0aec0);
+  line-height: 1.5;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface-2, rgba(255, 255, 255, 0.05));
+  border-left: 3px solid var(--accent, #3498db);
+  border-radius: 4px;
+}
+
 .keybinding-row {
   display: flex;
   align-items: center;

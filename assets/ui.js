@@ -54,7 +54,7 @@ export class UIController {
     this.isFloatVisible = options.isFloatVisible || (() => false);
     this.isImageBook = options.isImageBook || (() => false);
     this.isSpreadMode = options.isSpreadMode || (() => false);
-    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.LTR);
+    this.getReadingDirection = options.getReadingDirection || (() => READING_DIRECTIONS.RTL);
     this.getEpubViewMode = options.getEpubViewMode || (() => EPUB_VIEW_MODES.PAGINATED);
     /** 長押しズーム解除直後かどうかを返すコールバック */
     this.isLongPressZoomJustEnded = options.isLongPressZoomJustEnded || (() => false);
@@ -260,6 +260,38 @@ export class UIController {
       this.touchStartX = touch.clientX;
       this.touchStartY = touch.clientY;
     }, { passive: true });
+
+    reader.addEventListener('touchmove', (e) => {
+      if (this.isAnyMenuVisible() || document.body.classList.contains(UI_CLASSES.IS_ZOOMED)) {
+        return;
+      }
+      if (this.touchStartX === null || this.touchStartY === null) {
+        return;
+      }
+      if (!e.touches || e.touches.length !== 1) {
+        return;
+      }
+
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - this.touchStartX;
+      const deltaY = touch.clientY - this.touchStartY;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+
+      // 横スワイプ時、iOS Safari ネイティブの「戻る/進む履歴スワイプ」を防止してチラつきを排除
+      const mode = this.getWritingMode?.() || WRITING_MODES.HORIZONTAL;
+      const isHorizontalNavigation = mode === WRITING_MODES.VERTICAL || this.isImageBook?.();
+
+      if (isHorizontalNavigation && absDeltaX > 8 && absDeltaX > absDeltaY) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      } else if (!isHorizontalNavigation && absDeltaY > 8 && absDeltaY > absDeltaX) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      }
+    }, { passive: false });
 
     reader.addEventListener('touchend', (e) => {
       if (this.isAnyMenuVisible()) {

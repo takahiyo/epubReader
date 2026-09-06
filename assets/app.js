@@ -224,6 +224,11 @@ syncLogic.init({
   },
 });
 
+// 起動時にローカルの重複クラウドデータを整理
+syncLogic.deduplicateCloudIndex?.().catch((err) => {
+  console.warn("起動時クラウドインデックス重複整理エラー:", err);
+});
+
 // 認証状態のキャッシュ
 let currentUserData = null;
 
@@ -1447,7 +1452,10 @@ async function handleFile(file, overrideBookId = null) {
         fileToOpen,
         typeof startLocation === "number" ? startLocation : 0,
         type,
-        { streaming: useStreaming }
+        {
+          streaming: useStreaming,
+          readingDirection: syncedProgress?.pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL,
+        }
       );
     }
 
@@ -1831,7 +1839,10 @@ async function openFromLibrary(bookId, options = {}) {
 
       // 通常保存された画像書庫でも、現在の端末メモリに対して大きすぎる場合はストリーミングに切替
       const streamingNeeded = (info.type === BOOK_TYPES.ZIP) && fileHandler.shouldUseStreaming(file);
-      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, { streaming: streamingNeeded });
+      await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, {
+        streaming: streamingNeeded,
+        readingDirection: normalizedProgress?.pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL,
+      });
     }
     } // End of else (not WEB_NOVEL)
 
@@ -2503,13 +2514,26 @@ function applyUiLanguage(nextLanguage) {
   if (elements.libraryViewList) {
     elements.libraryViewList.setAttribute("aria-label", strings.libraryViewListLabel);
   }
+  if (elements.libraryViewToggle) {
+    const isGrid = libraryViewMode === "grid";
+    elements.libraryViewToggle.textContent = isGrid ? "📄" : "🔲";
+    elements.libraryViewToggle.title = isGrid ? strings.libraryViewSwitchToList : strings.libraryViewSwitchToGrid;
+    elements.libraryViewToggle.setAttribute("aria-label", elements.libraryViewToggle.title);
+  }
   if (elements.librarySearchInput) {
     elements.librarySearchInput.placeholder = strings.library_search_placeholder;
   }
+  const sortDateOpt = document.getElementById("librarySortDateOpt");
+  if (sortDateOpt) sortDateOpt.textContent = strings.librarySortDate;
+  const sortTitleOpt = document.getElementById("librarySortTitleOpt");
+  if (sortTitleOpt) sortTitleOpt.textContent = strings.librarySortTitle;
+  const sortProgressOpt = document.getElementById("librarySortProgressOpt");
+  if (sortProgressOpt) sortProgressOpt.textContent = strings.librarySortProgress;
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
   if (elements.settingsOperationTitle) elements.settingsOperationTitle.textContent = strings.settingsOperationTitle;
+  if (elements.keybindingsHint) elements.keybindingsHint.textContent = strings.keybindingsHint || '';
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
   if (elements.settingsDefaultWritingModeLabel) {
     elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
@@ -2765,6 +2789,13 @@ function applyLibraryViewMode(mode) {
   }
   elements.libraryViewGrid?.classList.toggle(UI_CLASSES.ACTIVE, mode === "grid");
   elements.libraryViewList?.classList.toggle(UI_CLASSES.ACTIVE, mode === "list");
+  if (elements.libraryViewToggle) {
+    const strings = getUiStrings(uiLanguage);
+    const isGrid = mode === "grid";
+    elements.libraryViewToggle.textContent = isGrid ? "📄" : "🔲";
+    elements.libraryViewToggle.title = isGrid ? strings.libraryViewSwitchToList : strings.libraryViewSwitchToGrid;
+    elements.libraryViewToggle.setAttribute("aria-label", elements.libraryViewToggle.title);
+  }
   storage.setSettings({ libraryViewMode: mode });
 }
 
@@ -3306,7 +3337,7 @@ function setupEvents() {
     renderers.updateSpreadModeButtonLabel();
   });
 
-  // 左開き/右開き切替ボタン (画像用)
+  // 左綴じ/右綴じ切替ボタン (画像用)
   elements.toggleReadingDirectionImage?.addEventListener('click', () => {
     const nextDirection = reader.toggleImageReadingDirection();
     pageDirection = nextDirection;
@@ -3315,8 +3346,8 @@ function setupEvents() {
     renderers.updateProgressBarDirection();
   });
 
-  // 左開き/右開き切替ボタン (EPUB用)
-  // 書籍未オープン時はアカウントのデフォルト開き方向、オープン時はその書籍の開き方向を変更する
+  // 左綴じ/右綴じ切替ボタン (EPUB用)
+  // 書籍未オープン時はアカウントのデフォルト綴じ方向、オープン時はその書籍の綴じ方向を変更する
   elements.toggleReadingDirectionEpub?.addEventListener('click', async () => {
     const isBookOpen = !!currentBookInfo?.type;
     if (!isBookOpen) {
@@ -3396,6 +3427,22 @@ function setupEvents() {
 
   elements.libraryViewGrid?.addEventListener('click', () => applyLibraryViewMode("grid"));
   elements.libraryViewList?.addEventListener('click', () => applyLibraryViewMode("list"));
+  elements.libraryViewToggle?.addEventListener('click', () => {
+    const nextMode = libraryViewMode === "grid" ? "list" : "grid";
+    applyLibraryViewMode(nextMode);
+  });
+
+  elements.librarySortKey?.addEventListener('change', (e) => {
+    storage.setSettings({ librarySortKey: e.target.value });
+    renderers.renderLibrary();
+  });
+
+  elements.librarySortOrder?.addEventListener('click', () => {
+    const currentOrder = storage.getSettings().librarySortOrder ?? "desc";
+    const nextOrder = currentOrder === "asc" ? "desc" : "asc";
+    storage.setSettings({ librarySortOrder: nextOrder });
+    renderers.renderLibrary();
+  });
 
   // 進捗バーのページ入力
   let isEditingProgress = false;
@@ -3525,26 +3572,47 @@ function setupEvents() {
   let recordingAction = null;
   let recordingSlot = null;
 
+  function formatKeyName(key, strings) {
+    if (!key) return '';
+    if (key === ' ' || key.toLowerCase() === 'space') {
+      return strings.keyNameSpace || 'スペース';
+    }
+    if (key.toLowerCase() === 'enter') {
+      return strings.keyNameEnter || 'エンター';
+    }
+    const specialMap = {
+      arrowleft: '←',
+      arrowright: '→',
+      arrowup: '↑',
+      arrowdown: '↓',
+      escape: 'Esc',
+      backspace: 'Backspace',
+      tab: 'Tab',
+    };
+    const lower = key.toLowerCase();
+    if (specialMap[lower]) {
+      return specialMap[lower];
+    }
+    if (key.length === 1) {
+      return key.toUpperCase();
+    }
+    return key;
+  }
+
   function renderKeybindings() {
     const container = elements.keybindingsList;
     if (!container) return;
     const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
     const strings = getUiStrings(uiLanguage);
+    if (elements.keybindingsHint) {
+      elements.keybindingsHint.textContent = strings.keybindingsHint || '';
+    }
     const actionOrder = Object.keys(DEFAULT_KEY_BINDINGS);
     container.innerHTML = '';
-    for (const originalAction of actionOrder) {
-      let dataAction = originalAction;
-      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
-      if (readingDirection === READING_DIRECTIONS.LTR) {
-        if (originalAction === 'pagePrev') dataAction = 'pageNext';
-        else if (originalAction === 'pageNext') dataAction = 'pagePrev';
-        else if (originalAction === 'singlePrev') dataAction = 'singleNext';
-        else if (originalAction === 'singleNext') dataAction = 'singlePrev';
-      }
-
-      const keys = bindings[dataAction] || DEFAULT_KEY_BINDINGS[dataAction] || [];
-      const labelKey = KEY_ACTION_LABELS[originalAction];
-      const label = strings[labelKey] || originalAction;
+    for (const action of actionOrder) {
+      const keys = bindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
+      const labelKey = KEY_ACTION_LABELS[action];
+      const label = strings[labelKey] || action;
       const row = document.createElement('div');
       row.className = 'keybinding-row';
       const labelSpan = document.createElement('span');
@@ -3553,13 +3621,13 @@ function setupEvents() {
       row.appendChild(labelSpan);
       const badgesContainer = document.createElement('div');
       badgesContainer.className = 'keybinding-badges';
-      badgesContainer.dataset.action = dataAction;
+      badgesContainer.dataset.action = action;
       for (let i = 0; i < keys.length; i++) {
         const badge = document.createElement('span');
         badge.className = 'keybinding-badge';
         badge.dataset.slot = i;
         const keyText = document.createElement('span');
-        keyText.textContent = keys[i];
+        keyText.textContent = formatKeyName(keys[i], strings);
         badge.appendChild(keyText);
         if (keys.length > 1) {
           const removeBtn = document.createElement('span');
@@ -3576,7 +3644,7 @@ function setupEvents() {
       row.appendChild(badgesContainer);
       const resetBtn = document.createElement('button');
       resetBtn.className = 'keybinding-reset-btn';
-      resetBtn.dataset.action = dataAction;
+      resetBtn.dataset.action = action;
       resetBtn.textContent = strings.keybindingReset || 'Reset';
       row.appendChild(resetBtn);
       container.appendChild(row);
@@ -3998,11 +4066,40 @@ function setupEvents() {
   // キーボード操作（設定からキーバインドを取得、未設定ならデフォルト）
   let keyMap = {};
   function rebuildKeyMap() {
-    const userBindings = settings.keyBindings || {};
+    let userBindings = settings.keyBindings;
+    // 既存設定の自動マイグレーション: 過去の逆転バグで pagePrev に z / pageNext に x が入っていたら正常な順序（z=進む, x=戻る）に補正
+    if (userBindings) {
+      let changed = false;
+      const prevKeys = (userBindings.pagePrev || []).map(k => k.toLowerCase());
+      const nextKeys = (userBindings.pageNext || []).map(k => k.toLowerCase());
+      if (prevKeys.includes('z') || nextKeys.includes('x')) {
+        const fixedPrev = (userBindings.pagePrev || []).filter(k => k.toLowerCase() !== 'z' && k.toLowerCase() !== 'x');
+        if (!fixedPrev.some(k => k.toLowerCase() === 'x')) fixedPrev.unshift('x');
+        const fixedNext = (userBindings.pageNext || []).filter(k => k.toLowerCase() !== 'z' && k.toLowerCase() !== 'x');
+        if (!fixedNext.some(k => k.toLowerCase() === 'z')) fixedNext.unshift('z');
+        userBindings = { ...userBindings, pagePrev: fixedPrev, pageNext: fixedNext };
+        changed = true;
+      }
+      const sPrevKeys = (userBindings.singlePrev || []).map(k => k.toLowerCase());
+      const sNextKeys = (userBindings.singleNext || []).map(k => k.toLowerCase());
+      if (sPrevKeys.includes('a') || sNextKeys.includes('s')) {
+        const fixedSPrev = (userBindings.singlePrev || []).filter(k => k.toLowerCase() !== 'a' && k.toLowerCase() !== 's');
+        if (!fixedSPrev.some(k => k.toLowerCase() === 's')) fixedSPrev.unshift('s');
+        const fixedSNext = (userBindings.singleNext || []).filter(k => k.toLowerCase() !== 'a' && k.toLowerCase() !== 's');
+        if (!fixedSNext.some(k => k.toLowerCase() === 'a')) fixedSNext.unshift('a');
+        userBindings = { ...userBindings, singlePrev: fixedSPrev, singleNext: fixedSNext };
+        changed = true;
+      }
+      if (changed) {
+        settings.keyBindings = userBindings;
+        storage.setSettings({ keyBindings: userBindings });
+      }
+    }
+    const currentBindings = userBindings || {};
     keyMap = {};
-    const allActions = [...new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(userBindings)])];
+    const allActions = [...new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(currentBindings)])];
     for (const action of allActions) {
-      const keys = userBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
+      const keys = currentBindings[action] || DEFAULT_KEY_BINDINGS[action] || [];
       for (const key of keys) {
         keyMap[key.toLowerCase()] = action;
       }
@@ -4021,10 +4118,12 @@ function setupEvents() {
     const action = keyMap[e.key.toLowerCase()];
     if (!action) return;
 
-    // 開き方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
+    // 綴じ方向に応じて左右キーの動作を反転（画像書庫・縦書きEPUB）
     let resolvedAction = action;
     if (action === 'pagePrev' || action === 'pageNext' || action === 'singlePrev' || action === 'singleNext') {
-      const readingDirection = reader?.type === BOOK_TYPES.EPUB ? pageDirection : reader?.imageReadingDirection;
+      const readingDirection = reader?.type === BOOK_TYPES.EPUB
+        ? (pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL)
+        : (reader?.imageReadingDirection || defaultPageDirection || READING_DIRECTIONS.RTL);
       if (readingDirection === READING_DIRECTIONS.LTR) {
         if (action === 'pagePrev') resolvedAction = 'pageNext';
         else if (action === 'pageNext') resolvedAction = 'pagePrev';

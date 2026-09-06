@@ -234,7 +234,7 @@ export class ReaderController {
     this.imageLoadToken = 0;
     this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
-    this.imageReadingDirection = READING_DIRECTIONS.LTR; // READING_DIRECTIONS.LTR = 左開き, READING_DIRECTIONS.RTL = 右開き
+    this.imageReadingDirection = READING_DIRECTIONS.RTL; // READING_DIRECTIONS.LTR = 左綴じ, READING_DIRECTIONS.RTL = 右綴じ
     this.imageZoomed = false;
     this.longPressZoomEnabled = true;
     this.longPressZoomScale = LONG_PRESS_ZOOM_CONFIG.DEFAULT_SCALE;
@@ -243,7 +243,7 @@ export class ReaderController {
     this.repaginationRequestId = 0;
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
-    this.pageDirection = READING_DIRECTIONS.LTR;
+    this.pageDirection = READING_DIRECTIONS.RTL;
     this.epubViewMode = EPUB_VIEW_MODES.PAGINATED;
     this.preferredWritingMode = null;
     this.paginator = null;
@@ -453,6 +453,7 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageReadingDirection = READING_DIRECTIONS.RTL;
     this.imageZoomed = false;
     if (this.currentPaginationRun) {
       this.currentPaginationRun.cancelled = true;
@@ -3656,6 +3657,9 @@ export class ReaderController {
 
   async openImageBook(file, startPage = 0, bookType = null, options = {}) {
     this.resetReaderState();
+    if (options.readingDirection === READING_DIRECTIONS.LTR || options.readingDirection === READING_DIRECTIONS.RTL) {
+      this.imageReadingDirection = options.readingDirection;
+    }
     this.toc = [];
     void bookType;
     this.imageArchiveSize = file?.size ?? 0;
@@ -3972,23 +3976,9 @@ export class ReaderController {
     // 範囲外チェック
     if (index < 0 || index >= this.imagePages.length) return false;
 
-    // 画像データの取得
-    const src = this.imagePages[index];
-    if (!src) return false;
-
-    // 画像サイズを取得するヘルパー
-    const getSize = (url) => new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-      img.onerror = () => resolve({ w: 0, h: 0 });
-      img.src = url;
-    });
-
-    const currentSize = await getSize(src);
-
-    // 判定ロジック: 単純に横幅が高さより大きいかどうか
-    // (以前の 1.5倍ルールは廃止し、明確な「横長」定義を使用)
-    return currentSize.w > currentSize.h;
+    // キャッシュ付きサイズ取得ヘルパーを利用して高速判定
+    const size = await this.getPageDimensions(index);
+    return Boolean(size && size.w > size.h);
   }
 
   renderSinglePageWithStyle(index, isWideSpread = false) {
@@ -4067,15 +4057,21 @@ export class ReaderController {
     // 描画開始前に中身を空にする（プログレスバー移動時の残像防止）
     container.innerHTML = '';
 
-    // 1. 現在のページの画像データとサイズを取得
-    const page1Src = await this.getImageData(targetIndex);
+    // 1. 現在のページと次ページの画像データおよびサイズを並行取得（待機時間の最小化）
+    const nextIndex = targetIndex + 1;
+    const hasNext = nextIndex < this.imagePages.length;
+
+    const [page1Src, isWide, isNextWide, page2Src] = await Promise.all([
+      this.getImageData(targetIndex),
+      this.isImageWide(targetIndex),
+      hasNext ? this.isImageWide(nextIndex) : Promise.resolve(true),
+      hasNext ? this.getImageData(nextIndex) : Promise.resolve(null),
+    ]);
+
     if (!page1Src) {
       // 画像がない（範囲外など）
       return;
     }
-
-    // サイズ判定
-    const isWide = await this.isImageWide(targetIndex);
 
     if (isWide) {
       // --- ワイド画像 (1枚表示) ---
@@ -4092,23 +4088,7 @@ export class ReaderController {
 
     } else {
       // --- 通常画像 (ペア表示を試みる) ---
-
-      // 次のページがあるか確認
-      const nextIndex = targetIndex + 1;
-      let showTwoPages = false;
-      let page2Src = null;
-
-      if (nextIndex < this.imagePages.length) {
-        // 次のページのサイズも確認
-        const isNextWide = await this.isImageWide(nextIndex);
-        if (!isNextWide) {
-          // 次も縦長ならペア成立
-          page2Src = await this.getImageData(nextIndex);
-          if (page2Src) {
-            showTwoPages = true;
-          }
-        }
-      }
+      const showTwoPages = Boolean(hasNext && !isNextWide && page2Src);
 
       if (showTwoPages) {
         // 2枚表示

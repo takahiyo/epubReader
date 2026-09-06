@@ -317,9 +317,16 @@
           <div class="library-controls">
             <h4 id="librarySectionTitle"></h4>
             <input type="text" id="library-search-input" class="library-search-input" placeholder="" />
+            <div class="library-sort-container">
+              <select id="librarySortKey" class="library-sort-select" aria-label="並び替え">
+                <option value="date" id="librarySortDateOpt">読書日付</option>
+                <option value="title" id="librarySortTitleOpt">書籍名</option>
+                <option value="progress" id="librarySortProgressOpt">進捗</option>
+              </select>
+              <button id="librarySortOrder" class="library-sort-order-btn" type="button" aria-label="昇降順切替" title="降順">↓</button>
+            </div>
             <div class="library-view-toggle">
-              <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="">🔲</button>
-              <button id="libraryViewList" class="library-view-btn" type="button" aria-label="">📄</button>
+              <button id="libraryViewToggle" class="library-view-btn" type="button" aria-label="表示切替" title="一覧表示に切替">📄</button>
             </div>
           </div>
           <div id="libraryGrid" class="library-grid"></div>
@@ -491,6 +498,7 @@
           <h4 id="settingsOperationTitle" class="settings-section-title"></h4>
           <div class="settings-section-content">
             <div class="setting-item" style="flex-direction:column;align-items:stretch;gap:6px;">
+              <div id="keybindingsHint" class="keybindings-hint"></div>
               <div id="keybindingsList"></div>
               <button id="resetAllKeybindings" class="secondary-btn" type="button" style="margin-top:6px;align-self:flex-start;"></button>
             </div>
@@ -689,7 +697,7 @@
 
   <script type="module" src="./assets/config.js?v=11"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
-  <script type="module" src="./assets/app.js?v=17"></script>
+  <script type="module" src="./assets/app.js?v=18"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
