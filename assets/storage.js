@@ -408,6 +408,10 @@ export class StorageService {
     this.save();
   }
 
+  saveSettings(settings) {
+    this.setSettings(settings);
+  }
+
   getSettings() {
     return this.data.settings;
   }

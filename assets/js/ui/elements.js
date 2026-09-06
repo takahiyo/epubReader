@@ -113,6 +113,7 @@ export const elements = {
     libraryGrid: getById(DOM_IDS.LIBRARY_GRID),
     libraryViewGrid: getById(DOM_IDS.LIBRARY_VIEW_GRID),
     libraryViewList: getById(DOM_IDS.LIBRARY_VIEW_LIST),
+    libraryViewToggle: getById(DOM_IDS.LIBRARY_VIEW_TOGGLE),
     librarySortKey: getById(DOM_IDS.LIBRARY_SORT_KEY),
     librarySortOrder: getById(DOM_IDS.LIBRARY_SORT_ORDER),
     librarySearchInput: getById("library-search-input"),

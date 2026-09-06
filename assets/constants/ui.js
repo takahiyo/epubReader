@@ -250,6 +250,7 @@ export const DOM_IDS = Object.freeze({
   LIBRARY_GRID: "libraryGrid",
   LIBRARY_VIEW_GRID: "libraryViewGrid",
   LIBRARY_VIEW_LIST: "libraryViewList",
+  LIBRARY_VIEW_TOGGLE: "libraryViewToggle",
   LIBRARY_SORT_KEY: "librarySortKey",
   LIBRARY_SORT_ORDER: "librarySortOrder",
   HISTORY_MODAL: "historyModal",

@@ -2508,6 +2508,12 @@ function applyUiLanguage(nextLanguage) {
   if (elements.libraryViewList) {
     elements.libraryViewList.setAttribute("aria-label", strings.libraryViewListLabel);
   }
+  if (elements.libraryViewToggle) {
+    const isGrid = libraryViewMode === "grid";
+    elements.libraryViewToggle.textContent = isGrid ? "📄" : "🔲";
+    elements.libraryViewToggle.title = isGrid ? strings.libraryViewSwitchToList : strings.libraryViewSwitchToGrid;
+    elements.libraryViewToggle.setAttribute("aria-label", elements.libraryViewToggle.title);
+  }
   if (elements.librarySearchInput) {
     elements.librarySearchInput.placeholder = strings.library_search_placeholder;
   }
@@ -2776,6 +2782,13 @@ function applyLibraryViewMode(mode) {
   }
   elements.libraryViewGrid?.classList.toggle(UI_CLASSES.ACTIVE, mode === "grid");
   elements.libraryViewList?.classList.toggle(UI_CLASSES.ACTIVE, mode === "list");
+  if (elements.libraryViewToggle) {
+    const strings = getUiStrings(uiLanguage);
+    const isGrid = mode === "grid";
+    elements.libraryViewToggle.textContent = isGrid ? "📄" : "🔲";
+    elements.libraryViewToggle.title = isGrid ? strings.libraryViewSwitchToList : strings.libraryViewSwitchToGrid;
+    elements.libraryViewToggle.setAttribute("aria-label", elements.libraryViewToggle.title);
+  }
   storage.setSettings({ libraryViewMode: mode });
 }
 
@@ -3407,16 +3420,20 @@ function setupEvents() {
 
   elements.libraryViewGrid?.addEventListener('click', () => applyLibraryViewMode("grid"));
   elements.libraryViewList?.addEventListener('click', () => applyLibraryViewMode("list"));
+  elements.libraryViewToggle?.addEventListener('click', () => {
+    const nextMode = libraryViewMode === "grid" ? "list" : "grid";
+    applyLibraryViewMode(nextMode);
+  });
 
   elements.librarySortKey?.addEventListener('change', (e) => {
-    storage.saveSettings({ librarySortKey: e.target.value });
+    storage.setSettings({ librarySortKey: e.target.value });
     renderers.renderLibrary();
   });
 
   elements.librarySortOrder?.addEventListener('click', () => {
     const currentOrder = storage.getSettings().librarySortOrder ?? "desc";
     const nextOrder = currentOrder === "asc" ? "desc" : "asc";
-    storage.saveSettings({ librarySortOrder: nextOrder });
+    storage.setSettings({ librarySortOrder: nextOrder });
     renderers.renderLibrary();
   });
 

@@ -326,8 +326,7 @@
               <button id="librarySortOrder" class="library-sort-order-btn" type="button" aria-label="昇降順切替" title="降順">↓</button>
             </div>
             <div class="library-view-toggle">
-              <button id="libraryViewGrid" class="library-view-btn" type="button" aria-label="">🔲</button>
-              <button id="libraryViewList" class="library-view-btn" type="button" aria-label="">📄</button>
+              <button id="libraryViewToggle" class="library-view-btn" type="button" aria-label="表示切替" title="一覧表示に切替">📄</button>
             </div>
           </div>
           <div id="libraryGrid" class="library-grid"></div>
@@ -697,7 +696,7 @@
 
   <script type="module" src="./assets/config.js?v=11"></script>
   <!-- auth.js は app.js から import するため、ここでは直接読み込まない -->
-  <script type="module" src="./assets/app.js?v=17"></script>
+  <script type="module" src="./assets/app.js?v=18"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
