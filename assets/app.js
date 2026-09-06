@@ -3572,6 +3572,31 @@ function setupEvents() {
   let recordingAction = null;
   let recordingSlot = null;
 
+  function formatKeyName(key, strings) {
+    if (!key) return '';
+    if (key === ' ' || key.toLowerCase() === 'space') {
+      return strings.keyNameSpace || 'スペース';
+    }
+    const specialMap = {
+      arrowleft: '←',
+      arrowright: '→',
+      arrowup: '↑',
+      arrowdown: '↓',
+      enter: 'Enter',
+      escape: 'Esc',
+      backspace: 'Backspace',
+      tab: 'Tab',
+    };
+    const lower = key.toLowerCase();
+    if (specialMap[lower]) {
+      return specialMap[lower];
+    }
+    if (key.length === 1) {
+      return key.toUpperCase();
+    }
+    return key;
+  }
+
   function renderKeybindings() {
     const container = elements.keybindingsList;
     if (!container) return;
@@ -3600,7 +3625,7 @@ function setupEvents() {
         badge.className = 'keybinding-badge';
         badge.dataset.slot = i;
         const keyText = document.createElement('span');
-        keyText.textContent = keys[i];
+        keyText.textContent = formatKeyName(keys[i], strings);
         badge.appendChild(keyText);
         if (keys.length > 1) {
           const removeBtn = document.createElement('span');

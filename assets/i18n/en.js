@@ -125,6 +125,7 @@ export const UI_STRINGS_EN = Object.freeze({
   keybindingReset: "Reset",
   keybindingResetAll: "Reset all to defaults",
   keybindingRecording: "Press a key...",
+  keyNameSpace: "Space",
 
   // Account
   settingsAccountTitle: "Account",
