@@ -158,6 +158,7 @@ export const elements = {
     settingsModalTitle: getById(DOM_IDS.SETTINGS_MODAL_TITLE),
     settingsDisplayTitle: getById(DOM_IDS.SETTINGS_DISPLAY_TITLE),
     settingsOperationTitle: getById(DOM_IDS.SETTINGS_OPERATION_TITLE),
+    keybindingsHint: getById("keybindingsHint"),
     keybindingsList: getById("keybindingsList"),
     resetAllKeybindings: getById("resetAllKeybindings"),
     settingsDeviceTitle: getById(DOM_IDS.SETTINGS_DEVICE_TITLE),

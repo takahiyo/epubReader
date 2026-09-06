@@ -2533,6 +2533,7 @@ function applyUiLanguage(nextLanguage) {
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
   if (elements.settingsOperationTitle) elements.settingsOperationTitle.textContent = strings.settingsOperationTitle;
+  if (elements.keybindingsHint) elements.keybindingsHint.textContent = strings.keybindingsHint || '';
   if (elements.settingsDeviceTitle) elements.settingsDeviceTitle.textContent = strings.settingsDeviceTitle;
   if (elements.settingsDefaultWritingModeLabel) {
     elements.settingsDefaultWritingModeLabel.textContent = strings.settingsDefaultWritingModeLabel;
@@ -3576,6 +3577,9 @@ function setupEvents() {
     if (!container) return;
     const bindings = settings.keyBindings || DEFAULT_KEY_BINDINGS;
     const strings = getUiStrings(uiLanguage);
+    if (elements.keybindingsHint) {
+      elements.keybindingsHint.textContent = strings.keybindingsHint || '';
+    }
     const actionOrder = Object.keys(DEFAULT_KEY_BINDINGS);
     container.innerHTML = '';
     for (const action of actionOrder) {

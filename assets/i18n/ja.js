@@ -112,10 +112,11 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // 操作設定
   settingsOperationTitle: "操作設定",
-  keyPagePrev: "前のページ（見開き）",
-  keyPageNext: "次のページ（見開き）",
-  keySinglePrev: "前のページ（単ページ）",
-  keySingleNext: "次のページ（単ページ）",
+  keybindingsHint: "※ キーバインド設定は「右綴じの場合」を基準としています。左綴じ表示時はページ移動（進む／戻る）が自動的に入れ替わります。",
+  keyPagePrev: "前のページ（見開き / 右綴じ）",
+  keyPageNext: "次のページ（見開き / 右綴じ）",
+  keySinglePrev: "前のページ（単ページ / 右綴じ）",
+  keySingleNext: "次のページ（単ページ / 右綴じ）",
   keyToggleFullscreen: "全画面切替",
   keyToggleMenu: "メニュー切替",
   keyToggleToc: "目次",

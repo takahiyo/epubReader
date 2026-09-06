@@ -112,10 +112,11 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Operation
   settingsOperationTitle: "Operation",
-  keyPagePrev: "Previous page (2-page)",
-  keyPageNext: "Next page (2-page)",
-  keySinglePrev: "Previous page (1-page)",
-  keySingleNext: "Next page (1-page)",
+  keybindingsHint: "Note: Keybindings are configured for Right-binding. When reading in Left-binding, page navigation keys (Next/Prev) automatically reverse.",
+  keyPagePrev: "Previous page (2-page / Right-binding)",
+  keyPageNext: "Next page (2-page / Right-binding)",
+  keySinglePrev: "Previous page (1-page / Right-binding)",
+  keySingleNext: "Next page (1-page / Right-binding)",
   keyToggleFullscreen: "Toggle full screen",
   keyToggleMenu: "Toggle menu",
   keyToggleToc: "Table of Contents",
