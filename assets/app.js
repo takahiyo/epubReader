@@ -4163,6 +4163,14 @@ function setupEvents() {
         reader.next(1);
         break;
       }
+      case 'toggleSpreadMode': {
+        e.preventDefault();
+        if (reader && reader.type === BOOK_TYPES.IMAGE) {
+          reader.toggleImageViewMode();
+          renderers.updateSpreadModeButtonLabel();
+        }
+        break;
+      }
       case 'toggleMenu': {
         e.preventDefault();
         renderers.toggleFloatOverlay();

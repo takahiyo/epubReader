@@ -117,6 +117,7 @@ export const UI_STRINGS_JA = Object.freeze({
   keyPageNext: "次のページ（見開き / 右綴じ）",
   keySinglePrev: "前のページ（単ページ / 右綴じ）",
   keySingleNext: "次のページ（単ページ / 右綴じ）",
+  keyToggleSpreadMode: "見開き / 単ページ切替",
   keyToggleFullscreen: "全画面切替",
   keyToggleMenu: "メニュー切替",
   keyToggleToc: "目次",
