@@ -1907,7 +1907,13 @@ async function applyReadingState(progress) {
 
   // 2. 表示モード（単ページ/見開き）の復元
   if (reader) {
-    reader.imageViewMode = targetImageViewMode;
+    if (reader.isImageBook?.() || reader.type !== BOOK_TYPES.EPUB) {
+      if (reader.imageViewMode !== targetImageViewMode) {
+        reader.setImageViewMode(targetImageViewMode);
+      }
+    } else {
+      reader.imageViewMode = targetImageViewMode;
+    }
     renderers.updateSpreadModeButtonLabel();
   }
 
@@ -3334,6 +3340,7 @@ function setupEvents() {
   // 見開き/単ページ切替ボタン
   elements.toggleSpreadMode?.addEventListener('click', () => {
     reader.toggleImageViewMode();
+    persistReadingState({ imageViewMode: reader.imageViewMode });
     renderers.updateSpreadModeButtonLabel();
   });
 
@@ -4165,8 +4172,9 @@ function setupEvents() {
       }
       case 'toggleSpreadMode': {
         e.preventDefault();
-        if (reader && reader.type === BOOK_TYPES.IMAGE) {
+        if (reader && (reader.isImageBook?.() || reader.type !== BOOK_TYPES.EPUB)) {
           reader.toggleImageViewMode();
+          persistReadingState({ imageViewMode: reader.imageViewMode });
           renderers.updateSpreadModeButtonLabel();
         }
         break;

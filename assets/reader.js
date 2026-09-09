@@ -234,6 +234,7 @@ export class ReaderController {
     this.imageLoadToken = 0;
     this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
+    this.convertingPromises = new Map();
     this.imageReadingDirection = READING_DIRECTIONS.RTL; // READING_DIRECTIONS.LTR = 左綴じ, READING_DIRECTIONS.RTL = 右綴じ
     this.imageZoomed = false;
     this.longPressZoomEnabled = true;
@@ -452,6 +453,8 @@ export class ReaderController {
     this.imageIndex = 0;
     this.imageEntries = [];
     this.imagePageErrors = [];
+    this.convertingPromises?.clear();
+    this.pageDimensionCache = {};
     this.imageLoadToken = 0;
     this.imageReadingDirection = READING_DIRECTIONS.RTL;
     this.imageZoomed = false;
@@ -3730,6 +3733,8 @@ export class ReaderController {
       this.imageEntries = images;
       this.imagePages = new Array(images.length).fill(null);
       this.imagePageErrors = new Array(images.length).fill(null);
+      this.convertingPromises = new Map();
+      this.pageDimensionCache = {};
 
       const memoryStrategy = getMemoryStrategy();
       // ストリーミングモード時は最小限（1枚）のプリロードに制限
@@ -3798,52 +3803,63 @@ export class ReaderController {
     const image = this.imageEntries[index];
     if (!image) return null;
 
-    try {
-      this.emitLoadingUpdate({
-        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
-        status: READER_LOADING_STATUSES.START,
-        current: index + 1,
-        total: this.imageEntries.length,
-      });
-      const handler = this.archiveHandler;
-      if (!handler) {
-        throw new Error("アーカイブハンドラが初期化されていません。");
-      }
-
-      const blob = await handler.getFileBlob(image.path);
-      if (!blob || blob.size === 0) {
-        throw new Error("画像データが空です。");
-      }
-
-      const objectUrl = URL.createObjectURL(blob);
-      this.imagePages[index] = objectUrl;
-      // 成功時はエラーをクリア（リトライ成功時のため）
-      this.imagePageErrors[index] = null;
-      this.manageImageCache(index);
-      this.emitLoadingUpdate({
-        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
-        status: READER_LOADING_STATUSES.COMPLETE,
-        current: index + 1,
-        total: this.imageEntries.length,
-      });
-      return objectUrl;
-    } catch (error) {
-      const pageNumber = index + 1;
-      const detail = error?.message || String(error);
-      const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）\n\n詳細: ${detail}`;
-      console.error(message, error);
-      this.imagePageErrors[index] = message;
-      this.emitLoadingUpdate({
-        phase: READER_LOADING_PHASES.IMAGE_CONVERT,
-        status: READER_LOADING_STATUSES.ERROR,
-        current: index + 1,
-        total: this.imageEntries.length,
-      });
-      if (reportError) {
-        this.showImageConvertError(message);
-      }
-      return null;
+    if (this.convertingPromises?.has(index)) {
+      return this.convertingPromises.get(index);
     }
+
+    const conversionPromise = (async () => {
+      try {
+        this.emitLoadingUpdate({
+          phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+          status: READER_LOADING_STATUSES.START,
+          current: index + 1,
+          total: this.imageEntries.length,
+        });
+        const handler = this.archiveHandler;
+        if (!handler) {
+          throw new Error("アーカイブハンドラが初期化されていません。");
+        }
+
+        const blob = await handler.getFileBlob(image.path);
+        if (!blob || blob.size === 0) {
+          throw new Error("画像データが空です。");
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+        this.imagePages[index] = objectUrl;
+        // 成功時はエラーをクリア（リトライ成功時のため）
+        this.imagePageErrors[index] = null;
+        this.manageImageCache(index);
+        this.emitLoadingUpdate({
+          phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+          status: READER_LOADING_STATUSES.COMPLETE,
+          current: index + 1,
+          total: this.imageEntries.length,
+        });
+        return objectUrl;
+      } catch (error) {
+        const pageNumber = index + 1;
+        const detail = error?.message || String(error);
+        const message = `画像変換に失敗しました（${pageNumber}ページ目: ${image.path}）\n\n詳細: ${detail}`;
+        console.error(message, error);
+        this.imagePageErrors[index] = message;
+        this.emitLoadingUpdate({
+          phase: READER_LOADING_PHASES.IMAGE_CONVERT,
+          status: READER_LOADING_STATUSES.ERROR,
+          current: index + 1,
+          total: this.imageEntries.length,
+        });
+        if (reportError) {
+          this.showImageConvertError(message);
+        }
+        return null;
+      } finally {
+        this.convertingPromises?.delete(index);
+      }
+    })();
+
+    this.convertingPromises?.set(index, conversionPromise);
+    return conversionPromise;
   }
 
   getImageCacheSize() {
@@ -3969,6 +3985,11 @@ export class ReaderController {
         resolve({ w: 0, h: 0 });
       };
       img.src = src;
+      if (img.complete && img.naturalWidth > 0) {
+        const size = { w: img.naturalWidth, h: img.naturalHeight };
+        this.pageDimensionCache[index] = size;
+        resolve(size);
+      }
     });
   }
 
@@ -3987,6 +4008,9 @@ export class ReaderController {
 
     if (this.imagePages[index]) {
       this.imageElement.src = this.imagePages[index];
+      if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
+        this.showImageLoading(false);
+      }
     } else {
       // 未完了時に空文字を設定するとonerrorが即時発火してローディングが消えるのを防ぐ
       this.imageElement.removeAttribute("src");
@@ -4057,21 +4081,15 @@ export class ReaderController {
     // 描画開始前に中身を空にする（プログレスバー移動時の残像防止）
     container.innerHTML = '';
 
-    // 1. 現在のページと次ページの画像データおよびサイズを並行取得（待機時間の最小化）
-    const nextIndex = targetIndex + 1;
-    const hasNext = nextIndex < this.imagePages.length;
-
-    const [page1Src, isWide, isNextWide, page2Src] = await Promise.all([
-      this.getImageData(targetIndex),
-      this.isImageWide(targetIndex),
-      hasNext ? this.isImageWide(nextIndex) : Promise.resolve(true),
-      hasNext ? this.getImageData(nextIndex) : Promise.resolve(null),
-    ]);
-
+    // 1. まず対象ページの画像と横長判定を取得（直列・安全に実行して競合防止）
+    const page1Src = await this.getImageData(targetIndex);
     if (!page1Src) {
       // 画像がない（範囲外など）
+      if (targetIndex === this.imageIndex) this.showImageLoading(false);
       return;
     }
+
+    const isWide = await this.isImageWide(targetIndex);
 
     if (isWide) {
       // --- ワイド画像 (1枚表示) ---
@@ -4079,15 +4097,33 @@ export class ReaderController {
       img.onload = () => {
         if (targetIndex === this.imageIndex) this.showImageLoading(false);
       };
-      img.onerror = () => this.showImageLoading(false);
+      img.onerror = () => {
+        if (targetIndex === this.imageIndex) this.showImageLoading(false);
+      };
       img.src = page1Src;
       img.className = 'spread-page wide'; //.wide -> max-width: 100%
       container.appendChild(img);
+
+      if (img.complete && img.naturalWidth > 0) {
+        if (targetIndex === this.imageIndex) this.showImageLoading(false);
+      }
 
       this.currentSpreadStep = 1;
 
     } else {
       // --- 通常画像 (ペア表示を試みる) ---
+      const nextIndex = targetIndex + 1;
+      const hasNext = nextIndex < this.imagePages.length;
+      let isNextWide = true;
+      let page2Src = null;
+
+      if (hasNext) {
+        isNextWide = await this.isImageWide(nextIndex);
+        if (!isNextWide) {
+          page2Src = await this.getImageData(nextIndex);
+        }
+      }
+
       const showTwoPages = Boolean(hasNext && !isNextWide && page2Src);
 
       if (showTwoPages) {
@@ -4100,27 +4136,43 @@ export class ReaderController {
         const leftImgSrc = page1Src;
         const rightImgSrc = page2Src;
 
-          const leftImg = document.createElement('img');
-          const rightImg = document.createElement('img');
-          let loadedCount = 0;
-          const onAnyLoad = () => {
-            loadedCount++;
-            if (loadedCount >= 2 && targetIndex === this.imageIndex) {
-              this.showImageLoading(false);
-            }
-          };
-          leftImg.onload = onAnyLoad;
-          rightImg.onload = onAnyLoad;
-          leftImg.onerror = () => this.showImageLoading(false);
-          rightImg.onerror = () => this.showImageLoading(false);
+        const leftImg = document.createElement('img');
+        const rightImg = document.createElement('img');
+        let loadedCount = 0;
+        let isDone = false;
+        const checkDone = () => {
+          if (isDone) return;
+          loadedCount++;
+          if (loadedCount >= 2 && targetIndex === this.imageIndex) {
+            isDone = true;
+            this.showImageLoading(false);
+          }
+        };
+        leftImg.onload = checkDone;
+        rightImg.onload = checkDone;
+        leftImg.onerror = () => {
+          if (!isDone) {
+            isDone = true;
+            this.showImageLoading(false);
+          }
+        };
+        rightImg.onerror = () => {
+          if (!isDone) {
+            isDone = true;
+            this.showImageLoading(false);
+          }
+        };
 
-          leftImg.src = leftImgSrc;
-          leftImg.className = 'spread-page spread-left';
-          container.appendChild(leftImg);
+        leftImg.src = leftImgSrc;
+        leftImg.className = 'spread-page spread-left';
+        container.appendChild(leftImg);
 
-          rightImg.src = rightImgSrc;
-          rightImg.className = 'spread-page spread-right';
-          container.appendChild(rightImg);
+        rightImg.src = rightImgSrc;
+        rightImg.className = 'spread-page spread-right';
+        container.appendChild(rightImg);
+
+        if (leftImg.complete && leftImg.naturalWidth > 0) checkDone();
+        if (rightImg.complete && rightImg.naturalWidth > 0) checkDone();
 
       } else {
         // 1枚表示（ペア相手がいない、または次がワイド）
@@ -4128,10 +4180,16 @@ export class ReaderController {
         img1.onload = () => {
           if (targetIndex === this.imageIndex) this.showImageLoading(false);
         };
-        img1.onerror = () => this.showImageLoading(false);
+        img1.onerror = () => {
+          if (targetIndex === this.imageIndex) this.showImageLoading(false);
+        };
         img1.src = page1Src;
         img1.className = 'spread-page single-view';
         container.appendChild(img1);
+
+        if (img1.complete && img1.naturalWidth > 0) {
+          if (targetIndex === this.imageIndex) this.showImageLoading(false);
+        }
 
         this.currentSpreadStep = 1;
       }
@@ -4207,6 +4265,9 @@ export class ReaderController {
         this.imageElement.src = this.imagePages[index];
         this.imageElement.alt = "ページ画像";
         this.imageElement.title = "";
+        if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
+          this.showImageLoading(false);
+        }
       }
       return;
     }
@@ -4223,6 +4284,9 @@ export class ReaderController {
       this.imageElement.src = objectUrl;
       this.imageElement.alt = "ページ画像";
       this.imageElement.title = "";
+      if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
+        this.showImageLoading(false);
+      }
     }
   }
 
