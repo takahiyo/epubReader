@@ -117,6 +117,7 @@ export const UI_STRINGS_EN = Object.freeze({
   keyPageNext: "Next page (2-page / Right-binding)",
   keySinglePrev: "Previous page (1-page / Right-binding)",
   keySingleNext: "Next page (1-page / Right-binding)",
+  keyToggleSpreadMode: "Toggle spread / single page",
   keyToggleFullscreen: "Toggle full screen",
   keyToggleMenu: "Toggle menu",
   keyToggleToc: "Table of Contents",
