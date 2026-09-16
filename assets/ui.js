@@ -287,7 +287,9 @@ export class UIController {
           e.preventDefault();
         }
       } else if (!isHorizontalNavigation && absDeltaY > 8 && absDeltaY > absDeltaX) {
-        if (e.cancelable) {
+        // シームレススクロールモード時はネイティブスクロールを妨げない
+        const isScrollMode = !this.isImageBook?.() && this.getEpubViewMode?.() === EPUB_VIEW_MODES.SCROLL;
+        if (!isScrollMode && e.cancelable) {
           e.preventDefault();
         }
       }
