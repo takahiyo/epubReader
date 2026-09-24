@@ -1455,6 +1455,7 @@ async function handleFile(file, overrideBookId = null) {
         {
           streaming: useStreaming,
           readingDirection: syncedProgress?.pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL,
+          imageViewMode: syncedProgress?.imageViewMode || defaultImageViewMode,
         }
       );
     }
@@ -1842,6 +1843,7 @@ async function openFromLibrary(bookId, options = {}) {
       await reader.openImageBook(file, typeof start === "number" ? start : 0, info.type, {
         streaming: streamingNeeded,
         readingDirection: normalizedProgress?.pageDirection || defaultPageDirection || READING_DIRECTIONS.RTL,
+        imageViewMode: normalizedProgress?.imageViewMode || defaultImageViewMode,
       });
     }
     } // End of else (not WEB_NOVEL)
@@ -1920,7 +1922,9 @@ async function applyReadingState(progress) {
   // 2.5. 画像書庫の開き方向の復元
   // 画像書庫では pageDirection を imageReadingDirection として復元
   if (reader && reader.type !== BOOK_TYPES.EPUB) {
-    reader.setImageReadingDirection(targetPageDirection);
+    if (reader.imageReadingDirection !== targetPageDirection) {
+      reader.setImageReadingDirection(targetPageDirection);
+    }
     renderers.updateReadingDirectionButtonLabel();
     renderers.updateProgressBarDirection();
   }
