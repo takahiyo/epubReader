@@ -232,6 +232,7 @@ export class ReaderController {
     this.imageEntries = [];
     this.imagePageErrors = [];
     this.imageLoadToken = 0;
+    this.imageRenderToken = 0;
     this.imageArchiveSize = 0;
     this.imageViewMode = IMAGE_VIEW_MODES.SINGLE;
     this.convertingPromises = new Map();
@@ -456,6 +457,7 @@ export class ReaderController {
     this.convertingPromises?.clear();
     this.pageDimensionCache = {};
     this.imageLoadToken = 0;
+    this.imageRenderToken = 0;
     this.imageReadingDirection = READING_DIRECTIONS.RTL;
     this.imageZoomed = false;
     if (this.currentPaginationRun) {
@@ -3663,6 +3665,9 @@ export class ReaderController {
     if (options.readingDirection === READING_DIRECTIONS.LTR || options.readingDirection === READING_DIRECTIONS.RTL) {
       this.imageReadingDirection = options.readingDirection;
     }
+    if (options.imageViewMode === IMAGE_VIEW_MODES.SINGLE || options.imageViewMode === IMAGE_VIEW_MODES.SPREAD) {
+      this.imageViewMode = options.imageViewMode;
+    }
     this.toc = [];
     void bookType;
     this.imageArchiveSize = file?.size ?? 0;
@@ -3737,43 +3742,51 @@ export class ReaderController {
       this.pageDimensionCache = {};
 
       const memoryStrategy = getMemoryStrategy();
-      // ストリーミングモード時は最小限（1枚）のプリロードに制限
-      const isStreamingMode = typeof handler.close === "function"; // StreamingZipHandler固有メソッド
+      // ストリーミングモード判定（StreamingZipHandlerか、明示的なstreamingフラグ）
+      const isStreamingMode = options.streaming === true || handler?.constructor?.name === "StreamingZipHandler";
       const basePreloadCount = isStreamingMode
         ? MEMORY_STRATEGY.imageStreamingPreloadCount
         : (memoryStrategy?.imagePreloadCount ?? MEMORY_STRATEGY.imagePreloadCount);
       const preloadCount = Math.min(basePreloadCount, images.length);
       console.log(`Preloading ${preloadCount} images to object URLs... (streaming=${isStreamingMode})`);
+
+      this.imageIndex = Math.min(Math.max(0, startPage), this.imagePages.length - 1);
+
+      // 表示対象ページ周辺を優先してプリロード
+      const startIndex = this.imageIndex;
+      const endIndex = Math.min(startIndex + preloadCount, images.length);
       this.emitLoadingUpdate({
         phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
         status: READER_LOADING_STATUSES.START,
         current: 0,
-        total: preloadCount,
+        total: endIndex - startIndex,
       });
 
-      for (let index = 0; index < preloadCount; index += 1) {
+      for (let index = startIndex; index < endIndex; index += 1) {
         await this.convertImageAtIndex(index, { reportError: true });
         this.emitLoadingUpdate({
           phase: READER_LOADING_PHASES.IMAGE_PRELOAD,
           status: READER_LOADING_STATUSES.PROGRESS,
-          current: index + 1,
-          total: preloadCount,
+          current: index - startIndex + 1,
+          total: endIndex - startIndex,
         });
       }
 
-      this.imageIndex = Math.min(startPage, this.imagePages.length - 1);
-      const loadedCount = this.imagePages.filter((page) => page !== null).length;
-      console.log(`Preloaded ${loadedCount} images successfully`);
-
-      if (loadedCount === 0) {
+      // 最初の表示ページがロードできているか確認（フォールバック）
+      if (!this.imagePages[this.imageIndex]) {
         await this.convertImageAtIndex(this.imageIndex, { reportError: true });
         if (!this.imagePages[this.imageIndex]) {
-          console.error('All preloaded images failed to convert to object URLs');
+          console.error('Initial image page failed to convert to object URL');
           throw new Error("画像の読み込みに失敗しました。最初のページの変換に失敗しました。");
         }
       }
 
-      this.renderImagePage();
+      if (this.imageViewer) {
+        this.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
+        this.imageViewer.style.display = "";
+      }
+
+      await this.renderImagePage();
       this.onReady?.({
         metadata: { title: file.name, creator: "画像書籍" },
         toc: [],
@@ -3878,8 +3891,10 @@ export class ReaderController {
     const cacheSize = this.getImageCacheSize();
     if (!Number.isFinite(cacheSize) || cacheSize < 0) return;
 
-    const minIndex = Math.max(0, currentIndex - cacheSize);
-    const maxIndex = Math.min(this.imagePages.length - 1, currentIndex + cacheSize);
+    // 現在閲覧中のページと対象インデックスの両周辺を保護する
+    const centerIndex = Number.isFinite(this.imageIndex) ? this.imageIndex : currentIndex;
+    const minIndex = Math.max(0, Math.min(centerIndex, currentIndex) - cacheSize);
+    const maxIndex = Math.min(this.imagePages.length - 1, Math.max(centerIndex, currentIndex) + cacheSize);
 
     this.imagePages.forEach((page, index) => {
       if (index >= minIndex && index <= maxIndex) return;
@@ -3903,8 +3918,9 @@ export class ReaderController {
     }
   }
 
-  renderImagePage() {
+  async renderImagePage() {
     if (!this.imagePages.length) return;
+    const renderToken = ++this.imageRenderToken;
     const targetIndex = this.imageIndex;
 
     // RTL モードクラスを適用
@@ -3916,27 +3932,19 @@ export class ReaderController {
       }
     }
 
-    // 現在のページが横長かどうかチェック（非同期だが、すでにプリロード済みと仮定または簡易チェック）
-    // 横長判定: プリロードされた画像データから判定するのは難しいが、
-    // Imageオブジェクトを一時生成してチェックするか、キャッシュ済みの情報を利用する。
-    // ここでは描画時に判定して動的にモード切替相当の処理を行うアプローチをとる。
-
     this.showImageLoading(true);
 
     // 見開きモードの場合
     if (this.imageViewMode === IMAGE_VIEW_MODES.SPREAD && this.imageViewer) {
-      // 横長チェックは renderSpreadPage 内で実施し、必要なら単ページ表示にフォールバック
-      // ただし描画遅延を防ぐため、Imageオブジェクトを一時生成してサイズ取得を試みる
-      this.checkWideAndRender(targetIndex);
+      await this.checkWideAndRender(targetIndex, renderToken);
     } else {
       // 単ページモード
-      this.renderSinglePageWithStyle(targetIndex);
+      await this.renderSinglePageWithStyle(targetIndex, renderToken);
     }
   }
 
-  async checkWideAndRender(index) {
-    // 横長判定も renderSpreadPage 内で行うため、直接呼び出す
-    await this.renderSpreadPage(index);
+  async checkWideAndRender(index, renderToken = null) {
+    await this.renderSpreadPage(index, renderToken);
   }
 
   // ---------------------------------------------------------
@@ -4002,26 +4010,9 @@ export class ReaderController {
     return Boolean(size && size.w > size.h);
   }
 
-  renderSinglePageWithStyle(index, isWideSpread = false) {
+  async renderSinglePageWithStyle(index, renderToken = null, isWideSpread = false) {
     if (!this.imageElement) return;
     this.showImageLoading(true);
-
-    if (this.imagePages[index]) {
-      this.imageElement.src = this.imagePages[index];
-      if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
-        this.showImageLoading(false);
-      }
-    } else {
-      // 未完了時に空文字を設定するとonerrorが即時発火してローディングが消えるのを防ぐ
-      this.imageElement.removeAttribute("src");
-    }
-    
-    this.imageElement.style.display = '';
-
-    // 単ページでも画像書庫ならクリック無効化
-    if (this.type !== BOOK_TYPES.EPUB) {
-      this.imageElement.onclick = null;
-    }
 
     // 見開きコンテナ削除
     if (this.imageViewer) {
@@ -4029,15 +4020,23 @@ export class ReaderController {
       if (spreadContainer) spreadContainer.remove();
     }
 
+    this.imageElement.style.display = '';
+
+    // 単ページでも画像書庫ならクリック無効化
+    if (this.type !== BOOK_TYPES.EPUB) {
+      this.imageElement.onclick = null;
+    }
+
     this.syncZoomedClass();
     this.updateTransform();
 
-    this.loadImagePage(index);
-    // プリロード
+    await this.loadImagePage(index, renderToken);
+
+    // プリロードは画面描画メソッドではなく convertImageAtIndex で静かに実行
     const memoryStrategy = getMemoryStrategy();
     const preloadAheadCount = memoryStrategy.imagePreloadAheadCount;
     if (index + preloadAheadCount < this.imagePages.length) {
-      this.loadImagePage(index + preloadAheadCount);
+      this.convertImageAtIndex(index + preloadAheadCount).catch(() => {});
     }
 
     if (!isWideSpread) {
@@ -4060,17 +4059,14 @@ export class ReaderController {
   // ---------------------------------------------------------
   // [修正] 見開き描画メソッド
   // ---------------------------------------------------------
-  async renderSpreadPage(targetIndex) {
+  async renderSpreadPage(targetIndex, renderToken = null) {
     if (!this.imageViewer || !this.imagePages.length) return;
 
     // 元の画像を非表示
     this.imageElement.style.display = 'none';
 
-    // --- 修正箇所 ---
-    // 以前のコードではここで this.imageViewer 自体のクラスを書き換えてしまうバグがありました
     let container = this.imageViewer.querySelector(DOM_SELECTORS.SPREAD_CONTAINER);
     if (!container) {
-      // コンテナが存在しない場合は新規作成して追加する
       container = document.createElement('div');
       container.className = 'spread-container';
       this.imageViewer.appendChild(container);
@@ -4083,29 +4079,35 @@ export class ReaderController {
 
     // 1. まず対象ページの画像と横長判定を取得（直列・安全に実行して競合防止）
     const page1Src = await this.getImageData(targetIndex);
+    if (renderToken && renderToken !== this.imageRenderToken) return;
+
     if (!page1Src) {
       // 画像がない（範囲外など）
-      if (targetIndex === this.imageIndex) this.showImageLoading(false);
+      if (!renderToken || renderToken === this.imageRenderToken) {
+        this.showImageLoading(false);
+      }
       return;
     }
 
     const isWide = await this.isImageWide(targetIndex);
+    if (renderToken && renderToken !== this.imageRenderToken) return;
 
     if (isWide) {
       // --- ワイド画像 (1枚表示) ---
       const img = document.createElement('img');
-      img.onload = () => {
-        if (targetIndex === this.imageIndex) this.showImageLoading(false);
+      const onDone = () => {
+        if (!renderToken || renderToken === this.imageRenderToken) {
+          this.showImageLoading(false);
+        }
       };
-      img.onerror = () => {
-        if (targetIndex === this.imageIndex) this.showImageLoading(false);
-      };
+      img.onload = onDone;
+      img.onerror = onDone;
       img.src = page1Src;
       img.className = 'spread-page wide'; //.wide -> max-width: 100%
       container.appendChild(img);
 
       if (img.complete && img.naturalWidth > 0) {
-        if (targetIndex === this.imageIndex) this.showImageLoading(false);
+        onDone();
       }
 
       this.currentSpreadStep = 1;
@@ -4119,8 +4121,10 @@ export class ReaderController {
 
       if (hasNext) {
         isNextWide = await this.isImageWide(nextIndex);
+        if (renderToken && renderToken !== this.imageRenderToken) return;
         if (!isNextWide) {
           page2Src = await this.getImageData(nextIndex);
+          if (renderToken && renderToken !== this.imageRenderToken) return;
         }
       }
 
@@ -4130,9 +4134,6 @@ export class ReaderController {
         // 2枚表示
         this.currentSpreadStep = 2;
 
-        // 【修正】CSS側(.rtl-mode)で表示順序を反転させるため、
-        // JS側では常に DOM順序 = [現在ページ, 次ページ] として生成する。
-        // これにより、RTL時は CSS flex-direction 等の効果で [次ページ] [現在ページ] と表示される。
         const leftImgSrc = page1Src;
         const rightImgSrc = page2Src;
 
@@ -4143,25 +4144,15 @@ export class ReaderController {
         const checkDone = () => {
           if (isDone) return;
           loadedCount++;
-          if (loadedCount >= 2 && targetIndex === this.imageIndex) {
+          if (loadedCount >= 2 && (!renderToken || renderToken === this.imageRenderToken)) {
             isDone = true;
             this.showImageLoading(false);
           }
         };
         leftImg.onload = checkDone;
         rightImg.onload = checkDone;
-        leftImg.onerror = () => {
-          if (!isDone) {
-            isDone = true;
-            this.showImageLoading(false);
-          }
-        };
-        rightImg.onerror = () => {
-          if (!isDone) {
-            isDone = true;
-            this.showImageLoading(false);
-          }
-        };
+        leftImg.onerror = checkDone;
+        rightImg.onerror = checkDone;
 
         leftImg.src = leftImgSrc;
         leftImg.className = 'spread-page spread-left';
@@ -4177,18 +4168,19 @@ export class ReaderController {
       } else {
         // 1枚表示（ペア相手がいない、または次がワイド）
         const img1 = document.createElement('img');
-        img1.onload = () => {
-          if (targetIndex === this.imageIndex) this.showImageLoading(false);
+        const onDone = () => {
+          if (!renderToken || renderToken === this.imageRenderToken) {
+            this.showImageLoading(false);
+          }
         };
-        img1.onerror = () => {
-          if (targetIndex === this.imageIndex) this.showImageLoading(false);
-        };
+        img1.onload = onDone;
+        img1.onerror = onDone;
         img1.src = page1Src;
         img1.className = 'spread-page single-view';
         container.appendChild(img1);
 
         if (img1.complete && img1.naturalWidth > 0) {
-          if (targetIndex === this.imageIndex) this.showImageLoading(false);
+          onDone();
         }
 
         this.currentSpreadStep = 1;
@@ -4199,8 +4191,7 @@ export class ReaderController {
     const memoryStrategy = getMemoryStrategy();
     const preloadStep = this.currentSpreadStep || memoryStrategy.imagePreloadAheadCount;
     if (targetIndex + preloadStep < this.imagePages.length) {
-      // 次の画像データだけ取得しておく（キャッシュ乗る）
-      this.getPageDimensions(targetIndex + preloadStep);
+      this.getPageDimensions(targetIndex + preloadStep).catch(() => {});
     }
 
     this.updateProgress(targetIndex, isWide);
@@ -4210,6 +4201,7 @@ export class ReaderController {
 
   setImageViewMode(mode) {
     if (mode !== IMAGE_VIEW_MODES.SINGLE && mode !== IMAGE_VIEW_MODES.SPREAD) return;
+    if (this.imageViewMode === mode) return;
     this.imageViewMode = mode;
     this.renderImagePage();
   }
@@ -4224,6 +4216,7 @@ export class ReaderController {
   // 左開き/右開き切替
   setImageReadingDirection(direction) {
     if (direction !== READING_DIRECTIONS.LTR && direction !== READING_DIRECTIONS.RTL) return;
+    if (this.imageReadingDirection === direction) return;
     this.imageReadingDirection = direction;
     this.renderImagePage();
   }
@@ -4258,35 +4251,45 @@ export class ReaderController {
     return await this.isImageWide(this.imageIndex);
   }
 
-  async loadImagePage(index) {
+  async loadImagePage(index, renderToken = null) {
     const currentToken = ++this.imageLoadToken;
-    if (this.imagePages[index]) {
-      if (currentToken === this.imageLoadToken) {
-        this.imageElement.src = this.imagePages[index];
-        this.imageElement.alt = "ページ画像";
-        this.imageElement.title = "";
-        if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
-          this.showImageLoading(false);
-        }
+    if (renderToken && renderToken !== this.imageRenderToken) return;
+
+    let src = this.imagePages[index];
+    if (src instanceof Promise) {
+      try {
+        src = await src;
+      } catch (e) {
+        src = null;
       }
+    }
+    if (!src) {
+      src = await this.convertImageAtIndex(index, { reportError: true, retry: true });
+    }
+
+    if (renderToken && renderToken !== this.imageRenderToken) return;
+    if (currentToken !== this.imageLoadToken) return;
+
+    if (!src) {
+      this.showImageLoading(false);
       return;
     }
 
-    // エラー済みの場合もリトライを試みる（一時的なエラーの可能性があるため）
-    const objectUrl = await this.convertImageAtIndex(index, { reportError: true, retry: true });
-    if (!objectUrl) {
-      if (currentToken === this.imageLoadToken) {
+    const onDone = () => {
+      if (currentToken === this.imageLoadToken && (!renderToken || renderToken === this.imageRenderToken)) {
         this.showImageLoading(false);
       }
-      return;
-    }
-    if (currentToken === this.imageLoadToken) {
-      this.imageElement.src = objectUrl;
-      this.imageElement.alt = "ページ画像";
-      this.imageElement.title = "";
-      if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
-        this.showImageLoading(false);
-      }
+    };
+
+    this.imageElement.addEventListener("load", onDone, { once: true });
+    this.imageElement.addEventListener("error", onDone, { once: true });
+
+    this.imageElement.src = src;
+    this.imageElement.alt = "ページ画像";
+    this.imageElement.title = "";
+
+    if (this.imageElement.complete && this.imageElement.naturalWidth > 0) {
+      onDone();
     }
   }
 
@@ -4525,7 +4528,7 @@ export class ReaderController {
       } else {
         // 画像書庫の場合、範囲チェックをして移動
         this.imageIndex = Math.max(0, Math.min(bookmark, this.imagePages.length - 1));
-        this.renderImagePage();
+        await this.renderImagePage();
         this.manageImageCache(this.imageIndex);
       }
       return;
@@ -4611,7 +4614,7 @@ export class ReaderController {
         ? bookmark.location
         : Math.round((bookmark.percentage / 100) * this.imagePages.length) - 1;
       this.imageIndex = Math.max(0, Math.min(targetIndex, this.imagePages.length - 1));
-      this.renderImagePage();
+      await this.renderImagePage();
       this.manageImageCache(this.imageIndex);
     }
   }
