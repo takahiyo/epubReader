@@ -38,7 +38,8 @@ $Apksigner = "$AndroidSdk\build-tools\36.1.0\apksigner.bat"
 $Adb = "$AndroidSdk\platform-tools\adb.exe"
 $Keystore = "$env:USERPROFILE\BookReader.jks"
 $KeystoreAlias = "BookReaderKey"
-$KeystorePass = "v7xTcuHflt"
+$KeystorePass = $env:BOOKREADER_KEYSTORE_PASSWORD
+if ([string]::IsNullOrWhiteSpace($KeystorePass)) { throw "BOOKREADER_KEYSTORE_PASSWORD を設定してください。" }
 
 if (!$OutputDir) { $OutputDir = $AndroidProject }
 
@@ -85,8 +86,8 @@ Write-Host "[2/3] apksigner で署名中..." -ForegroundColor Cyan
 & $Apksigner sign `
     --ks $Keystore `
     --ks-key-alias $KeystoreAlias `
-    --ks-pass pass:$KeystorePass `
-    --key-pass pass:$KeystorePass `
+    --ks-pass env:BOOKREADER_KEYSTORE_PASSWORD `
+    --key-pass env:BOOKREADER_KEYSTORE_PASSWORD `
     --v1-signing-enabled true `
     --v2-signing-enabled true `
     --out $SignedApk `

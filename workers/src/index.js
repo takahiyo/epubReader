@@ -10,98 +10,36 @@
  *  POST /api/diagnostics  { fileName, errorMessage, stackTrace? }
  */
 
-// -----------------------------------------------------------------------
-// Firebase ID Token デコードユーティリティ
-//
-// 【セキュリティ注記】
-//  Cloudflare Worker から Google の公開鍵エンドポイントへの外部 fetch は
-//  コールドスタート時のタイムアウトや不安定性により失敗することがある。
-//  そのため、ここでは RSA 署名検証は行わず、JWT ペイロードの
-//  exp / aud / iss クレームのみを検証する。
-//  これは「完全な認証」ではないが、悪意ある第三者が有効な Firebase JWT の
-//  ペイロード（有効期限・project-id・発行者）を偽造することは事実上不可能であり、
-//  個人利用・読書データ同期のユースケースでは十分な防御レベルとなる。
-//  より厳格なセキュリティが必要な場合は、Cloudflare Workers の
-//  `waitUntil` を使ったバックグラウンド鍵キャッシュ方式を検討すること。
-// -----------------------------------------------------------------------
+import { verifyIdToken } from './auth.js';
+import { mergeCloudStates } from '../../assets/js/core/cloud-state-merge.js';
+const API_LIMITS = Object.freeze({ maxBodyBytes: 1048576, casRetries: 5 });
 
-/**
- * Base64URL を標準 Base64 に変換してデコードする
- */
-function base64urlDecode(str) {
-  // Base64URL → Base64
-  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
-  // パディング補完
-  const padded = b64 + '=='.slice(0, (4 - b64.length % 4) % 4);
-  return atob(padded);
-}
-
-/**
- * Firebase ID Token (JWT) のペイロードをデコードし、
- * exp / aud / iss を検証して uid を返す。
- * 検証失敗時は null を返す（例外はスローしない）。
- *
- * @param {string} idToken - Firebase ID Token (JWT)
- * @param {string} firebaseProjectId - 検証する Firebase Project ID
- * @returns {string|null} uid または null
- */
-function decodeAndVerifyIdToken(idToken, firebaseProjectId) {
-  try {
-    const parts = idToken.split('.');
-    if (parts.length !== 3) {
-      console.warn('[Auth] Invalid JWT format: expected 3 parts, got', parts.length);
-      return null;
-    }
-
-    // ペイロードをデコード
-    const payloadJson = base64urlDecode(parts[1]);
-    const payload = JSON.parse(payloadJson);
-
-    // 1. 有効期限チェック
-    const now = Math.floor(Date.now() / 1000);
-    if (!payload.exp || payload.exp < now) {
-      console.warn('[Auth] ID token expired. exp:', payload.exp, 'now:', now);
-      return null;
-    }
-
-    // 2. 発行時刻チェック（未来の不正トークンを防ぐ）
-    if (payload.iat && payload.iat > now + 300) {
-      console.warn('[Auth] ID token issued in the future. iat:', payload.iat);
-      return null;
-    }
-
-    // 3. audience チェック（このプロジェクト向けのトークンか確認）
-    if (firebaseProjectId && payload.aud !== firebaseProjectId) {
-      console.warn('[Auth] ID token audience mismatch. aud:', payload.aud, 'expected:', firebaseProjectId);
-      return null;
-    }
-
-    // 4. issuer チェック（Firebase 発行のトークンか確認）
-    const expectedIss = `https://securetoken.google.com/${firebaseProjectId}`;
-    if (firebaseProjectId && payload.iss !== expectedIss) {
-      console.warn('[Auth] ID token issuer mismatch. iss:', payload.iss);
-      return null;
-    }
-
-    // uid を返す（sub または user_id）
-    const uid = payload.sub || payload.user_id;
-    if (!uid) {
-      console.warn('[Auth] No uid found in token payload');
-      return null;
-    }
-
-    return uid;
-  } catch (e) {
-    console.error('[Auth] decodeAndVerifyIdToken error:', e.message);
-    return null;
+/** Optimistic compare-and-swap prevents concurrent JSON updates from dropping another device's edits. */
+async function updateJsonRecord(db, table, column, keys, merge) {
+  const names = Object.keys(keys);
+  const values = Object.values(keys);
+  const where = names.map(name => `${name} = ?`).join(' AND ');
+  for (let attempt = 0; attempt < API_LIMITS.casRetries; attempt++) {
+    const existing = await db.prepare(`SELECT ${column}, updated_at FROM ${table} WHERE ${where}`).bind(...values).first();
+    const previous = existing?.[column] ?? null;
+    const data = merge(previous ? JSON.parse(previous) : {});
+    const updatedAt = Math.max(Date.now(), (existing?.updated_at ?? 0) + 1);
+    const serialized = JSON.stringify(data);
+    const result = existing
+      ? await db.prepare(`UPDATE ${table} SET ${column} = ?, updated_at = ? WHERE ${where} AND ${column} IS ?`)
+          .bind(serialized, updatedAt, ...values, previous).run()
+      : await db.prepare(`INSERT OR IGNORE INTO ${table} (${names.join(', ')}, ${column}, updated_at) VALUES (${[...values, serialized, updatedAt].map(() => '?').join(', ')})`)
+          .bind(...values, serialized, updatedAt).run();
+    if (result.meta?.changes > 0) return { data, updatedAt };
   }
+  throw new Error('Concurrent update; retry request');
 }
 
 /**
  * リクエスト body から idToken を検証し uid を返す。
  * 検証失敗時は { uid: null, error: Response } を返す。
  */
-function authenticate(body, env, corsHeaders) {
+async function authenticate(body, env, corsHeaders) {
   const { idToken } = body;
   if (!idToken) {
     return {
@@ -113,7 +51,7 @@ function authenticate(body, env, corsHeaders) {
     };
   }
 
-  const uid = decodeAndVerifyIdToken(idToken, env.FIREBASE_PROJECT_ID);
+  const uid = await verifyIdToken(idToken, env.FIREBASE_PROJECT_ID);
   if (!uid) {
     return {
       uid: null,
@@ -186,7 +124,7 @@ export default {
       const isAllowed = ALLOWED_DOMAINS.some(
         domain => parsedTarget.hostname === domain || parsedTarget.hostname.endsWith('.' + domain)
       );
-      if (!isAllowed) {
+      if (!isAllowed || parsedTarget.protocol !== 'https:') {
         return new Response(
           JSON.stringify({ error: `許可されていないドメインです: ${parsedTarget.hostname}` }),
           { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
@@ -202,7 +140,7 @@ export default {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'ja,en;q=0.5',
           },
-          redirect: 'follow',
+          redirect: 'error',
         });
 
         // レスポンスヘッダーにCORSを付与して返す
@@ -230,9 +168,24 @@ export default {
       let body = {};
       if (method === 'POST') {
         try {
-          body = await request.json();
+          // Bound streamed bodies as well as Content-Length; anonymous diagnostics share this limit.
+          const reader = request.body?.getReader();
+          const chunks = [];
+          let size = 0;
+          if (reader) while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.byteLength;
+            if (size > API_LIMITS.maxBodyBytes) {
+              await reader.cancel();
+              return new Response('Request too large', { status: 413, headers: corsHeaders });
+            }
+            chunks.push(value);
+          }
+          body = JSON.parse(await new Blob(chunks).text());
+          if (!body || Array.isArray(body) || typeof body !== 'object') throw new Error('Invalid body');
         } catch (e) {
-          console.warn('[Worker] Empty or invalid JSON body');
+          return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
         }
       }
 
@@ -266,21 +219,13 @@ export default {
       //    response: { data: { [cloudBookId]: { ...bookMeta } } }
       // ===================================================================
       if (path === '/sync/index/pull' && method === 'POST') {
-        const { uid, error } = authenticate(body, env, corsHeaders);
+        const { uid, error } = await authenticate(body, env, corsHeaders);
         if (error) return error;
 
-        const { since } = body;
-        let result;
-        if (since) {
-          // 差分取得: updated_at > since のレコードのみ返す
-          result = await env.DB.prepare(
-            'SELECT index_data FROM user_indexes WHERE user_id = ? AND updated_at > ?'
-          ).bind(uid, since).first();
-        } else {
-          result = await env.DB.prepare(
-            'SELECT index_data FROM user_indexes WHERE user_id = ?'
-          ).bind(uid).first();
-        }
+        // Full indexes avoid client-clock cursors hiding edits from another device.
+        const result = await env.DB.prepare(
+          'SELECT index_data FROM user_indexes WHERE user_id = ?'
+        ).bind(uid).first();
 
         let data = {};
         if (result?.index_data) {
@@ -289,6 +234,12 @@ export default {
           } catch (_) {
             data = result.index_data;
           }
+        }
+
+        // State versions use server commit time, independent of client clocks and metadata edits.
+        const versions = await env.DB.prepare('SELECT book_id, updated_at FROM book_states WHERE user_id = ?').bind(uid).all();
+        for (const row of versions.results ?? []) {
+          if (data[row.book_id]) data[row.book_id].stateUpdatedAt = row.updated_at;
         }
 
         return new Response(JSON.stringify({ data }), {
@@ -302,7 +253,7 @@ export default {
       //    response: { data: { success: true, updatedAt } }
       // ===================================================================
       if (path === '/sync/index/push' && method === 'POST') {
-        const { uid, error } = authenticate(body, env, corsHeaders);
+        const { uid, error } = await authenticate(body, env, corsHeaders);
         if (error) return error;
 
         const { indexDelta, updatedAt } = body;
@@ -313,25 +264,21 @@ export default {
           );
         }
 
-        // 既存データとマージ（差分更新）
-        const existing = await env.DB.prepare(
-          'SELECT index_data FROM user_indexes WHERE user_id = ?'
-        ).bind(uid).first();
-
-        let merged = {};
-        if (existing?.index_data) {
-          try { merged = JSON.parse(existing.index_data); } catch (_) {}
-        }
-        // indexDelta でマージ（新規追加 & 上書き更新）
         const delta = typeof indexDelta === 'string' ? JSON.parse(indexDelta) : indexDelta;
-        Object.assign(merged, delta);
-
-        const dataStr = JSON.stringify(merged);
-        const ts = updatedAt ?? Date.now();
-
-        await env.DB.prepare(
-          'INSERT OR REPLACE INTO user_indexes (user_id, index_data, updated_at) VALUES (?, ?, ?)'
-        ).bind(uid, dataStr, ts).run();
+        if (!delta || Array.isArray(delta) || typeof delta !== 'object') {
+          return new Response('Invalid index', { status: 400, headers: corsHeaders });
+        }
+        const result = await updateJsonRecord(env.DB, 'user_indexes', 'index_data', { user_id: uid }, existing => {
+          const merged = { ...existing };
+          for (const [id, meta] of Object.entries(delta)) {
+            if (!meta || typeof meta !== 'object') continue;
+            if (!merged[id] || (meta.updatedAt ?? 0) >= (merged[id].updatedAt ?? 0)) {
+              merged[id] = { ...merged[id], ...meta, cloudBookId: id };
+            }
+          }
+          return merged;
+        });
+        const ts = result.updatedAt;
 
         return new Response(JSON.stringify({ data: { success: true, updatedAt: ts } }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -344,7 +291,7 @@ export default {
       //    response: { data: { ...state } }
       // ===================================================================
       if (path === '/sync/state/pull' && method === 'POST') {
-        const { uid, error } = authenticate(body, env, corsHeaders);
+        const { uid, error } = await authenticate(body, env, corsHeaders);
         if (error) return error;
 
         const { cloudBookId } = body;
@@ -375,7 +322,7 @@ export default {
       //    response: { data: { success: true, updatedAt } }
       // ===================================================================
       if (path === '/sync/state/push' && method === 'POST') {
-        const { uid, error } = authenticate(body, env, corsHeaders);
+        const { uid, error } = await authenticate(body, env, corsHeaders);
         if (error) return error;
 
         const { cloudBookId, state, updatedAt } = body;
@@ -386,14 +333,15 @@ export default {
           );
         }
 
-        const dataStr = typeof state === 'string' ? state : JSON.stringify(state);
-        const ts = updatedAt ?? Date.now();
-
-        await env.DB.prepare(
-          'INSERT OR REPLACE INTO book_states (user_id, book_id, state_data, updated_at) VALUES (?, ?, ?, ?)'
-        ).bind(uid, cloudBookId, dataStr, ts).run();
-
-        return new Response(JSON.stringify({ data: { success: true, updatedAt: ts } }), {
+        const incoming = typeof state === 'string' ? JSON.parse(state) : state;
+        if (!incoming || Array.isArray(incoming) || typeof incoming !== 'object' ||
+            (incoming.bookmarks != null && !Array.isArray(incoming.bookmarks))) {
+          return new Response('Invalid state', { status: 400, headers: corsHeaders });
+        }
+        incoming.updatedAt = Number(updatedAt ?? incoming.updatedAt) || 0;
+        const result = await updateJsonRecord(env.DB, 'book_states', 'state_data',
+          { user_id: uid, book_id: cloudBookId }, existing => mergeCloudStates(existing, incoming));
+        return new Response(JSON.stringify({ data: { success: true, state: result.data, updatedAt: result.data.updatedAt } }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });
       }
@@ -409,7 +357,7 @@ export default {
     } catch (error) {
       console.error('[Worker] Unhandled error:', error);
       return new Response(
-        JSON.stringify({ error: error.message, stack: error.stack }),
+        JSON.stringify({ error: 'Request failed' }),
         { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }

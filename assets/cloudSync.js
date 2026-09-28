@@ -10,6 +10,8 @@ import {
   SYNC_RETRY_BASE_MS,
   SYNC_RETRY_MAX,
   SYNC_RETRY_MAX_MS,
+  SYNC_REQUEST_TIMEOUT_MS,
+  SYNC_KEEPALIVE_MAX_BYTES,
   WORKERS_CONFIG,
 } from "./constants.js";
 import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from "./onedriveAuth.js";
@@ -105,7 +107,7 @@ export class CloudSync {
   async fetchWithRetry(url, options) {
     for (let attempt = 0; attempt <= SYNC_RETRY_MAX; attempt += 1) {
       try {
-        const response = await fetch(url, options);
+        const response = await fetch(url, { ...options, signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS) });
         if (!response.ok && this.isRetryableStatus(response.status)) {
           // サーバーが返した詳細エラーをコンソールに出力（デバッグ用）
           try {
@@ -122,7 +124,7 @@ export class CloudSync {
         // ネットワークエラー（TypeError: Failed to fetch）はサーバー不在を示すため
         // リトライ回数を減らして早期に失敗させる
         const isNetworkError = error instanceof TypeError && error.message === 'Failed to fetch';
-        const maxRetry = isNetworkError ? 0 : SYNC_RETRY_MAX;
+        const maxRetry = isNetworkError || error.name === 'TimeoutError' ? 0 : SYNC_RETRY_MAX;
         if (attempt < maxRetry) {
           await this.sleep(this.getRetryDelayMs(attempt));
           continue;
@@ -168,12 +170,13 @@ export class CloudSync {
       throw new Error(t("cloudSyncNoIdToken"));
     }
     const url = this.buildWorkerSyncUrl(endpoint, path);
+    const body = JSON.stringify({ idToken, ...payload });
 
     const response = await this.fetchWithRetry(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, ...payload }),
-      keepalive: true,
+      body,
+      keepalive: new TextEncoder().encode(body).byteLength <= SYNC_KEEPALIVE_MAX_BYTES,
     });
 
     if (!response.ok) {
@@ -230,8 +233,8 @@ export class CloudSync {
       return { source: resolvedSource, status: "skipped" };
     }
     // 差分同期: 最後の同期時刻以降の更新のみ取得
-    const since = this.storage.data.cloudIndexUpdatedAt ?? null;
-    return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, { since }, settings);
+    // Older Workers store one JSON row, with client-supplied clocks; a cursor can miss other devices.
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PULL, {}, settings);
   }
 
   async pullIndexFull(settings = this.storage.getSettings()) {

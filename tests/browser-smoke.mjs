@@ -1,0 +1,166 @@
+/** Headless browser smoke checks. Uses installed Puppeteer; no live account or cloud API is contacted. */
+import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import puppeteer from 'puppeteer';
+
+const root = process.cwd();
+const server = http.createServer(async (req, res) => {
+  try {
+    const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    if (pathname === '/__test.html') {
+      res.setHeader('content-type', 'text/html'); res.end('<!doctype html><title>Reader offline test</title>'); return;
+    }
+    const file = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
+    if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
+    let body = await fs.readFile(file);
+    if (pathname.endsWith('sw-cache-config.json')) {
+      const config = JSON.parse(body);
+      // Test local runtime caching without contacting public CDNs.
+      config.assets = [...config.assets.filter(url => url.startsWith('./')), './__test.html'];
+      body = Buffer.from(JSON.stringify(config));
+    }
+    res.setHeader('content-type', ({ '.js': 'text/javascript', '.json': 'application/json', '.html': 'text/html',
+      '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' })[path.extname(file)] || 'application/octet-stream');
+    res.end(body);
+  } catch { res.writeHead(404).end(); }
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+let browser;
+try {
+  browser = await puppeteer.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE,
+    userDataDir: path.join(root, 'scratch', 'review-browser-profile') });
+  console.log('Browser launched');
+  const page = await browser.newPage();
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  await page.goto(origin + '/__test.html');
+  console.log('Local test page opened');
+  const result = await page.evaluate(async () => {
+    const { createNovelContent } = await import('/assets/js/core/novel-content.js');
+    const container = document.createElement('div');
+    container.append(createNovelContent('<p onclick="alert(1)">Text<ruby>漢<rt>かん</rt></ruby><img src="javascript:alert(1)" onerror="alert(1)"><svg onload="alert(1)"></svg><script>alert(1)</script><a href="javascript:alert(1)">link</a></p>', 'https://example.test/chapter'));
+    document.body.append(container);
+    await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) await new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+    return { ruby: container.querySelector('rt')?.textContent,
+      unsafe: !!container.querySelector('script,svg,[onclick],[onerror],[src],[href]') };
+  });
+  assert.equal(result.ruby, 'かん'); assert.equal(result.unsafe, false);
+  await page.setOfflineMode(true);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const offline = await page.evaluate(async () => {
+    const urls = ['/assets/app.js?v=18', '/assets/cloudState.js', '/src/reader/epubPaginator.js',
+      '/assets/constants/keybindings.js', '/assets/js/workers/rar-worker.js', '/assets/css/22-float-menu-toggle.css'];
+    return Promise.all(urls.map(async url => ({ url, status: (await fetch(url)).status })));
+  });
+  for (const item of offline) assert.equal(item.status, 200, item.url);
+  console.log('PASS: safe novel markup, offline reload, versioned assets and six required runtime dependencies');
+
+  await page.setOfflineMode(false);
+  await page.evaluate(async () => { for (const registration of await navigator.serviceWorker.getRegistrations()) await registration.unregister(); });
+  const app = await browser.newPage();
+  const errors = [];
+  const require = createRequire(import.meta.url);
+  const JSZip = require('../scratch/review-fixtures/jszip.cjs');
+  const zip = new JSZip();
+  zip.file('mimetype', 'application/epub+zip');
+  zip.file('META-INF/container.xml', '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+  zip.file('OPS/package.opf', `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">test-handoff</dc:identifier><dc:title>Handoff fixture</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2026-09-28T00:00:00Z</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>${[0, 1, 2].map(i => `<item id="c${i}" href="c${i}.xhtml" media-type="application/xhtml+xml"/>`).join('')}</manifest><spine>${[0, 1, 2].map(i => `<itemref idref="c${i}"/>`).join('')}</spine></package>`);
+  zip.file('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc"><ol>' + [0, 1, 2].map(i => `<li><a href="c${i}.xhtml">Chapter ${i}</a></li>`).join('') + '</ol></nav></body></html>');
+  for (const i of [0, 1, 2]) zip.file(`OPS/c${i}.xhtml`, `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter ${i}</title></head><body><h1>Chapter ${i}</h1>${Array.from({ length: 45 }, (_, j) => `<p>Chapter ${i}, paragraph ${j}. This is a reading position regression fixture with enough text to span several pages.</p>`).join('')}</body></html>`);
+  const bytes = await zip.generateAsync({ type: 'nodebuffer' });
+  const fixture = path.join(root, 'scratch/review-fixtures/handoff.epub');
+  await fs.writeFile(fixture, bytes);
+  const hash = Buffer.from(await crypto.subtle.digest('SHA-256', bytes)).toString('hex');
+  const libraryScripts = {
+    jszip: await fs.readFile(path.join(root, 'scratch/review-fixtures/jszip.cjs'), 'utf8'),
+    epub: await fs.readFile(path.join(root, 'scratch/review-fixtures/epub.js'), 'utf8'),
+  };
+  // Legacy metadata intentionally omits cloudBookId; the map key must restore it.
+  const remoteIndex = { existing: { title: 'Handoff fixture', fingerprints: [hash], updatedAt: 100 } };
+  const remoteState = { progress: 50, lastCfi: { spineIndex: 1, segmentIndex: 0 }, progressUpdatedAt: 100,
+    updatedAt: 100, writingMode: 'horizontal-tb', epubViewMode: 'paginated', bookmarks: [{ location: { spineIndex: 1, segmentIndex: 0 }, percentage: 50, createdAt: 100 }] };
+  const remoteStates = { existing: remoteState };
+  app.on('pageerror', error => errors.push(error.message));
+  app.on('dialog', async dialog => { errors.push(dialog.message()); await dialog.dismiss(); });
+  await app.setRequestInterception(true);
+  app.on('request', request => {
+    if (request.url().startsWith(origin)) return request.continue();
+    if (request.url().includes('.workers.dev')) {
+      const route = new URL(request.url()).searchParams.get('path');
+      const payload = request.postData() ? JSON.parse(request.postData()) : {};
+      const data = route === '/sync/index/pull' ? remoteIndex : route === '/sync/state/pull'
+        ? remoteStates[payload.cloudBookId] ?? {} : { success: true };
+      return request.respond({ status: 200, contentType: 'application/json', headers: {
+        'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS',
+        'access-control-allow-headers': 'Content-Type',
+      }, body: JSON.stringify({ data }) });
+    }
+    let body = '';
+    if (request.url().includes('jszip')) body = libraryScripts.jszip;
+    if (request.url().includes('epubjs')) body = libraryScripts.epub;
+    if (request.url().endsWith('firebase-app.js')) body = 'export const initializeApp = () => ({});';
+    if (request.url().endsWith('firebase-auth.js')) body = `const auth={currentUser:{uid:'test',getIdToken:async()=> 'fixture-token'},authStateReady:async()=>{}};
+      export const getAuth=()=>auth; export class GoogleAuthProvider {static credential(){return {}}}
+      export const signInWithCredential=async()=>{};export const signInWithPopup=async()=>{};
+      export const signOut=async()=>{};export const onAuthStateChanged=(a,fn)=>{setTimeout(()=>fn(a.currentUser),0);return ()=>{}};`;
+    return request.respond({ status: 200, contentType: 'text/javascript', headers: { 'access-control-allow-origin': '*' }, body });
+  });
+  await app.goto(origin, { waitUntil: 'networkidle0' });
+  assert.deepEqual(errors, []);
+  assert.ok(await app.$('#fileInput'));
+  console.log('PASS: main application starts with mocked authentication and cloud API');
+  await app.evaluate(async () => {
+    const { ReaderController } = await import('/assets/reader.js');
+    const original = ReaderController.prototype.openEpub;
+    ReaderController.prototype.openEpub = function (...args) { window.__testReader = this; return original.apply(this, args); };
+  });
+  await (await app.$('#fileInput')).uploadFile(fixture);
+  await app.waitForFunction(() => !document.getElementById('syncModal').classList.contains('hidden'));
+  await app.click('#syncUseRemote');
+  await app.waitForFunction(() => window.__testReader?.pagination?.pages?.length > 0 &&
+    !document.getElementById('loadingOverlay').classList.contains('visible'), { timeout: 30000 });
+  const loaded = await app.evaluate(hash => {
+    const saved = JSON.parse(localStorage.getItem('epubReader:data'));
+    const reader = window.__testReader;
+    return { linked: saved.bookLinkMap[hash], bookmarkCount: saved.bookmarks[hash]?.length,
+      page: reader.currentPageIndex, locator: reader.getPageLocator(reader.currentPageIndex) };
+  }, hash);
+  assert.deepEqual(errors, []);
+  assert.equal(loaded.linked, 'existing'); assert.equal(loaded.bookmarkCount, 1);
+  assert.ok(loaded.page > 0); assert.equal(loaded.locator.spineIndex, 1);
+  console.log('PASS: first EPUB selection matches legacy remote metadata, shows jump dialog, restores chapter 1 and bookmarks');
+  const pngs = await app.evaluate(() => Array.from({ length: 6 }, (_, index) => {
+    const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 900;
+    const context = canvas.getContext('2d'); context.fillStyle = '#ffffff'; context.fillRect(0, 0, 600, 900);
+    context.fillStyle = '#111111'; context.font = '48px sans-serif'; context.fillText(`Page ${index}`, 60, 100);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }));
+  const comic = new JSZip(); pngs.forEach((png, index) => comic.file(`${index}.png`, png, { base64: true }));
+  const comicBytes = await comic.generateAsync({ type: 'nodebuffer' });
+  const size = Buffer.alloc(8); size.writeBigUInt64BE(BigInt(comicBytes.length));
+  const comicHash = Buffer.from(await crypto.subtle.digest('SHA-256', Buffer.concat([comicBytes, size]))).toString('hex');
+  const comicFile = path.join(root, 'scratch/review-fixtures/handoff.cbz');
+  await fs.writeFile(comicFile, comicBytes);
+  remoteIndex.comic = { title: 'Comic fixture', fingerprints: [comicHash], updatedAt: 200 };
+  remoteStates.comic = { progress: 50, lastCfi: 2, progressUpdatedAt: 200, updatedAt: 200,
+    imageViewMode: 'single', pageDirection: 'rtl', bookmarks: [{ location: 2, percentage: 50, createdAt: 200 }] };
+  await (await app.$('#fileInput')).uploadFile(comicFile);
+  await app.waitForFunction(() => !document.getElementById('syncModal').classList.contains('hidden'));
+  await app.click('#syncUseRemote');
+  await app.waitForFunction(() => window.__testReader?.imagePages?.length === 6 &&
+    !document.getElementById('loadingOverlay').classList.contains('visible'), { timeout: 30000 });
+  const comicResult = await app.evaluate(hash => ({
+    index: window.__testReader.imageIndex,
+    linked: JSON.parse(localStorage.getItem('epubReader:data')).bookLinkMap[hash],
+  }), comicHash);
+  assert.equal(comicResult.index, 2); assert.equal(comicResult.linked, 'comic');
+  assert.deepEqual(errors, []);
+  console.log('PASS: first CBZ selection matches cloud metadata and opens image index 2');
+} finally {
+  await browser?.close();
+  await new Promise(resolve => server.close(resolve));
+}

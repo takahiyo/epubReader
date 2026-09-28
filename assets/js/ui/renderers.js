@@ -950,7 +950,7 @@ export function renderBookmarks(mode = "current") {
                     renderBookmarks(mode);
                     renderBookmarkMarkers();
                     if (_actions.requestCloudSyncIfNeeded) {
-                        _actions.requestCloudSyncIfNeeded({ force: true });
+                        _actions.requestCloudSyncIfNeeded({ force: true, bookId });
                     } else if (_actions.scheduleAutoSyncPush) {
                         _actions.scheduleAutoSyncPush();
                     }

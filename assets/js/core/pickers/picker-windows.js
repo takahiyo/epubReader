@@ -5,7 +5,7 @@
  * モダンな File System Access API (showOpenFilePicker) を優先し、
  * 非対応ブラウザではフォールバックする。
  */
-import { createFileInput } from './picker-base.js';
+import { createFileInput, openLegacyFilePicker } from './picker-base.js';
 
 export const openFilePicker = async (options = {}, dependencies = {}) => {
     // モダン API の試行
@@ -37,46 +37,7 @@ export const openFilePicker = async (options = {}, dependencies = {}) => {
     }
     
     // フォールバック: input type="file"
-    return new Promise((resolve) => {
-        const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.LEGACY_FILE_INPUT || 'legacy-file-input-fallback';
-        
-        // Windowsのファイルピッカーフリーズ対策: display:none は createFileInput で hiddenStyle:true として実装済み
-        // acceptsは設定しない
-        const input = createFileInput(inputId, '', options.multiple !== false, true);
-
-        // 画面のデバッグログを更新
-        const debugPickerLog = document.getElementById("debugPickerLog");
-        if (debugPickerLog) {
-            debugPickerLog.textContent = `windows-fallback (multiple:${options.multiple !== false})`;
-        }
-
-        // [BEFORE]
-        // const handleFocus = () => {
-        //     setTimeout(() => {
-        //         window.removeEventListener('focus', handleFocus);
-        //         resolve([]);
-        //     }, 300);
-        // };
-        // [AFTER]
-        const handleFocus = () => {
-            // タッチデバイス（Questやモバイル）の場合は、OSの処理遅延を考慮して3秒の猶予を設ける
-            const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-            const timeoutDelay = isTouch ? 3000 : 300;
-            setTimeout(() => {
-                window.removeEventListener('focus', handleFocus);
-                resolve([]);
-            }, timeoutDelay);
-        };
-
-        input.addEventListener("change", (e) => {
-            window.removeEventListener('focus', handleFocus);
-            const files = Array.from(e.target.files || []);
-            e.target.value = "";
-            resolve(files);
-        }, { once: true });
-
-        window.addEventListener('focus', handleFocus);
-        
-        input.click();
-    });
+    const inputId = dependencies.UI_CONSTANTS?.DOM_IDS?.LEGACY_FILE_INPUT || 'legacy-file-input-fallback';
+    const input = createFileInput(inputId, '', options.multiple !== false, true);
+    return openLegacyFilePicker(input);
 };

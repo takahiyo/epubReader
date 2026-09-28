@@ -1,22 +1,22 @@
-name: Deploy Worker
+name: Validate Reader
 
 on:
+  pull_request:
   push:
-    paths:
-      - 'workers/**'
     branches:
-      - main  # または master
+      - main
+      - dev
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Offline regression tests
     steps:
       - uses: actions/checkout@v4
       
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+      - uses: actions/setup-node@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: 'workers'
-          command: deploy
+          node-version: '24'
+      - run: node --experimental-vm-modules --test tests/*.test.mjs
+      - run: node scripts/generate-sw-cache-config.mjs
+      - run: git diff --exit-code -- assets/sw-cache-config.json

@@ -209,6 +209,7 @@ syncLogic.init({
   cloudSync,
   checkAuthStatus,
   callbacks: {
+    getCurrentBookId: () => currentBookId,
     openModal,
     closeModal,
     renderLibrary: () => renderers.renderLibrary(),
@@ -460,6 +461,14 @@ function saveCurrentProgress(options = {}) {
   }
 
   if (!force && !shouldPersistLocalProgress(progressData.percentage)) return progressSnapshot;
+
+  // A timer or foreground event must not turn an unchanged, stale page into a new edit.
+  const existingProgress = storage.getProgress(currentBookId);
+  if (existingProgress && Object.keys(progressData).every(key =>
+    key === 'updatedAt' || JSON.stringify(existingProgress[key]) === JSON.stringify(progressData[key]))) {
+    lastSavedPercentage = progressData.percentage;
+    return progressSnapshot;
+  }
 
   storage.setProgress(currentBookId, progressData);
   lastSavedPercentage = progressData.percentage;
@@ -735,6 +744,10 @@ function updateCloudSyncSnapshot(progressSnapshot) {
 }
 
 async function requestCloudSyncIfNeeded(options = {}) {
+  // Library bookmark deletion can target a book other than the one currently displayed.
+  if (options.bookId && options.bookId !== currentBookId) {
+    return syncLogic.pushCurrentBookSync(options.bookId, storage.getCloudBookId(options.bookId));
+  }
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
   if (!force && !shouldSyncCloudProgress(progressSnapshot)) return;
   const authStatus = checkAuthStatus();
@@ -1159,13 +1172,18 @@ function updateFullscreenButtonLabel() {
 // ========================================
 
 async function handleFile(file, overrideBookId = null) {
+  if (isBookLoading || isSyncResolving) return;
   clearArchiveWarnings();
-  await pushCurrentBookSyncOnAction();
+  showLoading();
+  // Persist the previous reader synchronously; its network upload need not block the next file.
+  void pushCurrentBookSyncOnAction();
   isBookLoading = true;
   showLoading();
   userOverrodeDirection = false;
   isSyncResolving = true; // ロック開始
   try {
+    // Restored Firebase sessions must settle before deciding whether this file has remote progress.
+    await auth.authStateReady?.();
     console.log(`Opening file: ${file.name}, type: ${file.type}, size: ${file.size}`);
 
     // 1. 環境に適した読み込み戦略を選択
@@ -1240,7 +1258,7 @@ async function handleFile(file, overrideBookId = null) {
 
     // 移行方針: 既存のcontentHash一致を優先し、旧ID(短縮ハッシュ)一致なら旧IDを再利用して重複登録を防ぐ
     const existingRecord = isTemporaryImageViewer ? null : fileHandler.findBookByContentHash(storage.data.library, contentHash);
-    let id = existingRecord?.id ?? contentHash;
+    let id = overrideBookId ?? existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
     const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
 
@@ -1291,108 +1309,20 @@ async function handleFile(file, overrideBookId = null) {
     let cloudBookId = null;
     let syncedProgress = null;
     if (!info.isVirtualImageBook) {
-      cloudBookId = pendingCloudBookId ?? storage.getCloudBookId(id);
-      if (cloudBookId) {
-        // 紐付け時（pendingCloudBookId がある場合）の照合チェック
-        if (pendingCloudBookId && syncLogic.isCloudSyncEnabled()) {
-          const cloudMeta = storage.data.cloudIndex?.[cloudBookId];
-          if (cloudMeta && cloudMeta.fingerprints && !cloudMeta.fingerprints.includes(contentHash)) {
-            const proceed = confirm(translate('linkMismatchWarning'));
-            if (!proceed) {
-              hideLoading();
-              pendingCloudBookId = null;
-              return;
-            }
-          }
-        }
-        storage.setBookLink(id, cloudBookId);
-      }
-      if (syncLogic.isCloudSyncEnabled()) {
-        try {
-          // ファイル読み込み前に最新のインデックスをプルして競合を防ぐ
-          await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
-        } catch (err) {
-          console.warn("ファイル読み込み前の同期プルに失敗しました:", err);
-        }
-
-        if (cloudBookId) {
-          const cloudEntry = storage.data.cloudIndex?.[cloudBookId];
-          if (!cloudEntry || !cloudEntry.fingerprints || !cloudEntry.fingerprints.includes(contentHash)) {
-            console.log(`[handleFile] Existing cloudBookId ${cloudBookId} has no matching fingerprint. Keeping the link to update the cloud index.`);
-          }
-        }
-
-        if (!cloudBookId) {
-          const cloudIndex = storage.data.cloudIndex ?? {};
-          let localMatch = Object.values(cloudIndex).find(
-            (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(contentHash)
-          );
-          if (!localMatch) {
-            localMatch = Object.values(cloudIndex).find(
-              (entry) => !entry.isDeleted && entry.title === info.title && (entry.author || "") === (info.author || "")
-            );
-            if (localMatch) {
-              console.log(`[handleFile] Fallback matched book by title/author in local cloud index: ${localMatch.cloudBookId}`);
-            }
-          }
-          if (localMatch && localMatch.cloudBookId) {
-            console.log(`[handleFile] Matched book in local cloud index: ${localMatch.cloudBookId}`);
-            cloudBookId = localMatch.cloudBookId;
-          }
-        }
-
-        if (!cloudBookId) {
-          try {
-            const matchResult = await cloudSync.matchBook(contentHash, fileHandler.buildMatchMeta(info));
-            if (matchResult?.cloudBookId) {
-              cloudBookId = matchResult.cloudBookId;
-            } else if (matchResult?.candidates?.length > 0) {
-              cloudBookId = await syncLogic.promptSyncCandidate(matchResult.candidates);
-            }
-          } catch (error) {
-            console.warn("クラウドの照合に失敗しました:", error);
-          }
-        }
-        if (!cloudBookId) {
-          try {
-            console.log('[handleFile] Fingerprint not found in local cache; attempting full index pull...');
-            const fullIndex = await cloudSync.pullIndexFull();
-            if (fullIndex && typeof fullIndex === 'object' && Object.keys(fullIndex).length > 0) {
-              let fullMatch = Object.values(fullIndex).find(
-                (entry) => !entry.isDeleted && entry.fingerprints && entry.fingerprints.includes(contentHash)
-              );
-              if (!fullMatch) {
-                fullMatch = Object.values(fullIndex).find(
-                  (entry) => !entry.isDeleted && entry.title === info.title && (entry.author || "") === (info.author || "")
-                );
-                if (fullMatch) {
-                  console.log(`[handleFile] Fallback matched in fresh full index by title/author: ${fullMatch.cloudBookId}`);
-                }
-              }
-              if (fullMatch && fullMatch.cloudBookId) {
-                console.log(`[handleFile] Matched book in fresh full index: ${fullMatch.cloudBookId}`);
-                cloudBookId = fullMatch.cloudBookId;
-                storage.mergeCloudIndex({ [cloudBookId]: fullMatch }, Date.now());
-              }
-            }
-          } catch (error) {
-            console.warn("フルインデックスプルに失敗しました:", error);
-          }
-        }
-        if (!cloudBookId) {
-          cloudBookId = fileHandler.generateCloudBookId();
-        }
-        if (cloudBookId) {
-          storage.setBookLink(id, cloudBookId);
-          await fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
-            storage,
-            cloudSync,
-            isCloudSyncEnabled: syncLogic.isCloudSyncEnabled,
-            uiLanguage
-          });
+      // All entry paths use the same index normalization and content-fingerprint match.
+      cloudBookId = pendingCloudBookId ?? await syncLogic.resolveCloudBookLink(id, info);
+      if (pendingCloudBookId) {
+        const meta = storage.data.cloudIndex?.[pendingCloudBookId];
+        if (meta?.fingerprints?.length && !meta.fingerprints.includes(contentHash) &&
+            !confirm(translate('linkMismatchWarning', uiLanguage))) {
+          pendingCloudBookId = null;
+          pendingBookmark = null;
+          return;
         }
       }
-      syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId, pushCurrentBookSync);
+      if (!cloudBookId && syncLogic.isCloudSyncEnabled()) cloudBookId = fileHandler.generateCloudBookId();
+      if (cloudBookId) storage.setBookLink(id, cloudBookId);
+      syncedProgress = await syncLogic.resolveSyncedProgress(id, uiLanguage, cloudBookId);
     }
     pendingCloudBookId = null;
     currentCloudBookId = cloudBookId;
@@ -1468,6 +1398,10 @@ async function handleFile(file, overrideBookId = null) {
     // 同期されたしおりをUIに反映
     renderers.renderBookmarks(bookmarkMenuMode);
 
+    // Publish metadata after the reader is ready; a slow network must not block file rendering.
+    if (cloudBookId) void fileHandler.upsertCloudIndexEntry(cloudBookId, info, contentHash, {
+      storage, cloudSync, isCloudSyncEnabled: syncLogic.isCloudSyncEnabled, uiLanguage,
+    });
     console.log("Book opened successfully");
     // ストリーミングモード通知を削除
     const streamingNotice = elements.loadingOverlay?.querySelector('.streaming-notice');
@@ -1515,6 +1449,8 @@ async function handleFile(file, overrideBookId = null) {
     alert(userMessage);
   } finally {
     isBookLoading = false;
+    isSyncResolving = false;
+    hideLoading();
   }
 }
 
@@ -1664,13 +1600,16 @@ function promptFileReselect(info) {
 }
 
 async function openFromLibrary(bookId, options = {}) {
+  if (isBookLoading || isSyncResolving) return;
   clearArchiveWarnings();
-  await pushCurrentBookSyncOnAction();
+  void pushCurrentBookSyncOnAction();
+  isBookLoading = true;
   showLoading();
   // ★追加: UI描画更新のために少し待機
   await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
 
   try {
+    await auth.authStateReady?.();
 
     userOverrodeDirection = false;
     const info = storage.data.library[bookId];
@@ -1692,6 +1631,7 @@ async function openFromLibrary(bookId, options = {}) {
       // スタブファイルが正しく再選択された場合、以後の振る舞いを
       // 全て通常の「ファイルを開く」フローへ委譲し、動作を完全に統一する
       hideLoading();
+      isBookLoading = false; // Hand the opening lock to the shared file-loading path.
       await handleFile(file, bookId);
       return;
     }
@@ -1720,6 +1660,9 @@ async function openFromLibrary(bookId, options = {}) {
     currentBookInfo = info;
     resetLocalSaveTracking();
     currentCloudBookId = storage.getCloudBookId(bookId);
+    if (syncLogic.isCloudSyncEnabled() && !currentCloudBookId) {
+      currentCloudBookId = await syncLogic.resolveCloudBookLink(bookId, info);
+    }
     if (syncLogic.isCloudSyncEnabled() && !currentCloudBookId && info?.contentHash) {
       try {
         const matchResult = await cloudSync.matchBook(info.contentHash, fileHandler.buildMatchMeta(info));
@@ -1741,8 +1684,8 @@ async function openFromLibrary(bookId, options = {}) {
       });
     }
 
-    const bookmarks = storage.getBookmarks(bookId);
     const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId, pushCurrentBookSync);
+    const bookmarks = storage.getBookmarks(bookId);
     const normalizedProgress = normalizeProgressSnapshot(progress, info.type);
     await applyReadingState(normalizedProgress);
     const explicitBookmark = options.bookmark;
@@ -2891,12 +2834,13 @@ async function applyEpubViewMode(mode, force = false, ignoreReaderUpdate = false
 
 
 async function pushCurrentBookSync(options = {}) {
-  const { force = false } = options;
-  if (isBookLoading && !force) return false;
+  if (isBookLoading || isSyncResolving) return false;
+  const bookId = currentBookId;
+  const cloudId = currentCloudBookId;
   // 送信前に現在の状態を強制保存
   saveCurrentProgress({ force: true });
-  const didSync = await syncLogic.pushCurrentBookSync(currentBookId, currentCloudBookId);
-  if (didSync) {
+  const didSync = await syncLogic.pushCurrentBookSync(bookId, cloudId);
+  if (didSync && bookId === currentBookId && cloudId === currentCloudBookId) {
     updateCloudSyncSnapshot(getProgressSnapshot());
   }
   return didSync;
@@ -3045,7 +2989,7 @@ async function openFileDialog() {
   if (files && files.length > 0) {
     const file = files[0];
     console.log('[openFileDialog] file selected via filePicker:', file?.name, file?.type, file?.size);
-    handleFile(file);
+    await handleFile(file);
   } else {
     console.log('[openFileDialog] file selection cancelled or no file selected');
     pendingCloudBookId = null;
@@ -4227,8 +4171,20 @@ function setupEvents() {
       visibilitySyncTimer = setTimeout(async () => {
         console.log('[Visibility] Foreground detected. Triggering sync...');
         try {
-          await pushCurrentBookSyncOnAction({ force: true });
+          // Pull before sending: another device may have advanced while this one was hidden.
           await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
+          if (currentBookId && currentCloudBookId && !isBookLoading && !isSyncResolving) {
+            const bookId = currentBookId;
+            isSyncResolving = true;
+            try {
+              const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId);
+              if (bookId === currentBookId && progress) {
+                await applyReadingState(progress);
+                await reader.goTo(progress);
+                renderers.renderBookmarks(bookmarkMenuMode);
+              }
+            } finally { isSyncResolving = false; }
+          }
         } catch (err) {
           console.error('[Visibility] Auto sync failed:', err);
         }

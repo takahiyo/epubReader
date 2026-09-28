@@ -25,6 +25,11 @@ const loadConfig = () => {
                 throw new Error(`Failed to load ${CONFIG_URL}`);
             }
             return response.json();
+        }).catch(async error => {
+            const cached = await caches.match(CONFIG_URL);
+            if (cached) return cached.json();
+            configPromise = null;
+            throw error;
         });
     }
     return configPromise;
@@ -68,7 +73,7 @@ self.addEventListener('activate', (event) => {
             caches.keys().then((keys) =>
                 Promise.all(
                     keys
-                        .filter((key) => key !== config.cacheName)
+                        .filter((key) => key.startsWith("bookreader-v") && key !== config.cacheName)
                         .map((key) => caches.delete(key))
                 )
             )
@@ -119,26 +124,38 @@ self.addEventListener('fetch', (event) => {
             }
 
             // 処理後はアプリのメインページへリダイレクト（303 See Other）
-            return Response.redirect('./', 303);
+            return Response.redirect(new URL('./', event.request.url).href, 303);
         })());
         return;
     }
 
-    const isLocalAsset = isLocal && /\.(js|css|json|html)$/.test(url.pathname);
-    const isNavigation = event.request.mode === 'navigate';
-
-    if (isLocalAsset || isNavigation) {
-        // ローカルアセット / ページナビゲーション: HTTPキャッシュバイパス + SW キャッシュフォールバック
-        event.respondWith(
-            fetch(event.request, { cache: 'no-cache' })
-                .catch(() => caches.match(event.request))
-                .then(response => response || new Response('Offline', { status: 503 }))
-        );
-    } else {
-        // CDN等の外部リソース / 画像等: 従来のネットワーク優先
-        event.respondWith(
-            fetch(event.request).catch(() => caches.match(event.request))
-                .then(response => response || new Response('Offline', { status: 503 }))
-        );
-    }
+    // Only GET requests belong in the asset cache; never cache authenticated POST data.
+    if (event.request.method !== 'GET') return;
+    const cacheUrl = new URL(event.request.url);
+    if (isLocal) cacheUrl.searchParams.delete('v');
+    event.respondWith((async () => {
+        const cacheKey = isLocal ? cacheUrl.href : event.request;
+        try {
+            const response = await fetch(event.request, { cache: 'no-cache' });
+            if (response.ok) {
+                // Persist successful runtime loads as well as install-time assets.
+                try {
+                    const config = await loadConfig();
+                    const cache = await caches.open(config.cacheName);
+                    const contentType = response.headers.get('content-type') || '';
+                    const wrongMime = /\.(js|css|json)$/.test(cacheUrl.pathname) && contentType.includes('text/html');
+                    if (!wrongMime && (isLocal || config.assets.includes(event.request.url))) {
+                        await cache.put(cacheKey, response.clone());
+                    }
+                } catch (error) {
+                    // Quota or cache failures must not discard a successful network response.
+                    console.warn('[SW] Runtime cache unavailable:', error);
+                }
+                return response;
+            }
+            return await caches.match(cacheKey) || response;
+        } catch {
+            return await caches.match(cacheKey) || new Response('Offline', { status: 503 });
+        }
+    })());
 });
