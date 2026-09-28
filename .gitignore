@@ -3,8 +3,7 @@ node_modules/
 *.log
 android-project/
 epubReader/
-scratch/review-browser-profile/
-scratch/review-fixtures/
+scratch/
 android-project-quest/
 APKbyPWAbuilder/
 meta-bubblewrap/
