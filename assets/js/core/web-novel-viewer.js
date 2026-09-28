@@ -5,6 +5,8 @@
  * EPUB/画像リーダーと並列に動作し、単一のエピソード（話）のテキストを描画・管理します。
  */
 
+import { createNovelContent } from './novel-content.js';
+
 export class WebNovelViewer {
     constructor(options = {}) {
         this.containerId = options.containerId || 'webNovelViewer';
@@ -35,11 +37,9 @@ export class WebNovelViewer {
             this.container.style.lineHeight = '1.8';
             document.body.appendChild(this.container);
 
-            // スクロールイベントで進捗を報告
-            this.container.addEventListener('scroll', () => {
-                this.reportProgress();
-            });
         }
+        // The normal page already contains the viewer; it still needs the scroll listener.
+        this.container.addEventListener('scroll', () => this.reportProgress());
     }
 
     /**
@@ -69,7 +69,7 @@ export class WebNovelViewer {
 
         const bodyEl = document.createElement('div');
         bodyEl.className = 'web-novel-body';
-        bodyEl.innerHTML = content.htmlContent;
+        bodyEl.replaceChildren(createNovelContent(content.htmlContent, ep.url));
 
         // 縦書き/横書き対応設定（CSS変数は上位で制御されている想定）
         this.container.style.writingMode = this.writingMode;

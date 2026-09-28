@@ -20,15 +20,19 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
   const progress = storage.getProgress(localBookId) ?? {};
   const bookmarks = storage.getBookmarks(localBookId) ?? [];
   const bookInfo = storage.data?.library?.[localBookId];
+  const bookmarkTombstones = storage.data?.bookmarkTombstones?.[localBookId] ?? {};
   const deviceInfo = typeof getDeviceInfo === "function" ? getDeviceInfo() : null;
 
   const updatedAt = Math.max(
     progress?.updatedAt ?? 0,
     ...bookmarks.map((bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0),
+    ...Object.values(bookmarkTombstones),
   );
 
   const state = {
     progress: progress?.percentage ?? 0,
+    progressUpdatedAt: progress?.updatedAt ?? 0,
+    bookmarkTombstones,
     lastCfi: progress?.location ?? null,
     bookType: bookInfo?.type ?? null,
     location: progress?.location ?? null,
@@ -41,6 +45,7 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
     })),
     // 読書環境の同期
     writingMode: progress?.writingMode ?? null,
+    epubViewMode: progress?.epubViewMode ?? null,
     pageDirection: progress?.pageDirection ?? null,
     imageViewMode: progress?.imageViewMode ?? null,
     fontSize: progress?.fontSize ?? null,

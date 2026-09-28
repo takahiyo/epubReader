@@ -23,6 +23,9 @@ export const SYNC_PATHS = Object.freeze({
 export const SYNC_RETRY_MAX = 3;
 export const SYNC_RETRY_BASE_MS = 500;
 export const SYNC_RETRY_MAX_MS = 4000;
+export const SYNC_REQUEST_TIMEOUT_MS = 10000;
+// Keepalive requests have a browser-wide 64 KiB budget; large library updates use normal fetch.
+export const SYNC_KEEPALIVE_MAX_BYTES = 60 * 1024;
 
 // ============================================
 // 同期ソース設定

@@ -6,6 +6,7 @@ on:
       - dev
     paths:
       - 'workers/**'
+      - 'assets/js/core/cloud-state-merge.js'
 
 jobs:
   deploy:
@@ -15,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test before deploy
+        run: node --experimental-vm-modules --test tests/*.test.mjs
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:

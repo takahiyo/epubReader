@@ -294,6 +294,7 @@ export function buildCloudMeta({ cloudBookId, info, fingerprint, storage, overri
     const meta = {
         ...existing,
         ...overrides,
+        cloudBookId,
         title: info.title,
         author: info.author,
         fingerprints: Array.from(fingerprints),
@@ -328,16 +329,21 @@ export async function buildArchiveFingerprint(file) {
 export async function upsertCloudIndexEntry(cloudBookId, info, fingerprint, { storage, cloudSync, isCloudSyncEnabled, uiLanguage, overrides = {} }) {
     if (!cloudBookId) return null;
     const meta = buildCloudMeta({ cloudBookId, info, fingerprint, storage, overrides, uiLanguage });
+    // Persist the local edit before networking so a failed/backgrounded request is retried later.
+    storage.data.cloudIndexDirty ??= {};
+    storage.data.cloudIndexDirty[cloudBookId] = meta.updatedAt;
+    storage.mergeCloudIndex({ [cloudBookId]: meta });
 
     if (isCloudSyncEnabled && isCloudSyncEnabled()) {
         try {
             await cloudSync.pushIndexDelta({ [cloudBookId]: meta }, meta.updatedAt);
-            storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
+            if (storage.data.cloudIndexDirty[cloudBookId] === meta.updatedAt) {
+                delete storage.data.cloudIndexDirty[cloudBookId];
+                storage.save();
+            }
         } catch (error) {
             console.warn("クラウドインデックスの更新に失敗しました。次回の同期で再試行されます。", error);
         }
-    } else {
-        storage.mergeCloudIndex({ [cloudBookId]: meta }, meta.updatedAt);
     }
     return meta;
 }

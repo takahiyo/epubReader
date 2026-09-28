@@ -58,9 +58,9 @@
 - 複数デバイス間で読書状態を自動同期
 - デバイスごとの識別・競合解決
 
-### Notion 連携
+### アプリ共有
 
-- Notion OAuth を通じた読書データの連携
+- OSの共有機能による読書録の共有（専用のNotion OAuth連携は未実装）
 
 ### ローカルストレージ
 
@@ -75,7 +75,7 @@
 | カテゴリ | 技術 |
 |----------|------|
 | フロントエンド | Vanilla JavaScript（ES Modules） |
-| スタイリング | CSS 変数ベースのデザインシステム（20 レイヤー構成） |
+| スタイリング | CSS 変数ベースの分割スタイルシート |
 | EPUB パーサー | [EPUB.js](https://github.com/futurepress/epub.js) |
 | ZIP 展開 | [JSZip](https://stuk.github.io/jszip/) |
 | RAR 展開 | [unrar.js](https://github.com/nickthedude/unrar.js)（WASM） |
@@ -166,16 +166,31 @@ AI コーディングガイドライン・設計原則については以下の�
 
 | ファイル | 内容 |
 |----------|------|
-| [CORE_PRINCIPLES.md](./CORE_PRINCIPLES.md) | 基本原則（SSOT・モジュール化） |
-| [INDEX.md](./INDEX.md) | 目次・運用説明 |
-| [MODULE_GUIDE.md](./MODULE_GUIDE.md) | モジュール化・依存注入 |
-| [SSOT_GUIDE.md](./SSOT_GUIDE.md) | 定数管理・SSOT 実践 |
-| [CSS_GUIDE.md](./CSS_GUIDE.md) | CSS 分割の詳細規則 |
-| [COMMENT_GUIDE.md](./COMMENT_GUIDE.md) | コメント・ドキュメント規約 |
-| [REFACTOR_GUIDE.md](./REFACTOR_GUIDE.md) | 分割・リファクタリング |
+| [CORE_PRINCIPLES.md](./docs/CORE_PRINCIPLES.md) | 基本原則（SSOT・モジュール化） |
+| [INDEX.md](./docs/INDEX.md) | 目次・運用説明 |
+| [MODULE_GUIDE.md](./docs/MODULE_GUIDE.md) | モジュール化・依存注入 |
+| [SSOT_GUIDE.md](./docs/SSOT_GUIDE.md) | 定数管理・SSOT 実践 |
+| [CSS_GUIDE.md](./docs/CSS_GUIDE.md) | CSS 分割の詳細規則 |
+| [COMMENT_GUIDE.md](./docs/COMMENT_GUIDE.md) | コメント・ドキュメント規約 |
+| [REFACTOR_GUIDE.md](./docs/REFACTOR_GUIDE.md) | 分割・リファクタリング |
 
 ---
 
 ## 📝 ライセンス
 
 このプロジェクトは個人利用を目的としています。
+
+## 開発検証
+
+Node.js 24で、外部通信なしの同期・認証・移行の回帰テストを実行できます。
+
+```bash
+node --experimental-vm-modules --test tests/*.test.mjs
+node scripts/generate-sw-cache-config.mjs
+```
+
+ブラウザ検証はPuppeteerとChromeがある環境で `node scripts/prepare-browser-fixtures.mjs` → `node tests/browser-smoke.mjs` を実行します。
+必要に応じて `BROWSER_EXECUTABLE` にChromeの絶対パスを設定してください。
+認証SDKとクラウドAPIは模擬し、実アカウントや本番APIへは接続しません。書籍の解析にはアプリと同じJSZip・EPUB.jsを使用します。
+
+詳細: [同期・読み込み修正と検証記録](./docs/SYNC_RELIABILITY_2026-09-28.md)。

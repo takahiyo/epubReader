@@ -58,3 +58,28 @@ export const createFileInput = (id, accept = '', multiple = false, hiddenStyle =
     
     return input;
 };
+
+/**
+ * Wait for the native file result, including slow cloud-provider downloads.
+ * Focus returning is not cancellation; only the input's cancel event is definitive.
+ * @returns {Promise<File[]>} Selected files, or an empty list on cancellation.
+ */
+export function openLegacyFilePicker(input) {
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            input.removeEventListener('change', change);
+            input.removeEventListener('cancel', cancel);
+        };
+        const finish = (files) => {
+            cleanup();
+            input.value = '';
+            resolve(files);
+        };
+        const change = () => finish(Array.from(input.files ?? []));
+        const cancel = () => finish([]);
+        input.value = '';
+        input.addEventListener('change', change);
+        input.addEventListener('cancel', cancel);
+        try { input.click(); } catch (error) { cleanup(); reject(error); }
+    });
+}

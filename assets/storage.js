@@ -14,6 +14,7 @@ import {
   DEFAULT_DATA_SHAPE,
   BOOK_TYPES,
 } from "./constants.js";
+import { bookmarkKey, mergeCloudStates } from './js/core/cloud-state-merge.js';
 
 const STORAGE_KEY = STORAGE_CONFIG.KEY;
 const MAX_HISTORY_ENTRIES = STORAGE_CONFIG.MAX_HISTORY_ENTRIES;
@@ -125,22 +126,8 @@ const ensureDeviceSettings = (settings) => {
 
 const getBookmarkUpdatedAt = (bookmark) => bookmark?.updatedAt ?? bookmark?.createdAt ?? 0;
 
-const getBookmarkType = (bookmark) => bookmark?.bookType ?? bookmark?.type ?? null;
-
-const getBookmarkKey = (bookmark) => {
-  const bookmarkType = getBookmarkType(bookmark);
-  const cfi = bookmark?.cfi;
-  if (bookmarkType === BOOK_TYPES.EPUB && cfi) return `cfi:${cfi}`;
-
-  const location = bookmark?.location;
-  if (typeof location === "number") return `location:${location}`;
-
-  const index = bookmark?.index;
-  if (typeof index === "number") return `index:${index}`;
-
-  if (cfi) return `cfi:${cfi}`;
-  return null;
-};
+// Use the same identity for local edits, remote merges and deletion tombstones.
+const getBookmarkKey = bookmarkKey;
 
 const pickNewerBookmark = (existing, incoming) => {
   if (!existing) return incoming;
@@ -170,7 +157,7 @@ export class StorageService {
   load() {
     try {
       const raw = localStorage.getItem(this.key);
-      if (!raw) return { ...defaultData };
+      if (!raw) return structuredClone(defaultData);
       const parsed = JSON.parse(raw);
       const settings = {
         ...defaultData.settings,
@@ -222,7 +209,7 @@ export class StorageService {
       return data;
     } catch (error) {
       console.error("ストレージの読み込みに失敗しました", error);
-      return { ...defaultData };
+      return structuredClone(defaultData);
     }
   }
 
@@ -340,6 +327,13 @@ export class StorageService {
 
   removeBookmark(bookId, createdAt) {
     const list = this.data.bookmarks[bookId] ?? [];
+    // Tombstones prevent another device's old bookmark list resurrecting a deletion.
+    this.data.bookmarkTombstones ??= {};
+    const deleted = this.data.bookmarkTombstones[bookId] ??= {};
+    for (const bookmark of list.filter(b => b.createdAt === createdAt)) {
+      const key = bookmarkKey(bookmark);
+      if (key) deleted[key] = Date.now();
+    }
     this.data.bookmarks[bookId] = list.filter((b) => b.createdAt !== createdAt);
     this.save();
   }
@@ -622,6 +616,9 @@ export class StorageService {
       } else {
         merged[cloudBookId] = { ...meta, ...existing };
       }
+      // Older server records omitted the ID inside the metadata; the map key is authoritative.
+      merged[cloudBookId].cloudBookId = cloudBookId;
+      if (Number.isFinite(meta?.stateUpdatedAt)) merged[cloudBookId].stateUpdatedAt = meta.stateUpdatedAt;
     });
     this.data.cloudIndex = merged;
     if (updatedAt) {
@@ -656,5 +653,18 @@ export class StorageService {
 
   getCloudState(cloudBookId) {
     return this.data.cloudStates?.[cloudBookId] ?? null;
+  }
+
+  /** Merge remote bookmark additions/deletions while preserving independent local edits. */
+  mergeBookmarkState(bookId, state) {
+    const merged = mergeCloudStates({
+      bookmarks: this.getBookmarks(bookId),
+      bookmarkTombstones: this.data.bookmarkTombstones?.[bookId] ?? {},
+    }, state);
+    this.data.bookmarkTombstones ??= {};
+    this.data.bookmarkTombstones[bookId] = merged.bookmarkTombstones;
+    this.data.bookmarks[bookId] = merged.bookmarks.slice(0,
+      this.getSettings().oneBookmarkPerBook ? 1 : MAX_BOOKMARKS_PER_BOOK);
+    this.save();
   }
 }
