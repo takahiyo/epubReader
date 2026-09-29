@@ -41,3 +41,50 @@ test('ordinary POST requests bypass the asset cache', async () => {
   handlers.fetch({ request: new Request('https://local.test/sync', { method: 'POST' }), respondWith: () => { intercepted = true; } });
   assert.equal(intercepted, false);
 });
+
+async function requestFrom(handlers, request) {
+  let response;
+  handlers.fetch({ request, respondWith: value => { response = value; } });
+  return response;
+}
+
+test('network and cache read failures return a reload page for navigation', async () => {
+  const handlers = await worker(async () => { throw new Error('offline'); }, {
+    match: async () => { throw new Error('storage unavailable'); },
+  });
+  const response = await requestFrom(handlers, {
+    url: 'https://local.test/index.html', method: 'GET', mode: 'navigate', redirect: 'manual',
+  });
+  assert.equal(response.status, 503);
+  assert.match(response.headers.get('content-type'), /text\/html/);
+  assert.match(await response.text(), /location.reload\(\)/);
+});
+
+test('HTTP failures survive a cache read failure', async () => {
+  const handlers = await worker(async () => new Response('server unavailable', { status: 502 }), {
+    match: async () => { throw new Error('storage unavailable'); },
+  });
+  const response = await requestFrom(handlers, new Request('https://local.test/index.html'));
+  assert.equal(response.status, 502);
+  assert.equal(await response.text(), 'server unavailable');
+});
+
+test('redirected cached HTML is safe for manual-redirect navigation', async () => {
+  const cached = new Response('<html>reader</html>', { headers: { 'Content-Type': 'text/html' } });
+  Object.defineProperty(cached, 'redirected', { value: true });
+  const handlers = await worker(async () => { throw new Error('offline'); }, { match: async () => cached });
+  const response = await requestFrom(handlers, {
+    url: 'https://local.test/index.html', method: 'GET', mode: 'navigate', redirect: 'manual',
+  });
+  assert.equal(response.redirected, false);
+  assert.equal(response.headers.get('content-type'), 'text/html');
+  assert.equal(await response.text(), '<html>reader</html>');
+});
+
+test('cached error responses cannot turn offline fallback into a network error', async () => {
+  const handlers = await worker(async () => { throw new Error('offline'); }, {
+    match: async () => Response.error(),
+  });
+  const response = await requestFrom(handlers, new Request('https://local.test/assets/app.js'));
+  assert.equal(response.status, 503);
+});
