@@ -18,6 +18,41 @@
 const CONFIG_URL = "./assets/sw-cache-config.json";
 let configPromise;
 
+// CacheStorage itself can fail (for example when browser storage is unavailable).
+// Never let a fallback read reject the respondWith promise.
+const readCachedResponse = async (key, request) => {
+    try {
+        const response = await caches.match(key);
+        if (!response || !response.ok) return undefined;
+        if (response.type === 'opaque' || response.type === 'opaqueredirect') return undefined;
+        // A response fetched with redirect: follow during install cannot be reused
+        // unchanged for a navigation request with redirect: manual.
+        if (response.redirected && request.redirect !== 'follow') {
+            return new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers,
+            });
+        }
+        return response;
+    } catch (error) {
+        console.warn('[SW] Cache read unavailable:', error);
+        return undefined;
+    }
+};
+
+const unavailableResponse = (request) => request.mode === 'navigate'
+    ? new Response(`<!doctype html><html lang="ja"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BookReader を起動できません</title>
+<body><h1>BookReader を起動できません</h1>
+<p>通信または一時保存データを読み込めませんでした。接続を確認して、再読み込みしてください。</p>
+<p>本や読書履歴は削除していません。</p><button onclick="location.reload()">再読み込み</button></body></html>`, {
+        status: 503,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+    })
+    : new Response('Offline', { status: 503 });
+
 const loadConfig = () => {
     if (!configPromise) {
         configPromise = fetch(CONFIG_URL, { cache: "no-store" }).then((response) => {
@@ -153,9 +188,9 @@ self.addEventListener('fetch', (event) => {
                 }
                 return response;
             }
-            return await caches.match(cacheKey) || response;
+            return await readCachedResponse(cacheKey, event.request) || response;
         } catch {
-            return await caches.match(cacheKey) || new Response('Offline', { status: 503 });
+            return await readCachedResponse(cacheKey, event.request) || unavailableResponse(event.request);
         }
     })());
 });
