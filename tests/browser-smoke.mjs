@@ -5,6 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import puppeteer from 'puppeteer';
+import { verifyShareDialog } from './share-dialog-ui-cases.mjs';
 import { verifyReaderControls } from './reader-controls-ui-cases.mjs';
 
 const root = process.cwd();
@@ -189,6 +190,9 @@ try {
     toggleFloatOverlay(true);
     document.getElementById('share-log-btn').click();
   });
+  await app.keyboard.press('Escape');
+  await verifyShareDialog(app, path.join(root, 'scratch/review-fixtures'));
+  await app.evaluate(() => document.getElementById('share-log-btn').click());
   const shareDialog = await app.evaluate(() => {
     const dialog = document.getElementById('__share-dialog').firstElementChild;
     const rect = dialog.getBoundingClientRect();
@@ -265,7 +269,7 @@ try {
   const comicBytes = await comic.generateAsync({ type: 'nodebuffer' });
   const size = Buffer.alloc(8); size.writeBigUInt64BE(BigInt(comicBytes.length));
   const comicHash = Buffer.from(await crypto.subtle.digest('SHA-256', Buffer.concat([comicBytes, size]))).toString('hex');
-  const comicFile = path.join(root, 'scratch/review-fixtures/[作者名]作品_名_第003巻.cbz');
+  const comicFile = path.join(root, 'scratch/review-fixtures/[漫画家×原作者]作品_名_第003巻.cbz');
   await fs.writeFile(comicFile, comicBytes);
   remoteIndex.comic = { title: 'Comic fixture', fingerprints: [comicHash], updatedAt: 200 };
   remoteStates.comic = { progress: 50, lastCfi: 2, progressUpdatedAt: 200, updatedAt: 200,
@@ -289,8 +293,9 @@ try {
     return copied;
   });
   assert.ok(filenameLog.includes('title: "作品_名_第003巻"\n'));
-  assert.ok(filenameLog.includes('authors:\n  - "[[作者名]]"\n'));
+  assert.ok(filenameLog.includes('authors:\n  - "[[漫画家]]"\n'));
   assert.ok(filenameLog.includes('book: "[[作品_名_第003巻]]"\n'));
+  assert.ok(filenameLog.includes('original_authors:\n  - "[[原作者]]"\n'));
   console.log('PASS: actual comic filename separates author and title in copied reading-log properties');
 
   await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'comic');

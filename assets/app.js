@@ -616,94 +616,37 @@ function showShareMethodDialog(shareText, bookTitle) {
 
   const overlay = document.createElement("div");
   overlay.id = "__share-dialog";
-  Object.assign(overlay.style, {
-    position: "fixed",
-    inset: "0",
-    zIndex: "9998",
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    background: "rgba(0,0,0,0.5)",
-    padding: "1rem",
-  });
+  overlay.className = UI_CLASSES.READING_LOG_SHARE_BACKDROP;
 
   const dialog = document.createElement("div");
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-modal", "true");
   dialog.setAttribute("aria-label", t("share_dialog_title"));
-  Object.assign(dialog.style, {
-    background: "var(--bg-panel, #2a2a2a)",
-    border: "1px solid var(--border, #555)",
-    borderRadius: "1rem",
-    padding: "1.5rem",
-    width: "100%",
-    maxWidth: "400px",
-    maxHeight: "calc(100dvh - 2rem)",
-    overflowY: "auto",
-    boxShadow: "0 -4px 24px rgba(0,0,0,0.5)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.75rem",
-  });
+  dialog.className = UI_CLASSES.READING_LOG_SHARE_DIALOG;
 
   const title = document.createElement("h3");
   title.textContent = t("share_dialog_title");
-  Object.assign(title.style, {
-    margin: "0 0 0.25rem",
-    fontSize: "1rem",
-    color: "var(--text-primary, #fff)",
-    fontWeight: "600",
-  });
+
 
   // Properties are recognized only at the start of a Markdown note.
   const hint = document.createElement("p");
   hint.textContent = t("readingLogMarkdownHint");
-  hint.style.color = "var(--muted)";
-  hint.style.fontSize = "0.85rem";
+
+
+  const authorHint = document.createElement("p");
+  authorHint.textContent = t("readingLogAuthorRolesHint");
 
   const btnApps = document.createElement("button");
   btnApps.textContent = t("share_via_apps");
-  Object.assign(btnApps.style, {
-    padding: "0.8rem 1rem",
-    borderRadius: "0.5rem",
-    border: "none",
-    background: "var(--accent, #4b7bec)",
-    color: "#fff",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-    fontWeight: "600",
-    width: "100%",
-    textAlign: "left",
-  });
+  btnApps.className = UI_CLASSES.READING_LOG_SHARE_PRIMARY;
 
   const btnClipboard = document.createElement("button");
   btnClipboard.textContent = t("share_via_clipboard");
-  Object.assign(btnClipboard.style, {
-    padding: "0.8rem 1rem",
-    borderRadius: "0.5rem",
-    border: "1px solid var(--border, #555)",
-    background: "var(--bg)",
-    color: "var(--text-primary, #fff)",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-    width: "100%",
-    textAlign: "left",
-  });
+  btnClipboard.className = UI_CLASSES.READING_LOG_SHARE_SECONDARY;
 
   const btnCancel = document.createElement("button");
   btnCancel.textContent = t("share_cancel");
-  Object.assign(btnCancel.style, {
-    padding: "0.6rem 1rem",
-    borderRadius: "0.5rem",
-    border: "none",
-    background: "transparent",
-    color: "var(--muted, #888)",
-    fontSize: "0.9rem",
-    cursor: "pointer",
-    width: "100%",
-    textAlign: "center",
-    marginTop: "0.25rem",
-  });
+  btnCancel.className = UI_CLASSES.READING_LOG_SHARE_CANCEL;
 
   const closeDialog = () => {
     endDialogFocus(dialog);
@@ -743,8 +686,8 @@ function showShareMethodDialog(shareText, bookTitle) {
     if (e.target === overlay) closeDialog();
   });
 
-  [btnApps, btnClipboard, btnCancel].forEach(button => { button.style.minHeight = "var(--control-target-size)"; });
-  dialog.append(title, hint, btnApps, btnClipboard, btnCancel);
+
+  dialog.append(title, hint, authorHint, btnApps, btnClipboard, btnCancel);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
   beginDialogFocus(dialog, closeDialog);

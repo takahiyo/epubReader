@@ -81,6 +81,7 @@ export const READING_LOG_FORMAT = Object.freeze({
   UNTITLED: "無題",
   STATUS_READING: "reading",
   STATUS_COMPLETED: "completed",
+  ORIGINAL_AUTHOR_SEPARATOR: "×",
   IMAGE_AUTHOR_PLACEHOLDER: "画像書籍",
   FILENAME_AUTHOR_PATTERN: /^\[([^\[\]\r\n]+)\](.+)$/u,
   // Avoid Obsidian link syntax and Windows filename delimiters; raw names remain properties.

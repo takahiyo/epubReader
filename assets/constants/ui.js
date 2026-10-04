@@ -135,6 +135,11 @@ export const UI_SYMBOLS = Object.freeze({
 // UI クラス名
 // ============================================
 export const UI_CLASSES = Object.freeze({
+  READING_LOG_SHARE_BACKDROP: "reading-log-share-backdrop",
+  READING_LOG_SHARE_DIALOG: "reading-log-share-dialog",
+  READING_LOG_SHARE_PRIMARY: "reading-log-share-primary",
+  READING_LOG_SHARE_SECONDARY: "reading-log-share-secondary",
+  READING_LOG_SHARE_CANCEL: "reading-log-share-cancel",
   HIDDEN: "hidden",
   STATUS_SUCCESS: "status-success",
   STATUS_ERROR: "status-error",

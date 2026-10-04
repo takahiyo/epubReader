@@ -7,6 +7,26 @@ const now = new Date(2026, 9, 4, 12, 34, 56);
 const state = { title: '作品名', author: '作者名', percentage: 35.24, bookId: 'same-book',
   bookType: 'epub', pageIndex: 24, totalPages: 100, appUrl: 'https://example.test/reader/?token=secret#private' };
 
+test('only a two-person multiplication-sign filename separates artist and original author', () => {
+  for (const names of ['漫画家×原作者', ' 漫画家 × 原作者 ']) {
+    const output = generateReadingLogMarkdown({ ...state, fileName: '[' + names + ']作品_01.cbz', bookType: 'zip' }, { now });
+    assert.match(output, /\nauthors:\n  - "\[\[漫画家\]\]"\nauthor_names:\n  - "漫画家"\n/);
+    assert.match(output, /\noriginal_authors:\n  - "\[\[原作者\]\]"\noriginal_author_names:\n  - "原作者"\n/);
+    assert.match(output, /- \*\*原作者\*\*: \[\[原作者\]\]/);
+  }
+});
+
+test('ASCII x, names outside the convention and ambiguous multiplication signs keep their original roles', () => {
+  for (const name of ['Alex', 'Max x Alex', 'A×B×C', 'A×', '×B']) {
+    const output = generateReadingLogMarkdown({ ...state, fileName: '[' + name + ']作品.cbz' }, { now });
+    assert.ok(output.includes('author_names:\n  - ' + JSON.stringify(name) + '\n'));
+    assert.match(output, /\noriginal_authors: \[\]\noriginal_author_names: \[\]\n/);
+  }
+  const metadata = generateReadingLogMarkdown({ ...state, author: 'A×B' }, { now });
+  assert.match(metadata, /\nauthor_names:\n  - "A×B"\n/);
+  assert.match(metadata, /\noriginal_authors: \[\]\n/);
+});
+
 test('filename author and title override metadata for EPUB and comic exports while preserving underscores and volumes', () => {
   for (const [bookType, extension] of [['epub', 'epub'], ['zip', 'CBZ'], ['rar', 'cbr']]) {
     const input = { ...state, bookType, fileName: '[作者名]作品_名_第003巻.' + extension,

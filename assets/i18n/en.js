@@ -149,6 +149,8 @@ export const UI_STRINGS_EN = Object.freeze({
   googleLoginStatusSignedIn: "Signed in: {user}",
   googleLoginStatusSignedInShort: "Signed in",
   googleLoginFailed: "Failed to sign in",
+  readingLogOriginalAuthorsLabel: "Original authors",
+  readingLogAuthorRolesHint: "In [artist×original author] filenames, the left name is treated as the artist and the right as the original author. ASCII x is not split. Correct the copied properties manually if the inference is wrong.",
   readingLogBookLabel: "Book",
   readingLogAuthorsLabel: "Authors",
   readingLogProgressLabel: "Progress",

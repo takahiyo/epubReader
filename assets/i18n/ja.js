@@ -149,6 +149,8 @@ export const UI_STRINGS_JA = Object.freeze({
   googleLoginStatusSignedIn: "ログイン済み: {user}",
   googleLoginStatusSignedInShort: "ログイン済み",
   googleLoginFailed: "ログインに失敗しました",
+  readingLogOriginalAuthorsLabel: "原作者",
+  readingLogAuthorRolesHint: "ファイル名の[作者×原作者]は左側を作者（漫画家）、右側を原作者として推定します。英字xは分割しません。誤っている場合はコピー後のプロパティを修正してください。",
   readingLogBookLabel: "作品",
   readingLogAuthorsLabel: "作者",
   readingLogProgressLabel: "進捗",

@@ -10,7 +10,7 @@ import { roundProgressPercentage } from './progress-utils.js';
 /**
  * Read the user's [author]title filename convention without guessing volume or underscore boundaries.
  * @param {Object} readerState - Original filename and existing metadata
- * @returns {{title: string, author: string}|null} Explicit filename fields, or no recognized convention
+ * @returns {{title: string, author: string, originalAuthor: string|null}|null} Explicit filename fields, or no recognized convention
  */
 function filenameBookInfo(readerState) {
   // Web-novel titles are metadata, not filenames; leading brackets can be part of the actual title.
@@ -28,7 +28,11 @@ function filenameBookInfo(readerState) {
   if (!match) return null;
   const author = match[1].trim();
   const title = match[2].trim();
-  return author && title ? { author, title } : null;
+  if (!author || !title) return null;
+  // Only a two-person multiplication-sign convention assigns roles; ASCII x stays part of a name.
+  const contributors = author.split(READING_LOG_FORMAT.ORIGINAL_AUTHOR_SEPARATOR).map(name => name.trim());
+  const hasRoles = contributors.length === 2 && contributors.every(Boolean);
+  return { title, author: hasRoles ? contributors[0] : author, originalAuthor: hasRoles ? contributors[1] : null };
 }
 
 /**
@@ -95,6 +99,8 @@ export function generateReadingLogMarkdown(readerState, { language = 'ja', now =
   const time = captureTime(now);
   const book = wikiLink(title);
   const authorLinks = authors.map(wikiLink);
+  const originalAuthors = fileInfo?.originalAuthor ? [fileInfo.originalAuthor] : [];
+  const originalAuthorLinks = originalAuthors.map(wikiLink);
   const properties = {
     type: READING_LOG_FORMAT.TYPE,
     schema_version: READING_LOG_FORMAT.VERSION,
@@ -104,6 +110,8 @@ export function generateReadingLogMarkdown(readerState, { language = 'ja', now =
     title,
     authors: authorLinks,
     author_names: authors,
+    original_authors: originalAuthorLinks,
+    original_author_names: originalAuthors,
     status: completed ? READING_LOG_FORMAT.STATUS_COMPLETED : READING_LOG_FORMAT.STATUS_READING,
     progress: percentage,
     tags: [READING_LOG_FORMAT.TYPE],
@@ -127,6 +135,7 @@ export function generateReadingLogMarkdown(readerState, { language = 'ja', now =
     '# ' + strings.share_reading_log, '',
     '- **' + strings.readingLogBookLabel + '**: ' + book,
     '- **' + strings.readingLogAuthorsLabel + '**: ' + (authorLinks.join(', ') || strings.readingLogNoAuthor),
+    ...(originalAuthorLinks.length ? ['- **' + strings.readingLogOriginalAuthorsLabel + '**: ' + originalAuthorLinks.join(', ')] : []),
     '- **' + strings.readingLogProgressLabel + '**: ' + percentage + '%',
     '- **' + strings.readingLogStatusLabel + '**: ' + statusLabel,
     '- **' + strings.readingLogRecordedAtLabel + '**: ' + time.timestamp,
