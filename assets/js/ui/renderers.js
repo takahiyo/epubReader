@@ -6,10 +6,12 @@
  */
 
 import { elements } from "./elements.js";
+import { beginDialogFocus, endDialogFocus } from "./dialog-focus.js";
 import {
     BOOK_TYPES,
     UI_CLASSES,
     UI_ICONS,
+    READER_CONTROL_ICONS,
     PREMIUM_ICONS,
     UI_SYMBOLS,
     CSS_VARS,
@@ -109,7 +111,10 @@ export function getPremiumIconCropped(path, isRight, size = null) {
  */
 export function setFloatInlineLabel(button, iconElement, text) {
     if (!button) return;
-    const label = document.createTextNode(` ${text}`);
+    const label = document.createElement("span");
+    label.className = "float-btn-label";
+    label.textContent = text;
+    button.setAttribute("aria-label", text);
     button.replaceChildren(iconElement, label);
 }
 
@@ -125,9 +130,32 @@ export function setFloatEmojiLabel(button, emoji, text) {
     setFloatInlineLabel(button, iconSpan, text);
 }
 
+/**
+ * Create a decorative local SVG for a named command.
+ * @param {string} symbol - Sprite symbol ID
+ * @returns {SVGElement} Theme-aware line icon
+ */
+function getReaderControlIcon(symbol) {
+    const icon = document.createElementNS(READER_CONTROL_ICONS.NAMESPACE, "svg");
+    icon.setAttribute("viewBox", READER_CONTROL_ICONS.VIEW_BOX);
+    icon.setAttribute("class", "reader-control-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.setAttribute("focusable", "false");
+    const use = document.createElementNS(READER_CONTROL_ICONS.NAMESPACE, "use");
+    use.setAttribute("href", READER_CONTROL_ICONS.SPRITE + "#" + symbol);
+    icon.append(use);
+    return icon;
+}
+
 export function setMaterialIconLabel(button, iconName, labelText) {
     if (!button) return;
     
+    const symbol = READER_CONTROL_ICONS.SYMBOLS[iconName];
+    if (symbol) {
+        setFloatInlineLabel(button, getReaderControlIcon(symbol), labelText);
+        return;
+    }
+
     // PREMIUM_ICONS マッピング
     const iconMap = {
         [UI_ICONS.SETTINGS]: PREMIUM_ICONS.SETTINGS,
@@ -266,6 +294,12 @@ export function updateFloatingUIButtons() {
         updateZoomButtonLabel();
     }
 
+    // Image archives have no text size; keep only relevant appearance actions.
+    setElementVisibility(elements.fontPlus?.parentElement, isSupportedBook || !isBookOpen);
+    if (elements.readerAppearanceHeading) {
+        elements.readerAppearanceHeading.textContent = t(isImageBook ? "readerZoomHeading" : "readerAppearanceHeading");
+    }
+
     if (elements.shareLogButton) {
         // 読書録は目次と同様、常に表示し未オープン時のみ無効化（非表示にすると空状態で項目が消えて見える）
         setElementVisibility(elements.shareLogButton, true);
@@ -301,9 +335,11 @@ export function toggleFloatOverlay(forceVisible) {
         const progress = _storage.getProgress(_state.currentBookId);
         const percentage = progress?.percentage || 0;
         updateFloatProgressBar(percentage);
+        beginDialogFocus(elements.readerCommandPanel, () => toggleFloatOverlay(false));
     } else {
         elements.floatOverlay.classList.remove(UI_CLASSES.VISIBLE);
         elements.floatOverlay.setAttribute("aria-hidden", "true");
+        endDialogFocus(elements.readerCommandPanel);
     }
 }
 
@@ -315,7 +351,7 @@ export function updateFloatBookTitle() {
     if (_state.currentBookInfo?.title) {
         elements.floatBookTitle.textContent = _state.currentBookInfo.title;
     } else {
-        elements.floatBookTitle.textContent = '';
+        elements.floatBookTitle.textContent = t("emptyTitle");
     }
 }
 
@@ -397,11 +433,10 @@ export function updateZoomButtonLabel() {
     if (!elements.toggleZoom || !_reader) return;
     const isZoomed = _reader.imageZoomed;
     
-    // クロップドアイコンの生成（右側がマイナス、左側がプラス）
-    const iconElement = getPremiumIconCropped(PREMIUM_ICONS.ZOOM_IN, isZoomed);
-    
-    elements.toggleZoom.replaceChildren(iconElement);
-    elements.toggleZoom.title = isZoomed ? t("zoomOutTitle") : t("zoomInTitle");
+    // The label explains the action as well as the icon, especially on touch screens.
+    const label = t(isZoomed ? "zoomOutTitle" : "zoomInTitle");
+    setMaterialIconLabel(elements.toggleZoom, isZoomed ? UI_ICONS.ZOOM_OUT : UI_ICONS.ZOOM_IN, label);
+    elements.toggleZoom.title = label;
 }
 
 /**
@@ -570,7 +605,8 @@ export function updateProgressBarDisplay() {
 }
 
 export function updateFloatProgressBar(percentage) {
-    if (!elements.floatProgress || !_state.floatVisible) return;
+    // The renderer owns overlay visibility; a stale app-local flag must not suppress updates.
+    if (!elements.floatProgress || !elements.floatOverlay?.classList.contains(UI_CLASSES.VISIBLE)) return;
     const clamped = Math.min(100, Math.max(0, percentage));
     if (elements.floatProgressFill) {
         elements.floatProgressFill.style.width = `${clamped}%`;
@@ -1102,6 +1138,7 @@ export function renderBookmarkMarkers() {
                 tooltipText += ` (${Math.round(percentage)}%)`;
             }
             marker.title = tooltipText;
+            marker.setAttribute("aria-label", tooltipText);
 
             marker.onclick = (e) => {
                 e.stopPropagation();

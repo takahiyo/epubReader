@@ -19,10 +19,12 @@ import {
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
+import { beginDialogFocus, endDialogFocus } from "./js/ui/dialog-focus.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
-import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage, generateShareText } from "./js/core/progress-utils.js";
+import { generateReadingLogMarkdown } from "./js/core/reading-log.js";
+import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
 import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
@@ -56,7 +58,6 @@ import {
   READER_CONFIG,
   SYNC_SOURCES,
   CLOUD_SYNC_PAGE_THRESHOLD,
-  SHARE_MARKDOWN_TEMPLATE,
   detectPlatform,
   PWA_CONFIG,
   DEFAULT_KEY_BINDINGS,
@@ -118,7 +119,6 @@ let autoSyncInterval = null;
 let lastSavedPercentage = null;
 let currentToc = [];
 let uiInitialized = false;
-let floatVisible = false;
 let googleLoginReady = false;
 let userOverrodeDirection = false;
 let archiveWarningTypes = [];
@@ -500,11 +500,20 @@ function updateProgressOverlay(percentage) {
  */
 function buildShareText() {
   if (!currentBookId || !currentBookInfo) return null;
+  // Capture the visible reader now; the last timer save may describe an earlier page.
+  const snapshot = getProgressSnapshot();
   const progress = storage.getProgress(currentBookId) || {};
-  return generateShareText({
+  return generateReadingLogMarkdown({
+    fileName: currentBookInfo.fileName,
     title: currentBookInfo.title,
-    percentage: progress.percentage || 0
-  }, SHARE_MARKDOWN_TEMPLATE);
+    author: currentBookInfo.author,
+    bookId: currentCloudBookId || currentBookId,
+    bookType: currentBookInfo.type,
+    percentage: snapshot.totalPages > 0 ? snapshot.percentage : progress.percentage,
+    pageIndex: snapshot.pageIndex,
+    totalPages: snapshot.totalPages,
+    appUrl: window.location.origin + window.location.pathname,
+  }, { language: uiLanguage });
 }
 
 /**
@@ -542,8 +551,8 @@ function showShareToast(message) {
     bottom: "5rem",
     left: "50%",
     transform: "translateX(-50%)",
-    background: "var(--bg-panel, #2a2a2a)",
-    color: "var(--text-primary, #fff)",
+    background: "var(--card)",
+    color: "var(--text)",
     border: "1px solid var(--border, #555)",
     borderRadius: "0.5rem",
     padding: "0.75rem 1.5rem",
@@ -592,103 +601,62 @@ async function handleShareReadingLog() {
   }
 
   // navigator.share 対応端末: 選択ポップオーバーを表示
-  showShareMethodDialog(shareText);
+  showShareMethodDialog(shareText, currentBookInfo.title);
 }
 
 /**
  * 「アプリで共有」vs「クリップボード」の選択ポップオーバーを表示する
  */
-function showShareMethodDialog(shareText) {
+function showShareMethodDialog(shareText, bookTitle) {
+  // Share choices are a dialog too; release the reader menu before moving keyboard focus.
+  renderers.toggleFloatOverlay(false);
   // 既存ダイアログを除去
   const prev = document.getElementById("__share-dialog");
   if (prev) prev.remove();
 
   const overlay = document.createElement("div");
   overlay.id = "__share-dialog";
-  Object.assign(overlay.style, {
-    position: "fixed",
-    inset: "0",
-    zIndex: "9998",
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    background: "rgba(0,0,0,0.5)",
-    padding: "1rem",
-  });
+  overlay.className = UI_CLASSES.READING_LOG_SHARE_BACKDROP;
 
   const dialog = document.createElement("div");
-  Object.assign(dialog.style, {
-    background: "var(--bg-panel, #2a2a2a)",
-    border: "1px solid var(--border, #555)",
-    borderRadius: "1rem",
-    padding: "1.5rem",
-    width: "100%",
-    maxWidth: "400px",
-    boxShadow: "0 -4px 24px rgba(0,0,0,0.5)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.75rem",
-  });
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-label", t("share_dialog_title"));
+  dialog.className = UI_CLASSES.READING_LOG_SHARE_DIALOG;
 
   const title = document.createElement("h3");
   title.textContent = t("share_dialog_title");
-  Object.assign(title.style, {
-    margin: "0 0 0.25rem",
-    fontSize: "1rem",
-    color: "var(--text-primary, #fff)",
-    fontWeight: "600",
-  });
+
+
+  // Properties are recognized only at the start of a Markdown note.
+  const hint = document.createElement("p");
+  hint.textContent = t("readingLogMarkdownHint");
+
+
+  const authorHint = document.createElement("p");
+  authorHint.textContent = t("readingLogAuthorRolesHint");
 
   const btnApps = document.createElement("button");
   btnApps.textContent = t("share_via_apps");
-  Object.assign(btnApps.style, {
-    padding: "0.8rem 1rem",
-    borderRadius: "0.5rem",
-    border: "none",
-    background: "var(--accent, #4b7bec)",
-    color: "#fff",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-    fontWeight: "600",
-    width: "100%",
-    textAlign: "left",
-  });
+  btnApps.className = UI_CLASSES.READING_LOG_SHARE_PRIMARY;
 
   const btnClipboard = document.createElement("button");
   btnClipboard.textContent = t("share_via_clipboard");
-  Object.assign(btnClipboard.style, {
-    padding: "0.8rem 1rem",
-    borderRadius: "0.5rem",
-    border: "1px solid var(--border, #555)",
-    background: "var(--bg-surface, #333)",
-    color: "var(--text-primary, #fff)",
-    fontSize: "0.95rem",
-    cursor: "pointer",
-    width: "100%",
-    textAlign: "left",
-  });
+  btnClipboard.className = UI_CLASSES.READING_LOG_SHARE_SECONDARY;
 
   const btnCancel = document.createElement("button");
   btnCancel.textContent = t("share_cancel");
-  Object.assign(btnCancel.style, {
-    padding: "0.6rem 1rem",
-    borderRadius: "0.5rem",
-    border: "none",
-    background: "transparent",
-    color: "var(--muted, #888)",
-    fontSize: "0.9rem",
-    cursor: "pointer",
-    width: "100%",
-    textAlign: "center",
-    marginTop: "0.25rem",
-  });
+  btnCancel.className = UI_CLASSES.READING_LOG_SHARE_CANCEL;
 
-  const closeDialog = () => overlay.remove();
+  const closeDialog = () => {
+    endDialogFocus(dialog);
+    overlay.remove();
+  };
 
   btnApps.addEventListener("click", async () => {
     closeDialog();
     try {
-      await shareReadingLogViaApps(shareText, currentBookInfo?.title);
+      await shareReadingLogViaApps(shareText, bookTitle);
     } catch (err) {
       if (err.name !== "AbortError") {
         console.error("[share] navigator.share failed:", err);
@@ -718,9 +686,11 @@ function showShareMethodDialog(shareText) {
     if (e.target === overlay) closeDialog();
   });
 
-  dialog.append(title, btnApps, btnClipboard, btnCancel);
+
+  dialog.append(title, hint, authorHint, btnApps, btnClipboard, btnCancel);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
+  beginDialogFocus(dialog, closeDialog);
 }
 
 function shouldSyncCloudProgress(progressSnapshot) {
@@ -803,6 +773,10 @@ const reader = new ReaderController({
     handleBookReady(data);
   },
   onImageZoom: (isZoomed) => {
+    // Pinch/long-press and button zoom share the same accessible controls state.
+    renderers.updateZoomButtonLabel();
+    elements.floatOverlay?.setAttribute("aria-hidden", String(!isZoomed && !elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE)));
+    elements.readerCommandPanel?.setAttribute("aria-modal", String(!isZoomed));
     if (isZoomed) {
       document.body.classList.add(UI_CLASSES.IS_ZOOMED);
     } else {
@@ -966,7 +940,6 @@ renderers.init({
     get uiLanguage() { return uiLanguage; },
     get epubViewMode() { return epubViewMode; },
     get progressDisplayMode() { return progressDisplayMode; },
-    get floatVisible() { return floatVisible; },
     get pageDirection() { return pageDirection; },
     get defaultPageDirection() { return defaultPageDirection; },
     get bookmarkMenuMode() { return bookmarkMenuMode; },
@@ -1429,9 +1402,7 @@ async function handleFile(file, overrideBookId = null) {
     renderers.updateSearchButtonState();
     renderers.updateFloatingUIButtons();
     closeExclusiveMenus();
-    if (floatVisible) {
-      toggleFloatOverlay(false);
-    }
+    renderers.toggleFloatOverlay(false);
     isSyncResolving = false; // ジャンプ完了後にロック解除
   } catch (error) {
     isSyncResolving = false; // エラー時もロック解除
@@ -1527,9 +1498,7 @@ async function openCloudOnlyBook(cloudBookId) {
   renderers.updateSearchButtonState();
   renderers.updateFloatingUIButtons();
   closeExclusiveMenus();
-  if (floatVisible) {
-    toggleFloatOverlay(false);
-  }
+  renderers.toggleFloatOverlay(false);
 }
 
 let stubReselectInput = null;
@@ -1821,9 +1790,7 @@ async function openFromLibrary(bookId, options = {}) {
     renderers.updateSearchButtonState();
     renderers.updateFloatingUIButtons();
     closeExclusiveMenus();
-    if (floatVisible) {
-      toggleFloatOverlay(false);
-    }
+    renderers.toggleFloatOverlay(false);
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
@@ -2285,11 +2252,18 @@ function openModal(modal) {
   } else {
     modal.classList.remove(UI_CLASSES.HIDDEN);
   }
-
+  // Shared dialog behavior keeps keyboard focus with the opened tool panel.
+  const heading = modal.querySelector(DOM_SELECTORS.DIALOG_HEADING);
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  if (heading) modal.setAttribute('aria-labelledby', heading.id);
+  const requiredChoice = modal === elements.syncModal || modal === elements.candidateModal;
+  beginDialogFocus(modal, requiredChoice ? null : () => closeModal(modal));
 }
 
 function closeModal(modal) {
   if (!modal) return;
+  endDialogFocus(modal);
   if (modal === elements.searchModal) invalidateSearch();
   if (modal.classList.contains(UI_CLASSES.BOOKMARK_MENU)) {
     modal.classList.remove(UI_CLASSES.VISIBLE);
@@ -2365,6 +2339,10 @@ function applyUiLanguage(nextLanguage) {
   requestCloudSyncIfNeeded(getProgressSnapshot());
 
   const strings = getUiStrings(nextLanguage);
+  if (elements.readerControlsHeading) elements.readerControlsHeading.textContent = strings.readerControlsHeading;
+  document.getElementById(DOM_IDS.ZOOM_SLIDER)?.setAttribute("aria-label", strings.readerZoomHeading);
+  if (elements.readerAppearanceHeading) elements.readerAppearanceHeading.textContent = strings.readerAppearanceHeading;
+  elements.closeReaderControls?.setAttribute("aria-label", strings.closeButtonLabel);
   document.title = strings.documentTitle;
   renderers.updateThemeToggleIcon?.();
   updateFullscreenButtonLabel?.();
@@ -2456,9 +2434,9 @@ function applyUiLanguage(nextLanguage) {
   }
   // トグルグループヘッダーのラベル設定
   const bookGroupHeader = document.querySelector('.float-menu-group[data-group="book"] .float-menu-group-header span:first-child');
-  if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
+  if (bookGroupHeader) bookGroupHeader.textContent = t('floatGroupBook');
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
-  if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
+  if (displayGroupHeader) displayGroupHeader.textContent = t('floatGroupDisplay');
   const langGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"] .float-menu-group-header span:first-child');
   if (langGroupHeader) langGroupHeader.textContent = `🌐 ${strings.languageButtonLabel}`;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
@@ -2709,8 +2687,10 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.progressDisplayPage;
     if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
   }
-  if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
-  if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
+  if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseShortLabel;
+  elements.fontPlus?.setAttribute("aria-label", strings.fontIncreaseLabel);
+  if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseShortLabel;
+  elements.fontMinus?.setAttribute("aria-label", strings.fontDecreaseLabel);
 
   renderers.updateWritingModeToggleLabel();
   renderers.updateReadingDirectionEpubButtonLabel();
@@ -3254,13 +3234,32 @@ function setupEvents() {
     showSettings();
   });
 
+  elements.closeReaderControls?.addEventListener('click', () => renderers.toggleFloatOverlay(false));
+
+  /**
+   * 非表示のグループ内のボタンをTab移動の対象から外す。
+   * @param {HTMLElement} group - 操作グループ
+   * @param {boolean} expanded - 展開状態
+   * @returns {void}
+   */
+  const updateGroup = (group, expanded) => {
+    if (!group) return;
+    group.classList.toggle('expanded', expanded);
+    group.querySelector(':scope > .float-menu-group-header')?.setAttribute('aria-expanded', String(expanded));
+    const items = group.querySelector(':scope > .float-menu-group-items');
+    if (items) {
+      items.inert = !expanded;
+      group.querySelector(':scope > .float-menu-group-header')?.setAttribute('aria-controls', items.id);
+    }
+  };
+  document.querySelectorAll('.float-menu-group').forEach(group => updateGroup(group, group.dataset.group === 'book'));
   // トグルメニューグループの開閉ロジック
   document.querySelectorAll('.float-menu-group-header').forEach((header) => {
     header.addEventListener('click', (e) => {
       e.stopPropagation();
       const group = header.closest('.float-menu-group');
       if (group) {
-        group.classList.toggle('expanded');
+        updateGroup(group, !group.classList.contains('expanded'));
       }
     });
   });
@@ -3370,12 +3369,12 @@ function setupEvents() {
   // フロート言語グループ（表示グループ内 .float-menu-group[data-group="lang"]）
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]')?.classList.remove('expanded');
+    updateGroup(document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]'), false);
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
-    document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]')?.classList.remove('expanded');
+    updateGroup(document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]'), false);
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {

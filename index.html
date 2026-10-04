@@ -34,6 +34,7 @@
   <link rel="stylesheet" href="./assets/css/19-zoom.css?v=12" />
   <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=11" />
   <link rel="stylesheet" href="./assets/css/22-float-menu-toggle.css?v=3" />
+  <link rel="stylesheet" href="./assets/css/23-reader-controls.css?v=1" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
@@ -583,98 +584,100 @@
   <div id="floatOverlay">
     <div class="float-backdrop"></div>
 
-    <div class="float-title">
-      <div class="float-title-top">
-        <img id="floatTitleImage" src="assets/bookreader.png" alt="" />
-        <span id="floatVersion" class="float-version"></span>
-      </div>
-      <div id="floatAuthStatus" class="menu-auth-status float-auth-status" aria-live="polite"></div>
-    </div>
-
-    <div class="float-buttons">
-      <div class="float-main-menu">
-        <!-- 目次 -->
-        <button id="openToc" type="button"></button>
-        <!-- しおり -->
-        <button id="floatBookmarks" type="button"></button>
-
-        <!-- 書籍グループ -->
-        <div class="float-menu-group" data-group="book">
-          <button class="float-menu-group-header" type="button">
-            <span></span>
-            <span class="float-menu-group-chevron">▼</span>
-          </button>
-          <div class="float-menu-group-items">
-            <button id="floatOpen" type="button"></button>
-            <button id="floatLibrary" type="button"></button>
-            <button id="floatHistory" type="button"></button>
-            <button id="floatWebNovel" type="button">🌐📝</button>
-          </div>
+    <!-- 同一の操作パネルを、画面幅だけで中央表示／ボトムシートに切り替える。 -->
+    <section class="reader-command-panel" role="dialog" aria-modal="true" aria-labelledby="readerControlsHeading" tabindex="-1">
+      <header class="float-title">
+        <div class="float-title-top">
+          <img id="floatTitleImage" src="assets/bookreader.png" alt="" />
+          <span id="floatVersion" class="float-version"></span>
         </div>
+        <button id="closeReaderControls" class="close-btn" type="button">×</button>
+        <h2 id="readerControlsHeading"></h2>
+        <div id="floatBookTitle" class="float-book-title"></div>
+        <div id="floatAuthStatus" class="menu-auth-status float-auth-status" aria-live="polite"></div>
+      </header>
+      <nav class="reader-primary-actions" aria-labelledby="readerControlsHeading">
+        <button id="floatLibrary" type="button"></button>
+        <button id="openToc" type="button"></button>
+        <button id="floatBookmarks" type="button"></button>
+        <button id="floatSearch" type="button"></button>
+        <button id="floatSettings" type="button"></button>
+      </nav>
+      <div class="float-buttons">
+        <div class="float-main-menu">
+          <!-- 書籍グループ -->
+          <div class="float-menu-group" data-group="book">
+            <button class="float-menu-group-header" type="button">
+              <span></span>
+              <span class="float-menu-group-chevron">▼</span>
+            </button>
+            <div class="float-menu-group-items" id="reader-book-actions">
+              <button id="floatOpen" type="button"></button>
+              <button id="floatHistory" type="button"></button>
+              <button id="floatWebNovel" type="button">🌐📝</button>
+            </div>
+          </div>
 
-        <!-- 表示グループ -->
-        <div class="float-menu-group" data-group="display">
-          <button class="float-menu-group-header" type="button">
-            <span></span>
-            <span class="float-menu-group-chevron">▼</span>
-          </button>
-          <div class="float-menu-group-items">
-            <button id="toggleReadingDirectionEpub" class="hidden" type="button"></button>
-            <button id="toggleReadingDirectionImage" class="hidden" type="button"></button>
-            <button id="toggleWritingMode" type="button"></button>
-            <button id="toggleSpreadMode" class="hidden" type="button"></button>
-            <button id="toggleFullscreen" type="button"></button>
-            <button id="toggleTheme" type="button"></button>
-            <!-- 言語グループ -->
-            <div class="float-menu-group" data-group="lang">
-              <button class="float-menu-group-header" type="button">
-                <span></span>
-                <span class="float-menu-group-chevron">▼</span>
-              </button>
-              <div class="float-menu-group-items">
-                <button id="floatLangJa" class="lang-option-btn" type="button">
-                  <img src="assets/Flag_Japan.svg" alt="" />
+          <!-- 表示グループ -->
+          <div class="float-menu-group" data-group="display">
+            <button class="float-menu-group-header" type="button">
+              <span></span>
+              <span class="float-menu-group-chevron">▼</span>
+            </button>
+            <div class="float-menu-group-items" id="reader-display-actions">
+              <button id="toggleReadingDirectionEpub" class="hidden" type="button"></button>
+              <button id="toggleReadingDirectionImage" class="hidden" type="button"></button>
+              <button id="toggleWritingMode" type="button"></button>
+              <button id="toggleSpreadMode" class="hidden" type="button"></button>
+              <button id="toggleFullscreen" type="button"></button>
+              <button id="toggleTheme" type="button"></button>
+              <!-- 言語グループ -->
+              <div class="float-menu-group" data-group="lang">
+                <button class="float-menu-group-header" type="button">
+                  <span></span>
+                  <span class="float-menu-group-chevron">▼</span>
                 </button>
-                <button id="floatLangEn" class="lang-option-btn" type="button">
-                  <img src="assets/Flag_America.svg" alt="" />
-                </button>
+                <div class="float-menu-group-items" id="reader-lang-actions">
+                  <button id="floatLangJa" class="lang-option-btn" type="button">
+                    <img src="assets/Flag_Japan.svg" alt="" />
+                  </button>
+                  <button id="floatLangEn" class="lang-option-btn" type="button">
+                    <img src="assets/Flag_America.svg" alt="" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+
+          <!-- 読書録 -->
+          <button id="share-log-btn" type="button"></button>
         </div>
 
-        <!-- テキスト検索 -->
-        <button id="floatSearch" type="button"></button>
-        <!-- 読書録 -->
-        <button id="share-log-btn" type="button"></button>
-        <!-- 設定（最下部） -->
-        <button id="floatSettings" type="button"></button>
-      </div>
+        <!-- 本文の見え方を調整する操作は、同じ行にまとめる。 -->
+        <div class="float-right-controls">
+          <span id="readerAppearanceHeading" class="reader-section-label"></span>
+          <button id="toggleZoom" class="hidden" type="button"></button>
+          <div class="font-buttons">
+            <button id="fontPlus" type="button"></button>
+            <button id="fontMinus" type="button"></button>
+          </div>
+        </div>
 
-      <!-- 右側: ズーム + フォントサイズのみ -->
-      <div class="float-right-controls">
-        <button id="toggleZoom" class="hidden" type="button"></button>
-        <div class="font-buttons">
-          <button id="fontPlus" type="button"></button>
-          <button id="fontMinus" type="button"></button>
+        <!-- ズームスライダー -->
+        <div id="zoomSliderContainer" class="zoom-slider-container">
+          <input type="range" id="zoomSlider" min="1.0" max="5.0" step="0.1" value="1.0">
         </div>
       </div>
 
-      <!-- ズームスライダー -->
-      <div id="zoomSliderContainer" class="zoom-slider-container">
-        <input type="range" id="zoomSlider" min="1.0" max="5.0" step="0.1" value="1.0">
+      <div id="floatProgress">
+        <div id="floatProgressPercent">0%</div>
+        <div id="floatProgressTrack" class="progress-track">
+          <div id="floatProgressMarks"></div>
+          <div id="floatProgressFill"></div>
+          <div id="floatProgressThumb"></div>
+        </div>
       </div>
-    </div>
-
-    <div id="floatBookTitle" class="float-book-title"></div>
-    <div id="floatProgress">
-      <div id="floatProgressPercent">0%</div>
-      <div id="floatProgressTrack" class="progress-track">
-        <div id="floatProgressMarks"></div>
-        <div id="floatProgressFill"></div>
-        <div id="floatProgressThumb"></div>
-      </div>
-    </div>
+    </section>
   </div>
 
   <!-- ローディングオーバーレイ -->

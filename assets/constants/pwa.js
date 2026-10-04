@@ -1,8 +1,10 @@
+import { READER_CONTROL_ICONS } from "./ui.js";
+
 // ============================================
 // PWA / Service Worker 設定
 // ============================================
 export const PWA_CONFIG = Object.freeze({
-  CACHE_NAME: "bookreader-v54",
+  CACHE_NAME: "bookreader-v59",
   THEME_COLOR: "#2c3e50",
   BACKGROUND_COLOR: "#ffffff",
 });
@@ -50,6 +52,7 @@ export const SW_CACHE_ASSETS = Object.freeze([
   "./assets/fileStore.js",
   "./assets/firebaseConfig.js",
   "./assets/onedriveAuth.js",
+  "./" + READER_CONTROL_ICONS.SPRITE,
   "./assets/bookreader.png",
   "./assets/BookReader_Titlle.png",
   "./assets/menu-title.svg",

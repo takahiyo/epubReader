@@ -5,6 +5,8 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import puppeteer from 'puppeteer';
+import { verifyShareDialog } from './share-dialog-ui-cases.mjs';
+import { verifyReaderControls } from './reader-controls-ui-cases.mjs';
 
 const root = process.cwd();
 const server = http.createServer(async (req, res) => {
@@ -53,11 +55,12 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   const offline = await page.evaluate(async () => {
     const urls = ['/assets/app.js?v=18', '/assets/cloudState.js', '/src/reader/epubPaginator.js',
-      '/assets/constants/keybindings.js', '/assets/js/workers/rar-worker.js', '/assets/css/22-float-menu-toggle.css'];
+      '/assets/constants/keybindings.js', '/assets/js/workers/rar-worker.js', '/assets/css/22-float-menu-toggle.css',
+      '/assets/css/23-reader-controls.css', '/assets/js/ui/dialog-focus.js', '/assets/icons/reader-controls.svg'];
     return Promise.all(urls.map(async url => ({ url, status: (await fetch(url)).status })));
   });
   for (const item of offline) assert.equal(item.status, 200, item.url);
-  console.log('PASS: safe novel markup, offline reload, versioned assets and six required runtime dependencies');
+  console.log('PASS: safe novel markup, offline reload, versioned assets and nine required runtime dependencies');
 
   await page.setOfflineMode(false);
   await page.evaluate(async () => { for (const registration of await navigator.serviceWorker.getRegistrations()) await registration.unregister(); });
@@ -165,6 +168,62 @@ try {
   assert.equal(loaded.linked, 'existing'); assert.equal(loaded.bookmarkCount, 1);
   assert.ok(loaded.page > 0); assert.equal(loaded.locator.spineIndex, 1);
   console.log('PASS: EPUB selection and viewport change during loading restore remote position and bookmarks');
+  // Exercise the actual Reading Log click and clipboard path, not just the formatter.
+  await app.evaluate(() => document.getElementById('leftLangJa').click());
+  const readingLog = await app.evaluate(async () => {
+    let copied;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { copied = value; } });
+    const pageIndex = window.__testReader.currentPageIndex;
+    document.getElementById('share-log-btn').click();
+    return { copied, page: pageIndex + 1 };
+  });
+  assert.ok(readingLog.copied.startsWith('---\n'));
+  assert.ok(readingLog.copied.includes('作品: "[[handoff]]"'));
+  assert.ok(readingLog.copied.includes('書籍ID: "existing"'));
+  assert.ok(readingLog.copied.includes('ページ: ' + readingLog.page + '\n'));
+  assert.equal(readingLog.copied.split('\n---\n')[1], '\n## 感想・メモ\n');
+  await app.evaluate(() => document.getElementById('leftLangEn').click());
+  console.log('PASS: Japanese Reading Log copies localized properties, current page and a notes-only body');
+  // Native-share choices use the same Markdown and must remain usable in a short window.
+  await app.setViewport({ width: 568, height: 320, hasTouch: true });
+  await app.evaluate(async () => {
+    const { toggleFloatOverlay } = await import('/assets/js/ui/renderers.js');
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async payload => { window.__sharedLog = payload; } });
+    toggleFloatOverlay(true);
+    document.getElementById('share-log-btn').click();
+  });
+  await app.keyboard.press('Escape');
+  await verifyShareDialog(app, path.join(root, 'scratch/review-fixtures'));
+  await app.evaluate(() => document.getElementById('share-log-btn').click());
+  const shareDialog = await app.evaluate(() => {
+    const dialog = document.getElementById('__share-dialog').firstElementChild;
+    const rect = dialog.getBoundingClientRect();
+    return { fits: rect.top >= 0 && rect.bottom <= innerHeight && dialog.scrollWidth <= dialog.clientWidth + 1,
+      focused: dialog.contains(document.activeElement), minButtons: [...dialog.querySelectorAll('button')].every(button => button.getBoundingClientRect().height >= 44) };
+  });
+  assert.deepEqual(shareDialog, { fits: true, focused: true, minButtons: true });
+  await app.keyboard.press('Escape');
+  assert.ok(await app.evaluate(() => !document.getElementById('__share-dialog')));
+  await app.evaluate(() => {
+    document.getElementById('share-log-btn').click();
+    document.querySelector('#__share-dialog button').click();
+  });
+  await app.waitForFunction(() => window.__sharedLog?.text?.startsWith('---\n'));
+  assert.ok(await app.evaluate(() => window.__sharedLog.text.includes('book: "[[handoff]]"')));
+  assert.equal(await app.evaluate(() => window.__sharedLog.text.split('\n---\n')[1]), '\n## Thoughts and notes\n');
+  await app.evaluate(() => {
+    window.__fallbackLog = null;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { throw new Error('Mock share unavailable'); } });
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { window.__fallbackLog = value; } });
+    document.getElementById('share-log-btn').click();
+    document.querySelector('#__share-dialog button').click();
+  });
+  await app.waitForFunction(() => window.__fallbackLog?.startsWith('---\n'));
+  await app.evaluate(() => Object.defineProperty(navigator, 'share', { configurable: true, value: undefined }));
+  console.log('PASS: Markdown native share, clipboard fallback and landscape share-dialog focus/layout');
+
+
   await app.evaluate(async () => {
     const { runSearchRaceCases } = await import('/tests/search-race-cases.mjs');
     await runSearchRaceCases(window.__testReader);
@@ -202,6 +261,8 @@ try {
     assert.equal(after.visibleText?.slice(0, 30), before.locator.visibleText?.slice(0, 30), 'Scroll resize must return to the same visible text');
   }
   console.log('PASS: scroll reading position survives phone and desktop widths');
+  await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'epub');
+  console.log('PASS: unified reader controls fit six viewports in both themes/languages, all actions reachable and keyboard focus contained');
   const pngs = await app.evaluate(() => Array.from({ length: 6 }, (_, index) => {
     const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 900;
     const context = canvas.getContext('2d'); context.fillStyle = '#ffffff'; context.fillRect(0, 0, 600, 900);
@@ -212,7 +273,7 @@ try {
   const comicBytes = await comic.generateAsync({ type: 'nodebuffer' });
   const size = Buffer.alloc(8); size.writeBigUInt64BE(BigInt(comicBytes.length));
   const comicHash = Buffer.from(await crypto.subtle.digest('SHA-256', Buffer.concat([comicBytes, size]))).toString('hex');
-  const comicFile = path.join(root, 'scratch/review-fixtures/handoff.cbz');
+  const comicFile = path.join(root, 'scratch/review-fixtures/[漫画家×原作者]作品_名_第003巻.cbz');
   await fs.writeFile(comicFile, comicBytes);
   remoteIndex.comic = { title: 'Comic fixture', fingerprints: [comicHash], updatedAt: 200 };
   remoteStates.comic = { progress: 50, lastCfi: 2, progressUpdatedAt: 200, updatedAt: 200,
@@ -229,6 +290,19 @@ try {
   assert.equal(comicResult.index, 2); assert.equal(comicResult.linked, 'comic');
   assert.deepEqual(errors, []);
   console.log('PASS: first CBZ selection matches cloud metadata and opens image index 2');
+  const filenameLog = await app.evaluate(() => {
+    let copied;
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { copied = value; } });
+    document.getElementById('share-log-btn').click();
+    return copied;
+  });
+  assert.ok(filenameLog.includes('title: "作品_名_第003巻"\n'));
+  assert.ok(filenameLog.includes('authors:\n  - "[[漫画家]]"\n'));
+  assert.ok(filenameLog.includes('book: "[[作品_名_第003巻]]"\n'));
+  assert.ok(filenameLog.includes('original_authors:\n  - "[[原作者]]"\n'));
+  console.log('PASS: actual comic filename separates author and title in copied reading-log properties');
+
+  await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'comic');
   // Shared panels must fit narrow phones, tablet split views and desktop windows in both languages.
   for (const language of ['ja', 'en']) {
     await app.evaluate(language => document.getElementById(language === 'ja' ? 'leftLangJa' : 'leftLangEn').click(), language);

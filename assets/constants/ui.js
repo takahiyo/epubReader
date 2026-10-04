@@ -84,6 +84,26 @@ export const UI_ICONS = Object.freeze({
   SHARE: "share",
 });
 
+// Shared line icons stay local and use the current theme color, including offline reading.
+export const READER_CONTROL_ICONS = Object.freeze({
+  NAMESPACE: "http://www.w3.org/2000/svg",
+  SPRITE: "assets/icons/reader-controls.svg",
+  VIEW_BOX: "0 0 24 24",
+  SYMBOLS: Object.freeze({
+    [UI_ICONS.MENU_LIBRARY]: "library",
+    [UI_ICONS.MENU_TOC]: "contents",
+    [UI_ICONS.MENU_BOOKMARKS]: "bookmark",
+    [UI_ICONS.MENU_SEARCH]: "search",
+    [UI_ICONS.SETTINGS]: "settings",
+    [UI_ICONS.MENU_OPEN]: "open",
+    [UI_ICONS.MENU_HISTORY]: "history",
+    [UI_ICONS.MENU_WEB_NOVEL]: "web",
+    [UI_ICONS.SHARE]: "share",
+    [UI_ICONS.ZOOM_IN]: "zoom-in",
+    [UI_ICONS.ZOOM_OUT]: "zoom-out",
+  }),
+});
+
 export const PREMIUM_ICONS = Object.freeze({
   SETTINGS: "assets/icons/settings.png",
   OPEN: "assets/icons/open.png",
@@ -115,6 +135,11 @@ export const UI_SYMBOLS = Object.freeze({
 // UI クラス名
 // ============================================
 export const UI_CLASSES = Object.freeze({
+  READING_LOG_SHARE_BACKDROP: "reading-log-share-backdrop",
+  READING_LOG_SHARE_DIALOG: "reading-log-share-dialog",
+  READING_LOG_SHARE_PRIMARY: "reading-log-share-primary",
+  READING_LOG_SHARE_SECONDARY: "reading-log-share-secondary",
+  READING_LOG_SHARE_CANCEL: "reading-log-share-cancel",
   HIDDEN: "hidden",
   STATUS_SUCCESS: "status-success",
   STATUS_ERROR: "status-error",
@@ -186,6 +211,9 @@ export const DOM_IDS = Object.freeze({
   FLOAT_PROGRESS_FILL: "floatProgressFill",
   FLOAT_PROGRESS_THUMB: "floatProgressThumb",
   FLOAT_BOOK_TITLE: "floatBookTitle",
+  CLOSE_READER_CONTROLS: "closeReaderControls",
+  READER_CONTROLS_HEADING: "readerControlsHeading",
+  READER_APPEARANCE_HEADING: "readerAppearanceHeading",
   MODAL_OVERLAY: "modalOverlay",
   FONT_PLUS: "fontPlus",
   FONT_MINUS: "fontMinus",
@@ -358,6 +386,10 @@ export const DOM_IDS = Object.freeze({
 });
 
 export const DOM_SELECTORS = Object.freeze({
+  READER_COMMAND_PANEL: ".reader-command-panel",
+  DIALOG_HEADING: "h2[id], h3[id]",
+  ZOOM_SLIDER_CONTAINER: ".zoom-slider-container",
+  DIALOG_FOCUSABLE: 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]',
   FLOAT_OVERLAY_BACKDROP: "#floatOverlay .float-backdrop",
   FLOAT_LANG_JA_IMG: "#floatLangJa img",
   FLOAT_LANG_EN_IMG: "#floatLangEn img",
@@ -376,7 +408,7 @@ export const DOM_SELECTORS = Object.freeze({
   FLOAT_PROGRESS: "#floatProgress",
   CLICK_EXCLUDE_MENU: ".left-menu, .progress-bar-panel, .bookmark-menu",
   CLICK_EXCLUDE_ALL:
-    ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, #floatProgress, .epub-scroll-nav-btn",
+    ".left-menu, .progress-bar-panel, .bookmark-menu, .modal, .float-buttons, .reader-command-panel, #floatProgress, .epub-scroll-nav-btn",
   ZOOM_ALLOWED_TARGETS: "#toggleZoom, .zoom-slider-container",
   EPUB_PAGE: ".epub-page",
   SPREAD_CONTAINER: ".spread-container",
