@@ -23,7 +23,8 @@ import { beginDialogFocus, endDialogFocus } from "./js/ui/dialog-focus.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
-import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage, generateShareText } from "./js/core/progress-utils.js";
+import { generateReadingLogMarkdown } from "./js/core/reading-log.js";
+import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
 import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
@@ -57,7 +58,6 @@ import {
   READER_CONFIG,
   SYNC_SOURCES,
   CLOUD_SYNC_PAGE_THRESHOLD,
-  SHARE_MARKDOWN_TEMPLATE,
   detectPlatform,
   PWA_CONFIG,
   DEFAULT_KEY_BINDINGS,
@@ -500,11 +500,19 @@ function updateProgressOverlay(percentage) {
  */
 function buildShareText() {
   if (!currentBookId || !currentBookInfo) return null;
+  // Capture the visible reader now; the last timer save may describe an earlier page.
+  const snapshot = getProgressSnapshot();
   const progress = storage.getProgress(currentBookId) || {};
-  return generateShareText({
+  return generateReadingLogMarkdown({
     title: currentBookInfo.title,
-    percentage: progress.percentage || 0
-  }, SHARE_MARKDOWN_TEMPLATE);
+    author: currentBookInfo.author,
+    bookId: currentCloudBookId || currentBookId,
+    bookType: currentBookInfo.type,
+    percentage: snapshot.totalPages > 0 ? snapshot.percentage : progress.percentage,
+    pageIndex: snapshot.pageIndex,
+    totalPages: snapshot.totalPages,
+    appUrl: window.location.origin + window.location.pathname,
+  }, { language: uiLanguage });
 }
 
 /**
@@ -542,8 +550,8 @@ function showShareToast(message) {
     bottom: "5rem",
     left: "50%",
     transform: "translateX(-50%)",
-    background: "var(--bg-panel, #2a2a2a)",
-    color: "var(--text-primary, #fff)",
+    background: "var(--card)",
+    color: "var(--text)",
     border: "1px solid var(--border, #555)",
     borderRadius: "0.5rem",
     padding: "0.75rem 1.5rem",
@@ -592,13 +600,15 @@ async function handleShareReadingLog() {
   }
 
   // navigator.share 対応端末: 選択ポップオーバーを表示
-  showShareMethodDialog(shareText);
+  showShareMethodDialog(shareText, currentBookInfo.title);
 }
 
 /**
  * 「アプリで共有」vs「クリップボード」の選択ポップオーバーを表示する
  */
-function showShareMethodDialog(shareText) {
+function showShareMethodDialog(shareText, bookTitle) {
+  // Share choices are a dialog too; release the reader menu before moving keyboard focus.
+  renderers.toggleFloatOverlay(false);
   // 既存ダイアログを除去
   const prev = document.getElementById("__share-dialog");
   if (prev) prev.remove();
@@ -617,6 +627,9 @@ function showShareMethodDialog(shareText) {
   });
 
   const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-label", t("share_dialog_title"));
   Object.assign(dialog.style, {
     background: "var(--bg-panel, #2a2a2a)",
     border: "1px solid var(--border, #555)",
@@ -624,6 +637,8 @@ function showShareMethodDialog(shareText) {
     padding: "1.5rem",
     width: "100%",
     maxWidth: "400px",
+    maxHeight: "calc(100dvh - 2rem)",
+    overflowY: "auto",
     boxShadow: "0 -4px 24px rgba(0,0,0,0.5)",
     display: "flex",
     flexDirection: "column",
@@ -638,6 +653,12 @@ function showShareMethodDialog(shareText) {
     color: "var(--text-primary, #fff)",
     fontWeight: "600",
   });
+
+  // Properties are recognized only at the start of a Markdown note.
+  const hint = document.createElement("p");
+  hint.textContent = t("readingLogMarkdownHint");
+  hint.style.color = "var(--muted)";
+  hint.style.fontSize = "0.85rem";
 
   const btnApps = document.createElement("button");
   btnApps.textContent = t("share_via_apps");
@@ -660,7 +681,7 @@ function showShareMethodDialog(shareText) {
     padding: "0.8rem 1rem",
     borderRadius: "0.5rem",
     border: "1px solid var(--border, #555)",
-    background: "var(--bg-surface, #333)",
+    background: "var(--bg)",
     color: "var(--text-primary, #fff)",
     fontSize: "0.95rem",
     cursor: "pointer",
@@ -683,12 +704,15 @@ function showShareMethodDialog(shareText) {
     marginTop: "0.25rem",
   });
 
-  const closeDialog = () => overlay.remove();
+  const closeDialog = () => {
+    endDialogFocus(dialog);
+    overlay.remove();
+  };
 
   btnApps.addEventListener("click", async () => {
     closeDialog();
     try {
-      await shareReadingLogViaApps(shareText, currentBookInfo?.title);
+      await shareReadingLogViaApps(shareText, bookTitle);
     } catch (err) {
       if (err.name !== "AbortError") {
         console.error("[share] navigator.share failed:", err);
@@ -718,9 +742,11 @@ function showShareMethodDialog(shareText) {
     if (e.target === overlay) closeDialog();
   });
 
-  dialog.append(title, btnApps, btnClipboard, btnCancel);
+  [btnApps, btnClipboard, btnCancel].forEach(button => { button.style.minHeight = "var(--control-target-size)"; });
+  dialog.append(title, hint, btnApps, btnClipboard, btnCancel);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
+  beginDialogFocus(dialog, closeDialog);
 }
 
 function shouldSyncCloudProgress(progressSnapshot) {

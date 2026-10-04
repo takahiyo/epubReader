@@ -74,8 +74,17 @@ export const FILE_STRATEGY = Object.freeze({
 // ============================================
 // 共有フォーマット
 // ============================================
-export const SHARE_MARKDOWN_TEMPLATE = `## 📖 読書録: \${title}
-- **進捗**: \${percentage}% [\${status}]
-- **日時**: \${date}
-- **アプリ**: \${appUrl}
-#BookReader`;
+// Version the export schema independently of UI language and application releases.
+export const READING_LOG_FORMAT = Object.freeze({
+  TYPE: "reading-log",
+  VERSION: 1,
+  UNTITLED: "無題",
+  STATUS_READING: "reading",
+  STATUS_COMPLETED: "completed",
+  IMAGE_AUTHOR_PLACEHOLDER: "画像書籍",
+  // Avoid Obsidian link syntax and Windows filename delimiters; raw names remain properties.
+  LINK_REPLACEMENTS: Object.freeze({
+    ":": "：", "/": "／", "\\": "＼", "#": "＃", "|": "｜", "^": "＾",
+    "[": "［", "]": "］", "*": "＊", "?": "？", '"': "＂", "<": "＜", ">": "＞", "%": "％",
+  }),
+});

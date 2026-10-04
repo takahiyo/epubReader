@@ -167,6 +167,55 @@ try {
   assert.equal(loaded.linked, 'existing'); assert.equal(loaded.bookmarkCount, 1);
   assert.ok(loaded.page > 0); assert.equal(loaded.locator.spineIndex, 1);
   console.log('PASS: EPUB selection and viewport change during loading restore remote position and bookmarks');
+  // Exercise the actual Reading Log click and clipboard path, not just the formatter.
+  const readingLog = await app.evaluate(async () => {
+    let copied;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { copied = value; } });
+    const pageIndex = window.__testReader.currentPageIndex;
+    document.getElementById('share-log-btn').click();
+    return { copied, page: pageIndex + 1 };
+  });
+  assert.ok(readingLog.copied.startsWith('---\n'));
+  assert.ok(readingLog.copied.includes('book: "[[handoff]]"'));
+  assert.ok(readingLog.copied.includes('book_id: "existing"'));
+  assert.ok(readingLog.copied.includes('page: ' + readingLog.page + '\n'));
+  console.log('PASS: Reading Log copies Markdown properties and the currently visible page');
+  // Native-share choices use the same Markdown and must remain usable in a short window.
+  await app.setViewport({ width: 568, height: 320, hasTouch: true });
+  await app.evaluate(async () => {
+    const { toggleFloatOverlay } = await import('/assets/js/ui/renderers.js');
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async payload => { window.__sharedLog = payload; } });
+    toggleFloatOverlay(true);
+    document.getElementById('share-log-btn').click();
+  });
+  const shareDialog = await app.evaluate(() => {
+    const dialog = document.getElementById('__share-dialog').firstElementChild;
+    const rect = dialog.getBoundingClientRect();
+    return { fits: rect.top >= 0 && rect.bottom <= innerHeight && dialog.scrollWidth <= dialog.clientWidth + 1,
+      focused: dialog.contains(document.activeElement), minButtons: [...dialog.querySelectorAll('button')].every(button => button.getBoundingClientRect().height >= 44) };
+  });
+  assert.deepEqual(shareDialog, { fits: true, focused: true, minButtons: true });
+  await app.keyboard.press('Escape');
+  assert.ok(await app.evaluate(() => !document.getElementById('__share-dialog')));
+  await app.evaluate(() => {
+    document.getElementById('share-log-btn').click();
+    document.querySelector('#__share-dialog button').click();
+  });
+  await app.waitForFunction(() => window.__sharedLog?.text?.startsWith('---\n'));
+  assert.ok(await app.evaluate(() => window.__sharedLog.text.includes('book: "[[handoff]]"')));
+  await app.evaluate(() => {
+    window.__fallbackLog = null;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { throw new Error('Mock share unavailable'); } });
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { window.__fallbackLog = value; } });
+    document.getElementById('share-log-btn').click();
+    document.querySelector('#__share-dialog button').click();
+  });
+  await app.waitForFunction(() => window.__fallbackLog?.startsWith('---\n'));
+  await app.evaluate(() => Object.defineProperty(navigator, 'share', { configurable: true, value: undefined }));
+  console.log('PASS: Markdown native share, clipboard fallback and landscape share-dialog focus/layout');
+
+
   await app.evaluate(async () => {
     const { runSearchRaceCases } = await import('/tests/search-race-cases.mjs');
     await runSearchRaceCases(window.__testReader);

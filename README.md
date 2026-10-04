@@ -63,7 +63,7 @@
 
 ### アプリ共有
 
-- OSの共有機能による読書録の共有（専用のNotion OAuth連携は未実装）
+- Markdown形式の読書録をコピー・OS共有。作品と作者の内部リンク、進捗・日時・書籍IDなどのYAMLプロパティを出力（[Obsidian等での使い方](./docs/READING_LOG_FORMAT.md)）
 
 ### ローカルストレージ
 

@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v55",
+  "cacheName": "bookreader-v56",
   "assets": [
     "./",
     "./index.html",
@@ -93,6 +93,7 @@
     "./assets/js/core/pickers/picker-base.js",
     "./assets/js/core/pickers/picker-quest3.js",
     "./assets/js/core/pickers/picker-windows.js",
+    "./assets/js/core/reading-log.js",
     "./assets/js/ui/dialog-focus.js",
     "./assets/js/workers/rar-worker.js",
     "./assets/style.css",
