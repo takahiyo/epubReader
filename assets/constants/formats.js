@@ -77,7 +77,7 @@ export const FILE_STRATEGY = Object.freeze({
 // Version the export schema independently of UI language and application releases.
 export const READING_LOG_FORMAT = Object.freeze({
   TYPE: "reading-log",
-  VERSION: 1,
+  VERSION: 2,
   UNTITLED: "無題",
   STATUS_READING: "reading",
   STATUS_COMPLETED: "completed",

@@ -62,21 +62,23 @@ function captureTime(date) {
 /**
  * Serialize flat properties with JSON-compatible YAML quotes, keeping numeric values numeric.
  * @param {Object} properties - Explicit export fields only
+ * @param {Object} names - Localized names; omitted entries keep canonical keys
  * @returns {string} YAML lines
  */
-function yamlProperties(properties) {
+function yamlProperties(properties, names) {
   return Object.entries(properties).map(([key, value]) => {
+    const name = names[key] ?? key;
     if (Array.isArray(value)) return value.length
-      ? key + ':\n' + value.map(item => '  - ' + JSON.stringify(item)).join('\n')
-      : key + ': []';
+      ? name + ':\n' + value.map(item => '  - ' + JSON.stringify(item)).join('\n')
+      : name + ': []';
     // ISO date values remain YAML dates, not display strings or locale-specific text.
-    if (key === 'date' || key === 'recorded_at') return key + ': ' + value;
-    return key + ': ' + JSON.stringify(value);
+    if (key === 'date' || key === 'recorded_at') return name + ': ' + value;
+    return name + ': ' + JSON.stringify(value);
   }).join('\n');
 }
 
 /**
- * Generate a complete note; property names and status values remain stable across UI languages.
+ * Generate localized property names and a blank notes section; stored values remain stable.
  * @param {Object} readerState - Filename, title, authors, book ID/type, progress and optional page counts
  * @param {Object} options - Optional language and Date for deterministic capture
  * @returns {string} Markdown beginning with YAML frontmatter, ready for a new note
@@ -129,16 +131,8 @@ export function generateReadingLogMarkdown(readerState, { language = 'ja', now =
     const url = new URL(readerState.appUrl);
     if (url.protocol === 'https:' || url.protocol === 'http:') properties.app_url = url.origin + url.pathname;
   } catch { /* The note remains usable when no public application URL exists. */ }
-  const statusLabel = completed ? strings.readingLogCompletedStatus : strings.readingLogReadingStatus;
   return [
-    '---', yamlProperties(properties), '---', '',
-    '# ' + strings.share_reading_log, '',
-    '- **' + strings.readingLogBookLabel + '**: ' + book,
-    '- **' + strings.readingLogAuthorsLabel + '**: ' + (authorLinks.join(', ') || strings.readingLogNoAuthor),
-    ...(originalAuthorLinks.length ? ['- **' + strings.readingLogOriginalAuthorsLabel + '**: ' + originalAuthorLinks.join(', ')] : []),
-    '- **' + strings.readingLogProgressLabel + '**: ' + percentage + '%',
-    '- **' + strings.readingLogStatusLabel + '**: ' + statusLabel,
-    '- **' + strings.readingLogRecordedAtLabel + '**: ' + time.timestamp,
-    '', '## ' + strings.readingLogNotesHeading, '',
+    '---', yamlProperties(properties, strings.readingLogPropertyNames), '---', '',
+    '## ' + strings.readingLogNotesHeading, '',
   ].join('\n');
 }

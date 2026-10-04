@@ -169,6 +169,7 @@ try {
   assert.ok(loaded.page > 0); assert.equal(loaded.locator.spineIndex, 1);
   console.log('PASS: EPUB selection and viewport change during loading restore remote position and bookmarks');
   // Exercise the actual Reading Log click and clipboard path, not just the formatter.
+  await app.evaluate(() => document.getElementById('leftLangJa').click());
   const readingLog = await app.evaluate(async () => {
     let copied;
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
@@ -178,10 +179,12 @@ try {
     return { copied, page: pageIndex + 1 };
   });
   assert.ok(readingLog.copied.startsWith('---\n'));
-  assert.ok(readingLog.copied.includes('book: "[[handoff]]"'));
-  assert.ok(readingLog.copied.includes('book_id: "existing"'));
-  assert.ok(readingLog.copied.includes('page: ' + readingLog.page + '\n'));
-  console.log('PASS: Reading Log copies Markdown properties and the currently visible page');
+  assert.ok(readingLog.copied.includes('作品: "[[handoff]]"'));
+  assert.ok(readingLog.copied.includes('書籍ID: "existing"'));
+  assert.ok(readingLog.copied.includes('ページ: ' + readingLog.page + '\n'));
+  assert.equal(readingLog.copied.split('\n---\n')[1], '\n## 感想・メモ\n');
+  await app.evaluate(() => document.getElementById('leftLangEn').click());
+  console.log('PASS: Japanese Reading Log copies localized properties, current page and a notes-only body');
   // Native-share choices use the same Markdown and must remain usable in a short window.
   await app.setViewport({ width: 568, height: 320, hasTouch: true });
   await app.evaluate(async () => {
@@ -208,6 +211,7 @@ try {
   });
   await app.waitForFunction(() => window.__sharedLog?.text?.startsWith('---\n'));
   assert.ok(await app.evaluate(() => window.__sharedLog.text.includes('book: "[[handoff]]"')));
+  assert.equal(await app.evaluate(() => window.__sharedLog.text.split('\n---\n')[1]), '\n## Thoughts and notes\n');
   await app.evaluate(() => {
     window.__fallbackLog = null;
     Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { throw new Error('Mock share unavailable'); } });
