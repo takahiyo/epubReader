@@ -3,9 +3,33 @@
  * Copy and native sharing use the same allowlisted schema, without book contents or credentials.
  * Dependencies: constants and i18n. Called by app.js.
  */
-import { APP_INFO, BOOK_TYPES, PROGRESS_PRECISION, READING_LOG_FORMAT } from '../../constants.js';
+import { APP_INFO, BOOK_TYPES, PROGRESS_PRECISION, READING_LOG_FORMAT, SUPPORTED_FORMATS } from '../../constants.js';
 import { getUiStrings } from '../../i18n.js';
 import { roundProgressPercentage } from './progress-utils.js';
+
+/**
+ * Read the user's [author]title filename convention without guessing volume or underscore boundaries.
+ * @param {Object} readerState - Original filename and existing metadata
+ * @returns {{title: string, author: string}|null} Explicit filename fields, or no recognized convention
+ */
+function filenameBookInfo(readerState) {
+  // Web-novel titles are metadata, not filenames; leading brackets can be part of the actual title.
+  if (readerState.bookType === BOOK_TYPES.WEB_NOVEL) return null;
+  const source = typeof readerState.fileName === 'string' && readerState.fileName.trim()
+    ? readerState.fileName : readerState.title;
+  if (typeof source !== 'string') return null;
+  let name = source.trim();
+  const extensionIndex = name.lastIndexOf('.');
+  const extension = name.slice(extensionIndex).toLowerCase();
+  if (extensionIndex >= 0 && Object.values(SUPPORTED_FORMATS).some(formats => formats.includes(extension))) {
+    name = name.slice(0, extensionIndex);
+  }
+  const match = READING_LOG_FORMAT.FILENAME_AUTHOR_PATTERN.exec(name);
+  if (!match) return null;
+  const author = match[1].trim();
+  const title = match[2].trim();
+  return author && title ? { author, title } : null;
+}
 
 /**
  * Make a note target without interpreting book punctuation as a heading, alias or folder.
@@ -49,18 +73,21 @@ function yamlProperties(properties) {
 
 /**
  * Generate a complete note; property names and status values remain stable across UI languages.
- * @param {Object} readerState - Title, authors, book ID/type, current progress and optional page counts
+ * @param {Object} readerState - Filename, title, authors, book ID/type, progress and optional page counts
  * @param {Object} options - Optional language and Date for deterministic capture
  * @returns {string} Markdown beginning with YAML frontmatter, ready for a new note
  */
 export function generateReadingLogMarkdown(readerState, { language = 'ja', now = new Date() } = {}) {
   const strings = getUiStrings(language);
-  const title = typeof readerState.title === 'string' && readerState.title.trim()
-    ? readerState.title : READING_LOG_FORMAT.UNTITLED;
-  const inputAuthors = Array.isArray(readerState.author) ? readerState.author : [readerState.author];
+  // A recognized filename convention is authoritative for this export only; stored book metadata is unchanged.
+  const fileInfo = filenameBookInfo(readerState);
+  const title = fileInfo?.title ?? (typeof readerState.title === 'string' && readerState.title.trim()
+    ? readerState.title : READING_LOG_FORMAT.UNTITLED);
+  const author = fileInfo?.author ?? readerState.author;
+  const inputAuthors = Array.isArray(author) ? author : [author];
   const isImage = readerState.bookType === BOOK_TYPES.ZIP || readerState.bookType === BOOK_TYPES.RAR;
   const authors = [...new Set(inputAuthors.filter(value => typeof value === 'string').map(value => value.trim())
-    .filter(value => value && !(isImage && value === READING_LOG_FORMAT.IMAGE_AUTHOR_PLACEHOLDER)))];
+    .filter(value => value && !(isImage && !fileInfo && value === READING_LOG_FORMAT.IMAGE_AUTHOR_PLACEHOLDER)))];
   const percentage = Number.isFinite(readerState.percentage)
     ? roundProgressPercentage(Math.max(0, Math.min(100, readerState.percentage)), PROGRESS_PRECISION) : 0;
   // Rounding 99.99% to 100% must not manufacture a completion event.

@@ -504,6 +504,7 @@ function buildShareText() {
   const snapshot = getProgressSnapshot();
   const progress = storage.getProgress(currentBookId) || {};
   return generateReadingLogMarkdown({
+    fileName: currentBookInfo.fileName,
     title: currentBookInfo.title,
     author: currentBookInfo.author,
     bookId: currentCloudBookId || currentBookId,

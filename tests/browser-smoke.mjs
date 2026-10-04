@@ -265,7 +265,7 @@ try {
   const comicBytes = await comic.generateAsync({ type: 'nodebuffer' });
   const size = Buffer.alloc(8); size.writeBigUInt64BE(BigInt(comicBytes.length));
   const comicHash = Buffer.from(await crypto.subtle.digest('SHA-256', Buffer.concat([comicBytes, size]))).toString('hex');
-  const comicFile = path.join(root, 'scratch/review-fixtures/handoff.cbz');
+  const comicFile = path.join(root, 'scratch/review-fixtures/[作者名]作品_名_第003巻.cbz');
   await fs.writeFile(comicFile, comicBytes);
   remoteIndex.comic = { title: 'Comic fixture', fingerprints: [comicHash], updatedAt: 200 };
   remoteStates.comic = { progress: 50, lastCfi: 2, progressUpdatedAt: 200, updatedAt: 200,
@@ -282,6 +282,17 @@ try {
   assert.equal(comicResult.index, 2); assert.equal(comicResult.linked, 'comic');
   assert.deepEqual(errors, []);
   console.log('PASS: first CBZ selection matches cloud metadata and opens image index 2');
+  const filenameLog = await app.evaluate(() => {
+    let copied;
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async value => { copied = value; } });
+    document.getElementById('share-log-btn').click();
+    return copied;
+  });
+  assert.ok(filenameLog.includes('title: "作品_名_第003巻"\n'));
+  assert.ok(filenameLog.includes('authors:\n  - "[[作者名]]"\n'));
+  assert.ok(filenameLog.includes('book: "[[作品_名_第003巻]]"\n'));
+  console.log('PASS: actual comic filename separates author and title in copied reading-log properties');
+
   await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'comic');
   // Shared panels must fit narrow phones, tablet split views and desktop windows in both languages.
   for (const language of ['ja', 'en']) {

@@ -7,6 +7,38 @@ const now = new Date(2026, 9, 4, 12, 34, 56);
 const state = { title: '作品名', author: '作者名', percentage: 35.24, bookId: 'same-book',
   bookType: 'epub', pageIndex: 24, totalPages: 100, appUrl: 'https://example.test/reader/?token=secret#private' };
 
+test('filename author and title override metadata for EPUB and comic exports while preserving underscores and volumes', () => {
+  for (const [bookType, extension] of [['epub', 'epub'], ['zip', 'CBZ'], ['rar', 'cbr']]) {
+    const input = { ...state, bookType, fileName: '[作者名]作品_名_第003巻.' + extension,
+      title: '異なる書籍メタデータ', author: '異なる作者メタデータ' };
+    const before = structuredClone(input);
+    const output = generateReadingLogMarkdown(input, { now });
+    assert.match(output, /\ntitle: "作品_名_第003巻"\n/);
+    assert.match(output, /\nbook: "\[\[作品_名_第003巻\]\]"\n/);
+    assert.match(output, /\nauthors:\n  - "\[\[作者名\]\]"\nauthor_names:\n  - "作者名"\n/);
+    assert.ok(!output.includes('異なる書籍メタデータ'));
+    assert.ok(!output.includes('異なる作者メタデータ'));
+    assert.deepEqual(input, before);
+  }
+});
+
+test('legacy filename-derived titles also separate the author prefix without splitting author names', () => {
+  const output = generateReadingLogMarkdown({ title: '[作者_A・作者B]作品_タイトル_01.epub', bookType: 'epub' }, { now });
+  assert.match(output, /\ntitle: "作品_タイトル_01"\n/);
+  assert.match(output, /\nauthor_names:\n  - "作者_A・作者B"\n/);
+});
+
+test('incomplete conventions and ordinary filenames retain metadata; web titles are not parsed as filenames', () => {
+  for (const fileName of ['普通の書籍.epub', '[]作品.epub', '[作者名].epub', '[作者名]   .epub', '前置き[作者名]作品.epub']) {
+    const output = generateReadingLogMarkdown({ ...state, fileName }, { now });
+    assert.match(output, /\ntitle: "作品名"\n/);
+    assert.match(output, /\nauthor_names:\n  - "作者名"\n/);
+  }
+  const web = generateReadingLogMarkdown({ title: '[番外編]作品名', author: '実際の作者', bookType: 'web_novel' }, { now });
+  assert.match(web, /\ntitle: "\[番外編\]作品名"\n/);
+  assert.match(web, /\nauthor_names:\n  - "実際の作者"\n/);
+});
+
 test('a complete Markdown note links book and authors and exports numeric, flat properties', () => {
   const output = generateReadingLogMarkdown(state, { now });
   assert.ok(output.startsWith('---\n'));
