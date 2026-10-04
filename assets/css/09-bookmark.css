@@ -324,10 +324,10 @@
 ===================================== */
 .add-bookmark-btn {
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  background: var(--accent-strong);
   border: none;
   border-radius: 8px;
-  color: white;
+  color: var(--on-accent);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;

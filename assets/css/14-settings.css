@@ -194,7 +194,7 @@
 ===================================== */
 .secondary-btn {
   padding: 0.625rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--control-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -212,7 +212,7 @@
 - SPLIT: LAST
 ===================================== */
 .secondary-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--control-hover);
 }
 
 /* =====================================

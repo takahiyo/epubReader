@@ -640,7 +640,8 @@
 ===================================== */
 /* やり直しボタン */
 .library-delete-btn.undo-mode {
-  background: var(--accent);
+  background: var(--accent-strong);
+  color: var(--on-accent);
   opacity: 1 !important;
   /* 強制的に表示 */
   z-index: 20;
@@ -656,5 +657,7 @@
 - SPLIT: LAST
 ===================================== */
 .library-delete-btn.undo-mode:hover {
-  background: var(--text);
+  /* Keep white text readable while the pointer is over the undo action. */
+  background: var(--accent-strong);
+  filter: brightness(.95);
 }

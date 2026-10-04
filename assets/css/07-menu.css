@@ -142,7 +142,8 @@
   font-size: 0.75rem;
   color: var(--muted);
   white-space: nowrap;
-  opacity: 0.7;
+  /* Muted labels use a tested color, without a second contrast-reducing opacity. */
+  opacity: 1;
 }
 
 /* =====================================
@@ -194,7 +195,7 @@
 - SPLIT: LAST
 ===================================== */
 .menu-item:hover {
-  background: rgba(139, 92, 246, 0.1);
+  background: var(--control-hover);
 }
 
 /* =====================================
@@ -259,7 +260,7 @@
   right: 1.5rem;
   bottom: 100%;
   min-width: 200px;
-  background: var(--bg-panel);
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px;
@@ -290,7 +291,7 @@
 }
 
 .left-lang-menu .lang-option-btn:hover {
-  background: rgba(139, 92, 246, 0.2);
+  background: var(--selection-bg);
 }
 
 .left-lang-menu .lang-option-btn img {
@@ -309,7 +310,7 @@
 ===================================== */
 .lang-btn {
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--control-bg);
   color: var(--text);
   padding: 0.25rem;
   border-radius: 10px;
@@ -348,7 +349,7 @@
 - SPLIT: LAST
 ===================================== */
 .lang-btn.active {
-  background: rgba(139, 92, 246, 0.2);
+  background: var(--selection-bg);
   border-color: var(--accent);
 }
 
@@ -424,4 +425,10 @@
 
 .menu-auth-status.logged-out .status-dot {
   background: var(--status-neutral-color);
+}
+
+/* Keyboard focus follows the same accent cue as the reader menu. */
+.left-menu button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
 }

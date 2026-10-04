@@ -18,14 +18,19 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
-  --bg: #0f172a;
-  --card: #111827;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --accent: #8b5cf6;
-  --accent-strong: #7c3aed;
+  /* Elevated menus are lighter than the surrounding canvas; labels retain contrast on every surface. */
+  --bg: #111827;
+  --card: #1e293b;
+  --text: #f1f5f9;
+  --muted: #b8c4d4;
+  --accent: #b4a0ff;
+  --accent-strong: #6d28d9;
   --on-accent: #ffffff;
-  --border: #1f2937;
+  --border: #475569;
+  --control-bg: #293548;
+  --control-hover: #36445c;
+  --selection-bg: #39345a;
+  --selection-text: #ede8ff;
   --reader-bg: #0b1020;
   --reader-text: #e5e7eb;
   --reader-safe-inline: clamp(12px, 4vw, 36px);
@@ -102,13 +107,17 @@
 - SPLIT: GROUP
 ===================================== */
 [data-theme="light"] {
-  --bg: #f6f8fa;
+  --bg: #f3f5f8;
   --card: #ffffff;
-  --text: #0f172a;
-  --muted: #4b5563;
-  --accent: #6366f1;
-  --accent-strong: #4f46e5;
-  --border: #e5e7eb;
+  --text: #172033;
+  --muted: #526174;
+  --accent: #5145c7;
+  --accent-strong: #4935b8;
+  --border: #cbd5e1;
+  --control-bg: #f1f4f8;
+  --control-hover: #e4e9f1;
+  --selection-bg: #eeebff;
+  --selection-text: #4935b8;
   --reader-bg: #ffffff;
   --reader-text: #111827;
 }

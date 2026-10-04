@@ -248,7 +248,7 @@
   padding: 0.85rem 1rem;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.75);
+  background: var(--control-bg);
   color: var(--text);
   font-weight: 600;
   cursor: pointer;
@@ -264,7 +264,7 @@
 - SPLIT: LAST
 ===================================== */
 .sync-action-btn:hover {
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--control-hover);
 }
 
 /* =====================================
@@ -276,7 +276,8 @@
 - SPLIT: LAST
 ===================================== */
 .sync-action-btn.primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  background: var(--accent-strong);
+  color: var(--on-accent);
   border: none;
 }
 

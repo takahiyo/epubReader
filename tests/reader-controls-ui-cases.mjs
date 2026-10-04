@@ -1,4 +1,5 @@
 /** Real-browser layout, focus and hit-target checks for the unified reader controls. */
+import { verifyMenuColors } from './menu-colors-cases.mjs';
 export async function verifyReaderControls(page, screenshotDirectory, prefix) {
   const sizes = [[320, 568], [390, 844], [568, 320], [768, 1024], [1024, 768], [1440, 900]];
   const check = (condition, message) => { if (!condition) throw new Error(message); };
@@ -38,10 +39,12 @@ export async function verifyReaderControls(page, screenshotDirectory, prefix) {
           'Primary action order stays consistent on every device');
         check(bounds.primary.every(button => button.width >= 44 && button.height >= 44 && button.left >= bounds.left && button.right <= bounds.right + 1),
           'Primary actions meet touch size and stay inside the panel');
-        if (language === 'ja' && (width === 390 || width === 1440) && theme === 'dark') {
+        await verifyMenuColors(page);
+        if (language === 'ja' && (width === 390 || width === 1440)) {
           await page.waitForFunction(() => Number(getComputedStyle(document.querySelector(".float-menu-group[data-group=book] .float-menu-group-items")).opacity) === 1);
           await page.evaluate(() => document.querySelector('.reader-command-panel').getAnimations({ subtree: true }).forEach(animation => animation.finish()));
-          await page.screenshot({ path: screenshotDirectory + '/' + prefix + '-controls-' + width + '.png' });
+          await page.evaluate(() => document.getElementById('__share-toast')?.remove());
+          await page.screenshot({ path: screenshotDirectory + '/' + prefix + '-controls-' + theme + '-' + width + '.png' });
         }
         // Expanded tools can scroll; every actual button must remain reachable and unobscured.
         const targets = await page.evaluate(() => {
