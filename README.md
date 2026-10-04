@@ -56,6 +56,8 @@
 - **Firebase Authentication** による Google ログイン
 - **Cloudflare Workers**（KV / D1）による読書進捗・しおりのクラウド同期
 - 複数デバイス間で読書状態を自動同期
+- 書籍は各端末のファイル選択画面から開き、書籍本体を端末内に保存します。同じファイルを各端末で開くと、読書位置・しおりを引き継げます
+- Googleドライブ等はOSのファイル選択画面から利用します（OS・サービスの対応状況による）。アプリ独自のGoogle Drive API連携や書籍本体の端末間転送は行いません
 - デバイスごとの識別・競合解決
 
 ### アプリ共有
@@ -193,4 +195,6 @@ node scripts/generate-sw-cache-config.mjs
 必要に応じて `BROWSER_EXECUTABLE` にChromeの絶対パスを設定してください。
 認証SDKとクラウドAPIは模擬し、実アカウントや本番APIへは接続しません。書籍の解析にはアプリと同じJSZip・EPUB.jsを使用します。
 
-詳細: [同期・読み込み修正と検証記録](./docs/SYNC_RELIABILITY_2026-09-28.md)。
+詳細: [コード精査・整理と改善案](./docs/REVIEW_2026-10-04.md)。
+
+過去の調査記録は [docs/archive](./docs/archive/) に保管しています。生成された解析用文書や展開書籍はGit管理対象に含めません。

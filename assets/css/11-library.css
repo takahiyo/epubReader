@@ -287,43 +287,6 @@
 
 /* =====================================
 [REF]
-- HTML: .library-cover（表紙）
-- JS: assets/js/ui/renderers.js（表紙描画）
-- STATE: なし
-- LAYER: なし
-- SPLIT: GROUP
-===================================== */
-/* .library-cover is no longer used since icons were removed */
-.library-cover {
-  display: none;
-}
-
-/* =====================================
-[REF]
-- HTML: .library-title span（ホバー時のスクロール）
-- JS: なし
-- STATE: なし
-- LAYER: なし
-- SPLIT: GROUP
-===================================== */
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-
-  20% {
-    transform: translateX(0);
-  }
-
-  100% {
-    transform: translateX(calc(-100% + 200px));
-  }
-
-  /* 簡易的なスクロール */
-}
-
-/* =====================================
-[REF]
 - HTML: .library-title
 - JS: assets/js/ui/renderers.js（タイトル描画）
 - STATE: なし
@@ -356,63 +319,6 @@
 .library-title span {
   display: inline-block;
   transition: transform 0.3s;
-}
-
-/* =====================================
-[REF]
-- HTML: .library-card:hover .library-title span
-- JS: なし
-- STATE: :hover
-- LAYER: なし
-- SPLIT: LAST
-===================================== */
-/* ホバー時にスクロール */
-.library-card:hover .library-title span {
-  /* 文字数に応じた挙動が難しいため、transformで少し動かす程度にするか、
-     またはJSで幅を計算しないと綺麗なループは難しい。
-     ここでは簡易的に左へスクロールさせる */
-  transform: translateX(max(0px, calc(-100% + 100%)));
-  /* 仮 */
-}
-
-/* =====================================
-[REF]
-- HTML: .library-card:hover .library-title span
-- JS: なし
-- STATE: :hover
-- LAYER: なし
-- SPLIT: LAST
-===================================== */
-/* より単純なアプローチ：ホバーでtitle属性が出るので、CSSではtext-overflow: ellipsisのままにするか、
-   あるいはマーキーアニメーションを適用する。
-   ユーザー要望は「スクロールをループ」なのでmarqueeを採用 */
-
-/* Marquee is removed as we now use wrapping and line-clamp */
-.library-card:hover .library-title span {
-  /* animation: marquee 8s linear infinite; removed */
-  min-width: 100%;
-}
-
-/* =====================================
-[REF]
-- HTML: .library-title span（ホバー時のスクロール）
-- JS: なし
-- STATE: なし
-- LAYER: なし
-- SPLIT: GROUP
-===================================== */
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-
-  30% {
-    transform: translateX(0);
-  }
-
-  100% {
-    transform: translateX(-100%);
-  }
 }
 
 /* =====================================

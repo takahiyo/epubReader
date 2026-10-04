@@ -172,6 +172,26 @@ test('large library requests do not exceed the browser keepalive payload budget'
   assert.equal(requests[0].keepalive, true); assert.equal(requests[1].keepalive, false);
 });
 
+test('actual sync requests omit local excerpts, secrets and platform details', async () => {
+  const requests = [];
+  const { storage, load } = await device(async (_, options) => {
+    requests.push(JSON.parse(options.body)); return Response.json({ data: { success: true } });
+  });
+  const { CloudSync } = await load('assets/cloudSync.js');
+  const sync = new CloudSync(storage);
+  sync.getIdToken = async () => 'required-auth-token';
+  const secret = 'LOCAL-PRIVATE-DATA';
+  await sync.pushIndexDelta({ book: { title: 'Title', fingerprints: ['hash'], filePath: secret, extra: secret } }, 100);
+  await sync.pushState('book', { location: { spineIndex: 1, segmentIndex: 200, visibleText: secret },
+    deviceInfo: secret, bookmarks: [{ location: 2, visibleText: secret, label: 'Bookmark' }], extra: secret }, 100);
+  storage.setSettings({ apiKey: secret, onedriveToken: { accessToken: secret } });
+  await sync.pushToEndpoint(storage.getSettings());
+  assert.ok(!JSON.stringify(requests).includes(secret));
+  assert.equal(requests[0].idToken, 'required-auth-token');
+  assert.deepEqual(requests[1].state.lastCfi, { spineIndex: 1, segmentIndex: 200 });
+  assert.equal(requests[1].state.bookmarks[0].label, 'Bookmark');
+});
+
 test('state merge preserves newer progress and independent bookmarks; deletion cannot resurrect', async () => {
   const current = { progress: 70, lastCfi: 7, progressUpdatedAt: 200, updatedAt: 200,
     bookmarks: [{ location: 4, createdAt: 100 }] };
@@ -259,6 +279,19 @@ test('Worker rejects forged/expired tokens and merges concurrent two-device upda
     assert.equal(concurrent.progress, 80); assert.equal(concurrent.bookmarks.length, 4);
     const versionedIndex = (await (await send('/sync/index/pull', {})).json()).data;
     assert.ok(versionedIndex.a.stateUpdatedAt > 0);
+    const secret = 'LEGACY-PRIVATE-EXCERPT';
+    db.sqlite.prepare('UPDATE book_states SET state_data=? WHERE book_id=?').run(JSON.stringify({
+      ...concurrent, deviceInfo: secret, unknown: secret, lastCfi: { spineIndex: 1, segmentIndex: 200, visibleText: secret },
+      bookmarks: [...concurrent.bookmarks, { location: { spineIndex: 1, segmentIndex: 200, visibleText: secret }, visibleText: secret, createdAt: 400 }],
+    }), 'a');
+    await send('/sync/state/push', { cloudBookId: 'a', state: { progress: 10, visibleText: secret }, updatedAt: 100 });
+    const cleaned = (await (await send('/sync/state/pull', { cloudBookId: 'a' })).json()).data;
+    assert.ok(!JSON.stringify(cleaned).includes(secret));
+    assert.equal(cleaned.progress, 80);
+    assert.deepEqual(cleaned.lastCfi, { spineIndex: 1, segmentIndex: 200 });
+    await send('/sync/index/push', { indexDelta: { a: { title: 'A', filePath: secret, updatedAt: Date.now() } } });
+    const cleanIndex = (await (await send('/sync/index/pull', {})).json()).data;
+    assert.ok(!JSON.stringify(cleanIndex).includes(secret));
   } finally { globalThis.fetch = originalFetch; db.sqlite.close(); }
 });
 

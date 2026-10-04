@@ -4,6 +4,12 @@ node_modules/
 android-project/
 epubReader/
 scratch/
+# 再生成できる解析出力・展開書籍はソース管理に含めない。
+/temp_test_*/
+/LLM_CONTEXT.md
+/LLM_CONTEXT_PWA.md
+/server_log.txt
+/*_diff.txt
 android-project-quest/
 APKbyPWAbuilder/
 meta-bubblewrap/
