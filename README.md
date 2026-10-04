@@ -6,7 +6,7 @@
 
 サーバー不要・インストール不要。ブラウザでファイルを開くだけで、EPUB や画像書庫（ZIP/RAR）をすぐに読めるPWAアプリです。
 
-> **デモ**: [https://takahiyo.github.io/epubReader/](https://takahiyo.github.io/epubReader/)
+> **デモ**: [https://bookreader.flateight.jp/](https://bookreader.flateight.jp/)
 
 ---
 

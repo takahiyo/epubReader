@@ -77,7 +77,7 @@ tags:
 ページ: 25
 総ページ数: 100
 アプリ: "BookReader"
-アプリURL: "https://takahiyo.github.io/epubReader/"
+アプリURL: "https://bookreader.flateight.jp/"
 ---
 
 ## 感想・メモ
