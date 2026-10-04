@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v54",
+  "cacheName": "bookreader-v55",
   "assets": [
     "./",
     "./index.html",
@@ -40,6 +40,7 @@
     "./assets/fileStore.js",
     "./assets/firebaseConfig.js",
     "./assets/onedriveAuth.js",
+    "./assets/icons/reader-controls.svg",
     "./assets/bookreader.png",
     "./assets/BookReader_Titlle.png",
     "./assets/menu-title.svg",
@@ -83,6 +84,7 @@
     "./assets/constants/keybindings.js",
     "./assets/css/20-drag-drop.css",
     "./assets/css/22-float-menu-toggle.css",
+    "./assets/css/23-reader-controls.css",
     "./assets/js/core/cloud-payload.js",
     "./assets/js/core/cloud-state-merge.js",
     "./assets/js/core/novel-content.js",
@@ -91,6 +93,7 @@
     "./assets/js/core/pickers/picker-base.js",
     "./assets/js/core/pickers/picker-quest3.js",
     "./assets/js/core/pickers/picker-windows.js",
+    "./assets/js/ui/dialog-focus.js",
     "./assets/js/workers/rar-worker.js",
     "./assets/style.css",
     "./src/reader/epubPaginator.js",

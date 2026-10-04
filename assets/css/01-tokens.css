@@ -9,6 +9,10 @@
 :root {
   /* 共通操作サイズ。端末別DOMを増やさず、タッチ操作と画面端の余白を揃える。 */
   --control-target-size: 44px;
+  --reader-controls-width: 760px;
+  --reader-controls-radius: 20px;
+  --reader-controls-gap: 12px;
+  --reader-controls-scroll-min-height: 144px;
   --panel-gutter: 12px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);

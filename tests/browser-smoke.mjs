@@ -5,6 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import puppeteer from 'puppeteer';
+import { verifyReaderControls } from './reader-controls-ui-cases.mjs';
 
 const root = process.cwd();
 const server = http.createServer(async (req, res) => {
@@ -53,11 +54,12 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   const offline = await page.evaluate(async () => {
     const urls = ['/assets/app.js?v=18', '/assets/cloudState.js', '/src/reader/epubPaginator.js',
-      '/assets/constants/keybindings.js', '/assets/js/workers/rar-worker.js', '/assets/css/22-float-menu-toggle.css'];
+      '/assets/constants/keybindings.js', '/assets/js/workers/rar-worker.js', '/assets/css/22-float-menu-toggle.css',
+      '/assets/css/23-reader-controls.css', '/assets/js/ui/dialog-focus.js', '/assets/icons/reader-controls.svg'];
     return Promise.all(urls.map(async url => ({ url, status: (await fetch(url)).status })));
   });
   for (const item of offline) assert.equal(item.status, 200, item.url);
-  console.log('PASS: safe novel markup, offline reload, versioned assets and six required runtime dependencies');
+  console.log('PASS: safe novel markup, offline reload, versioned assets and nine required runtime dependencies');
 
   await page.setOfflineMode(false);
   await page.evaluate(async () => { for (const registration of await navigator.serviceWorker.getRegistrations()) await registration.unregister(); });
@@ -202,6 +204,8 @@ try {
     assert.equal(after.visibleText?.slice(0, 30), before.locator.visibleText?.slice(0, 30), 'Scroll resize must return to the same visible text');
   }
   console.log('PASS: scroll reading position survives phone and desktop widths');
+  await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'epub');
+  console.log('PASS: unified reader controls fit six viewports in both themes/languages, all actions reachable and keyboard focus contained');
   const pngs = await app.evaluate(() => Array.from({ length: 6 }, (_, index) => {
     const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 900;
     const context = canvas.getContext('2d'); context.fillStyle = '#ffffff'; context.fillRect(0, 0, 600, 900);
@@ -229,6 +233,7 @@ try {
   assert.equal(comicResult.index, 2); assert.equal(comicResult.linked, 'comic');
   assert.deepEqual(errors, []);
   console.log('PASS: first CBZ selection matches cloud metadata and opens image index 2');
+  await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'comic');
   // Shared panels must fit narrow phones, tablet split views and desktop windows in both languages.
   for (const language of ['ja', 'en']) {
     await app.evaluate(language => document.getElementById(language === 'ja' ? 'leftLangJa' : 'leftLangEn').click(), language);

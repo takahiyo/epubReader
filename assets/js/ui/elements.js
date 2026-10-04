@@ -29,6 +29,10 @@ export const elements = {
     archiveWarningList: getById(DOM_IDS.ARCHIVE_WARNING_LIST),
     archiveWarningClose: getById(DOM_IDS.ARCHIVE_WARNING_CLOSE),
     floatOverlay: getById(DOM_IDS.FLOAT_OVERLAY),
+    readerCommandPanel: getBySelector(DOM_SELECTORS.READER_COMMAND_PANEL),
+    closeReaderControls: getById(DOM_IDS.CLOSE_READER_CONTROLS),
+    readerControlsHeading: getById(DOM_IDS.READER_CONTROLS_HEADING),
+    readerAppearanceHeading: getById(DOM_IDS.READER_APPEARANCE_HEADING),
     floatBackdrop: getBySelector(DOM_SELECTORS.FLOAT_OVERLAY_BACKDROP),
     floatOpen: getById(DOM_IDS.FLOAT_OPEN),
 

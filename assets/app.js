@@ -19,6 +19,7 @@ import {
 import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
+import { beginDialogFocus, endDialogFocus } from "./js/ui/dialog-focus.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
@@ -118,7 +119,6 @@ let autoSyncInterval = null;
 let lastSavedPercentage = null;
 let currentToc = [];
 let uiInitialized = false;
-let floatVisible = false;
 let googleLoginReady = false;
 let userOverrodeDirection = false;
 let archiveWarningTypes = [];
@@ -803,6 +803,10 @@ const reader = new ReaderController({
     handleBookReady(data);
   },
   onImageZoom: (isZoomed) => {
+    // Pinch/long-press and button zoom share the same accessible controls state.
+    renderers.updateZoomButtonLabel();
+    elements.floatOverlay?.setAttribute("aria-hidden", String(!isZoomed && !elements.floatOverlay.classList.contains(UI_CLASSES.VISIBLE)));
+    elements.readerCommandPanel?.setAttribute("aria-modal", String(!isZoomed));
     if (isZoomed) {
       document.body.classList.add(UI_CLASSES.IS_ZOOMED);
     } else {
@@ -966,7 +970,6 @@ renderers.init({
     get uiLanguage() { return uiLanguage; },
     get epubViewMode() { return epubViewMode; },
     get progressDisplayMode() { return progressDisplayMode; },
-    get floatVisible() { return floatVisible; },
     get pageDirection() { return pageDirection; },
     get defaultPageDirection() { return defaultPageDirection; },
     get bookmarkMenuMode() { return bookmarkMenuMode; },
@@ -1429,9 +1432,7 @@ async function handleFile(file, overrideBookId = null) {
     renderers.updateSearchButtonState();
     renderers.updateFloatingUIButtons();
     closeExclusiveMenus();
-    if (floatVisible) {
-      toggleFloatOverlay(false);
-    }
+    renderers.toggleFloatOverlay(false);
     isSyncResolving = false; // ジャンプ完了後にロック解除
   } catch (error) {
     isSyncResolving = false; // エラー時もロック解除
@@ -1527,9 +1528,7 @@ async function openCloudOnlyBook(cloudBookId) {
   renderers.updateSearchButtonState();
   renderers.updateFloatingUIButtons();
   closeExclusiveMenus();
-  if (floatVisible) {
-    toggleFloatOverlay(false);
-  }
+  renderers.toggleFloatOverlay(false);
 }
 
 let stubReselectInput = null;
@@ -1821,9 +1820,7 @@ async function openFromLibrary(bookId, options = {}) {
     renderers.updateSearchButtonState();
     renderers.updateFloatingUIButtons();
     closeExclusiveMenus();
-    if (floatVisible) {
-      toggleFloatOverlay(false);
-    }
+    renderers.toggleFloatOverlay(false);
   } catch (error) {
     console.error(error);
     alert(`ライブラリからの読み込みに失敗しました:\n\n${error.message}`);
@@ -2285,11 +2282,18 @@ function openModal(modal) {
   } else {
     modal.classList.remove(UI_CLASSES.HIDDEN);
   }
-
+  // Shared dialog behavior keeps keyboard focus with the opened tool panel.
+  const heading = modal.querySelector(DOM_SELECTORS.DIALOG_HEADING);
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  if (heading) modal.setAttribute('aria-labelledby', heading.id);
+  const requiredChoice = modal === elements.syncModal || modal === elements.candidateModal;
+  beginDialogFocus(modal, requiredChoice ? null : () => closeModal(modal));
 }
 
 function closeModal(modal) {
   if (!modal) return;
+  endDialogFocus(modal);
   if (modal === elements.searchModal) invalidateSearch();
   if (modal.classList.contains(UI_CLASSES.BOOKMARK_MENU)) {
     modal.classList.remove(UI_CLASSES.VISIBLE);
@@ -2365,6 +2369,10 @@ function applyUiLanguage(nextLanguage) {
   requestCloudSyncIfNeeded(getProgressSnapshot());
 
   const strings = getUiStrings(nextLanguage);
+  if (elements.readerControlsHeading) elements.readerControlsHeading.textContent = strings.readerControlsHeading;
+  document.getElementById(DOM_IDS.ZOOM_SLIDER)?.setAttribute("aria-label", strings.readerZoomHeading);
+  if (elements.readerAppearanceHeading) elements.readerAppearanceHeading.textContent = strings.readerAppearanceHeading;
+  elements.closeReaderControls?.setAttribute("aria-label", strings.closeButtonLabel);
   document.title = strings.documentTitle;
   renderers.updateThemeToggleIcon?.();
   updateFullscreenButtonLabel?.();
@@ -2456,9 +2464,9 @@ function applyUiLanguage(nextLanguage) {
   }
   // トグルグループヘッダーのラベル設定
   const bookGroupHeader = document.querySelector('.float-menu-group[data-group="book"] .float-menu-group-header span:first-child');
-  if (bookGroupHeader) bookGroupHeader.textContent = `📚 ${t('floatGroupBook')}`;
+  if (bookGroupHeader) bookGroupHeader.textContent = t('floatGroupBook');
   const displayGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group-header span:first-child');
-  if (displayGroupHeader) displayGroupHeader.textContent = `🖥 ${t('floatGroupDisplay')}`;
+  if (displayGroupHeader) displayGroupHeader.textContent = t('floatGroupDisplay');
   const langGroupHeader = document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"] .float-menu-group-header span:first-child');
   if (langGroupHeader) langGroupHeader.textContent = `🌐 ${strings.languageButtonLabel}`;
   if (elements.bookmarkMenuTitle) elements.bookmarkMenuTitle.textContent = strings.bookmarkTitle;
@@ -2709,8 +2717,10 @@ function applyUiLanguage(nextLanguage) {
     if (options[0]) options[0].textContent = strings.progressDisplayPage;
     if (options[1]) options[1].textContent = strings.progressDisplayPercentage;
   }
-  if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseLabel;
-  if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseLabel;
+  if (elements.fontPlus) elements.fontPlus.textContent = strings.fontIncreaseShortLabel;
+  elements.fontPlus?.setAttribute("aria-label", strings.fontIncreaseLabel);
+  if (elements.fontMinus) elements.fontMinus.textContent = strings.fontDecreaseShortLabel;
+  elements.fontMinus?.setAttribute("aria-label", strings.fontDecreaseLabel);
 
   renderers.updateWritingModeToggleLabel();
   renderers.updateReadingDirectionEpubButtonLabel();
@@ -3254,13 +3264,32 @@ function setupEvents() {
     showSettings();
   });
 
+  elements.closeReaderControls?.addEventListener('click', () => renderers.toggleFloatOverlay(false));
+
+  /**
+   * 非表示のグループ内のボタンをTab移動の対象から外す。
+   * @param {HTMLElement} group - 操作グループ
+   * @param {boolean} expanded - 展開状態
+   * @returns {void}
+   */
+  const updateGroup = (group, expanded) => {
+    if (!group) return;
+    group.classList.toggle('expanded', expanded);
+    group.querySelector(':scope > .float-menu-group-header')?.setAttribute('aria-expanded', String(expanded));
+    const items = group.querySelector(':scope > .float-menu-group-items');
+    if (items) {
+      items.inert = !expanded;
+      group.querySelector(':scope > .float-menu-group-header')?.setAttribute('aria-controls', items.id);
+    }
+  };
+  document.querySelectorAll('.float-menu-group').forEach(group => updateGroup(group, group.dataset.group === 'book'));
   // トグルメニューグループの開閉ロジック
   document.querySelectorAll('.float-menu-group-header').forEach((header) => {
     header.addEventListener('click', (e) => {
       e.stopPropagation();
       const group = header.closest('.float-menu-group');
       if (group) {
-        group.classList.toggle('expanded');
+        updateGroup(group, !group.classList.contains('expanded'));
       }
     });
   });
@@ -3370,12 +3399,12 @@ function setupEvents() {
   // フロート言語グループ（表示グループ内 .float-menu-group[data-group="lang"]）
   elements.floatLangJa?.addEventListener('click', () => {
     applyUiLanguage("ja");
-    document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]')?.classList.remove('expanded');
+    updateGroup(document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]'), false);
   });
 
   elements.floatLangEn?.addEventListener('click', () => {
     applyUiLanguage("en");
-    document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]')?.classList.remove('expanded');
+    updateGroup(document.querySelector('.float-menu-group[data-group="display"] .float-menu-group[data-group="lang"]'), false);
   });
 
   elements.floatBackdrop?.addEventListener('click', (e) => {
