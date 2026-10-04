@@ -77,14 +77,17 @@ export class UIController {
    */
   setupResizeHandler() {
     let resizeTimeout;
-    window.addEventListener('resize', () => {
+    const scheduleResize = () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
         console.log(`Window resized: ${window.innerWidth}x${window.innerHeight}`);
         // リサイズコールバックを呼び出し
         this.onResize?.();
       }, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
-    });
+    };
+    // windowとvisualViewportの同時発火も、一つの要求にまとめる。
+    window.addEventListener('resize', scheduleResize);
+    window.visualViewport?.addEventListener('resize', scheduleResize);
   }
 
   /**

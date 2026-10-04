@@ -77,6 +77,10 @@ let currentBookInfo = null;
 let currentCloudBookId = null;
 let isBookLoading = false;
 let isSyncResolving = false;
+// 読込・同期位置の復元中に発生した画面変更は、完了後に一度だけ再組版する。
+let pendingViewportResize = false;
+// 検索語・書籍・検索パネルの世代を識別し、遅れて完了した結果を破棄する。
+let searchRequestId = 0;
 let pendingCloudBookId = null;
 let pendingBookmark = null;
 let deferredPrompt = null;
@@ -402,7 +406,7 @@ function shouldPersistLocalProgress(percentage) {
 
 function saveCurrentProgress(options = {}) {
   const { progressSnapshot = getProgressSnapshot(), force = false } = options;
-  if (!currentBookId || isBookLoading || isSyncResolving) return;
+  if (!currentBookId || isBookLoading || isSyncResolving || reader.isRepaginating) return;
 
   // 仮想書籍の場合は進捗を保存しない
   if (currentBookInfo?.isVirtualImageBook) return;
@@ -860,11 +864,23 @@ const createDebouncedHandler = (callback, delayMs) => {
   };
 };
 
-const debouncedResizeHandler = createDebouncedHandler(() => {
+function handleViewportResize() {
   if (!reader.handleResize) return;
+  if (isBookLoading || isSyncResolving) {
+    pendingViewportResize = true;
+    return;
+  }
+  pendingViewportResize = false;
   console.log(`[onResize] handleResize (debounced ${TIMING_CONFIG.RESIZE_DEBOUNCE_MS}ms)`);
   reader.handleResize();
-}, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
+}
+
+const debouncedResizeHandler = createDebouncedHandler(handleViewportResize, TIMING_CONFIG.RESIZE_DEBOUNCE_MS);
+
+/** 読書位置の復元完了後に、保留していた最新の画面寸法を適用する。 */
+function flushPendingViewportResize() {
+  if (pendingViewportResize && !isBookLoading && !isSyncResolving) debouncedResizeHandler();
+}
 
 const ui = new UIController({
   isBookOpen: () => reader.book !== null || reader.imagePages.length > 0,
@@ -901,10 +917,8 @@ const ui = new UIController({
     renderers.toggleFloatOverlay();
   },
   onResize: () => {
-    // リサイズ時のリペジネーション (EPUBのみ)
-    // ui.js側で既に250msデバウンス済みなので直接呼び出す
-    if (!reader.handleResize) return;
-    reader.handleResize();
+    // UI側でデバウンス済みのため、共通の読込ガードを直接通す。
+    handleViewportResize();
   },
   onLeftMenu: (action) => {
     if (action === 'show') {
@@ -1178,6 +1192,7 @@ async function handleFile(file, overrideBookId = null) {
   // Persist the previous reader synchronously; its network upload need not block the next file.
   void pushCurrentBookSyncOnAction();
   isBookLoading = true;
+  invalidateSearch();
   showLoading();
   userOverrodeDirection = false;
   isSyncResolving = true; // ロック開始
@@ -1260,7 +1275,8 @@ async function handleFile(file, overrideBookId = null) {
     const existingRecord = isTemporaryImageViewer ? null : fileHandler.findBookByContentHash(storage.data.library, contentHash);
     let id = overrideBookId ?? existingRecord?.id ?? contentHash;
     const mime = fileHandler.guessMime(type, file);
-    const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
+    // 書籍本体は端末内に保持する。読書状態の同期先設定をファイル保存先に流用しない。
+    const source = SYNC_SOURCES.LOCAL;
 
     // 4. ファイル保存
     //    ストリーミングモード/仮想画像書籍: 本体を保存しない
@@ -1451,6 +1467,7 @@ async function handleFile(file, overrideBookId = null) {
     isBookLoading = false;
     isSyncResolving = false;
     hideLoading();
+    flushPendingViewportResize();
   }
 }
 
@@ -1604,6 +1621,7 @@ async function openFromLibrary(bookId, options = {}) {
   clearArchiveWarnings();
   void pushCurrentBookSyncOnAction();
   isBookLoading = true;
+  invalidateSearch();
   showLoading();
   // ★追加: UI描画更新のために少し待機
   await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.DOM_RENDER_DELAY_MS));
@@ -1639,7 +1657,8 @@ async function openFromLibrary(bookId, options = {}) {
     // ========================================
     // 通常フロー: IndexedDB / OPFS から読み込み
     // ========================================
-    const source = storage.getSettings().source || SYNC_SOURCES.LOCAL;
+    // 書籍本体は端末内に保持する。読書状態の同期先設定をファイル保存先に流用しない。
+    const source = SYNC_SOURCES.LOCAL;
     const record = await loadFile(bookId, source);
 
     if (!record) {
@@ -1811,6 +1830,7 @@ async function openFromLibrary(bookId, options = {}) {
   } finally {
     isBookLoading = false;
     hideLoading();
+    flushPendingViewportResize();
   }
 }
 
@@ -2130,7 +2150,23 @@ function addBookmark() {
 // テキスト検索（EPUB用）
 // ========================================
 
-async function performSearch(query) {
+/**
+ * 検索の世代を進め、編集中や閉じた画面へ古い結果が戻らないようにする。
+ * @returns {void}
+ */
+function invalidateSearch() {
+  searchRequestId += 1;
+  elements.searchResults?.replaceChildren();
+}
+
+/**
+ * 開始時の書籍を検索し、失効した要求は章の読み込み後に打ち切る。
+ * @param {string} query - 検索語
+ * @param {() => boolean} isCurrent - 現在の検索かを判定する関数
+ * @returns {Promise<Array<object>|null>} 検索結果。失効した場合はnull
+ */
+async function performSearch(query, isCurrent) {
+  if (!isCurrent()) return null;
   console.log(`[Search] performSearch called target: "${query}"`);
   if (!query || !currentBookId || currentBookInfo?.type !== BOOK_TYPES.EPUB || !reader.book) {
     console.warn("[Search] Aborting: Missing query, book ID, EPUB type, or reader.book");
@@ -2143,19 +2179,24 @@ async function performSearch(query) {
 
   try {
     const searchResults = [];
-    const spine = reader.book.spine;
-    const locations = reader.book.locations;
+    const book = reader.book;
+    const spine = book.spine;
+    const locations = book.locations;
+    const spineItems = reader.spineItems;
 
     console.log(`[Search] Starting search across ${spine?.length || 0} spine items.`);
 
     // 各セクションを検索
     for (let i = 0; i < spine.length; i++) {
+      if (!isCurrent()) return null;
       const item = spine.get(i);
 
       try {
         console.log(`[Search] Loading section ${i}: ${item.href}`);
         // セクションを読み込む
-        await item.load(reader.book.load.bind(reader.book));
+        await item.load(book.load.bind(book));
+        // 読込待ちの間に、新しい検索・入力・書籍切替が起きている場合は結果を作らない。
+        if (!isCurrent()) return null;
 
         const doc = item.document || item.contents?.document;
         if (!doc) {
@@ -2164,9 +2205,8 @@ async function performSearch(query) {
         }
 
         // リーダー側のテキスト全抽出・セグメント計算機能を使用
-        const spineItem = reader.spineItems?.[i];
+        const spineItem = spineItems?.[i];
         if (!spineItem) {
-          item.unload();
           continue;
         }
 
@@ -2198,12 +2238,12 @@ async function performSearch(query) {
             segmentIndex: match.segmentIndex,
           });
         }
-
-        // メモリリークを防ぐためにセクションをアンロード
-        item.unload();
-
       } catch (error) {
+        if (!isCurrent()) return null;
         console.warn(`[Search] Failed to search in section ${item.href}:`, error);
+      } finally {
+        // 中断・失敗した章も解放し、連続検索で読み込んだDOMを保持し続けない。
+        item.unload();
       }
     }
 
@@ -2250,6 +2290,7 @@ function openModal(modal) {
 
 function closeModal(modal) {
   if (!modal) return;
+  if (modal === elements.searchModal) invalidateSearch();
   if (modal.classList.contains(UI_CLASSES.BOOKMARK_MENU)) {
     modal.classList.remove(UI_CLASSES.VISIBLE);
     ui.bookmarkMenuVisible = false;
@@ -3126,43 +3167,34 @@ function showSettings() {
 // ========================================
 
 function setupEvents() {
-  console.log('[setupEvents] Starting event setup...');
-  console.log('[setupEvents] elements.menuOpen:', elements.menuOpen);
-  console.log('[setupEvents] elements.leftMenu:', elements.leftMenu);
 
   // メニューアクション
   if (elements.menuOpen) {
     elements.menuOpen.addEventListener('click', (e) => {
-      console.log('[menuOpen] Clicked!');
       e.stopPropagation();
       e.preventDefault();
       openFileDialog();
     });
-    console.log('[setupEvents] menuOpen listener attached');
   } else {
     console.error('[setupEvents] elements.menuOpen is null or undefined!');
   }
 
   if (elements.menuLibrary) {
     elements.menuLibrary.addEventListener('click', () => {
-      console.log('[menuLibrary] Clicked!');
       showLibrary();
     });
-    console.log('[setupEvents] menuLibrary listener attached');
   } else {
     console.error('[setupEvents] elements.menuLibrary is null!');
   }
 
   if (elements.menuSearch) {
     elements.menuSearch.addEventListener('click', () => {
-      console.log('[menuSearch] Clicked!');
       showSearch();
     });
   }
 
   if (elements.menuBookmarks) {
     elements.menuBookmarks.addEventListener('click', (e) => {
-      console.log('[menuBookmarks] Clicked!');
       // イベントの伝播を防ぎ、背後の要素が誤認されるゴーストクリックを防止
       e.stopPropagation();
       e.preventDefault();
@@ -3172,14 +3204,12 @@ function setupEvents() {
 
   if (elements.menuHistory) {
     elements.menuHistory.addEventListener('click', () => {
-      console.log('[menuHistory] Clicked!');
       showHistory();
     });
   }
 
   if (elements.menuShareLog) {
     elements.menuShareLog.addEventListener('click', () => {
-      console.log('[menuShareLog] Clicked!');
       closeAllMenus();
       handleShareReadingLog();
     });
@@ -3188,7 +3218,6 @@ function setupEvents() {
     const menuShareLogFallback = document.getElementById('menuShareLog');
     if (menuShareLogFallback) {
       menuShareLogFallback.addEventListener('click', () => {
-        console.log('[menuShareLog-fallback] Clicked!');
         closeAllMenus();
         handleShareReadingLog();
       });
@@ -3247,9 +3276,7 @@ function setupEvents() {
   const leftLangMenuEl = document.getElementById('leftLangMenu');
   const leftLangJaEl = document.getElementById('leftLangJa');
   const leftLangEnEl = document.getElementById('leftLangEn');
-  console.log('[setupEvents] menuLangEl:', menuLangEl);
   menuLangEl?.addEventListener('click', (e) => {
-    console.log('[menuLang] Clicked!');
     e.stopPropagation();
     leftLangMenuEl?.classList.toggle(UI_CLASSES.HIDDEN);
   });
@@ -3828,16 +3855,27 @@ function setupEvents() {
 
   // 検索機能
   const executeSearch = async () => {
+    if (isBookLoading) return;
     const query = elements.searchInput?.value?.trim();
     if (!query) {
+      invalidateSearch();
       alert(t("searchMissingQuery"));
       return;
     }
 
-    const results = await performSearch(query);
+    const requestId = ++searchRequestId;
+    const bookId = currentBookId;
+    const book = reader.book;
+    // 同じ書籍を開き直す場合もあるため、IDだけでなくbookインスタンスも照合する。
+    const isCurrent = () => requestId === searchRequestId && bookId === currentBookId &&
+      book === reader.book && !isBookLoading && isModalVisible(elements.searchModal) &&
+      elements.searchInput?.value?.trim() === query;
+    const results = await performSearch(query, isCurrent);
+    if (!isCurrent() || results === null) return;
     renderers.renderSearchResults(results, query);
   };
 
+  elements.searchInput?.addEventListener('input', invalidateSearch);
   elements.searchBtn?.addEventListener('click', executeSearch);
 
   elements.searchInput?.addEventListener('keydown', (e) => {
@@ -4183,7 +4221,7 @@ function setupEvents() {
                 await reader.goTo(progress);
                 renderers.renderBookmarks(bookmarkMenuMode);
               }
-            } finally { isSyncResolving = false; }
+            } finally { isSyncResolving = false; flushPendingViewportResize(); }
           }
         } catch (err) {
           console.error('[Visibility] Auto sync failed:', err);
@@ -4601,7 +4639,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
     await reader.openWebNovel(novelInfo, episodes, provider, episodeIndex);
     document.title = `${novelInfo.title} - ${APP_INFO.NAME}`;
 
-    // ライブラリ/履歴用にスタブ情報を保存
+    // ライブラリ/履歴用のスタブは書籍本体と同様に端末内へ保存
     const stubFile = new File(["webnovel_stub"], `webnovel_${novelInfo.id}.txt`, { type: MIME_TYPES.WEB_NOVEL });
     await saveFile(currentBookId, stubFile, {
       title: novelInfo.title,
@@ -4609,7 +4647,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
       type: BOOK_TYPES.WEB_NOVEL,
       novelUrl: novelInfo.url,
       provider: novelInfo.providerName
-    });
+    }, SYNC_SOURCES.LOCAL);
     renderers.renderHistory();
     renderers.updateFloatingUIButtons();
   } catch (e) {

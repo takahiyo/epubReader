@@ -4,6 +4,8 @@
  * Firestore SDKへの直接アクセスは廃止されました。
  */
 
+import { sanitizeCloudMeta, sanitizeCloudState, buildCloudSnapshot } from "./js/core/cloud-payload.js";
+
 import {
   SYNC_CONFIG,
   SYNC_PATHS,
@@ -250,7 +252,8 @@ export class CloudSync {
     if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
-    return this.postWorkerSync(SYNC_PATHS.INDEX_PUSH, { indexDelta, updatedAt }, settings);
+    const safeIndex = Object.fromEntries(Object.entries(indexDelta ?? {}).map(([id, meta]) => [id, sanitizeCloudMeta(meta)]));
+    return this.postWorkerSync(SYNC_PATHS.INDEX_PUSH, { indexDelta: safeIndex, updatedAt }, settings);
   }
 
   async pullState(cloudBookId, settings = this.storage.getSettings()) {
@@ -266,7 +269,7 @@ export class CloudSync {
     if (resolvedSource !== "d1") {
       return { source: resolvedSource, status: "skipped" };
     }
-    const normalizedState = this.normalizeCloudState(state, updatedAt);
+    const normalizedState = sanitizeCloudState(this.normalizeCloudState(state, updatedAt));
     const payload = { state: normalizedState, updatedAt: normalizedState.updatedAt };
     return this.postWorkerSync(SYNC_PATHS.STATE_PUSH, { cloudBookId, ...payload }, settings);
   }
@@ -295,7 +298,7 @@ export class CloudSync {
     const { endpoint, apiKey } = settings;
     const payload = {
       updatedAt: Date.now(),
-      data: this.storage.snapshot(),
+      data: buildCloudSnapshot(this.storage),
     };
 
     const response = await fetch(endpoint, {
@@ -334,7 +337,7 @@ export class CloudSync {
     const accessToken = this.ensureOneDriveToken(settings);
     const payload = {
       updatedAt: Date.now(),
-      data: this.storage.snapshot(),
+      data: buildCloudSnapshot(this.storage),
     };
     const fileId = await this.uploadToOneDrive(accessToken, payload, settings);
     if (fileId && fileId !== settings.onedriveFileId) {
@@ -446,7 +449,7 @@ export class CloudSync {
     const { endpoint, apiKey } = settings;
     const payload = {
       updatedAt: Date.now(),
-      data: this.storage.snapshot(),
+      data: buildCloudSnapshot(this.storage),
     };
     const response = await fetch(endpoint, {
       method: "PUT",

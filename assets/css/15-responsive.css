@@ -1,5 +1,5 @@
 /* ========================================
-   レスポンシチE
+   レスポンシブ調整
 ======================================== */
 
 /* =====================================
@@ -34,6 +34,26 @@
 - SPLIT: LAST
 ===================================== */
 @media (max-width: 480px) {
+  /* HTML: 共通モーダル・設定・キー割り当て。JSの端末判定は増やさない。 */
+  .modal .modal-content,
+  .settings-section {
+    padding: var(--panel-gutter);
+  }
+
+  .keybinding-label {
+    flex-basis: 100%;
+  }
+
+  .library-sort-container {
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .library-sort-container select {
+    min-width: 0;
+    max-width: 100%;
+  }
   .empty-icon {
     font-size: 3rem;
   }
@@ -49,6 +69,30 @@
 
   .left-menu.visible {
     left: 0;
+  }
+}
+
+/* HTML: ライブラリの操作ボタン。タッチ端末ではホバーなしでも削除操作を発見できる。 */
+@media (pointer: coarse) {
+  .library-view-btn,
+  .library-sort-order-btn,
+  .library-delete-btn,
+  .lang-btn,
+  .keybinding-add,
+  .keybinding-badge,
+  .keybinding-reset-btn {
+    min-width: var(--control-target-size);
+    min-height: var(--control-target-size);
+  }
+
+  .library-delete-btn {
+    opacity: 1;
+    flex-shrink: 0;
+  }
+
+  /* グリッドの右上ボタンと書名が重ならない領域を確保する。 */
+  .library-grid:not([data-view="list"]) .library-card {
+    padding-top: calc(var(--control-target-size) + var(--panel-gutter));
   }
 }
 

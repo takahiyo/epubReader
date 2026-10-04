@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v53",
+  "cacheName": "bookreader-v54",
   "assets": [
     "./",
     "./index.html",
@@ -83,6 +83,7 @@
     "./assets/constants/keybindings.js",
     "./assets/css/20-drag-drop.css",
     "./assets/css/22-float-menu-toggle.css",
+    "./assets/js/core/cloud-payload.js",
     "./assets/js/core/cloud-state-merge.js",
     "./assets/js/core/novel-content.js",
     "./assets/js/core/pickers/network-loader.js",

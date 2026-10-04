@@ -80,6 +80,11 @@
   flex-direction: column;
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: var(--z-menu);
+  /* 横持ち端末のノッチとホームインジケータを避ける。 */
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  max-width: calc(100% - var(--safe-right));
 }
 
 /* =====================================
@@ -109,41 +114,6 @@
   align-items: center;
   gap: 1rem;
   justify-content: center;
-}
-
-/* =====================================
-[REF]
-- HTML: #leftMenu .menu-logo（旧ロゴ想定）
-- JS: なし
-- STATE: なし
-- LAYER: なし
-- SPLIT: GROUP
-===================================== */
-.menu-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  display: grid;
-  place-items: center;
-  font-size: 1.5rem;
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
-}
-
-/* =====================================
-[REF]
-- HTML: #leftMenu .menu-header h2（旧タイトル想定）
-- JS: なし
-- STATE: なし
-- LAYER: なし
-- SPLIT: GROUP
-===================================== */
-.menu-header h2 {
-  font-size: 1.25rem;
-  background: linear-gradient(135deg, #a78bfa, #c4b5fd);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 /* =====================================
@@ -185,6 +155,7 @@
 ===================================== */
 .menu-nav {
   flex: 1;
+  min-height: 0;
   padding: 1rem 0;
   overflow-y: auto;
 }

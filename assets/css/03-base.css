@@ -13,4 +13,6 @@ body {
   overflow: hidden;
   width: 100vw;
   height: 100vh;
+  /* モバイルのアドレスバー開閉で操作領域が画面外へ出ないようにする。 */
+  height: 100dvh;
 }

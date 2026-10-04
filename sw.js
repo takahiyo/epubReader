@@ -3,9 +3,9 @@
  *
  * PWA オフラインサポート用 Service Worker
  *
- * 注意: Service Worker は ES Modules をサポートしないため、
- * constants.js から直接 import できません。
- * 設定変更時は constants.js と同期してください。
+ * この Worker は classic script として登録します。
+ * 定数は生成済みJSON経由で読み込みます。設定変更後は
+ * node scripts/generate-sw-cache-config.mjs を実行してください。
  *
  * SSOT 参照元: assets/constants.js
  * - PWA_CONFIG.CACHE_NAME

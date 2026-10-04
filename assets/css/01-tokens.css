@@ -7,6 +7,13 @@
 - SPLIT: GROUP
 ===================================== */
 :root {
+  /* 共通操作サイズ。端末別DOMを増やさず、タッチ操作と画面端の余白を揃える。 */
+  --control-target-size: 44px;
+  --panel-gutter: 12px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
   --bg: #0f172a;
   --card: #111827;
   --text: #e5e7eb;

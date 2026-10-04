@@ -22,7 +22,7 @@ const server = http.createServer(async (req, res) => {
       config.assets = [...config.assets.filter(url => url.startsWith('./')), './__test.html'];
       body = Buffer.from(JSON.stringify(config));
     }
-    res.setHeader('content-type', ({ '.js': 'text/javascript', '.json': 'application/json', '.html': 'text/html',
+    res.setHeader('content-type', ({ '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.html': 'text/html',
       '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' })[path.extname(file)] || 'application/octet-stream');
     res.end(body);
   } catch { res.writeHead(404).end(); }
@@ -31,7 +31,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;
 try {
   browser = await puppeteer.launch({ headless: true, executablePath: process.env.BROWSER_EXECUTABLE,
-    userDataDir: path.join(root, 'scratch', 'review-browser-profile') });
+    pipe: true, userDataDir: path.join(root, 'scratch', 'review-browser-profile-' + process.pid) });
   console.log('Browser launched');
   const page = await browser.newPage();
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -62,6 +62,9 @@ try {
   await page.setOfflineMode(false);
   await page.evaluate(async () => { for (const registration of await navigator.serviceWorker.getRegistrations()) await registration.unregister(); });
   const app = await browser.newPage();
+  // Offline worker behavior is tested above; keep app requests inside the network mocks.
+  await app.setBypassServiceWorker(true);
+  await app.setViewport({ width: 800, height: 600, hasTouch: true });
   const errors = [];
   const require = createRequire(import.meta.url);
   const JSZip = require('../scratch/review-fixtures/jszip.cjs');
@@ -115,14 +118,43 @@ try {
   console.log('PASS: main application starts with mocked authentication and cloud API');
   await app.evaluate(async () => {
     const { ReaderController } = await import('/assets/reader.js');
+    const { runReaderLocationCases } = await import('/tests/reader-location-cases.mjs');
+    await runReaderLocationCases(ReaderController);
+  });
+  console.log('PASS: repeated text, DOM scroll targets, legacy locators, nearest fallback and overlapping resize regressions');
+  await app.evaluate(async () => {
+    const { ReaderController } = await import('/assets/reader.js');
     const original = ReaderController.prototype.openEpub;
-    ReaderController.prototype.openEpub = function (...args) { window.__testReader = this; return original.apply(this, args); };
+    ReaderController.prototype.openEpub = async function (...args) {
+      window.__testReader = this;
+      window.__testOpenStarted = true;
+      window.__testOpenResizeCalls = window.__testResizeCalls;
+      await new Promise(resolve => { window.__testReleaseOpen = resolve; });
+      return original.apply(this, args);
+    };
+    const originalResize = ReaderController.prototype.handleResize;
+    window.__testResizeCalls = 0;
+    ReaderController.prototype.handleResize = function (...args) {
+      window.__testResizeCalls++;
+      return originalResize.apply(this, args);
+    };
   });
   await (await app.$('#fileInput')).uploadFile(fixture);
   await app.waitForFunction(() => !document.getElementById('syncModal').classList.contains('hidden'));
   await app.click('#syncUseRemote');
+  await app.waitForFunction(() => window.__testOpenStarted);
+  await app.setViewport({ width: 390, height: 844, hasTouch: true });
+  await app.evaluate(async () => {
+    const { TIMING_CONFIG } = await import('/assets/constants.js');
+    await new Promise(resolve => setTimeout(resolve, TIMING_CONFIG.RESIZE_DEBOUNCE_MS * 2));
+    if (window.__testResizeCalls !== window.__testOpenResizeCalls) throw new Error('Resize ran before file restoration');
+    window.__testReleaseOpen();
+  });
+  await app.waitForFunction(() => window.__testResizeCalls > window.__testOpenResizeCalls && !window.__testReader.isRepaginating);
   await app.waitForFunction(() => window.__testReader?.pagination?.pages?.length > 0 &&
     !document.getElementById('loadingOverlay').classList.contains('visible'), { timeout: 30000 });
+  // Loading can finish before asynchronous reading-state restoration; assert the resulting locator.
+  await app.waitForFunction(() => window.__testReader?.getPageLocator(window.__testReader.currentPageIndex)?.spineIndex === 1);
   const loaded = await app.evaluate(hash => {
     const saved = JSON.parse(localStorage.getItem('epubReader:data'));
     const reader = window.__testReader;
@@ -132,7 +164,44 @@ try {
   assert.deepEqual(errors, []);
   assert.equal(loaded.linked, 'existing'); assert.equal(loaded.bookmarkCount, 1);
   assert.ok(loaded.page > 0); assert.equal(loaded.locator.spineIndex, 1);
-  console.log('PASS: first EPUB selection matches legacy remote metadata, shows jump dialog, restores chapter 1 and bookmarks');
+  console.log('PASS: EPUB selection and viewport change during loading restore remote position and bookmarks');
+  await app.evaluate(async () => {
+    const { runSearchRaceCases } = await import('/tests/search-race-cases.mjs');
+    await runSearchRaceCases(window.__testReader);
+  });
+  console.log('PASS: late search completion, input edits, close/reopen, book replacement and empty results');
+  await app.evaluate(async () => {
+    const reader = window.__testReader;
+    const query = 'Chapter 1, paragraph 25.';
+    const segment = reader.resolveLocationByText(1, query);
+    reader.goToSegment(1, segment, query, false);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (reader.getPageLocator(reader.currentPageIndex).segmentIndex <= 0) throw new Error('Fixture must resume inside a chapter');
+  });
+  for (const [width, height] of [[1440, 900], [568, 320], [768, 1024]]) {
+    const before = await app.evaluate(() => ({ locator: window.__testReader.getPageLocator(window.__testReader.currentPageIndex), calls: window.__testResizeCalls }));
+    await app.setViewport({ width, height, hasTouch: true });
+    await app.waitForFunction(calls => window.__testResizeCalls > calls && !window.__testReader.isRepaginating, {}, before.calls);
+    const preserved = await app.evaluate(locator => window.__testReader.findPageContaining(locator.spineIndex, locator.segmentIndex) === window.__testReader.currentPageIndex, before.locator);
+    assert.ok(preserved, 'Resize must retain the page containing the previous reading anchor');
+  }
+  console.log('PASS: EPUB reading anchor survives desktop, landscape-phone and tablet repagination');
+  await app.evaluate(async () => {
+    const reader = window.__testReader;
+    await reader.applyEpubViewMode('scroll');
+    const query = 'Chapter 1, paragraph 25.';
+    reader.goToSegment(1, reader.resolveLocationByText(1, query), query, false);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    const before = await app.evaluate(() => ({ locator: window.__testReader.getPageLocator(window.__testReader.currentPageIndex), calls: window.__testResizeCalls }));
+    await app.setViewport({ width, height, hasTouch: true });
+    await app.waitForFunction(calls => window.__testResizeCalls > calls && !window.__testReader.isRepaginating, {}, before.calls);
+    const after = await app.evaluate(() => window.__testReader.getPageLocator(window.__testReader.currentPageIndex));
+    assert.equal(after.spineIndex, before.locator.spineIndex);
+    assert.equal(after.visibleText?.slice(0, 30), before.locator.visibleText?.slice(0, 30), 'Scroll resize must return to the same visible text');
+  }
+  console.log('PASS: scroll reading position survives phone and desktop widths');
   const pngs = await app.evaluate(() => Array.from({ length: 6 }, (_, index) => {
     const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 900;
     const context = canvas.getContext('2d'); context.fillStyle = '#ffffff'; context.fillRect(0, 0, 600, 900);
@@ -160,6 +229,32 @@ try {
   assert.equal(comicResult.index, 2); assert.equal(comicResult.linked, 'comic');
   assert.deepEqual(errors, []);
   console.log('PASS: first CBZ selection matches cloud metadata and opens image index 2');
+  // Shared panels must fit narrow phones, tablet split views and desktop windows in both languages.
+  for (const language of ['ja', 'en']) {
+    await app.evaluate(language => document.getElementById(language === 'ja' ? 'leftLangJa' : 'leftLangEn').click(), language);
+    for (const [width, height] of [[320, 568], [390, 844], [568, 320], [768, 1024], [1024, 768], [1440, 900]]) {
+      await app.setViewport({ width, height, hasTouch: true });
+      await app.evaluate(() => document.getElementById('menuSettings').click());
+      const bounds = await app.evaluate(() => {
+        const modal = document.querySelector('#settingsModal .modal-content');
+        document.querySelectorAll('#settingsModal .settings-section').forEach(section => section.classList.remove('collapsed'));
+        const rect = modal.getBoundingClientRect();
+        const close = modal.querySelector('.close-btn').getBoundingClientRect();
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+          overflow: modal.scrollWidth - modal.clientWidth, closeWidth: close.width, closeHeight: close.height };
+      });
+      assert.ok(bounds.left >= 0 && bounds.right <= width + 1 && bounds.top >= 0 && bounds.bottom <= height + 1,
+        JSON.stringify({ language, width, height, bounds }));
+      assert.ok(bounds.overflow <= 1, JSON.stringify({ language, width, bounds }));
+      assert.ok(bounds.closeWidth >= 44 && bounds.closeHeight >= 44);
+      await app.waitForFunction(() => [...document.querySelectorAll('#settingsModal .settings-section-content')].every(el => Number(getComputedStyle(el).opacity) === 1));
+      await app.screenshot({ path: path.join(root, 'scratch/review-fixtures', 'settings-' + language + '-' + width + '.png') });
+      await app.evaluate(() => document.querySelector('#settingsModal .close-btn').click());
+    }
+  }
+  await app.setViewport({ width: 800, height: 600, hasTouch: true });
+  console.log('PASS: settings fit six phone/tablet/desktop viewports in Japanese and English, with 44px close targets');
+
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

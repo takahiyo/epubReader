@@ -3,11 +3,11 @@
  *
  * NOTE:
  * - ここは「クラウド同期状態の構造」を一元管理するための唯一の場所です。
- * - 仕様が変わる場合は必ずこのモジュールを修正し、呼び出し側は変更しません。
+ * - 状態の生成はこのモジュール、送信許可項目はcloud-payload.jsに集約します。
  * - AIエージェントが誤って重複実装や削除を行わないよう、SSOTとして明示しています。
  */
 
-import { getDeviceInfo } from "./storage.js";
+import { sanitizeCloudState } from "./js/core/cloud-payload.js";
 
 /**
  * クラウド同期用の状態ペイロードを構築する
@@ -21,7 +21,6 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
   const bookmarks = storage.getBookmarks(localBookId) ?? [];
   const bookInfo = storage.data?.library?.[localBookId];
   const bookmarkTombstones = storage.data?.bookmarkTombstones?.[localBookId] ?? {};
-  const deviceInfo = typeof getDeviceInfo === "function" ? getDeviceInfo() : null;
 
   const updatedAt = Math.max(
     progress?.updatedAt ?? 0,
@@ -49,9 +48,8 @@ export function buildCloudStatePayload(storage, localBookId, cloudBookId) {
     pageDirection: progress?.pageDirection ?? null,
     imageViewMode: progress?.imageViewMode ?? null,
     fontSize: progress?.fontSize ?? null,
-    deviceInfo,
     updatedAt,
   };
 
-  return { cloudBookId, state, updatedAt };
+  return { cloudBookId, state: sanitizeCloudState(state), updatedAt };
 }

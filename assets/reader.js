@@ -243,6 +243,8 @@ export class ReaderController {
     this.longPressZoomActive = false;
 
     this.repaginationRequestId = 0;
+    this.isRepaginating = false;
+    this._resizeAnchor = null;
     this.theme = UI_DEFAULTS.theme;
     this.writingMode = WRITING_MODES.HORIZONTAL;
     this.pageDirection = READING_DIRECTIONS.RTL;
@@ -269,7 +271,6 @@ export class ReaderController {
     this.logicToc = [];    // [追加] 標準の論理目次
     this.enhancedToc = []; // [追加] 本文から抽出した目次
     this.useEnhancedToc = false; // [追加] 現在どちらを使っているか
-    this.resizeTimer = null;
 
     // WebNovelViewer 初期化
     this.webNovelViewer = new WebNovelViewer({
@@ -302,7 +303,6 @@ export class ReaderController {
     this._pendingScrollToSegment = null;
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
-    this._resizeScrollRatio = null;
     this._resolvedSpineIndex = null;
     this._matchedSearchQuery = null;
 
@@ -317,12 +317,7 @@ export class ReaderController {
     this.setupZoomSlider();
     this.bindImageZoomHandlers();
 
-    // [Quest 3 v85対応] visualViewport のリサイズ監視を追加
-    // OSのウィンドウハンドル消失時や、Distant View への切り替え時など、
-    // window.resize だけでは検知しきれないサイズ変更を確実に拾います。
-    if (typeof window !== 'undefined' && window.visualViewport) {
-      window.visualViewport.addEventListener('resize', () => this.onResize());
-    }
+
   }
 
   showImageLoading(isLoading) {
@@ -421,6 +416,10 @@ export class ReaderController {
   }
 
   resetReaderState() {
+    // 古い書籍の再組版が完了しても、新しい書籍の位置やローダーを変更しない。
+    this.repaginationRequestId += 1;
+    this.isRepaginating = false;
+    this._resizeAnchor = null;
     if (this.rendition?.destroy) {
       try {
         this.rendition.destroy();
@@ -467,7 +466,6 @@ export class ReaderController {
     this._pendingScrollToSegment = null;
     this._pendingScrollSearchQuery = null;
     this._pendingScrollHighlight = true;
-    this._resizeScrollRatio = null;
     this._isInitialReadyCalled = false;
     this._lastValidScrollLocation = null;
     this._lastValidScrollRatio = 0;
@@ -534,19 +532,6 @@ export class ReaderController {
   }
 
   /**
-   * リサイズ時の処理（Debounce付き）
-   * 回転中などの連続発火を防ぐ
-   */
-  onResize() {
-    if (this.resizeTimer) {
-      clearTimeout(this.resizeTimer);
-    }
-    this.resizeTimer = setTimeout(() => {
-      this.handleResize();
-    }, 200); // 200ms待機してから実行
-  }
-
-  /**
    * リサイズ時の処理
    * ビューポートサイズ変更時にページ分割を再計算
    */
@@ -558,12 +543,15 @@ export class ReaderController {
 
     this.repaginationRequestId += 1;
     const myRequestId = this.repaginationRequestId;
+    const paginator = this.paginator;
 
     // ローディング表示（最新のリクエストのみ管理）
     this.onRepaginationStart?.();
 
-    // 現在のページ位置を保存
-    const currentLocator = this.getPageLocator(this.currentPageIndex);
+    // 連続リサイズでは、再組版途中のページを新しい基準位置として採用しない。
+    this._resizeAnchor ??= this.getPageLocator(this.currentPageIndex);
+    const currentLocator = this._resizeAnchor;
+    this.isRepaginating = true;
 
     // リペジネーション実行
     const paginationMetrics = this.getPaginationViewportMetrics();
@@ -581,35 +569,23 @@ export class ReaderController {
     };
 
     try {
-      await this.paginator.repaginate(newSettings);
-      if (myRequestId !== this.repaginationRequestId) {
+      await paginator.repaginate(newSettings);
+      if (myRequestId !== this.repaginationRequestId || paginator !== this.paginator) {
         console.debug(
           `handleResize: 古いリペジネーション結果を無視 (requestId=${myRequestId}, currentId=${this.repaginationRequestId})`
         );
         // 新しいリクエストがローディングを管理するので、ここでは解除しない
         return;
       }
-      this.pagination = { pages: this.paginator.pages };
+      this.pagination = { pages: paginator.pages };
       this.pageController.setTotalPages(this.pagination.pages.length);
 
       // 元の位置に戻る
       if (currentLocator) {
-        const newIndex = this.findPageContaining(
-          currentLocator.spineIndex,
-          currentLocator.segmentIndex
-        );
-        if (newIndex >= 0) {
-          if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
-            // [修正] リサイズ時は scrollTop 比率で位置を保存（テキスト検索・インデックス検索より高信頼）
-            if (this.viewer) {
-              const scrollableHeight = this.viewer.scrollHeight - this.viewer.clientHeight;
-              if (scrollableHeight > 0) {
-                this._resizeScrollRatio = this.viewer.scrollTop / scrollableHeight;
-              }
-            }
-          }
-          this.pageController.goTo(newIndex);
-        }
+        // 画面全体のスクロール比率ではなく、保存した本文区間から位置を合わせる。
+        const newIndex = this.resolveStartPageIndexIfReady({ location: currentLocator }, this.pagination.pages.length)
+          ?? this.findNearestPageInSpine(currentLocator.spineIndex, currentLocator.segmentIndex);
+        if (newIndex >= 0) this.pageController.goTo(newIndex);
       }
 
       // ブラウザの再描画を確定させる
@@ -617,7 +593,12 @@ export class ReaderController {
     } catch (error) {
       if (error?.name === "PaginationCancelledError") {
         console.debug("handleResize: リペジネーションがキャンセルされました");
-        // 新しいリクエストがローディングを管理するので、ここでは解除しない
+        // 最後の要求自身が中断された場合だけ、この要求の状態を解除する。
+        if (myRequestId === this.repaginationRequestId) {
+          this.isRepaginating = false;
+          this._resizeAnchor = null;
+          this.onRepaginationEnd?.();
+        }
         return;
       }
       console.error("handleResize: リペジネーション失敗", error);
@@ -625,6 +606,8 @@ export class ReaderController {
 
     // 最新のリクエストの場合のみローディングを解除
     if (myRequestId === this.repaginationRequestId) {
+      this.isRepaginating = false;
+      this._resizeAnchor = null;
       this.onRepaginationEnd?.();
     }
   }
@@ -1202,7 +1185,7 @@ export class ReaderController {
         : null;
     }
 
-    const directLocator = startLocation.location;
+    const directLocator = startLocation.location ?? startLocation;
     // テキストベースの解決を試みる（visibleText がある場合）
     const visibleText = startLocation.visibleText || directLocator?.visibleText;
     let textResolvedSpineIndex = null; // フォールバックパスに引き継ぐ
@@ -1219,9 +1202,9 @@ export class ReaderController {
 
       const spineIndex = directLocator?.spineIndex != null ? directLocator.spineIndex : null;
       if (spineIndex != null) {
-        const resolvedSpineIndex = this._resolvedSpineIndex ?? spineIndex;
+        const resolvedSpineIndex = spineIndex;
         this._resolvedSpineIndex = null;
-        const segmentIndex = this.resolveLocationByText(resolvedSpineIndex, visibleText, "resolveStart");
+        const segmentIndex = this.resolveLocationByText(resolvedSpineIndex, visibleText, "resolveStart", directLocator?.segmentIndex);
         if (segmentIndex !== null) {
           const effectiveSpine = this._resolvedSpineIndex ?? resolvedSpineIndex;
           textResolvedSpineIndex = effectiveSpine;
@@ -1278,10 +1261,10 @@ export class ReaderController {
         }
         return pageIndex;
       }
-      // フォールバック: デバイス間でページ境界が異なる場合、同一spineの先頭ページを探す
-      const fallbackPageIndex = this.pagination?.pages?.findIndex(p => p.spineIndex === locator.spineIndex);
+      // 境界外の保存区間は、同じ章内で最も近いページへ寄せる
+      const fallbackPageIndex = this.findNearestPageInSpine(locator.spineIndex, locator.segmentIndex);
       if (fallbackPageIndex >= 0) {
-        console.log(`[位置復元デバッグ] findPageContaining失敗のためspine先頭(${locator.spineIndex})にフォールバック: pageIndex=${fallbackPageIndex}`);
+        console.log(`[位置復元デバッグ] findPageContaining失敗のためspine内の近いページ(${locator.spineIndex})にフォールバック: pageIndex=${fallbackPageIndex}`);
         if (this.epubViewMode === EPUB_VIEW_MODES.SCROLL) {
           this._pendingScrollToSegment = locator.segmentIndex;
           this._pendingScrollTargetSpineIndex = locator.spineIndex;
@@ -1585,7 +1568,14 @@ export class ReaderController {
     return index >= 0 ? index : 0;
   }
 
-  findSearchMatchesInSpine(spineItem, query) {
+  /**
+   * 本文の一致位置を返す。復元時は全一致を調べ、保存区間に近い候補だけを保持する。
+   * @param {object} spineItem - 章のHTML
+   * @param {string} query - 検索する本文
+   * @param {number|null} preferredSegmentIndex - 復元元の本文区間（通常検索はnull）
+   * @returns {Array<object>} 表示上限内の一致候補
+   */
+  findSearchMatchesInSpine(spineItem, query, preferredSegmentIndex = null) {
     if (!spineItem || !spineItem.htmlString || !query) return [];
 
     const doc = new DOMParser().parseFromString(spineItem.htmlString, "text/html");
@@ -1643,11 +1633,16 @@ export class ReaderController {
     const searchRegex = this._getFlexibleSearchRegex(query);
     const matches = [];
 
+    const hasHint = Number.isFinite(preferredSegmentIndex) && preferredSegmentIndex >= 0;
+    const offsets = hasHint ? this._getNormalizedTextOffsets(fullText, normalizedFullText.length) : null;
+    let segmentCursor = 0;
     let regexMatch;
-    while ((regexMatch = searchRegex.exec(normalizedFullText)) !== null && matches.length < 5) {
+    while ((regexMatch = searchRegex.exec(normalizedFullText)) !== null &&
+      (hasHint || matches.length < READER_CONFIG.TEXT_SEARCH_MATCH_LIMIT)) {
       const normalizedMatchIndex = regexMatch.index;
       // 正規化済みインデックスを元テキストのインデックスにマッピング
-      const matchIndex = this._mapNormalizedIndexToOriginal(fullText, normalizedMatchIndex);
+      const matchIndex = offsets ? offsets[normalizedMatchIndex]
+        : this._mapNormalizedIndexToOriginal(fullText, normalizedMatchIndex);
 
       // 前後のコンテキストを取得（50文字ずつ）
       const start = Math.max(0, matchIndex - 50);
@@ -1656,7 +1651,8 @@ export class ReaderController {
       excerpt = excerpt.replace(/\s+/g, ' ').trim();
 
       // matchIndex が属する segments を探す
-      const segment = segments.find(seg => matchIndex >= seg.startCharOffset && matchIndex < seg.endCharOffset);
+      while (segmentCursor < segments.length && segments[segmentCursor].endCharOffset <= matchIndex) segmentCursor++;
+      const segment = segments[segmentCursor];
       let segmentIndex = 0;
       if (segment) {
         // セグメント内の文字オフセット
@@ -1669,6 +1665,11 @@ export class ReaderController {
         matchIndex,
         segmentIndex
       });
+      if (hasHint) {
+        matches.sort((a, b) => Math.abs(a.segmentIndex - preferredSegmentIndex) -
+          Math.abs(b.segmentIndex - preferredSegmentIndex) || a.segmentIndex - b.segmentIndex);
+        matches.length = Math.min(matches.length, READER_CONFIG.TEXT_SEARCH_MATCH_LIMIT);
+      }
     }
 
     return matches;
@@ -1679,9 +1680,13 @@ export class ReaderController {
    * @param {number} spineIndex 
    * @param {string} visibleText 
    * @param {string} debugTag ログ用のタグ
+   * @param {number|null} preferredSegmentIndex - 同じ本文が複数ある場合の基準位置
    * @returns {number|null} 解決されたセグメントインデックス。見つからない場合は null
    */
-  resolveLocationByText(spineIndex, visibleText, debugTag = "General") {
+  resolveLocationByText(spineIndex, visibleText, debugTag = "General", preferredSegmentIndex = null) {
+    // 前回の補助情報を持ち越して別章へ飛ばないよう、解決ごとに初期化する。
+    this._resolvedSpineIndex = null;
+    this._matchedSearchQuery = null;
     if (spineIndex == null || !visibleText) {
       console.warn(`[位置復元デバッグ][${debugTag}] 解決中止: spineIndex または visibleText がありません`, { spineIndex, visibleText });
       return null;
@@ -1701,9 +1706,9 @@ export class ReaderController {
     }
 
     // クエリを短くして精度を調整 (30文字)
-    const query = visibleText.substring(0, 30);
+    const query = visibleText.substring(0, READER_CONFIG.LOCATION_PRIMARY_TEXT_LENGTH);
     console.log(`[位置復元デバッグ][${debugTag}] 文字列検索開始: "${query}"`);
-    const matches = this.findSearchMatchesInSpine(spineItem, query);
+    const matches = this.findSearchMatchesInSpine(spineItem, query, preferredSegmentIndex);
 
     console.log(`[位置復元デバッグ][${debugTag}] ステップ3: 検索結果`, {
       query,
@@ -1719,9 +1724,12 @@ export class ReaderController {
     // Join ModeではvisibleTextが複数spineにまたがることがあるため、
     // 短いサブクエリで再試行する（20文字ずつ、先頭/末尾/中央）
     const subQueries = [];
-    const q20 = visibleText.substring(0, 20);
-    const qEnd = visibleText.length > 20 ? visibleText.substring(visibleText.length - 20) : null;
-    const qMid = visibleText.length > 30 ? visibleText.substring(10, 30) : null;
+    const fallbackLength = READER_CONFIG.LOCATION_FALLBACK_TEXT_LENGTH;
+    const q20 = visibleText.substring(0, fallbackLength);
+    const qEnd = visibleText.length > fallbackLength ? visibleText.substring(visibleText.length - fallbackLength) : null;
+    const middleStart = Math.floor(fallbackLength / 2);
+    const qMid = visibleText.length > READER_CONFIG.LOCATION_PRIMARY_TEXT_LENGTH
+      ? visibleText.substring(middleStart, middleStart + fallbackLength) : null;
     if (q20) subQueries.push(q20);
     if (qEnd && qEnd !== q20) subQueries.push(qEnd);
     if (qMid && qMid !== q20 && qMid !== qEnd) subQueries.push(qMid);
@@ -1730,11 +1738,12 @@ export class ReaderController {
     // 隣接spineも試行対象に追加（扉絵spine→本文spineの救済）
     searchItems.push(spineIndex + 1, spineIndex - 1, spineIndex + 2);
 
-    for (const subQuery of subQueries) {
-      for (const si of searchItems) {
+    // まず元の章内で短い断片も試し、それでも見つからない場合に隣接章を探す。
+    for (const si of searchItems) {
+      for (const subQuery of subQueries) {
         const item = this.spineItems[si];
         if (!item?.htmlString) continue;
-        const matches = this.findSearchMatchesInSpine(item, subQuery);
+        const matches = this.findSearchMatchesInSpine(item, subQuery, si === spineIndex ? preferredSegmentIndex : null);
         if (matches && matches.length > 0) {
           console.log(`[位置復元デバッグ][${debugTag}] 解決成功: spineIndex=${si}, segmentIndex=${matches[0].segmentIndex}, subQuery="${subQuery.substring(0, 20)}"`);
           // 解決したspineIndexと呼び出し元に伝えるためインスタンス変数に保存
@@ -1749,6 +1758,26 @@ export class ReaderController {
     return null;
   }
 
+
+  /**
+   * 章内の区間が境界外でも、最も近いページを返す。別章へは移動しない。
+   * @param {number} spineIndex - 章番号
+   * @param {number} segmentIndex - 保存した本文区間
+   * @returns {number} ページ番号。章がなければ-1
+   */
+  findNearestPageInSpine(spineIndex, segmentIndex) {
+    if (!Number.isFinite(segmentIndex)) return -1;
+    let nearest = -1;
+    let distance = Infinity;
+    for (const [index, page] of (this.pagination?.pages ?? []).entries()) {
+      if (page.spineIndex !== spineIndex) continue;
+      const start = Number(String(page.withinSpineOffset).replace("s:", ""));
+      if (!Number.isFinite(start)) continue;
+      const candidateDistance = Math.abs(start - segmentIndex);
+      if (candidateDistance < distance) { nearest = index; distance = candidateDistance; }
+    }
+    return nearest;
+  }
 
   findPageContaining(spineIndex, segmentIndex, pages = this.pagination?.pages ?? []) {
     for (let i = 0; i < pages.length; i += 1) {
@@ -1827,11 +1856,11 @@ export class ReaderController {
   goToSegment(spineIndex, segmentIndex, searchQuery, shouldHighlight = true) {
     if (!this.pagination?.pages?.length) return;
     let pageIndex = this.findPageContaining(spineIndex, segmentIndex);
-    // フォールバック: ページ境界不一致時に同一spineの先頭ページを探す
+    // 境界外の区間でも、同じ章の近いページを優先する
     if (pageIndex < 0) {
-      pageIndex = this.pagination.pages.findIndex(p => p.spineIndex === spineIndex);
+      pageIndex = this.findNearestPageInSpine(spineIndex, segmentIndex);
       if (pageIndex >= 0) {
-        console.log(`[goToSegment] findPageContaining失敗のためspine先頭(${spineIndex})にフォールバック: pageIndex=${pageIndex}`);
+        console.log(`[goToSegment] findPageContaining失敗のためspine内の近いページ(${spineIndex})にフォールバック: pageIndex=${pageIndex}`);
         this._pendingScrollTargetSpineIndex = spineIndex;
       }
     }
@@ -1857,7 +1886,7 @@ export class ReaderController {
       } else {
         // スクロールモード: 既にその章が表示されている場合は即座にスクロール
         if (this.currentPageIndex === pageIndex && this.pageContainer) {
-          this._scrollToPositionInDOM(this.pageContainer, segmentIndex, searchQuery);
+          this._scrollToPositionInDOM(this.pageContainer, segmentIndex, searchQuery, shouldHighlight, this._pendingScrollTargetSpineIndex ?? spineIndex);
           // 情報をクリア
           this._pendingScrollToSegment = null;
           this._pendingScrollSearchQuery = null;
@@ -1891,8 +1920,21 @@ export class ReaderController {
   }
 
   /**
-   * 正規化済みテキスト上のインデックスを元テキスト上のインデックスにマッピングする
+   * 正規化後の各文字に対応する元の文字位置を一度の走査で作る。
+   * @param {string} text - 元の本文
+   * @param {number} length - 正規化後の文字数
+   * @returns {Uint32Array} 元本文への対応表
    */
+  _getNormalizedTextOffsets(text, length) {
+    const offsets = new Uint32Array(length);
+    let index = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (!/\s/.test(text[i])) offsets[index++] = i;
+    }
+    return offsets;
+  }
+
+  /** 元本文を先頭から走査して単一の正規化位置を変換する。 */
   _mapNormalizedIndexToOriginal(originalText, normalizedIndex) {
     let normCount = 0;
     for (let i = 0; i < originalText.length; i++) {
@@ -1959,7 +2001,7 @@ export class ReaderController {
     // 方法1: 検索テキストがある場合、DOM内をテキスト検索してピンポイントでスクロール
     if (searchQuery) {
       console.log(`[ジャンプデバッグ] テキスト検索による位置特定を試行中: "${searchQuery.substring(0, 20)}..."`);
-      matchDataArray = this._findTextInDOM(targetContainer, searchQuery);
+      matchDataArray = this._findTextInDOM(targetContainer, searchQuery, segmentIndex);
       if (matchDataArray && matchDataArray.length > 0) {
         // 最初に見つかった親要素をスクロールターゲットとする
         targetElement = matchDataArray[0].node.parentElement;
@@ -2203,54 +2245,61 @@ export class ReaderController {
 
   /**
    * DOM内で検索テキストを含む要素を見つける
-   * タグを跨いだテキスト探索に対応
+   * タグを跨いだテキスト探索に対応。復元時は指定区間に近い一致を選ぶ。
+   * @param {Element} container - 検索対象DOM
+   * @param {string} searchText - 保存本文または検索語
+   * @param {number|null} preferredSegmentIndex - 保存区間（省略時は先頭一致）
+   * @returns {Array<object>|null} 元テキストノード内の一致範囲
    */
-  _findTextInDOM(container, searchText) {
+  _findTextInDOM(container, searchText, preferredSegmentIndex = null) {
     if (!container || !searchText) return null;
-
-    // 1. テキストノードをすべて収集
-    const walker = document.createTreeWalker(
-      container,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-
-    const textNodes = [];
-    let node = walker.nextNode();
-    while (node) {
-      textNodes.push(node);
-      node = walker.nextNode();
-    }
-
-    if (textNodes.length === 0) return null;
-
-    // 2. 全テキストノードの文字列を結合し、各ノードの開始位置を記録
+    // 章検索と同じ区間の数え方で、画像とタグを跨ぐ本文を扱う。
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode: node => {
+        const parent = node.parentElement || node;
+        if (parent.closest?.('.epub-scroll-nav-btn, .epub-scroll-nav-group, .scroll-nav-area')) return NodeFilter.FILTER_REJECT;
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        return ["img", "svg", "video", "iframe"].includes(node.tagName?.toLowerCase())
+          ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
     let fullText = "";
+    let segmentIndex = 0;
     const nodePositions = [];
-
-    for (let index = 0; index < textNodes.length; index++) {
-      const textNode = textNodes[index];
-      const startPos = fullText.length;
-      fullText += textNode.textContent;
-      nodePositions.push({
-        node: textNode,
-        start: startPos,
-        end: fullText.length
-      });
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.nodeType !== Node.TEXT_NODE) { segmentIndex++; continue; }
+      const start = fullText.length;
+      fullText += node.textContent;
+      nodePositions.push({ node, start, end: fullText.length, segmentIndex });
+      segmentIndex += Math.ceil(node.textContent.length / TEXT_SEGMENT_STEP);
     }
-
-    // 全角半角・空白の差異を吸収するため正規化してから検索
+    if (!nodePositions.length) return null;
     const normalizedFullText = this._normalizeForSearch(fullText);
-    const regex = this._getFlexibleSearchRegex(searchText, "i");
-
-    // 正規化済みテキストから対象文字列を正規表現検索
-    const match = normalizedFullText.match(regex);
-
-    if (!match) return null;
-
-    // 正規化済みインデックスを元テキストのインデックスにマッピング
-    const matchIndex = this._mapNormalizedIndexToOriginal(fullText, match.index);
-    const matchEndIndex = matchIndex + (match[0]?.length || 0);
+    const offsets = this._getNormalizedTextOffsets(fullText, normalizedFullText.length);
+    const regex = this._getFlexibleSearchRegex(searchText);
+    const hasHint = Number.isFinite(preferredSegmentIndex) && preferredSegmentIndex >= 0;
+    let match;
+    let best = null;
+    let distance = Infinity;
+    let cursor = 0;
+    while ((match = regex.exec(normalizedFullText))) {
+      const start = offsets[match.index];
+      while (cursor < nodePositions.length && nodePositions[cursor].end <= start) cursor++;
+      const position = nodePositions[cursor];
+      if (!position) continue;
+      const segment = position.segmentIndex + Math.floor((start - position.start) / TEXT_SEGMENT_STEP);
+      const candidateDistance = hasHint ? Math.abs(segment - preferredSegmentIndex) : 0;
+      if (candidateDistance < distance) {
+        distance = candidateDistance;
+        // 元本文での終了位置を使い、全角・空白・タグ跨ぎでも範囲を欠落させない。
+        best = { start, end: offsets[match.index + match[0].length - 1] + 1 };
+      }
+      if (!hasHint) break;
+    }
+    if (!best) return null;
+    const matchIndex = best.start;
+    const matchEndIndex = best.end;
     const matchingNodes = [];
 
     for (let index = 0; index < nodePositions.length; index++) {
@@ -2886,7 +2935,8 @@ export class ReaderController {
     // EPUBかつスクロールモードの場合は、章区切りの再計算が必要
     if (this.type === BOOK_TYPES.EPUB) {
       // 現在の位置情報をテキストとして退避（位置維持のため）
-      const currentSpineIndex = this.pagination?.pages?.[this.currentPageIndex]?.spineIndex;
+      const currentLocator = this.getPageLocator(this.currentPageIndex);
+      const currentSpineIndex = currentLocator?.spineIndex;
       const visibleText = this.getCurrentVisibleText(50);
 
       // パジネーションをリセットして再計算
@@ -2904,10 +2954,10 @@ export class ReaderController {
       // 位置復元
       if (currentSpineIndex != null) {
         this._resolvedSpineIndex = null;
-        const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "toggleTocSource") ?? 0;
+        const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "toggleTocSource", currentLocator?.segmentIndex) ?? currentLocator?.segmentIndex ?? 0;
         const effectiveSpine = this._resolvedSpineIndex ?? currentSpineIndex;
         this._resolvedSpineIndex = null;
-        this.goToSegment(effectiveSpine, segmentIndex, null, false);
+        this.goToSegment(effectiveSpine, segmentIndex, this._matchedSearchQuery || visibleText, false);
       }
       
       this.onRepaginationEnd?.();
@@ -3031,32 +3081,22 @@ export class ReaderController {
           this._scrollTargetNode = null;
 
           if (this.epubViewMode === "scroll") {
-            // [修正] リサイズ時に保存されたスクロール比率で位置を復元
-            const savedResizeRatio = this._resizeScrollRatio;
-            if (savedResizeRatio != null) {
-              this._resizeScrollRatio = null;
-              this._scrollPositionOnNextRender = null;
-              this._currentAlignToEnd = false;
-              const scrollableHeight = this.viewer.scrollHeight - this.viewer.clientHeight;
-              this.viewer.scrollTop = savedResizeRatio * Math.max(0, scrollableHeight);
-            } else {
-              const alignToEnd = this._scrollPositionOnNextRender === 'end';
-              this._scrollPositionOnNextRender = null; // リセット
-              this._currentAlignToEnd = alignToEnd;    // ResizeObserver用に保持
+            const alignToEnd = this._scrollPositionOnNextRender === 'end';
+            this._scrollPositionOnNextRender = null; // リセット
+            this._currentAlignToEnd = alignToEnd;    // ResizeObserver用に保持
 
-              const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
-              if (isVerticalScroll) {
-                if (alignToEnd) {
-                  this.viewer.scrollLeft = -this.viewer.scrollWidth;
-                } else {
-                  this.viewer.scrollLeft = 0;
-                }
+            const isVerticalScroll = this.epubViewMode !== "scroll" && this.writingMode === WRITING_MODES.VERTICAL;
+            if (isVerticalScroll) {
+              if (alignToEnd) {
+                this.viewer.scrollLeft = -this.viewer.scrollWidth;
               } else {
-                if (alignToEnd) {
-                  this.viewer.scrollTop = this.viewer.scrollHeight;
-                } else {
-                  this.viewer.scrollTop = 0;
-                }
+                this.viewer.scrollLeft = 0;
+              }
+            } else {
+              if (alignToEnd) {
+                this.viewer.scrollTop = this.viewer.scrollHeight;
+              } else {
+                this.viewer.scrollTop = 0;
               }
             }
           }
@@ -4553,7 +4593,7 @@ export class ReaderController {
         }
 
         this._resolvedSpineIndex = null;
-        const segmentIndex = this.resolveLocationByText(spineIndex, visibleText, "goToBookmark");
+        const segmentIndex = this.resolveLocationByText(spineIndex, visibleText, "goToBookmark", bookmark.location?.segmentIndex);
         if (segmentIndex !== null) {
           const effectiveSpine = this._resolvedSpineIndex ?? spineIndex;
           this._resolvedSpineIndex = null;
@@ -4670,7 +4710,8 @@ export class ReaderController {
     console.time('[applyReadingDirection] buildPagination');
 
     // 現在の位置情報をテキストとして事前に退避
-    const currentSpineIndex = this.type === BOOK_TYPES.EPUB ? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex : null;
+    const currentLocator = this.type === BOOK_TYPES.EPUB ? this.getPageLocator(this.currentPageIndex) : null;
+    const currentSpineIndex = currentLocator?.spineIndex;
     const visibleText = this.type === BOOK_TYPES.EPUB ? this.getCurrentVisibleText(50) : null;
 
     if (pageDirection) {
@@ -4732,7 +4773,7 @@ export class ReaderController {
         if (currentSpineIndex != null) {
           if (visibleText) {
             this._resolvedSpineIndex = null;
-            const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "applyReadingDirection");
+            const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "applyReadingDirection", currentLocator?.segmentIndex);
             if (segmentIndex !== null) {
               const effectiveSpine = this._resolvedSpineIndex ?? currentSpineIndex;
               this._resolvedSpineIndex = null;
@@ -4740,17 +4781,17 @@ export class ReaderController {
                 spineIndex: effectiveSpine,
                 segmentIndex: segmentIndex,
               });
-              this.goToSegment(effectiveSpine, segmentIndex, null, false);
+              this.goToSegment(effectiveSpine, segmentIndex, this._matchedSearchQuery || visibleText, false);
               restored = true;
             }
           }
         }
 
         // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
-        // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
+        // 保存した本文区間を使い、同じ章内の近い位置に復帰させる
         if (!restored) {
-          console.log(`[位置復元デバッグ][applyReadingDirection] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
-          this.goToSegment(currentSpineIndex, 0, null, false);
+          console.log(`[位置復元デバッグ][applyReadingDirection] フォールバック: 保存した章内位置に復帰`, { currentSpineIndex });
+          this.goToSegment(currentSpineIndex, currentLocator?.segmentIndex ?? 0, null, false);
           restored = true;
         }
       }
@@ -4767,6 +4808,10 @@ export class ReaderController {
 
   async applyEpubViewMode(mode, force = false) {
     const prevMode = this.epubViewMode;
+    // 表示モードやDOM寸法を変更する前に、元の画面で見ていた本文を取得する。
+    const needsLayout = force || prevMode !== mode || (!this.pagination && this.type === BOOK_TYPES.EPUB);
+    const currentLocator = needsLayout && this.type === BOOK_TYPES.EPUB ? this.getPageLocator(this.currentPageIndex) : null;
+    const visibleText = currentLocator?.visibleText || (needsLayout && this.type === BOOK_TYPES.EPUB ? this.getCurrentVisibleText(50) : null);
     this.epubViewMode = mode;
 
     // UI クラスの切り替えは初期化時(早期リターン時)にも確実に効かせるため先に行う
@@ -4787,8 +4832,7 @@ export class ReaderController {
     }
 
     // 現在の位置情報をテキストとして事前に退避
-    const currentSpineIndex = this.type === BOOK_TYPES.EPUB ? this.pagination?.pages?.[this.currentPageIndex]?.spineIndex : null;
-    const visibleText = this.type === BOOK_TYPES.EPUB ? this.getCurrentVisibleText(50) : null;
+    const currentSpineIndex = currentLocator?.spineIndex;
     console.log(`[位置復元デバッグ][applyEpubViewMode] ステップ0: テキスト取得`, {
       currentPageIndex: this.currentPageIndex,
       currentSpineIndex,
@@ -4843,7 +4887,7 @@ export class ReaderController {
         if (currentSpineIndex != null) {
           if (visibleText) {
             this._resolvedSpineIndex = null;
-            const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "applyEpubViewMode");
+            const segmentIndex = this.resolveLocationByText(currentSpineIndex, visibleText, "applyEpubViewMode", currentLocator?.segmentIndex);
             if (segmentIndex !== null) {
               const effectiveSpine = this._resolvedSpineIndex ?? currentSpineIndex;
               this._resolvedSpineIndex = null;
@@ -4851,16 +4895,16 @@ export class ReaderController {
                 spineIndex: effectiveSpine,
                 segmentIndex: segmentIndex,
               });
-              this.goToSegment(effectiveSpine, segmentIndex, null, false);
+              this.goToSegment(effectiveSpine, segmentIndex, this._matchedSearchQuery || visibleText, false);
               restored = true;
             }
           }
 
           // 可視テキストが見つからなかった(画像のみなど)、あるいは検索に失敗した場合でも、
-          // 少なくとも0ページ(表紙)ではなく「同じ章の先頭」に復帰させる
+          // 保存した本文区間を使い、同じ章内の近い位置に復帰させる
           if (!restored) {
-            console.log(`[位置復元デバッグ][applyEpubViewMode] フォールバック: 章の先頭に復帰`, { currentSpineIndex });
-            this.goToSegment(currentSpineIndex, 0, null, false);
+            console.log(`[位置復元デバッグ][applyEpubViewMode] フォールバック: 保存した章内位置に復帰`, { currentSpineIndex });
+            this.goToSegment(currentSpineIndex, currentLocator?.segmentIndex ?? 0, null, false);
             restored = true;
           }
         }

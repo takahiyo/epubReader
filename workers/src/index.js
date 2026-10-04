@@ -12,6 +12,7 @@
 
 import { verifyIdToken } from './auth.js';
 import { mergeCloudStates } from '../../assets/js/core/cloud-state-merge.js';
+import { sanitizeCloudMeta, sanitizeCloudState } from '../../assets/js/core/cloud-payload.js';
 const API_LIMITS = Object.freeze({ maxBodyBytes: 1048576, casRetries: 5 });
 
 /** Optimistic compare-and-swap prevents concurrent JSON updates from dropping another device's edits. */
@@ -273,7 +274,7 @@ export default {
           for (const [id, meta] of Object.entries(delta)) {
             if (!meta || typeof meta !== 'object') continue;
             if (!merged[id] || (meta.updatedAt ?? 0) >= (merged[id].updatedAt ?? 0)) {
-              merged[id] = { ...merged[id], ...meta, cloudBookId: id };
+              merged[id] = sanitizeCloudMeta({ ...merged[id], ...meta, cloudBookId: id });
             }
           }
           return merged;
@@ -340,7 +341,7 @@ export default {
         }
         incoming.updatedAt = Number(updatedAt ?? incoming.updatedAt) || 0;
         const result = await updateJsonRecord(env.DB, 'book_states', 'state_data',
-          { user_id: uid, book_id: cloudBookId }, existing => mergeCloudStates(existing, incoming));
+          { user_id: uid, book_id: cloudBookId }, existing => sanitizeCloudState(mergeCloudStates(existing, sanitizeCloudState(incoming))));
         return new Response(JSON.stringify({ data: { success: true, state: result.data, updatedAt: result.data.updatedAt } }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });

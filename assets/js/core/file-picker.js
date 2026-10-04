@@ -24,7 +24,7 @@ const PICKER_MAP = {
 
 /**
  * @typedef {Object} FilePickerDeps
- * @property {typeof import('../constants/ui.js')} UI_CONSTANTS
+ * @property {typeof import('../../constants/ui.js')} UI_CONSTANTS
  */
 
 /**

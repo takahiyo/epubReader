@@ -1,9 +1,11 @@
 /** Pure state merge shared by browser storage and the Worker; no DOM or SDK dependencies. */
 
+import { sanitizeCloudLocation, canonicalBookmarkKey } from "./cloud-payload.js";
+
 /** Stable bookmark identity, including structured EPUB/Web-novel locations. */
 export function bookmarkKey(bookmark) {
   if (bookmark?.cfi) return `cfi:${bookmark.cfi}`;
-  if (bookmark?.location != null) return `location:${JSON.stringify(bookmark.location)}`;
+  if (bookmark?.location != null) return `location:${JSON.stringify(sanitizeCloudLocation(bookmark.location))}`;
   if (bookmark?.index != null) return `index:${bookmark.index}`;
   return bookmark?.id ? `id:${bookmark.id}` : null;
 }
@@ -13,9 +15,11 @@ export function mergeCloudStates(current = {}, incoming = {}) {
   const timestamp = state => Number(state.progressUpdatedAt ?? state.updatedAt) || 0;
   const newer = timestamp(incoming) >= timestamp(current) ? incoming : current;
   const older = newer === incoming ? current : incoming;
-  const deleted = { ...(current.bookmarkTombstones ?? {}) };
-  for (const [key, at] of Object.entries(incoming.bookmarkTombstones ?? {})) {
-    deleted[key] = Math.max(deleted[key] ?? 0, Number(at) || 0);
+  const deleted = {};
+  // 旧版の本文付き位置キーも統一し、削除したしおりの復活を防ぐ。
+  for (const [key, at] of [...Object.entries(current.bookmarkTombstones ?? {}), ...Object.entries(incoming.bookmarkTombstones ?? {})]) {
+    const canonical = canonicalBookmarkKey(key);
+    deleted[canonical] = Math.max(deleted[canonical] ?? 0, Number(at) || 0);
   }
   const bookmarks = new Map();
   for (const bookmark of [...(current.bookmarks ?? []), ...(incoming.bookmarks ?? [])]) {
