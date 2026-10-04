@@ -1,4 +1,5 @@
 import { APP_INFO } from "../constants.js";
+import { HELP_CONTENT } from "./help.js";
 
 export const UI_STRINGS_EN = Object.freeze({
   // Document
@@ -80,6 +81,7 @@ export const UI_STRINGS_EN = Object.freeze({
 
   // Settings
   settingsTitle: "Settings",
+  helpContent: HELP_CONTENT.en,
   settingsDisplayTitle: "Display",
   settingsDefaultDirectionLabel: "Default page direction (image archives)",
   themeLabel: "Theme",

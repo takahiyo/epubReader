@@ -129,6 +129,9 @@ export const elements = {
 
     // 設定
     settingsModal: getById(DOM_IDS.SETTINGS_MODAL),
+    settingsHelpButton: getById(DOM_IDS.SETTINGS_HELP_BUTTON),
+    settingsHelpContent: getById(DOM_IDS.SETTINGS_HELP_CONTENT),
+    settingsHelpClose: getById(DOM_IDS.SETTINGS_HELP_CLOSE),
     closeSettingsModal: getById(DOM_IDS.CLOSE_SETTINGS_MODAL),
     themeSelect: getById(DOM_IDS.THEME_SELECT),
     writingModeSelect: getById(DOM_IDS.WRITING_MODE_SELECT),

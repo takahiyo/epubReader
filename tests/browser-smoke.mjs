@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import puppeteer from 'puppeteer';
 import { verifyShareDialog } from './share-dialog-ui-cases.mjs';
 import { verifyReaderControls } from './reader-controls-ui-cases.mjs';
+import { verifyHelp } from './help-ui-cases.mjs';
 
 const root = process.cwd();
 const server = http.createServer(async (req, res) => {
@@ -328,6 +329,8 @@ try {
   }
   await app.setViewport({ width: 800, height: 600, hasTouch: true });
   console.log('PASS: settings fit six phone/tablet/desktop viewports in Japanese and English, with 44px close targets');
+  await verifyHelp(app, path.join(root, 'scratch/review-fixtures'));
+  console.log('PASS: Ver1.2.0 help topics, six screen sizes, both themes/languages, close and keyboard focus');
 
 } finally {
   await browser?.close();

@@ -20,6 +20,7 @@ import { auth } from "./firebaseConfig.js";
 import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { beginDialogFocus, endDialogFocus } from "./js/ui/dialog-focus.js";
+import { renderHelp, setHelpOpen } from "./js/ui/help.js";
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
@@ -2503,6 +2504,7 @@ function applyUiLanguage(nextLanguage) {
   if (sortProgressOpt) sortProgressOpt.textContent = strings.librarySortProgress;
   if (elements.historyModalTitle) elements.historyModalTitle.textContent = strings.historyTitle;
   if (elements.settingsModalTitle) elements.settingsModalTitle.textContent = strings.settingsTitle;
+  renderHelp(elements, nextLanguage);
   if (elements.settingsDisplayTitle) elements.settingsDisplayTitle.textContent = strings.settingsDisplayTitle;
   if (elements.settingsOperationTitle) elements.settingsOperationTitle.textContent = strings.settingsOperationTitle;
   if (elements.keybindingsHint) elements.keybindingsHint.textContent = strings.keybindingsHint || '';
@@ -3130,6 +3132,7 @@ function showHistory() {
 }
 
 function showSettings() {
+  setHelpOpen(elements, false, false);
   // 設定画面を開くときは、すべてのセクションを折りたたんだ状態にする
   elements.settingsModal?.querySelectorAll('.settings-section').forEach(section => {
     section.classList.add('collapsed');
@@ -3843,6 +3846,10 @@ function setupEvents() {
   elements.closeFileModal?.addEventListener('click', () => closeModal(elements.openFileModal));
   elements.closeHistoryModal?.addEventListener('click', () => closeModal(elements.historyModal));
   elements.closeSettingsModal?.addEventListener('click', () => closeModal(elements.settingsModal));
+  // Help shares settings' focus trap and never modifies a book or opens an external page.
+  elements.settingsHelpButton?.addEventListener('click', () => setHelpOpen(elements,
+    elements.settingsHelpButton.getAttribute('aria-expanded') !== 'true'));
+  elements.settingsHelpClose?.addEventListener('click', () => setHelpOpen(elements, false));
   elements.closeImageModal?.addEventListener('click', () => closeModal(elements.imageModal));
   elements.closeSearchModal?.addEventListener('click', () => closeModal(elements.searchModal));
   elements.closeTocModal?.addEventListener('click', () => closeModal(elements.tocModal));

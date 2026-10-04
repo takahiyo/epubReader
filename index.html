@@ -422,6 +422,12 @@
         <button id="closeSettingsModal" class="close-btn"></button>
       </div>
       <div class="modal-body">
+        <!-- Help stays inside the settings dialog and is bundled for offline use. -->
+        <section class="settings-help">
+          <button id="settingsHelpButton" class="secondary-btn" type="button" aria-expanded="false" aria-controls="settingsHelpContent"></button>
+          <article id="settingsHelpContent" class="settings-help-content hidden" tabindex="-1" aria-label="Help"></article>
+          <button id="settingsHelpClose" class="secondary-btn hidden" type="button"></button>
+        </section>
         <div class="settings-section collapsed">
           <h4 id="settingsDisplayTitle" class="settings-section-title"></h4>
           <div class="settings-section-content">

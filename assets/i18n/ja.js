@@ -1,4 +1,5 @@
 import { APP_INFO } from "../constants.js";
+import { HELP_CONTENT } from "./help.js";
 
 export const UI_STRINGS_JA = Object.freeze({
   // ドキュメント
@@ -80,6 +81,7 @@ export const UI_STRINGS_JA = Object.freeze({
 
   // 設定
   settingsTitle: "設定",
+  helpContent: HELP_CONTENT.ja,
   settingsDisplayTitle: "表示設定",
   settingsDefaultDirectionLabel: "デフォルトの綴じ方向 (画像書庫等)",
   themeLabel: "テーマ",

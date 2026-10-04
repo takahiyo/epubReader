@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v60",
+  "cacheName": "bookreader-v61",
   "assets": [
     "./",
     "./index.html",
@@ -85,6 +85,7 @@
     "./assets/css/20-drag-drop.css",
     "./assets/css/22-float-menu-toggle.css",
     "./assets/css/23-reader-controls.css",
+    "./assets/i18n/help.js",
     "./assets/js/core/cloud-payload.js",
     "./assets/js/core/cloud-state-merge.js",
     "./assets/js/core/novel-content.js",
@@ -95,6 +96,7 @@
     "./assets/js/core/pickers/picker-windows.js",
     "./assets/js/core/reading-log.js",
     "./assets/js/ui/dialog-focus.js",
+    "./assets/js/ui/help.js",
     "./assets/js/workers/rar-worker.js",
     "./assets/style.css",
     "./src/reader/epubPaginator.js",
