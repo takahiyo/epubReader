@@ -11,6 +11,8 @@ export const TIMING_CONFIG = Object.freeze({
 
   // --- ローカル保存関連 ---
   LOCAL_SAVE_THRESHOLD_PERCENT: PROGRESS_SAVE_THRESHOLD_PERCENT, // ローカル保存を実行する進捗差分 (%)
+  SCROLL_PROGRESS_INTERVAL_MS: 200, // スクロール中の有効位置捕捉
+  SCROLL_PROGRESS_SETTLE_MS: 300, // 停止後の最終位置捕捉
 
   // --- UI/その他 (維持) ---
   RESIZE_DEBOUNCE_MS: 250,

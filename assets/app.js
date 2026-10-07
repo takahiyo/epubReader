@@ -180,6 +180,8 @@ function normalizeEpubLocation(location) {
       segmentIndex: location.segmentIndex,
       cfi: location.cfi || undefined,
       visibleText: location.visibleText || undefined,
+      // 画面内の高さは端末固有の補助値。クラウドの許可schemaには追加しない。
+      viewportOffset: Number.isFinite(location.viewportOffset) ? location.viewportOffset : undefined,
     };
   }
   if (typeof location === "string") {

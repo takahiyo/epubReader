@@ -23,12 +23,15 @@ async function device(fetchImpl = fetch) {
   async function get(file) {
     file = path.resolve(file);
     if (modules.has(file)) return modules.get(file);
-    const code = file.endsWith(path.join('assets', 'auth.js'))
-      ? 'export const getIdTokenInfo = async () => null; export const getCurrentUserId = () => "test"; export const ID_TOKEN_TYPE = {FIREBASE:"firebase"};'
-      : await fs.readFile(file, 'utf8');
-    const mod = new vm.SourceTextModule(code, { context, identifier: file });
-    modules.set(file, mod);
-    return mod;
+    // Cache the in-flight read as well: concurrent import paths must share the same elements/storage module.
+    const pending = (async () => {
+      const code = file.endsWith(path.join('assets', 'auth.js'))
+        ? 'export const getIdTokenInfo = async () => null; export const getCurrentUserId = () => "test"; export const ID_TOKEN_TYPE = {FIREBASE:"firebase"};'
+        : await fs.readFile(file, 'utf8');
+      return new vm.SourceTextModule(code, { context, identifier: file });
+    })();
+    modules.set(file, pending);
+    return pending;
   }
   async function load(file) {
     const mod = await get(file);

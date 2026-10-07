@@ -119,6 +119,15 @@ export const READER_CONFIG = Object.freeze({
   DEBUG_TRACE_LIMIT: 300,
 });
 
+// シームレス表示の位置計測・復元は同じDOMと本文区間の数え方を使用する。
+export const SCROLL_ANCHOR_CONFIG = Object.freeze({
+  spineSelector: '.joined-spine-item[data-spine-index]',
+  excludedSelector: '.epub-scroll-nav-btn, .epub-scroll-nav-group, .scroll-nav-area',
+  mediaTags: Object.freeze(['img', 'svg', 'video', 'iframe']),
+  textLength: 50,
+  movementTolerancePx: 1,
+});
+
 // ============================================
 // メモリ/キャッシュ戦略
 // ============================================

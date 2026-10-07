@@ -40,7 +40,7 @@ export async function runReaderLocationCases(ReaderController) {
   reader.epubViewMode = 'scroll';
   reader.currentPageIndex = 0;
   reader.pageContainer = container;
-  reader._getCurrentScrollSegment = () => 0;
+  reader._captureScrollAnchor = () => ({ spineIndex: 0, segmentIndex: 0 });
   reader.getCurrentVisibleText = () => null;
   reader._lastValidScrollLocation = { spineIndex: 0, segmentIndex: 80 };
   reader._lastValidScrollRatio = 0.75;
