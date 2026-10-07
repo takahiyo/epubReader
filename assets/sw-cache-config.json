@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v66",
+  "cacheName": "bookreader-v67",
   "assets": [
     "./",
     "./index.html",
@@ -90,6 +90,7 @@
     "./assets/i18n/catalog.js",
     "./assets/i18n/help.js",
     "./assets/js/core/catalog-actions.js",
+    "./assets/js/core/catalog-csv.js",
     "./assets/js/core/catalog-model.js",
     "./assets/js/core/catalog-store.js",
     "./assets/js/core/cloud-payload.js",

@@ -39,3 +39,16 @@ export const CATALOG_UI = Object.freeze({
     'provider', 'format', 'provider_book_id', 'external_url', 'access_type', 'availability_status', 'progress_percent', 'status', 'reread_wanted']),
   errors: Object.freeze({ conflict: 'catalog_conflict', invalid: 'catalog_invalid', storage: 'catalog_storage_error' }),
 });
+
+/** CSV is an additive registration format, not a full backup or an update command. */
+export const CATALOG_CSV = Object.freeze({
+  maxBytes: 1024 * 1024, maxRows: 5000,
+  columns: Object.freeze(['title', 'provider', 'author', 'series', 'volume_label', 'sort_order', 'edition', 'format',
+    'provider_book_id', 'external_url', 'access_type', 'availability_status', 'book_key']),
+  required: Object.freeze(['title', 'provider']),
+  statuses: Object.freeze({ add: 'add', duplicate: 'duplicate', error: 'error' }),
+  errors: Object.freeze({ syntax: 'syntax', header: 'header', limit: 'limit', values: 'values', group: 'group', series: 'series' }),
+  input: 'catalogCSVInput', preview: 'catalogCSVPreview', commit: 'catalogCSVCommit',
+  templateName: 'bookreader-catalog-template.csv', mime: 'text/csv;charset=utf-8', accept: '.csv,text/csv',
+  classes: Object.freeze({ preview: 'catalog-csv-preview', table: 'catalog-csv-table' }),
+});

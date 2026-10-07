@@ -25,4 +25,9 @@
 .catalog-form input[type="checkbox"] { width: var(--control-target-size); }
 .catalog-form p { grid-column: 1 / -1; }
 .catalog-paging { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+/* Preview pages bound the DOM; only the table scrolls horizontally on small screens. */
+.catalog-csv-preview { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.catalog-csv-table { max-width: 100%; overflow-x: auto; }
+.catalog-csv-table table { width: 100%; border-collapse: collapse; }
+.catalog-csv-table th, .catalog-csv-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 @media (max-width: 540px) { .catalog-form { grid-template-columns: minmax(0, 1fr); } }

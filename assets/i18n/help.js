@@ -6,7 +6,8 @@ export const HELP_CONTENT = Object.freeze({
     sections: [
       { title: '統合電子書庫', paragraphs: [
         '左メニューの「統合電子書庫」で、EPUB・画像書庫・Kindle・U-NEXTの所蔵をまとめて整理できます。シリーズを選び、巻表示と並び順を設定してください。同じ巻を別サービスでも持っている場合は「所蔵先を追加」を使います。',
-        'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録はこの端末内だけに保存し、既存の読書同期とは別です。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。'
+        'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録はこの端末内だけに保存し、既存の読書同期とは別です。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。',
+        '「CSVひな形」をUTF-8で記入し、「CSV一括登録」でプレビューを確認して追加できます。同じサービスID・購入借用区分はスキップし、既存情報を更新しません。同巻の複数所蔵はCSV内で同じbook_keyを指定します。IDのない行は再取り込みで重複する場合があります。'
       ] },
       { title: 'はじめ方と端末を替えるとき', paragraphs: [
         '「書籍 → 開く」でEPUB・画像書庫などを選びます。読書画面のメニューから、ライブラリ・目次・しおり・検索・設定にアクセスできます。文字サイズや縦横表示は設定から変更できます。',
@@ -49,7 +50,8 @@ export const HELP_CONTENT = Object.freeze({
     sections: [
       { title: 'Unified catalog', paragraphs: [
         'Open Unified catalog in the left menu to organize EPUB, image archive, Kindle and U-NEXT holdings. Choose a series and set the volume label and order. Use Add holding for another provider of the same volume.',
-        'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. This catalog is stored only on this device, separately from reading sync. Save JSON creates a backup; Restore JSON replaces the entire catalog. External progress and availability are not automatically retrieved.'
+        'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. This catalog is stored only on this device, separately from reading sync. Save JSON creates a backup; Restore JSON replaces the entire catalog. External progress and availability are not automatically retrieved.',
+        'Fill in the CSV template as UTF-8 and use Import CSV to review and add holdings. Duplicate service IDs and access types are skipped without updating existing records. Use the same book_key for multiple holdings of a volume within the CSV. Reimporting rows without service IDs may create duplicates.'
       ] },
       { title: 'Getting started and switching devices', paragraphs: [
         'Choose an EPUB or image archive from Books → Open. The reading menu provides Library, Contents, Bookmarks, Search and Settings. Adjust text size and reading orientation in Settings.',

@@ -1,7 +1,8 @@
 /** Unified catalog dialog. Reader and storage dependencies are supplied by the application. */
-import { CATALOG_CONFIG as C, CATALOG_UI as U, UI_CLASSES } from '../../constants.js';
+import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, UI_CLASSES } from '../../constants.js';
 import { openCatalog } from '../core/catalog-store.js';
 import { saveCatalogEntry, changeCatalogLoan, bindCatalogFile, catalogRows, normalizeCatalogSearch } from '../core/catalog-actions.js';
+import { previewCatalogCSV, applyCatalogCSV } from '../core/catalog-csv.js';
 
 /**
  * Create one dialog without changing the reader's initialization order.
@@ -24,7 +25,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   /** @param {HTMLSelectElement} select Select @param {Array} values [value,label] pairs @returns {void} Safe options. */
   function options(select, values) { select.replaceChildren(...values.map(([value, label]) => { const option = node('option', label); option.value = value; return option; })); }
   /** @param {Error} error Failure @returns {void} Visible translated diagnostic. */
-  function report(error) { notice.textContent = t(U.errors[error.code] || (error instanceof TypeError || error instanceof SyntaxError ? U.errors.invalid : U.errors.storage)); }
+  function report(error) { notice.textContent = t(error.csvReason ? 'catalog_csv_error_' + error.csvReason : U.errors[error.code] || (error instanceof TypeError || error instanceof SyntaxError ? U.errors.invalid : U.errors.storage)); }
   /** @returns {void} Close without a late asynchronous open taking focus again. */
   function close() { generation++; closeModal(root); }
 
@@ -54,6 +55,18 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
       if (!file || busy || !confirm(t('catalog_restore_confirm'))) return;
       await run(async repository => { await repository.restoreJSON(await file.text()); editing = null; editor.replaceChildren(); });
     };
+    const csvInput = node('input'); csvInput.id = CSV.input; csvInput.type = 'file'; csvInput.accept = CSV.accept; csvInput.hidden = true;
+    csvInput.onchange = async () => {
+      const file = csvInput.files?.[0]; csvInput.value = '';
+      if (!file || busy || !snapshot) return;
+      // A failed replacement file must not leave a previous import's confirm button active.
+      editing = null; editor.replaceChildren();
+      await run(async repository => {
+        if (file.size > CSV.maxBytes) { const error = new TypeError(); error.csvReason = CSV.errors.limit; throw error; }
+        const token = generation, text = await file.text(), current = await repository.read();
+        if (token === generation) showCSVPreview(previewCatalogCSV(current, text));
+      });
+    };
     const filterLabel = (key, control) => { const label = node('label', t(key)); label.append(control); return label; };
     tools.append(search, filterLabel('catalog_field_series_id', seriesFilter), filterLabel('catalog_field_provider', providerFilter), filterLabel('catalog_field_availability_status', availabilityFilter), button('catalog_new', () => edit()),
       button('catalog_backup', () => run(async repository => {
@@ -61,10 +74,50 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
         const anchor = node('a'); anchor.href = url; anchor.download = U.backupName; anchor.click();
         // Release when the browser has consumed the click, without retaining an object URL indefinitely.
         requestAnimationFrame(() => URL.revokeObjectURL(url));
-      })), button('catalog_restore', () => restoreInput.click()), restoreInput);
+      })), button('catalog_restore', () => restoreInput.click()), restoreInput,
+      button('catalog_csv_import', () => { if (!busy && snapshot) csvInput.click(); }), csvInput,
+      button('catalog_csv_template', () => {
+        const url = URL.createObjectURL(new Blob(['\uFEFF' + CSV.columns.join(',') + '\r\n'], { type: CSV.mime }));
+        const anchor = node('a'); anchor.href = url; anchor.download = CSV.templateName; anchor.click();
+        requestAnimationFrame(() => URL.revokeObjectURL(url));
+      }));
     list = node('div'); list.id = U.list; editor = node('div'); editor.id = U.editor; paging = node('div'); paging.className = U.classes.paging;
     const body = node('div'); body.className = UI_CLASSES.MODAL_BODY; body.append(node('p', t('catalog_note')), tools, notice, editor, list, paging);
     panel.replaceChildren(header, body); refresh();
+  }
+
+  /** @param {Object} preview Validated rows and transactional lease @returns {void} Review bounded CSV pages before any write. */
+  function showCSVPreview(preview) {
+    editing = { csv: true }; let previewPage = 0;
+    const section = node('section'); section.id = CSV.preview; section.className = CSV.classes.preview;
+    const summary = Object.entries(preview.counts).map(([key, count]) => `${t('catalog_csv_count_' + key)}: ${count}`).join(' · ');
+    section.append(node('h4', t('catalog_csv_preview')), node('p', summary), node('p', t('catalog_csv_note')));
+    const tableWrap = node('div'); tableWrap.className = CSV.classes.table;
+    const pages = Math.max(1, Math.ceil(preview.rows.length / C.pageSize));
+    const controls = node('div'); controls.className = U.classes.paging;
+    /** @returns {void} Show safe row details and physical source line, without an unbounded DOM. */
+    function drawRows() {
+      const table = node('table'), header = node('tr');
+      for (const key of ['line', 'title', 'provider', 'series', 'volume_label', 'details', 'result']) header.append(node('th', t('catalog_csv_column_' + key)));
+      const head = node('thead'); head.append(header); const body = node('tbody');
+      for (const row of preview.rows.slice(previewPage * C.pageSize, (previewPage + 1) * C.pageSize)) {
+        const tr = node('tr');
+        const result = [t('catalog_csv_status_' + row.status), row.reason ? t('catalog_csv_error_' + row.reason) : '', row.candidate ? t('catalog_csv_candidate') : ''].filter(Boolean).join(' · ');
+        const details = Object.entries(row.values || {}).filter(([key, value]) => value && !['title', 'provider', 'series', 'volume_label'].includes(key)).map(([key, value]) => `${key}: ${value}`).join(' · ');
+        for (const value of [String(row.line), row.title, row.provider, row.series, row.volume_label, details, result]) tr.append(node('td', value));
+        body.append(tr);
+      }
+      table.append(head, body); tableWrap.replaceChildren(table);
+      const previous = button('catalog_previous', () => { previewPage--; drawRows(); }); previous.disabled = previewPage === 0;
+      const next = button('catalog_next', () => { previewPage++; drawRows(); }); next.disabled = previewPage >= pages - 1;
+      controls.replaceChildren(previous, node('span', `${previewPage + 1} / ${pages}`), next);
+    }
+    const commit = button('catalog_csv_commit', () => run(async repository => {
+      await repository.update(current => applyCatalogCSV(current, preview)); editing = null; editor.replaceChildren();
+    }));
+    commit.id = CSV.commit; commit.disabled = !!preview.counts.error || !preview.counts.add;
+    section.append(tableWrap, controls, commit, button('catalog_cancel', () => { if (!busy) { editing = null; editor.replaceChildren(); } }));
+    drawRows(); editor.replaceChildren(section); section.scrollIntoView({ block: 'nearest' });
   }
 
   /** @returns {void} Reindex a newly committed snapshot and retain search/filter values. */
