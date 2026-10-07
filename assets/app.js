@@ -25,7 +25,7 @@ import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
 import { generateReadingLogMarkdown } from "./js/core/reading-log.js";
-import { calculateProgressPercentage, normalizePageIndex, roundProgressPercentage } from "./js/core/progress-utils.js";
+import { calculateProgressPercentage, normalizePageIndex } from "./js/core/progress-utils.js";
 import * as syncLogic from "./js/core/sync-logic.js";
 import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
@@ -118,6 +118,8 @@ let autoSyncEnabled = false;
 let libraryViewMode = settings.libraryViewMode ?? UI_DEFAULTS.libraryViewMode;
 let autoSyncInterval = null;
 let lastSavedPercentage = null;
+// 非表示になったDOMを測り直さず、同じ書籍の最後の可視位置を保存する。
+let lastVisibleProgress = null;
 let currentToc = [];
 let uiInitialized = false;
 let googleLoginReady = false;
@@ -384,23 +386,52 @@ function getCurrentPageIndex() {
   return normalizePageIndex(rawIndex);
 }
 
+/**
+ * 現在位置を取得する。非表示時は書籍ごとの最後の有効な可視位置を使う。
+ * @param {Object} progressOverride リーダーが計測した位置・進捗
+ * @returns {Object} ページ数・位置・進捗のスナップショット
+ */
 function getProgressSnapshot(progressOverride = {}) {
   const totalPages = getCurrentTotalPages();
   const pageIndex = getCurrentPageIndex();
-  const fallbackPercentage = calculateProgressPercentage(pageIndex, totalPages) ?? 0;
+  const cached = lastVisibleProgress?.bookId === currentBookId ? lastVisibleProgress.snapshot : null;
+  const persisted = currentBookId ? storage.getProgress(currentBookId) : null;
+  // hidden時はscrollTop等が一時的に0になることがある。保存済み位置も再計測しない。
+  if (document.hidden) {
+    return cached ?? { pageIndex, totalPages, percentage: persisted?.percentage ?? 0,
+      location: persisted?.location ?? null };
+  }
   const percentage = Number.isFinite(progressOverride.percentage)
     ? progressOverride.percentage
-    : fallbackPercentage;
-  return {
+    : reader.type === BOOK_TYPES.EPUB
+      ? reader._calculateCurrentPercentage(totalPages)
+      : calculateProgressPercentage(pageIndex, totalPages) ?? 0;
+  const snapshot = {
     pageIndex,
     totalPages,
     percentage,
-    location: progressOverride.location ?? null,
+    location: progressOverride.location ?? (reader.type === BOOK_TYPES.EPUB
+      ? reader.getPageLocator(pageIndex)
+      : reader.type === BOOK_TYPES.WEB_NOVEL
+        ? { location: pageIndex, percentage: reader.webNovelViewer?.getScrollPercentage() ?? 0 }
+        : pageIndex),
   };
+  if (currentBookId && totalPages > 0 && !isBookLoading && !isSyncResolving && !reader.isRepaginating) {
+    lastVisibleProgress = { bookId: currentBookId, snapshot };
+  }
+  return snapshot;
 }
 
-function shouldPersistLocalProgress(percentage) {
+/**
+ * 表示パーセントが同じでも本文位置の変化を保存対象にする。
+ * @param {number} percentage 現在の進捗率
+ * @param {*} location 現在の本文位置
+ * @returns {boolean} 保存が必要か
+ */
+function shouldPersistLocalProgress(percentage, location) {
   if (!Number.isFinite(percentage)) return false;
+  const existing = currentBookId ? storage.getProgress(currentBookId) : null;
+  if (location != null && JSON.stringify(location) !== JSON.stringify(existing?.location)) return true;
   if (!Number.isFinite(lastSavedPercentage)) return true;
   return Math.abs(percentage - lastSavedPercentage) >= TIMING_CONFIG.LOCAL_SAVE_THRESHOLD_PERCENT;
 }
@@ -419,10 +450,10 @@ function saveCurrentProgress(options = {}) {
 
   if (reader.type === BOOK_TYPES.EPUB) {
     const pageIndex = progressSnapshot.pageIndex;
-    const total = progressSnapshot.totalPages;
     const locatorFromSnapshot = normalizeEpubLocation(progressSnapshot.location);
     const fallbackLocator =
-      typeof reader.getPageLocator === "function" ? reader.getPageLocator(pageIndex) : null;
+      !locatorFromSnapshot && !document.hidden && typeof reader.getPageLocator === "function"
+        ? reader.getPageLocator(pageIndex) : null;
     const location = locatorFromSnapshot ?? fallbackLocator;
     const percentage = progressSnapshot.percentage;
 
@@ -431,6 +462,7 @@ function saveCurrentProgress(options = {}) {
       location,
       // 読書環境も保存（EPUB用）
       writingMode,
+      fontSize,
       pageDirection,
       epubViewMode,
       updatedAt: Date.now()
@@ -458,14 +490,8 @@ function saveCurrentProgress(options = {}) {
 
   if (!progressData) return progressSnapshot;
 
-  // [修正] 強制保存（pagehide等のバックグラウンド移行時）における意図しない位置リセットを防止
-  // すでに読了が進んでいる（0.1%以上）状態で、今回0%が取得された場合は、ブラウザのDOM計測失敗の可能性が高いため保存をスキップ
-  if (force && progressData.percentage === 0 && lastSavedPercentage > 0.001) {
-    console.warn("[saveCurrentProgress] Force save detected potential reset (0% vs last " + lastSavedPercentage + "%). Skipping.");
-    return progressSnapshot;
-  }
-
-  if (!force && !shouldPersistLocalProgress(progressData.percentage)) return progressSnapshot;
+  // hidden時は有効な可視snapshotを使うため、利用者による正当な先頭移動も保存できる。
+  if (!force && !shouldPersistLocalProgress(progressData.percentage, progressData.location)) return progressSnapshot;
 
   // A timer or foreground event must not turn an unchanged, stale page into a new edit.
   const existingProgress = storage.getProgress(currentBookId);
@@ -1817,6 +1843,8 @@ function persistReadingState(update) {
 
 function resetLocalSaveTracking() {
   lastSavedPercentage = null;
+  // 同じ書籍の再オープンでも、以前の可視snapshotを復元結果より優先しない。
+  lastVisibleProgress = null;
 }
 
 async function applyReadingState(progress) {
@@ -1891,21 +1919,8 @@ async function applyReadingState(progress) {
 
 function handleProgress(progress) {
   if (!currentBookId) return;
-
-  const roundedPercentage = roundProgressPercentage(progress?.percentage);
-  if (shouldPersistLocalProgress(roundedPercentage)) {
-    storage.setProgress(currentBookId, {
-      ...progress,
-      percentage: roundedPercentage,
-      writingMode,
-      fontSize,
-      uiLanguage,
-      pageDirection,
-      epubViewMode,
-      imageViewMode: reader?.imageViewMode,
-    });
-    lastSavedPercentage = roundedPercentage;
-  }
+  // 読込・復元・再組版中の位置を書き込まない共通ガードを通す。
+  saveCurrentProgress({ progressSnapshot: getProgressSnapshot(progress) });
   renderers.updateProgressBarDisplay();
 }
 
@@ -4202,37 +4217,35 @@ function setupEvents() {
 
   let visibilitySyncTimer = null;
   document.addEventListener('visibilitychange', () => {
-    if (!autoSyncEnabled) return;
-    restartAutoSyncInterval();
+    // ローカル保存は未ログイン・同期OFFでも必要。同期の可否より先にflushする。
+    if (visibilitySyncTimer) {
+      clearTimeout(visibilitySyncTimer);
+      visibilitySyncTimer = null;
+    }
 
     if (document.visibilityState === 'hidden') {
+      saveCurrentProgress({ force: true });
+      if (!autoSyncEnabled) return;
+      restartAutoSyncInterval();
       console.log('[Visibility] Background detected. Syncing progress...');
       void pushCurrentBookSyncOnAction({ force: true });
     } else if (document.visibilityState === 'visible') {
-      if (visibilitySyncTimer) {
-        clearTimeout(visibilitySyncTimer);
-      }
+      if (!autoSyncEnabled) return;
+      restartAutoSyncInterval();
       visibilitySyncTimer = setTimeout(async () => {
+        visibilitySyncTimer = null;
+        if (document.hidden || !autoSyncEnabled) return;
         console.log('[Visibility] Foreground detected. Triggering sync...');
         try {
-          // Pull before sending: another device may have advanced while this one was hidden.
+          // 生存している画面は移動しない。開いている本のpullはしおりとcacheのみ更新する。
+          // 別端末の位置選択は通常の書籍起動時に行い、復帰だけでgoToしない。
+          saveCurrentProgress({ force: true });
           await syncLogic.syncAllBooksFromCloud(uiInitialized, bookmarkMenuMode);
-          if (currentBookId && currentCloudBookId && !isBookLoading && !isSyncResolving) {
-            const bookId = currentBookId;
-            isSyncResolving = true;
-            try {
-              const progress = await syncLogic.resolveSyncedProgress(bookId, uiLanguage, currentCloudBookId);
-              if (bookId === currentBookId && progress) {
-                await applyReadingState(progress);
-                await reader.goTo(progress);
-                renderers.renderBookmarks(bookmarkMenuMode);
-              }
-            } finally { isSyncResolving = false; flushPendingViewportResize(); }
-          }
+          renderers.renderBookmarks(bookmarkMenuMode);
         } catch (err) {
           console.error('[Visibility] Auto sync failed:', err);
         }
-      }, 2000);
+      }, TIMING_CONFIG.FOREGROUND_SYNC_DELAY_MS);
     }
   });
   // ズームボタン
@@ -4625,6 +4638,7 @@ async function loadWebNovel(novelInfo, episodes, provider, episodeIndex = 0) {
   elements.emptyState?.classList.add(UI_CLASSES.HIDDEN);
 
   currentBookId = novelInfo.id;
+  resetLocalSaveTracking();
   currentBookInfo = {
     id: novelInfo.id,
     title: novelInfo.title,

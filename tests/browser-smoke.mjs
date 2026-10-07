@@ -8,6 +8,7 @@ import puppeteer from 'puppeteer';
 import { verifyShareDialog } from './share-dialog-ui-cases.mjs';
 import { verifyReaderControls } from './reader-controls-ui-cases.mjs';
 import { verifyHelp } from './help-ui-cases.mjs';
+import { verifyProgressLifecycle } from './progress-lifecycle-ui-cases.mjs';
 
 const root = process.cwd();
 const server = http.createServer(async (req, res) => {
@@ -19,6 +20,10 @@ const server = http.createServer(async (req, res) => {
     const file = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
     let body = await fs.readFile(file);
+    // Test-only access to the real application closures; no hooks are shipped in production.
+    if (pathname === '/assets/app.js') {
+      body = Buffer.from(body.toString() + '\nexport const progressTest = { getProgressSnapshot, saveCurrentProgress, resetLocalSaveTracking, toggleAutoSync, getBookId: () => currentBookId };\n');
+    }
     if (pathname.endsWith('sw-cache-config.json')) {
       const config = JSON.parse(body);
       // Test local runtime caching without contacting public CDNs.
@@ -262,6 +267,8 @@ try {
     assert.equal(after.visibleText?.slice(0, 30), before.locator.visibleText?.slice(0, 30), 'Scroll resize must return to the same visible text');
   }
   console.log('PASS: scroll reading position survives phone and desktop widths');
+  await verifyProgressLifecycle(app);
+  console.log('PASS: same-percentage locations persist, sync-off hidden flush avoids DOM measurements, foreground sync preserves live scroll');
   await verifyReaderControls(app, path.join(root, 'scratch/review-fixtures'), 'epub');
   console.log('PASS: unified reader controls fit six viewports in both themes/languages, all actions reachable and keyboard focus contained');
   const pngs = await app.evaluate(() => Array.from({ length: 6 }, (_, index) => {
@@ -330,7 +337,7 @@ try {
   await app.setViewport({ width: 800, height: 600, hasTouch: true });
   console.log('PASS: settings fit six phone/tablet/desktop viewports in Japanese and English, with 44px close targets');
   await verifyHelp(app, path.join(root, 'scratch/review-fixtures'));
-  console.log('PASS: Ver1.2.0 help topics, six screen sizes, both themes/languages, close and keyboard focus');
+  console.log('PASS: current-version help topics, six screen sizes, both themes/languages, close and keyboard focus');
 
 } finally {
   await browser?.close();
