@@ -7,6 +7,7 @@
 export async function verifyHelp(page, screenshots) {
   const version = await page.evaluate(async () => (await import('/assets/constants.js')).APP_INFO.VERSION);
   for (const language of ['ja', 'en']) {
+    const topics = await page.evaluate(async language => (await import('/assets/i18n/help.js')).HELP_CONTENT[language].sections.map(section => section.title), language);
     await page.evaluate(language => document.getElementById(language === 'ja' ? 'leftLangJa' : 'leftLangEn').click(), language);
     for (const theme of ['dark', 'light']) {
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
@@ -26,7 +27,7 @@ export async function verifyHelp(page, screenshots) {
             overflow: modal.scrollWidth - modal.clientWidth };
         });
         if (result.open !== 'true' || !result.focused || !result.title.includes('Ver' + version) ||
-            result.sections !== 7 || !result.fits || result.overflow > 1 || !result.text.includes('HTTPS') || !result.text.includes('tags')) {
+            result.sections !== topics.length || !topics.every(topic => result.text.includes(topic)) || !result.fits || result.overflow > 1 || !result.text.includes('HTTPS') || !result.text.includes('tags')) {
           throw new Error('Help content/layout: ' + JSON.stringify({ language, theme, width, height, result }));
         }
         if (language === 'ja' && width === 390) {

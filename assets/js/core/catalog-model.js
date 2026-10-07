@@ -66,8 +66,13 @@ export function validateCatalog(input) {
       requireValue(url.protocol === 'https:' && !url.username && !url.password, 'Reader URL must use HTTPS without credentials');
     }
   }
+  const activeLoans = new Set();
   for (const period of output.access_periods) {
     requireValue(has('holdings', period.holding_id), 'Missing loan holding');
+    requireValue(indexes.holdings.get(period.holding_id).access_type === C.accessTypes[1], 'Loan period requires subscription holding');
+    if (period.ended_at == null && period.deleted_at == null) {
+      requireValue(!activeLoans.has(period.holding_id), 'Duplicate active loan'); activeLoans.add(period.holding_id);
+    }
     requireValue(period.started_at == null || period.ended_at == null || period.started_at <= period.ended_at, 'Loan ends before it starts');
   }
   for (const event of output.reading_events) {
@@ -129,7 +134,7 @@ export function migrateLegacyCatalog(catalog, legacy, { now = Date.now(), uuid =
     next.books.push(book);
     const holding = { ...catalogRecord(uuid, now), book_id: book.id, provider: C.providers[0], format,
       provider_book_id: null, external_url: null, access_type: C.accessTypes[0], availability_status: 'unknown',
-      availability_checked_at: null, source: 'legacy', legacy_book_id: id, legacy_cloud_book_id: cloudId };
+      availability_checked_at: null, source: C.sources.legacy, legacy_book_id: id, legacy_cloud_book_id: cloudId };
     next.holdings.push(holding);
     if (id) localIds.set(id, holding);
     if (cloudId) cloudIds.set(cloudId, holding);

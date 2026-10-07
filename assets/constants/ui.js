@@ -135,6 +135,7 @@ export const UI_SYMBOLS = Object.freeze({
 // UI クラス名
 // ============================================
 export const UI_CLASSES = Object.freeze({
+  MODAL: 'modal', MODAL_CONTENT: 'modal-content', MODAL_HEADER: 'modal-header', MODAL_BODY: 'modal-body',
   READING_LOG_SHARE_BACKDROP: "reading-log-share-backdrop",
   READING_LOG_SHARE_DIALOG: "reading-log-share-dialog",
   READING_LOG_SHARE_PRIMARY: "reading-log-share-primary",

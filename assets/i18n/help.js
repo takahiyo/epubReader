@@ -4,6 +4,10 @@ export const HELP_CONTENT = Object.freeze({
     button: 'ヘルプ', close: 'ヘルプを閉じる', title: '安心して使うために',
     intro: '書籍を読むためのデータと、端末間で共有する読書情報を分けて扱っています。保存先と送信内容を知ったうえでお使いください。',
     sections: [
+      { title: '統合電子書庫', paragraphs: [
+        '左メニューの「統合電子書庫」で、EPUB・画像書庫・Kindle・U-NEXTの所蔵をまとめて整理できます。シリーズを選び、巻表示と並び順を設定してください。同じ巻を別サービスでも持っている場合は「所蔵先を追加」を使います。',
+        'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録はこの端末内だけに保存し、既存の読書同期とは別です。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。'
+      ] },
       { title: 'はじめ方と端末を替えるとき', paragraphs: [
         '「書籍 → 開く」でEPUB・画像書庫などを選びます。読書画面のメニューから、ライブラリ・目次・しおり・検索・設定にアクセスできます。文字サイズや縦横表示は設定から変更できます。',
         '別の端末で続きから読むには、同じGoogleアカウントでログインし、その端末でも同じ書籍ファイルを選んでください。同期は書籍本体を配布する機能ではありません。ファイルが異なる版・編集済みの場合、同じ作品として結びつかないことがあります。'
@@ -43,6 +47,10 @@ export const HELP_CONTENT = Object.freeze({
     button: 'Help', close: 'Close help', title: 'Using BookReader with confidence',
     intro: 'Book files and reading information are handled separately. Learn what stays on this device and what is sent when you use sync or sharing.',
     sections: [
+      { title: 'Unified catalog', paragraphs: [
+        'Open Unified catalog in the left menu to organize EPUB, image archive, Kindle and U-NEXT holdings. Choose a series and set the volume label and order. Use Add holding for another provider of the same volume.',
+        'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. This catalog is stored only on this device, separately from reading sync. Save JSON creates a backup; Restore JSON replaces the entire catalog. External progress and availability are not automatically retrieved.'
+      ] },
       { title: 'Getting started and switching devices', paragraphs: [
         'Choose an EPUB or image archive from Books → Open. The reading menu provides Library, Contents, Bookmarks, Search and Settings. Adjust text size and reading orientation in Settings.',
         'To resume on another device, sign in with the same Google account and select the same book file on that device. Sync does not distribute book files. Different editions or edited files may not be identified as the same book.'

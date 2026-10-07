@@ -249,7 +249,8 @@ try {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     if (reader.getPageLocator(reader.currentPageIndex).segmentIndex <= 0) throw new Error('Fixture must resume inside a chapter');
   });
-  for (const [width, height] of [[1440, 900], [568, 320], [768, 1024]]) {
+  // Share-dialog checks finish at 1440x900. Start with a different size so a real resize occurs.
+  for (const [width, height] of [[1280, 900], [568, 320], [768, 1024]]) {
     const before = await app.evaluate(() => ({ locator: window.__testReader.getPageLocator(window.__testReader.currentPageIndex), calls: window.__testResizeCalls }));
     await app.setViewport({ width, height, hasTouch: true });
     try {
@@ -356,6 +357,16 @@ try {
   console.log('PASS: settings fit six phone/tablet/desktop viewports in Japanese and English, with 44px close targets');
   await verifyHelp(app, path.join(root, 'scratch/review-fixtures'));
   console.log('PASS: current-version help topics, six screen sizes, both themes/languages, close and keyboard focus');
+
+  await app.evaluate(() => document.getElementById('menuCatalog').click());
+  await app.waitForFunction(() => document.querySelectorAll('#catalogList article').length >= 2);
+  const catalogText = await app.$eval('#catalogList', element => element.textContent);
+  const shelfTitles = await app.evaluate(() => Object.values(JSON.parse(localStorage.getItem('epubReader:data')).library).map(book => book.title));
+  for (const title of shelfTitles) assert.ok(catalogText.includes(title), `Catalog omitted legacy title: ${title}`);
+  await app.keyboard.press('Escape');
+  assert.ok(await app.$eval('#catalogModal', element => element.classList.contains('hidden')));
+  assert.deepEqual(errors, []);
+  console.log('PASS: main application opens catalog, migrates EPUB/CBZ shelf and closes with Escape');
 
 } finally {
   await browser?.close();

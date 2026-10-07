@@ -3,6 +3,10 @@ import { BOOK_TYPES } from './reader.js';
 
 /** Catalog persistence schema. Kept separate from legacy reader/file storage. */
 export const CATALOG_CONFIG = Object.freeze({
+  pageSize: 50,
+  sources: Object.freeze({ manual: 'manual', legacy: 'legacy' }),
+  loanActions: Object.freeze({ borrow: 'borrow', return: 'return' }),
+  errorCodes: Object.freeze({ conflict: 'conflict', invalid: 'invalid' }),
   databaseName: 'bookreader-catalog', databaseVersion: 1, schemaVersion: 1,
   providers: Object.freeze(['local', 'kindle', 'unext']),
   accessTypes: Object.freeze(['purchased', 'subscription_loan']),
@@ -21,4 +25,17 @@ export const CATALOG_CONFIG = Object.freeze({
     reading_events: ['holding_id', 'access_period_id', 'event_type', 'occurred_at', 'recorded_at', 'progress_percent', 'source'],
     manual_reading_states: ['holding_id', 'status', 'progress_percent', 'reread_wanted'],
   }),
+});
+
+/** UI identities shared by the application, catalog dialog and browser tests. */
+export const CATALOG_UI = Object.freeze({
+  launch: 'menuCatalog', modal: 'catalogModal', heading: 'catalogHeading',
+  list: 'catalogList', search: 'catalogSearch', series: 'catalogSeries', provider: 'catalogProvider',
+  availability: 'catalogAvailability', editor: 'catalogEditor', notice: 'catalogNotice',
+  form: 'catalogForm', prefix: 'catalog-', backupName: 'bookreader-catalog.json',
+  numericInputs: Object.freeze(['sort_order', 'progress_percent']),
+  classes: Object.freeze({ panel: 'catalog-panel', tools: 'catalog-tools', paging: 'catalog-paging', book: 'catalog-book', holding: 'catalog-holding', form: 'catalog-form' }),
+  fields: Object.freeze(['title', 'author', 'series_id', 'new_series', 'volume_label', 'sort_order', 'edition',
+    'provider', 'format', 'provider_book_id', 'external_url', 'access_type', 'availability_status', 'progress_percent', 'status', 'reread_wanted']),
+  errors: Object.freeze({ conflict: 'catalog_conflict', invalid: 'catalog_invalid', storage: 'catalog_storage_error' }),
 });

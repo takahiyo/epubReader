@@ -31,8 +31,10 @@ import { filePicker } from "./js/core/index.js";
 import * as renderers from "./js/ui/renderers.js";
 import { UI_STRINGS, getUiStrings, t as translate, tReplace, DEFAULT_LANGUAGE, formatRelativeTime } from "./i18n.js";
 import { setupWebNovelUI } from "./js/ui/web-novel-ui.js";
+import { createCatalogUI } from './js/ui/catalog-ui.js';
 import {
   APP_INFO,
+  CATALOG_UI,
   ERROR_CODES,
   ERROR_MESSAGE_MATCHERS,
   MIME_TYPES,
@@ -70,6 +72,7 @@ import {
 // ========================================
 
 const storage = new StorageService();
+let catalogUI = null;
 const cloudSync = new CloudSync(storage);
 const settings = storage.getSettings();
 const initialAuthStatus = checkAuthStatus();
@@ -1187,6 +1190,7 @@ function updateFullscreenButtonLabel() {
 // ファイル処理
 // ========================================
 
+/** @param {File} file Selected file @param {string|null} overrideBookId Existing stub identity @returns {Promise<string|undefined>} Successfully opened reader ID, undefined on cancellation/failure. */
 async function handleFile(file, overrideBookId = null) {
   if (isBookLoading || isSyncResolving) return;
   clearArchiveWarnings();
@@ -1433,6 +1437,7 @@ async function handleFile(file, overrideBookId = null) {
     closeExclusiveMenus();
     renderers.toggleFloatOverlay(false);
     isSyncResolving = false; // ジャンプ完了後にロック解除
+    return id;
   } catch (error) {
     isSyncResolving = false; // エラー時もロック解除
     console.error("Error in handleFile:", error);
@@ -2300,6 +2305,7 @@ function closeModal(modal) {
 }
 
 function closeExclusiveMenus() {
+  catalogUI?.close();
   closeModal(elements.bookmarkMenu);
   closeModal(elements.historyModal);
   closeModal(elements.searchModal);
@@ -2423,6 +2429,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuOpenToc, UI_ICONS.MENU_TOC, strings.tocButton);
   setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
   setMenuLabel(elements.menuLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
+  catalogUI?.localize();
   setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setMenuLabel(elements.menuBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
@@ -3167,6 +3174,22 @@ function showSettings() {
 // ========================================
 
 function setupEvents() {
+
+  // Catalog initialization is lazy; reader startup and existing file storage stay independent.
+  catalogUI = createCatalogUI({ t, getLegacy: () => storage.data, openModal: openExclusiveMenu, closeModal,
+    openLocal: async holding => {
+      if (holding.legacy_book_id) await openFromLibrary(holding.legacy_book_id);
+      else if (holding.legacy_cloud_book_id) await openCloudOnlyBook(holding.legacy_cloud_book_id);
+      else {
+        const files = await filePicker.openFilePicker();
+        if (!files?.length) return;
+        const bookId = await handleFile(files[0]);
+        if (bookId) return { bookId, cloudBookId: storage.getCloudBookId(bookId) || null,
+          format: files[0].name.split('.').pop().toLowerCase() };
+      }
+    },
+  });
+  document.getElementById(CATALOG_UI.launch)?.addEventListener('click', () => catalogUI.show());
 
   // メニューアクション
   if (elements.menuOpen) {

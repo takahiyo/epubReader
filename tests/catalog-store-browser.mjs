@@ -8,10 +8,11 @@ const root = process.cwd();
 const server = http.createServer(async (req, res) => {
   try {
     const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (pathname === '/favicon.ico') return res.writeHead(204).end();
     if (pathname === '/') return res.end('<!doctype html><title>Catalog test</title>');
     const file = path.resolve(root, '.' + pathname);
     if (!file.startsWith(root + path.sep)) return res.writeHead(403).end();
-    res.setHeader('content-type', 'text/javascript');
+    res.setHeader('content-type', file.endsWith('.css') ? 'text/css' : 'text/javascript');
     res.end(await fs.readFile(file));
   } catch { res.writeHead(404).end(); }
 });
@@ -21,6 +22,8 @@ try {
   browser = await puppeteer.launch({ executablePath: process.env.BROWSER_EXECUTABLE,
     headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage();
+  page.on('pageerror', error => console.error('Catalog page error:', error.message));
+  page.on('console', message => { if (message.type() === 'error') console.error(message.text()); });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.evaluate(async () => {
     const { openCatalog } = await import('/assets/js/core/catalog-store.js');
@@ -66,6 +69,47 @@ try {
     reopened.close();
   });
   console.log('PASS: IndexedDB concurrent migration, KU history round trip, invalid import, atomic write rollback and reopen');
+  await page.evaluate(async () => {
+    const stylesheet = document.createElement('link'); stylesheet.rel = 'stylesheet'; stylesheet.href = '/assets/style.css';
+    const loaded = new Promise((resolve, reject) => { stylesheet.onload = resolve; stylesheet.onerror = reject; });
+    document.head.append(stylesheet); await loaded;
+    try {
+      const { runCatalogUICases } = await import('/tests/catalog-ui-cases.mjs'); await runCatalogUICases();
+    } catch (error) { console.error(error.stack); throw error; }
+  });
+  console.log('PASS: catalog registration, multi-provider volume, normalized search, KU return/reborrow, safe URL and reopening');
+  for (const [width, height] of [[320, 568], [568, 320], [1440, 900]]) {
+    await page.setViewport({ width, height });
+    const bounds = await page.evaluate(() => {
+      const panel = document.querySelector('.catalog-panel'); const rect = panel.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, overflow: panel.scrollWidth - panel.clientWidth };
+    });
+    if (bounds.left < 0 || bounds.right > width + 1 || bounds.top < 0 || bounds.bottom > height + 1 || bounds.overflow > 1) throw new Error(JSON.stringify({ width, height, bounds }));
+    await page.screenshot({ path: path.join(root, 'scratch/review-fixtures', `catalog-${width}.png`) });
+  }
+  console.log('PASS: catalog fits narrow phone, landscape phone and desktop');
+  const performanceResult = await page.evaluate(async () => {
+    const { openCatalog } = await import('/assets/js/core/catalog-store.js');
+    const { emptyCatalog, catalogRecord } = await import('/assets/js/core/catalog-model.js');
+    const { CATALOG_UI: U, CATALOG_CONFIG: C } = await import('/assets/constants.js');
+    const repository = await openCatalog(); const snapshot = emptyCatalog();
+    for (let index = 0; index < 10000; index++) {
+      snapshot.books.push({ ...catalogRecord(() => `large-book-${index}`, 100), title: `Book ${index}`, sort_order: index, volume_label: String(index) });
+      snapshot.holdings.push({ ...catalogRecord(() => `large-holding-${index}`, 100), book_id: `large-book-${index}`,
+        provider: 'kindle', access_type: 'purchased', availability_status: 'active' });
+    }
+    await repository.restoreJSON(JSON.stringify(snapshot)); repository.close();
+    window.__catalogTest.close(); await window.__catalogTest.show();
+    const visible = document.getElementById(U.list).querySelectorAll('article').length;
+    if (visible !== C.pageSize) throw new Error('Large catalog must use bounded pagination');
+    const search = document.getElementById(U.search); const started = performance.now();
+    search.value = 'Book 9999'; search.dispatchEvent(new Event('input'));
+    const elapsed = performance.now() - started;
+    if (document.getElementById(U.list).querySelectorAll('article').length !== 1) throw new Error('Large catalog search result missing');
+    if (elapsed > 300) throw new Error(`Search exceeds target: ${elapsed}ms`);
+    return { books: 10000, visible, searchMs: Math.round(elapsed) };
+  });
+  console.log('PASS: 10,000-book paginated catalog search', performanceResult);
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

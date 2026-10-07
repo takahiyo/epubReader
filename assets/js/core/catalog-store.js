@@ -31,9 +31,10 @@ export async function openCatalog({ indexedDB = globalThis.indexedDB, databaseNa
    * Read and optionally mutate all related records within one transaction.
    * The transform is synchronous: waiting on network/UI would expire an IndexedDB transaction.
    * @param {Function|null} transform Pure catalog transform, null for reads
+   * @param {boolean} replace Replace all rows only for explicit JSON restoration
    * @returns {Promise<Object>} Committed snapshot, or rejected without partial changes
    */
-  async function transact(transform = null) {
+  async function transact(transform = null, replace = false) {
     const tx = db.transaction(names, transform ? 'readwrite' : 'readonly');
     const done = completion(tx);
     // Attach rejection handling immediately, including failures caught before awaiting completion.
@@ -45,9 +46,11 @@ export async function openCatalog({ indexedDB = globalThis.indexedDB, databaseNa
       if (transform) {
         for (const name of names) {
           const store = tx.objectStore(name);
-          // Whole-snapshot replacement is reserved for migration/backup; future editing uses row mutations.
-          store.clear();
-          for (const record of next[name]) store.put(record);
+          if (replace) store.clear();
+          const previous = new Map(snapshot[name].map(record => [record.id, JSON.stringify(record)]));
+          for (const record of next[name]) {
+            if (replace || previous.get(record.id) !== JSON.stringify(record)) store.put(record);
+          }
         }
       }
       await done;
@@ -62,7 +65,9 @@ export async function openCatalog({ indexedDB = globalThis.indexedDB, databaseNa
     read: () => transact(),
     exportJSON: async () => JSON.stringify(await transact()),
     // Validate before opening a write transaction so malformed imports never clear existing records.
-    restoreJSON: text => { const snapshot = validateCatalog(JSON.parse(text)); return transact(() => snapshot); },
+    restoreJSON: text => { const snapshot = validateCatalog(JSON.parse(text)); return transact(() => snapshot, true); },
+    // Clone before transforming, retaining the old records for changed-row detection.
+    update: transform => transact(snapshot => transform(structuredClone(snapshot))),
     migrateLegacy: (legacy, options) => transact(snapshot => migrateLegacyCatalog(snapshot, legacy, options)),
     close: () => db.close(),
   };

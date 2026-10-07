@@ -1,0 +1,28 @@
+/* Unified catalog uses the same theme and modal layer as existing reader tools. */
+.catalog-panel { width: min(100%, 960px); max-height: 100%; color: var(--text); background: var(--card); }
+.modal .catalog-panel { display: flex; flex-direction: column; overflow: hidden; }
+.catalog-panel .modal-body { overflow: auto; min-height: 0; flex: 1; }
+.catalog-panel .modal-header { flex: none; background: var(--card); }
+.catalog-panel button, .catalog-panel input, .catalog-panel select, .catalog-holding a {
+  min-height: var(--control-target-size); border: 1px solid var(--border); border-radius: 8px;
+  background: var(--control-bg); color: var(--text); padding: 8px 12px; font: inherit;
+}
+.catalog-panel button, .catalog-holding a { cursor: pointer; }
+.catalog-panel button:disabled { opacity: .5; cursor: default; }
+.catalog-panel :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.catalog-panel p, .catalog-panel h4 { overflow-wrap: anywhere; margin: 8px 0; }
+.catalog-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.catalog-tools input { flex: 1 1 100%; min-width: 0; }
+.catalog-tools label { display: flex; flex-direction: column; flex: 1 1 150px; min-width: 0; gap: 4px; }
+.catalog-tools select { flex: none; width: 100%; min-width: 0; max-width: 100%; }
+.catalog-book { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.catalog-holding { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.catalog-holding p { flex-basis: 100%; }
+.catalog-holding a { display: inline-flex; align-items: center; text-decoration: none; }
+.catalog-form { padding: 12px; border: 1px solid var(--border); border-radius: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.catalog-form label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.catalog-form input, .catalog-form select { width: 100%; min-width: 0; }
+.catalog-form input[type="checkbox"] { width: var(--control-target-size); }
+.catalog-form p { grid-column: 1 / -1; }
+.catalog-paging { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+@media (max-width: 540px) { .catalog-form { grid-template-columns: minmax(0, 1fr); } }

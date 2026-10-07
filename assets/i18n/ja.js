@@ -1,7 +1,9 @@
 import { APP_INFO } from "../constants.js";
 import { HELP_CONTENT } from "./help.js";
+import { CATALOG_STRINGS } from './catalog.js';
 
 export const UI_STRINGS_JA = Object.freeze({
+  ...CATALOG_STRINGS.ja,
   // ドキュメント
   documentTitle: APP_INFO.DOCUMENT_TITLE,
   appIconAlt: "EPUBリーダー",
