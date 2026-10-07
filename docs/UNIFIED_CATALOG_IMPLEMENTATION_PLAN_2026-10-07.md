@@ -4,7 +4,7 @@
 
 開発は`dev`ブランチで行い、各実装単位の検証後にコミットして`origin/dev`へプッシュする。mainへの反映・本番デプロイは別のリリース操作として扱う。
 
-実装状況（2026-10-07）: 段階Aの保存・復帰経路の第1修正と、文字Range・結合章・画面内高さの第2修正を実施。詳細は[読書位置の保存・復帰](./READING_POSITION_FIX_2026-10-07.md)を参照。目録MVPおよびAndroid実機検証は未着手。
+実装状況（2026-10-07）: 段階Aの保存・復帰経路の第1修正と、文字Range・結合章・画面内高さの第2修正を実施。詳細は[読書位置の保存・復帰](./READING_POSITION_FIX_2026-10-07.md)を参照。段階Bの専用IndexedDB・旧本棚追加移行・JSON往復・KU履歴保存schemaを追加し、[保存基盤の機能マップ](./refactor/catalog-persistence-map.md)に記録した。目録UI・起動時移行・D1同期への接続とAndroid実機検証は未実施。
 
 ## 1. 最優先の完成形
 
@@ -53,7 +53,7 @@
 9. 未読 / 読書中 / 読了と任意の手動進捗を編集できる。外部サービスの進捗不明はnullで保持し、0%と混同しない。リンクを開いただけでは読了や進捗を変更しない。
 10. JSON書き出し・復元、CSV一括登録を提供する。CSVはプレビュー、行単位のエラー、重複候補、追加・更新の件数を表示して確定する。
 
-CSV最小列: `title, provider`。追加列: `author, series, volume_label, sort_order, edition, format, provider_book_id, external_url, link_kind, ownership_status`。往復利用するJSONには全IDとschemaVersionを含める。CSVは新規大量登録用で、完全バックアップとはしない。
+CSV最小列: `title, provider`。追加列: `author, series, volume_label, sort_order, edition, format, provider_book_id, external_url, link_kind, access_type, availability_status`。往復利用するJSONには全IDとschemaVersionを含める。CSVは新規大量登録用で、完全バックアップとはしない。
 
 Kindle / U-NEXTのURLからメタデータを自動取得する処理はMVPに含めない。正しいリンク先への移動は検証するが、特定巻の公式アプリ起動やページ指定復帰はサービス・端末で確認できた組み合わせだけ対応表示する。
 

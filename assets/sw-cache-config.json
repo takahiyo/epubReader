@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v63",
+  "cacheName": "bookreader-v64",
   "assets": [
     "./",
     "./index.html",
@@ -81,11 +81,14 @@
     "./assets/js/ui/renderers.js",
     "./assets/js/ui/web-novel-ui.js",
     "./assets/cloudState.js",
+    "./assets/constants/catalog.js",
     "./assets/constants/keybindings.js",
     "./assets/css/20-drag-drop.css",
     "./assets/css/22-float-menu-toggle.css",
     "./assets/css/23-reader-controls.css",
     "./assets/i18n/help.js",
+    "./assets/js/core/catalog-model.js",
+    "./assets/js/core/catalog-store.js",
     "./assets/js/core/cloud-payload.js",
     "./assets/js/core/cloud-state-merge.js",
     "./assets/js/core/epub-scroll-anchor.js",

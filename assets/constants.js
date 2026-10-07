@@ -20,3 +20,4 @@ export * from "./constants/pwa.js";
 export * from "./constants/timing.js";
 export * from "./constants/global.js";
 export * from "./constants/keybindings.js";
+export * from "./constants/catalog.js";
