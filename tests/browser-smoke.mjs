@@ -133,6 +133,12 @@ try {
   console.log('PASS: repeated text, DOM scroll targets, legacy locators, nearest fallback and overlapping resize regressions');
   await app.evaluate(async () => {
     const { ReaderController } = await import('/assets/reader.js');
+    const { runScrollAnchorCases } = await import('/tests/scroll-anchor-cases.mjs');
+    await runScrollAnchorCases(ReaderController);
+  });
+  console.log('PASS: long-paragraph ranges, joined chapter identity, partial-spine offsets and stable-character reflow');
+  await app.evaluate(async () => {
+    const { ReaderController } = await import('/assets/reader.js');
     const original = ReaderController.prototype.openEpub;
     ReaderController.prototype.openEpub = async function (...args) {
       window.__testReader = this;
@@ -246,7 +252,14 @@ try {
   for (const [width, height] of [[1440, 900], [568, 320], [768, 1024]]) {
     const before = await app.evaluate(() => ({ locator: window.__testReader.getPageLocator(window.__testReader.currentPageIndex), calls: window.__testResizeCalls }));
     await app.setViewport({ width, height, hasTouch: true });
-    await app.waitForFunction(calls => window.__testResizeCalls > calls && !window.__testReader.isRepaginating, {}, before.calls);
+    try {
+      await app.waitForFunction(calls => window.__testResizeCalls > calls && !window.__testReader.isRepaginating, {}, before.calls);
+    } catch (error) {
+      console.error('Resize wait state', await app.evaluate(() => ({ calls: window.__testResizeCalls,
+        resizing: window.__testReader.isRepaginating, request: window.__testReader.repaginationRequestId,
+        viewport: [innerWidth, innerHeight], hidden: document.hidden, errors: window.__resizeErrors })));
+      throw error;
+    }
     const preserved = await app.evaluate(locator => window.__testReader.findPageContaining(locator.spineIndex, locator.segmentIndex) === window.__testReader.currentPageIndex, before.locator);
     assert.ok(preserved, 'Resize must retain the page containing the previous reading anchor');
   }
@@ -259,12 +272,17 @@ try {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
   for (const [width, height] of [[390, 844], [1440, 900]]) {
-    const before = await app.evaluate(() => ({ locator: window.__testReader.getPageLocator(window.__testReader.currentPageIndex), calls: window.__testResizeCalls }));
+    const before = await app.evaluate(() => {
+      const reader = window.__testReader;
+      return { locator: reader.getPageLocator(reader.currentPageIndex), calls: window.__testResizeCalls,
+        top: reader.viewer.scrollTop, page: reader.currentPageIndex, pending: reader._pendingScrollToSegment,
+        height: reader.viewer.clientHeight, anchor: reader._captureScrollAnchor(), restoration: reader._scrollRestoration?.locator };
+    });
     await app.setViewport({ width, height, hasTouch: true });
     await app.waitForFunction(calls => window.__testResizeCalls > calls && !window.__testReader.isRepaginating, {}, before.calls);
     const after = await app.evaluate(() => window.__testReader.getPageLocator(window.__testReader.currentPageIndex));
     assert.equal(after.spineIndex, before.locator.spineIndex);
-    assert.equal(after.visibleText?.slice(0, 30), before.locator.visibleText?.slice(0, 30), 'Scroll resize must return to the same visible text');
+    assert.equal(after.visibleText?.slice(0, 30), before.locator.visibleText?.slice(0, 30), 'Scroll resize must return to the same visible text: ' + JSON.stringify({ width, height, before, after }));
   }
   console.log('PASS: scroll reading position survives phone and desktop widths');
   await verifyProgressLifecycle(app);

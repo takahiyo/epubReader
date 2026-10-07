@@ -6,7 +6,7 @@ import { bookmarkKey, mergeCloudStates } from '../assets/js/core/cloud-state-mer
 import { buildCloudStatePayload } from '../assets/cloudState.js';
 
 const excerpt = 'private excerpt that must remain only on the device';
-const location = { spineIndex: 3, segmentIndex: 500, visibleText: excerpt, unknown: excerpt };
+const location = { spineIndex: 3, segmentIndex: 500, viewportOffset: -7, visibleText: excerpt, unknown: excerpt };
 const bookmark = { location, visibleText: excerpt, label: 'My bookmark', createdAt: 100, deviceId: 'device', deviceColor: '#123456', custom: excerpt };
 
 test('outgoing progress and bookmarks keep stable positions without text or platform details', () => {
@@ -20,6 +20,8 @@ test('outgoing progress and bookmarks keep stable positions without text or plat
   assert.ok(!JSON.stringify(safe).includes(excerpt));
   assert.equal(safe.deviceInfo, undefined);
   assert.equal(source.lastCfi.visibleText, excerpt);
+  assert.equal(source.lastCfi.viewportOffset, -7, 'Device-local alignment stays local');
+  assert.equal(safe.lastCfi.viewportOffset, undefined);
   assert.equal(source.bookmarks[0].visibleText, excerpt);
   for (const value of [0, 8, '3:500', { location: 2, percentage: 38 }]) {
     assert.deepEqual(sanitizeCloudState({ lastCfi: value }).lastCfi, value);
