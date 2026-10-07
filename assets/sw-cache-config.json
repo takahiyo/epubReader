@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v65",
+  "cacheName": "bookreader-v66",
   "assets": [
     "./",
     "./index.html",
@@ -106,6 +106,7 @@
     "./assets/js/ui/dialog-focus.js",
     "./assets/js/ui/help.js",
     "./assets/js/workers/rar-worker.js",
+    "./assets/local-launch.js",
     "./assets/style.css",
     "./src/reader/epubPaginator.js",
     "https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js",

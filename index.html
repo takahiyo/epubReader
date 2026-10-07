@@ -12,6 +12,8 @@
   <link rel="apple-touch-icon" href="assets/icon_BookReader_512.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon_BookReader_192.png">
   <title>BookReader</title>
+  <!-- Classic script can explain file:// failures even when all ES modules are blocked. -->
+  <script src="./assets/local-launch.js" defer></script>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="./assets/css/01-tokens.css?v=12" />
   <link rel="stylesheet" href="./assets/css/02-reset.css?v=11" />
@@ -35,6 +37,7 @@
   <link rel="stylesheet" href="./assets/css/20-drag-drop.css?v=11" />
   <link rel="stylesheet" href="./assets/css/22-float-menu-toggle.css?v=3" />
   <link rel="stylesheet" href="./assets/css/23-reader-controls.css?v=1" />
+  <link rel="stylesheet" href="./assets/css/24-catalog.css?v=1" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>

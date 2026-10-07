@@ -136,6 +136,12 @@ epubReader/
 
 ### ローカル開発
 
+Windowsでは、このフォルダーの **Start-BookReader.cmd** をダブルクリックしてください。Node.jsが必要です。ローカルHTTPサーバーの準備後にブラウザーが開きます。利用中はサーバーのウィンドウを開いたままにしてください。
+
+ターミナルからは `node scripts/local-preview.mjs --open` でも起動できます。標準URLは `http://127.0.0.1:8000/` です。同じURLを使い続けてください。ホスト名・ポート・ブラウザーが違うと、書庫・目録の保存領域も別になります。
+
+`index.html` のファイル直開き（`file://`）はサポートしません。直接開いた場合はHTTP起動の説明を表示します。本や履歴を消去する必要はありません。
+
 ```bash
 # リポジトリをクローン
 git clone https://github.com/takahiyo/epubReader.git
