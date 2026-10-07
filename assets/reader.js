@@ -1805,14 +1805,10 @@ export class ReaderController {
       // スクロールモードの場合、表示中のスクロール位置から現在見ているセグメントを逆算する
       let segmentIndex = this._getCurrentScrollSegment(this.pageContainer);
 
-      // [修正] Androidのバックグラウンド移行時などの計測失敗対策。
-      // セグメント取得に失敗した、あるいは強制的に0（先頭）に戻ってしまった場合、
-      // 同じ章であれば最後に確認された有効な位置を優先する。
-      if (segmentIndex === null || segmentIndex === 0) {
+      // 計測失敗・非表示中だけ過去の位置を使用する。可視時の先頭移動は有効な位置。
+      if (segmentIndex === null || document.hidden) {
         if (this._lastValidScrollLocation && this._lastValidScrollLocation.spineIndex === page.spineIndex) {
-          if (segmentIndex === null || this._lastValidScrollLocation.segmentIndex > 0) {
-            segmentIndex = this._lastValidScrollLocation.segmentIndex;
-          }
+          segmentIndex = this._lastValidScrollLocation.segmentIndex;
         }
       }
 
@@ -3207,10 +3203,10 @@ export class ReaderController {
       }
 
       // [修正] Androidバックグラウンド移行時の計測失敗（0リセット）対策
-      if (scrollRatio === 0 && this._lastValidScrollRatio > 0) {
+      if (document.hidden && this._lastValidScrollRatio > 0) {
         // pagehide等の特殊なタイミングでは前回の比率を維持
         scrollRatio = this._lastValidScrollRatio;
-      } else if (scrollRatio > 0) {
+      } else if (!document.hidden) {
         this._lastValidScrollRatio = scrollRatio;
       }
 
@@ -3234,14 +3230,9 @@ export class ReaderController {
 
     const locator = this.getPageLocator(this.currentPageIndex);
 
-    // 有効な（章の先頭ではない）位置を取得できた場合はキャッシュに保存
-    if (locator && (locator.segmentIndex > 0 || this.currentPageIndex > 0)) {
-      // [修正] 有効なキャッシュ（segmentIndex > 0）を0で上書きしない
-      if (!(locator.segmentIndex === 0 &&
-            this._lastValidScrollLocation?.segmentIndex > 0 &&
-            this._lastValidScrollLocation?.spineIndex === locator.spineIndex)) {
-        this._lastValidScrollLocation = { ...locator };
-      }
+    // 先頭への明示移動も保存する。非表示・再組版中の一時DOMはcacheへ入れない。
+    if (locator && !document.hidden && !this.isRepaginating) {
+      this._lastValidScrollLocation = { ...locator };
     }
 
     const fallbackLocator = locator ? null : this.getFallbackLocator();

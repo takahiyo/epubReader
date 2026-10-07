@@ -7,6 +7,7 @@ export const TIMING_CONFIG = Object.freeze({
   // --- クラウド同期関連 ---
   BACKGROUND_SYNC_INTERVAL_MS: 600000, // バックグラウンド定期同期 (10分)
   PERIODIC_SYNC_MS: 300000, // フォアグラウンド定期同期 (5分)
+  FOREGROUND_SYNC_DELAY_MS: 2000, // アプリ復帰後の同期。現在の表示位置は維持する
 
   // --- ローカル保存関連 ---
   LOCAL_SAVE_THRESHOLD_PERCENT: PROGRESS_SAVE_THRESHOLD_PERCENT, // ローカル保存を実行する進捗差分 (%)

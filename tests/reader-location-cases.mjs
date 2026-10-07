@@ -36,6 +36,21 @@ export async function runReaderLocationCases(ReaderController) {
     'Out-of-bound locations choose the nearest page within the original chapter');
   check(reader.findNearestPageInSpine(99, 5) === -1, 'Fallback must never select another chapter');
 
+  // A valid zero is a user navigation, not evidence of a broken background measurement.
+  reader.epubViewMode = 'scroll';
+  reader.currentPageIndex = 0;
+  reader.pageContainer = container;
+  reader._getCurrentScrollSegment = () => 0;
+  reader.getCurrentVisibleText = () => null;
+  reader._lastValidScrollLocation = { spineIndex: 0, segmentIndex: 80 };
+  reader._lastValidScrollRatio = 0.75;
+  reader.writingMode = 'horizontal';
+  reader.viewer = { scrollTop: 0, scrollHeight: 2000, clientHeight: 600 };
+  check(reader.getPageLocator(0).segmentIndex === 0, 'Visible chapter start must not reuse a stale segment');
+  check(reader._calculateCurrentPercentage(3) === 0, 'Visible scroll start must not reuse a stale ratio');
+  reader.updateProgressFromPagination(3);
+  check(reader._lastValidScrollLocation.segmentIndex === 0, 'The last valid anchor must include explicit start navigation');
+
   // Deferred paginator boundaries make the race deterministic without real device timing.
   const resizer = Object.create(ReaderController.prototype);
   const releases = [];

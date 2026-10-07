@@ -5,6 +5,7 @@
  * @returns {Promise<void>} Rejects on unavailable content, overflow or unreachable actions
  */
 export async function verifyHelp(page, screenshots) {
+  const version = await page.evaluate(async () => (await import('/assets/constants.js')).APP_INFO.VERSION);
   for (const language of ['ja', 'en']) {
     await page.evaluate(language => document.getElementById(language === 'ja' ? 'leftLangJa' : 'leftLangEn').click(), language);
     for (const theme of ['dark', 'light']) {
@@ -24,7 +25,7 @@ export async function verifyHelp(page, screenshots) {
             fits: rect.left >= 0 && rect.right <= innerWidth + 1 && rect.top >= 0 && rect.bottom <= innerHeight + 1,
             overflow: modal.scrollWidth - modal.clientWidth };
         });
-        if (result.open !== 'true' || !result.focused || !result.title.includes('Ver1.2.0') ||
+        if (result.open !== 'true' || !result.focused || !result.title.includes('Ver' + version) ||
             result.sections !== 7 || !result.fits || result.overflow > 1 || !result.text.includes('HTTPS') || !result.text.includes('tags')) {
           throw new Error('Help content/layout: ' + JSON.stringify({ language, theme, width, height, result }));
         }
