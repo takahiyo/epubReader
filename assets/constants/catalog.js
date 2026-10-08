@@ -73,3 +73,13 @@ export const CATALOG_COPY = Object.freeze({
   bookFields: Object.freeze(['title', 'author', 'series_id', 'volume_label', 'sort_order', 'edition']),
   holdingFields: Object.freeze(['provider', 'format', 'access_type', 'provider_book_id', 'external_url', 'availability_status']),
 });
+
+/** Historical entries never replace current reading or availability state. */
+export const CATALOG_HISTORY = Object.freeze({
+  form: 'catalogHistoryForm', save: 'catalogHistorySave', cancel: 'catalogHistoryCancel', prefix: 'catalogHistory-',
+  accessFilter: 'catalogAccessType', monthFilter: 'catalogCompletionMonth',
+  kinds: Object.freeze({ event: 'event', period: 'period' }),
+  eventFields: Object.freeze(['event_type', 'occurred_at', 'progress_percent']),
+  periodFields: Object.freeze(['started_at', 'ended_at']),
+  completed: CATALOG_CONFIG.readingStates[2],
+});

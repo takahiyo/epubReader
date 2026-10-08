@@ -1,6 +1,11 @@
 /** Catalog labels shared by the main application and injected dialog. */
 export const CATALOG_STRINGS = Object.freeze({
   ja: {
+    catalog_history_invalid: '日時・履歴の状態・進捗を確認してください。未来日時、開始より前の返却、判明している貸出期間の重複は登録できません。過去の期間には返却日時が必要です。',
+    catalog_history_note: '過去の履歴を追加・日時修正できます。現在の進捗・読了状態・利用状態は変更しません。日時はこの端末の現地時刻です。読書日時・借用開始が不明なら空欄にしてください。過去の貸出期間の追加には返却日時が必要です。借用中の期間は開始日時のみ修正できます。',
+    catalog_history_month: '読了した月（日時不明は対象外）', catalog_history_event: '読書履歴を追加', catalog_history_period: '過去の返却済み期間を追加',
+    catalog_history_correct: '履歴を修正', catalog_history_event_type: '履歴の読書状態', catalog_history_occurred_at: '読書・読了日時（不明は空欄）',
+    catalog_history_progress_percent: 'その時点の進捗（不明は空欄）', catalog_history_started_at: '借用開始日時（不明は空欄）', catalog_history_ended_at: '返却日時',
     catalog_copy_title: '選択した書籍を複写登録', catalog_copy_book: '複写する巻', catalog_copy_save: '確認した複写を新規登録',
     catalog_copy_note: '選択した巻と全所蔵先を見本に、新しい書籍を登録します。書名・巻・並び順等を確認して変更してください。サービス内ID・URL・ファイルの紐付け・進捗・読了・KU履歴は引き継ぎません。利用状態は未確認に戻します。保存するまで登録されません。',
     catalog_csv_export: '選択した書籍をCSV出力', catalog_csv_export_note: 'チェックした巻の全所蔵先を記入済みの見本として出力します。新しい巻を登録するときは書名・巻表示・book_key・サービス内ID・URLを確認して変更してください。CSVは追加登録用です。既存情報の更新や完全バックアップには使いません。IDがない行の再取り込みは重複する場合があります。',
@@ -47,6 +52,11 @@ export const CATALOG_STRINGS = Object.freeze({
     catalog_editor_note: 'この巻の書名・シリーズ変更は、同じ巻に登録した全所蔵先へ反映されます。Local Readerの進捗とは別の手動記録です。',
   },
   en: {
+    catalog_history_invalid: 'Check dates, historical status and progress. Future dates, returns before borrowing and overlapping known loan periods are not allowed. Past loans require a return date.',
+    catalog_history_note: 'Add or correct historical dates without changing current progress, completion or availability. Dates use this device’s local time. Leave unknown reading/borrowing dates blank. Adding a past loan requires a return date. For an active loan only its start date can change.',
+    catalog_history_month: 'Completion month (excludes unknown dates)', catalog_history_event: 'Add reading history', catalog_history_period: 'Add past returned loan',
+    catalog_history_correct: 'Correct history', catalog_history_event_type: 'Historical reading status', catalog_history_occurred_at: 'Reading / completion date (blank if unknown)',
+    catalog_history_progress_percent: 'Progress at the time (blank if unknown)', catalog_history_started_at: 'Borrowed at (blank if unknown)', catalog_history_ended_at: 'Returned at',
     catalog_copy_title: 'Copy selected books for registration', catalog_copy_book: 'Volume to copy', catalog_copy_save: 'Register reviewed copies',
     catalog_copy_note: 'Register new books using selected volumes and all holdings as examples. Review and change titles, volumes and order. Service IDs, URLs, file bindings, progress, completion and KU history are not copied. Availability resets to unknown. Nothing is registered until you save.',
     catalog_csv_export: 'Export selected books to CSV', catalog_csv_export_note: 'Export every holding of checked volumes as filled examples. For a new volume, check and change the title, volume label, book_key, service ID and URL. CSV adds records; it does not update existing metadata or provide a full backup. Reimporting rows without service IDs may create duplicates.',

@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v70",
+  "cacheName": "bookreader-v71",
   "assets": [
     "./",
     "./index.html",
@@ -93,6 +93,7 @@
     "./assets/js/core/catalog-bulk.js",
     "./assets/js/core/catalog-copy.js",
     "./assets/js/core/catalog-csv.js",
+    "./assets/js/core/catalog-history.js",
     "./assets/js/core/catalog-model.js",
     "./assets/js/core/catalog-store.js",
     "./assets/js/core/cloud-payload.js",
@@ -107,6 +108,7 @@
     "./assets/js/core/reading-log.js",
     "./assets/js/ui/catalog-bulk-editor.js",
     "./assets/js/ui/catalog-copy-editor.js",
+    "./assets/js/ui/catalog-history-editor.js",
     "./assets/js/ui/catalog-ui.js",
     "./assets/js/ui/dialog-focus.js",
     "./assets/js/ui/help.js",

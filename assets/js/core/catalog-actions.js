@@ -58,9 +58,13 @@ export function saveCatalogEntry(snapshot, command, { now = Date.now(), uuid = (
     legacy_book_id: null, legacy_cloud_book_id: null }; snapshot.holdings.push(holding); }
   const state = snapshot.manual_reading_states.find(row => row.holding_id === holding.id);
   const stateValues = { status: v.status, progress_percent: v.progress_percent === '' || v.progress_percent == null ? null : Number(v.progress_percent), reread_wanted: !!v.reread_wanted };
+  // A reread preference is not a reading event and must not invent another completion date.
+  const readingChanged = !state || state.status !== stateValues.status || state.progress_percent !== stateValues.progress_percent;
   if (!state || state.status !== stateValues.status || state.progress_percent !== stateValues.progress_percent || state.reread_wanted !== stateValues.reread_wanted) {
     if (state) revise(state, stateValues, now);
     else snapshot.manual_reading_states.push({ ...catalogRecord(uuid, now), holding_id: holding.id, ...stateValues });
+  }
+  if (readingChanged) {
     // Unknown old completion dates remain unknown; this event records today's explicit manual update.
     snapshot.reading_events.push({ ...catalogRecord(uuid, now), holding_id: holding.id,
       access_period_id: snapshot.access_periods.find(row => row.holding_id === holding.id && row.deleted_at == null && row.ended_at == null)?.id || null,

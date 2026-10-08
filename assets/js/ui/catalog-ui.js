@@ -1,5 +1,5 @@
 /** Unified catalog dialog. Reader and storage dependencies are supplied by the application. */
-import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, CATALOG_BULK as B, CATALOG_COPY as COPY, UI_CLASSES } from '../../constants.js';
+import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, CATALOG_BULK as B, CATALOG_COPY as COPY, CATALOG_HISTORY as H, UI_CLASSES } from '../../constants.js';
 import { openCatalog } from '../core/catalog-store.js';
 import { saveCatalogEntry, changeCatalogLoan, bindCatalogFile, catalogRows, normalizeCatalogSearch } from '../core/catalog-actions.js';
 import { previewCatalogCSV, applyCatalogCSV, exportCatalogCSV } from '../core/catalog-csv.js';
@@ -7,6 +7,8 @@ import { organizeCatalogBooks } from '../core/catalog-bulk.js';
 import { createCatalogBulkEditor } from './catalog-bulk-editor.js';
 import { createCatalogCopyDraft, registerCatalogCopies } from '../core/catalog-copy.js';
 import { createCatalogCopyEditor } from './catalog-copy-editor.js';
+import { saveCatalogHistory, catalogCompletedHoldings } from '../core/catalog-history.js';
+import { createCatalogHistoryEditor } from './catalog-history-editor.js';
 
 /**
  * Create one dialog without changing the reader's initialization order.
@@ -18,7 +20,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   const panel = document.createElement('section'); panel.className = `${UI_CLASSES.MODAL_CONTENT} ${U.classes.panel}`;
   const backdrop = document.createElement('div'); backdrop.className = UI_CLASSES.MODAL_BACKDROP; root.append(backdrop, panel); document.body.append(root);
   let repositoryPromise, snapshot, rows = [], page = 0, editing = null, busy = false, generation = 0;
-  let search, seriesFilter, providerFilter, availabilityFilter, list, editor, notice, paging;
+  let search, seriesFilter, providerFilter, availabilityFilter, accessFilter, monthFilter, list, editor, notice, paging;
   const selected = new Map(); let pageBooks = [], selectionCount, bulkLaunch, selectPage, clearSelection, csvExport, copyLaunch;
   const field = name => document.getElementById(U.prefix + name);
   const repo = () => repositoryPromise ||= openCatalog().catch(error => { repositoryPromise = null; throw error; });
@@ -30,7 +32,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   /** @param {HTMLSelectElement} select Select @param {Array} values [value,label] pairs @returns {void} Safe options. */
   function options(select, values) { select.replaceChildren(...values.map(([value, label]) => { const option = node('option', label); option.value = value; return option; })); }
   /** @param {Error} error Failure @returns {void} Visible translated diagnostic. */
-  function report(error) { notice.textContent = t(error.bulkReason ? 'catalog_bulk_error_' + error.bulkReason : error.csvReason ? 'catalog_csv_error_' + error.csvReason : U.errors[error.code] || (error instanceof TypeError || error instanceof SyntaxError ? U.errors.invalid : U.errors.storage)); }
+  function report(error) { notice.textContent = t(error.historyInvalid ? 'catalog_history_invalid' : error.bulkReason ? 'catalog_bulk_error_' + error.bulkReason : error.csvReason ? 'catalog_csv_error_' + error.csvReason : U.errors[error.code] || (error instanceof TypeError || error instanceof SyntaxError ? U.errors.invalid : U.errors.storage)); }
   /** @returns {void} Close without a late asynchronous open taking focus again. */
   function close() { generation++; closeModal(root); }
 
@@ -53,7 +55,11 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     seriesFilter = select(U.series, 'catalog_field_series_id'); providerFilter = select(U.provider, 'catalog_field_provider'); availabilityFilter = select(U.availability, 'catalog_field_availability_status');
     options(providerFilter, [['', t('catalog_all')], ...C.providers.map(value => [value, t('catalog_' + value)])]);
     options(availabilityFilter, [['', t('catalog_all')], ...C.availabilityStates.map(value => [value, t('catalog_' + value)])]);
-    for (const control of [search, seriesFilter, providerFilter, availabilityFilter]) control.oninput = () => { page = 0; render(); };
+    accessFilter = select(H.accessFilter, 'catalog_field_access_type');
+    options(accessFilter, [['', t('catalog_all')], ...C.accessTypes.map(value => [value, t('catalog_' + value)])]);
+    monthFilter = node('input'); monthFilter.id = H.monthFilter; monthFilter.type = 'month';
+    monthFilter.setAttribute('aria-label', t('catalog_history_month'));
+    for (const control of [search, seriesFilter, providerFilter, availabilityFilter, accessFilter, monthFilter]) control.oninput = () => { page = 0; render(); };
     const restoreInput = node('input'); restoreInput.type = 'file'; restoreInput.accept = '.json,application/json'; restoreInput.hidden = true;
     restoreInput.onchange = async () => {
       const file = restoreInput.files?.[0]; restoreInput.value = '';
@@ -73,7 +79,8 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
       });
     };
     const filterLabel = (key, control) => { const label = node('label', t(key)); label.append(control); return label; };
-    tools.append(search, filterLabel('catalog_field_series_id', seriesFilter), filterLabel('catalog_field_provider', providerFilter), filterLabel('catalog_field_availability_status', availabilityFilter), button('catalog_new', () => edit()),
+    tools.append(search, filterLabel('catalog_field_series_id', seriesFilter), filterLabel('catalog_field_provider', providerFilter), filterLabel('catalog_field_availability_status', availabilityFilter),
+      filterLabel('catalog_field_access_type', accessFilter), filterLabel('catalog_history_month', monthFilter), button('catalog_new', () => edit()),
       button('catalog_backup', () => run(async repository => {
         const url = URL.createObjectURL(new Blob([await repository.exportJSON()], { type: 'application/json' }));
         const anchor = node('a'); anchor.href = url; anchor.download = U.backupName; anchor.click();
@@ -197,8 +204,10 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   function render() {
     if (!snapshot || !list) return;
     const query = normalizeCatalogSearch(search.value);
+    const completed = catalogCompletedHoldings(snapshot, monthFilter.value);
     const filtered = rows.filter(row => row.search.includes(query) && (!seriesFilter.value || row.book.series_id === seriesFilter.value) &&
-      row.holdings.some(holding => (!providerFilter.value || holding.provider === providerFilter.value) && (!availabilityFilter.value || holding.availability_status === availabilityFilter.value)));
+      row.holdings.some(holding => (!providerFilter.value || holding.provider === providerFilter.value) && (!availabilityFilter.value || holding.availability_status === availabilityFilter.value) &&
+        (!accessFilter.value || holding.access_type === accessFilter.value) && (!completed || completed.has(holding.id))));
     const pages = Math.max(1, Math.ceil(filtered.length / C.pageSize)); page = Math.min(page, pages - 1);
     list.replaceChildren();
     const states = new Map(snapshot.manual_reading_states.map(state => [state.holding_id, state]));
@@ -236,6 +245,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
           const anchor = node('a', t(unavailable ? 'catalog_check_access' : 'catalog_open')); anchor.href = holding.external_url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; line.append(anchor);
         } else if (!holding.external_url) line.append(node('span', t('catalog_no_link')));
         line.append(button('catalog_edit', () => edit(row.book, holding)));
+        line.append(button('catalog_history', () => history(holding)));
         if (holding.access_type === C.accessTypes[1]) {
           const active = snapshot.access_periods.find(period => period.holding_id === holding.id && period.deleted_at == null && period.ended_at == null);
           line.append(button(active ? 'catalog_return' : 'catalog_borrow', () => run(repository => repository.update(current =>
@@ -250,6 +260,18 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     const next = button('catalog_next', () => { page++; render(); }); next.disabled = page >= pages - 1;
     paging.replaceChildren(previous, node('span', `${page + 1} / ${pages} · ${filtered.length}`), next);
     showSelection();
+  }
+
+  /** @param {Object} holding Explicit service holding @returns {void} Open historical corrections apart from metadata/current-state editing. */
+  function history(holding) {
+    if (busy || !snapshot) return;
+    editing = { history: true };
+    const section = createCatalogHistoryEditor({ snapshot, holding, t, node, button, options,
+      onCancel: () => { if (!busy) { editing = null; editor.replaceChildren(); render(); } },
+      onSave: command => run(async repository => {
+        await repository.update(current => saveCatalogHistory(current, command)); editing = null; editor.replaceChildren();
+      }) });
+    editor.replaceChildren(section); section.scrollIntoView({ block: 'nearest' });
   }
 
   /** @param {Object|null} book Explicit book identity @param {Object|null} holding Holding to edit @returns {void} Show editor with observed revisions. */
