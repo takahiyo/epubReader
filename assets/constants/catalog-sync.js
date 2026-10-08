@@ -10,4 +10,10 @@ export const CATALOG_SYNC = Object.freeze({
   excludedHoldingFields: Object.freeze(['legacy_book_id']),
   providerHosts: Object.freeze({ local: [], kindle: ['amazon.co.jp', 'amazon.com'], unext: ['unext.jp'] }),
   urlQueryKeys: Object.freeze(['asin', 'titleid', 'bookid', 'contentid', 'ref', 'ref_', 'language', 'marketplaceid']),
+  metaStore: 'catalog_sync_meta', metaId: 'state', recoveryStore: 'catalog_sync_recovery', scopePrefix: '-account-',
+  bootstrapPageSize: 100,
+  ignoredComparisonFields: Object.freeze(['revision', 'created_at', 'updated_at']),
+  clientErrors: Object.freeze({ account: 'account', transport: 'transport', unavailable: 'unavailable', protocol: 'protocol', blocked: 'blocked', limit: 'limit', import: 'import', stale: 'stale' }),
+  ui: Object.freeze({ open: 'catalogSyncOpen', run: 'catalogSyncRun', status: 'catalogSyncStatus', review: 'catalogSyncReview', local: 'catalogSyncLocal',
+    keep: 'catalogSyncKeep', cloud: 'catalogSyncCloud', seed: 'catalogSyncSeed', empty: 'catalogSyncEmpty', recovery: 'catalogSyncRecovery' }),
 });

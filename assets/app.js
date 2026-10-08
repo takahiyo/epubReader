@@ -283,6 +283,7 @@ function updateMenuVersion() {
 
 // 認証状態の変化を監視
 window.addEventListener("auth:status", (event) => {
+  catalogUI?.resetContext();
   currentUserData = event.detail.user;
   updateMenuAuthStatus();
 });
@@ -3178,6 +3179,11 @@ function setupEvents() {
 
   // Catalog initialization is lazy; reader startup and existing file storage stay independent.
   catalogUI = createCatalogUI({ t, getLegacy: () => storage.data, openModal: openExclusiveMenu, closeModal,
+    getSyncContext: () => {
+      const status = checkAuthStatus(), endpoint = cloudSync.getWorkerEndpoint();
+      return status.authenticated && status.userId && endpoint ? { uid: status.userId, endpoint, label: status.userEmail || status.userName || status.userId, canSync: syncLogic.isCloudSyncEnabled() } : null;
+    },
+    syncTransport: (path, payload, context) => cloudSync.postCatalogSync(path, payload, context),
     openLocal: async holding => {
       if (holding.legacy_book_id) await openFromLibrary(holding.legacy_book_id);
       else if (holding.legacy_cloud_book_id) await openCloudOnlyBook(holding.legacy_cloud_book_id);

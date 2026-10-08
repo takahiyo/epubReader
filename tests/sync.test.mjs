@@ -14,7 +14,7 @@ async function device(fetchImpl = fetch) {
   const values = new Map();
   const context = vm.createContext({
     console: { log() {}, warn() {}, debug() {}, error() {} }, crypto, structuredClone,
-    Date, JSON, Math, Set, Map, URL, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder,
+    Date, JSON, Math, Set, Map, URL, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, atob,
     setTimeout, clearTimeout, AbortSignal, fetch: fetchImpl, navigator: { userAgent: 'Test' }, window: {},
     document: { getElementById: () => null, querySelector: () => null },
     localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) },
@@ -79,6 +79,23 @@ test('cloud-only bookmarks are fetched even when metadata did not change', async
   await sync.syncAllBooksFromCloud(true);
   assert.equal(pulls, 1);
   assert.equal(storage.getCloudState('remote').bookmarks.length, 1);
+});
+
+test('catalog transport checks token owner and rechecks endpoint / disabled setting after token acquisition', async () => {
+  const { storage, load } = await device(); const { CloudSync } = await load('assets/cloudSync.js');
+  const { SYNC_PATHS } = await load('assets/constants.js'); const cloud = new CloudSync(storage);
+  storage.setSettings({ d1Endpoint: 'https://worker.example', explicitlyDisabledSync: false });
+  const context = { uid: 'test', endpoint: cloud.getWorkerEndpoint() }, token = uid => 'header.' + Buffer.from(JSON.stringify({ sub: uid })).toString('base64url') + '.signature';
+  let calls = 0; cloud.fetchWithRetry = async () => { calls++; return new Response(JSON.stringify({ data: { groups: [], nextCursor: 0, hasMore: false } })); };
+  cloud.getIdToken = async () => token('wrong-account');
+  await assert.rejects(cloud.postCatalogSync(SYNC_PATHS.CATALOG_PULL, {}, context), error => error.catalogSyncReason === 'account'); assert.equal(calls, 0);
+  cloud.getIdToken = async () => { storage.setSettings({ d1Endpoint: 'https://other.example' }); return token('test'); };
+  await assert.rejects(cloud.postCatalogSync(SYNC_PATHS.CATALOG_PULL, {}, context), error => error.catalogSyncReason === 'account'); assert.equal(calls, 0);
+  storage.setSettings({ d1Endpoint: context.endpoint });
+  cloud.getIdToken = async () => { storage.setSettings({ explicitlyDisabledSync: true }); return token('test'); };
+  await assert.rejects(cloud.postCatalogSync(SYNC_PATHS.CATALOG_PULL, {}, context), error => error.catalogSyncReason === 'account'); assert.equal(calls, 0);
+  storage.setSettings({ explicitlyDisabledSync: false }); cloud.getIdToken = async () => token('test');
+  assert.equal((await cloud.postCatalogSync(SYNC_PATHS.CATALOG_PULL, {}, context)).nextCursor, 0); assert.equal(calls, 1);
 });
 
 test('older remote progress keeps local position AND timestamp; explicit remote choice overrides it', async () => {

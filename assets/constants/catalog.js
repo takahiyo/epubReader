@@ -7,7 +7,7 @@ export const CATALOG_CONFIG = Object.freeze({
   sources: Object.freeze({ manual: 'manual', legacy: 'legacy' }),
   loanActions: Object.freeze({ borrow: 'borrow', return: 'return' }),
   errorCodes: Object.freeze({ conflict: 'conflict', invalid: 'invalid' }),
-  databaseName: 'bookreader-catalog', databaseVersion: 1, schemaVersion: 1,
+  databaseName: 'bookreader-catalog', databaseVersion: 2, schemaVersion: 1,
   providers: Object.freeze(['local', 'kindle', 'unext']),
   accessTypes: Object.freeze(['purchased', 'subscription_loan']),
   availabilityStates: Object.freeze(['active', 'returned', 'expired', 'unknown']),

@@ -20,6 +20,8 @@ import { ensureOneDriveAccessToken, isTokenValid as isOneDriveTokenValid } from 
 import { getCurrentUserId, getIdTokenInfo, ID_TOKEN_TYPE } from "./auth.js";
 import { t, tReplace } from "./i18n.js";
 import { buildCloudStatePayload } from "./cloudState.js";
+import { CATALOG_SYNC } from "./constants.js";
+import { catalogSyncError } from "./js/core/catalog-sync-client.js";
 
 export class CloudSync {
   constructor(storage) {
@@ -162,7 +164,7 @@ export class CloudSync {
   // Worker (D1) Access Methods
   // ===============================
 
-  async postWorkerSync(path, payload, settings = this.storage.getSettings()) {
+  async postWorkerSync(path, payload, settings = this.storage.getSettings(), catalogContext = null) {
     const endpoint = this.getWorkerEndpoint(settings);
     if (!endpoint) {
       throw new Error(t("cloudSyncNoEndpoint"));
@@ -170,6 +172,15 @@ export class CloudSync {
     const idToken = await this.getIdToken();
     if (!idToken) {
       throw new Error(t("cloudSyncNoIdToken"));
+    }
+    if (catalogContext) {
+      let subject;
+      try { subject = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub; } catch { /* Fail closed below. */ }
+      // Token acquisition is asynchronous: recheck its subject as well as the current account.
+      if (subject !== catalogContext.uid || getCurrentUserId() !== catalogContext.uid ||
+        this.getWorkerEndpoint() !== catalogContext.endpoint || this.storage.getSettings().explicitlyDisabledSync) {
+        throw catalogSyncError(CATALOG_SYNC.clientErrors.account);
+      }
     }
     const url = this.buildWorkerSyncUrl(endpoint, path);
     const body = JSON.stringify({ idToken, ...payload });
@@ -182,6 +193,8 @@ export class CloudSync {
     });
 
     if (!response.ok) {
+      // An unavailable catalog deployment must leave the account outbox available for retry.
+      if (catalogContext && response.status === 503) throw catalogSyncError(CATALOG_SYNC.clientErrors.unavailable);
       // fetchWithRetry でリトライ済みの最終レスポンス: 詳細を出力してからスロー
       try {
         const errorDetails = await response.text();
@@ -208,6 +221,14 @@ export class CloudSync {
     }
 
     return json?.data ?? json;
+  }
+
+  /** @param {string} path Catalog route @param {Object} payload Credential-free body @param {Object} context Captured account/endpoint @returns {Promise<Object>} Authenticated catalog result. */
+  async postCatalogSync(path, payload, context) {
+    if (![SYNC_PATHS.CATALOG_PULL, SYNC_PATHS.CATALOG_PUSH].includes(path) || getCurrentUserId() !== context?.uid || this.getWorkerEndpoint() !== context.endpoint) {
+      throw catalogSyncError(CATALOG_SYNC.clientErrors.account);
+    }
+    return this.postWorkerSync(path, payload, { ...this.storage.getSettings(), d1Endpoint: context.endpoint }, context);
   }
 
   // ===============================
