@@ -1,10 +1,12 @@
 /** Unified catalog dialog. Reader and storage dependencies are supplied by the application. */
-import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, CATALOG_BULK as B, UI_CLASSES } from '../../constants.js';
+import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, CATALOG_BULK as B, CATALOG_COPY as COPY, UI_CLASSES } from '../../constants.js';
 import { openCatalog } from '../core/catalog-store.js';
 import { saveCatalogEntry, changeCatalogLoan, bindCatalogFile, catalogRows, normalizeCatalogSearch } from '../core/catalog-actions.js';
-import { previewCatalogCSV, applyCatalogCSV } from '../core/catalog-csv.js';
+import { previewCatalogCSV, applyCatalogCSV, exportCatalogCSV } from '../core/catalog-csv.js';
 import { organizeCatalogBooks } from '../core/catalog-bulk.js';
 import { createCatalogBulkEditor } from './catalog-bulk-editor.js';
+import { createCatalogCopyDraft, registerCatalogCopies } from '../core/catalog-copy.js';
+import { createCatalogCopyEditor } from './catalog-copy-editor.js';
 
 /**
  * Create one dialog without changing the reader's initialization order.
@@ -17,7 +19,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   const backdrop = document.createElement('div'); backdrop.className = UI_CLASSES.MODAL_BACKDROP; root.append(backdrop, panel); document.body.append(root);
   let repositoryPromise, snapshot, rows = [], page = 0, editing = null, busy = false, generation = 0;
   let search, seriesFilter, providerFilter, availabilityFilter, list, editor, notice, paging;
-  const selected = new Map(); let pageBooks = [], selectionCount, bulkLaunch, selectPage, clearSelection;
+  const selected = new Map(); let pageBooks = [], selectionCount, bulkLaunch, selectPage, clearSelection, csvExport, copyLaunch;
   const field = name => document.getElementById(U.prefix + name);
   const repo = () => repositoryPromise ||= openCatalog().catch(error => { repositoryPromise = null; throw error; });
 
@@ -94,8 +96,30 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     }); selectPage.id = B.selectPage;
     clearSelection = button('catalog_bulk_clear_selection', () => { if (!busy && !editing?.bulk) { selected.clear(); render(); } }); clearSelection.id = B.clear;
     bulkLaunch = button('catalog_bulk_title', organize); bulkLaunch.id = B.launch;
+    csvExport = button('catalog_csv_export', () => {
+      if (busy || !selected.size || editing?.bulk) return;
+      const bookIds = [...selected.keys()];
+      run(async repository => {
+        // Read current committed metadata; an export must not use a stale dialog snapshot.
+        const text = exportCatalogCSV(await repository.read(), bookIds);
+        const url = URL.createObjectURL(new Blob([text], { type: CSV.mime }));
+        const anchor = node('a'); anchor.href = url; anchor.download = CSV.exportName; anchor.click();
+        requestAnimationFrame(() => URL.revokeObjectURL(url));
+      });
+    }); csvExport.id = CSV.export;
+    copyLaunch = button('catalog_copy_title', () => {
+      if (busy || !snapshot || !selected.size || editing?.bulk) return;
+      const drafts = createCatalogCopyDraft(rows, selected); editing = { bulk: true };
+      const form = createCatalogCopyEditor({ drafts, series: snapshot.series.filter(row => row.deleted_at == null), t, node, button, options,
+        onCancel: () => { if (!busy) { editing = null; editor.replaceChildren(); render(); } },
+        onSave: copies => run(async repository => {
+          await repository.update(current => registerCatalogCopies(current, copies)); selected.clear(); editing = null; editor.replaceChildren();
+        }) });
+      editor.replaceChildren(form); render(); form.scrollIntoView({ block: 'nearest' });
+      form.querySelector('input')?.focus();
+    }); copyLaunch.id = COPY.launch;
     const selectionTools = node('div'); selectionTools.className = U.classes.tools;
-    selectionTools.append(selectionCount, selectPage, clearSelection, bulkLaunch, node('p', t('catalog_bulk_selection_note')));
+    selectionTools.append(selectionCount, selectPage, clearSelection, bulkLaunch, copyLaunch, csvExport, node('p', t('catalog_bulk_selection_note')), node('p', t('catalog_csv_export_note')));
     const body = node('div'); body.className = UI_CLASSES.MODAL_BODY; body.append(node('p', t('catalog_note')), tools, selectionTools, notice, editor, list, paging);
     panel.replaceChildren(header, body); pageBooks = []; showSelection(); refresh();
   }
@@ -118,6 +142,8 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     if (!selectionCount) return;
     selectionCount.textContent = `${t('catalog_bulk_selected')}: ${selected.size}`;
     bulkLaunch.disabled = !snapshot || !selected.size || !!editing?.bulk;
+    csvExport.disabled = !snapshot || !selected.size || !!editing?.bulk;
+    copyLaunch.disabled = !snapshot || !selected.size || !!editing?.bulk;
     clearSelection.disabled = !selected.size || !!editing?.bulk;
     selectPage.disabled = !pageBooks.length || !!editing?.bulk;
   }

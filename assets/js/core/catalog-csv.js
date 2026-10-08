@@ -5,7 +5,47 @@
  */
 import { CATALOG_CONFIG as C, CATALOG_CSV as CSV } from '../../constants.js';
 import { emptyCatalog, validateCatalog, catalogRecord } from './catalog-model.js';
-import { normalizeCatalogSearch } from './catalog-actions.js';
+import { normalizeCatalogSearch, catalogRows } from './catalog-actions.js';
+
+/**
+ * Export selected volumes as filled CSV examples; one holding per row, one key per volume.
+ * Only import columns are allowed: reader file IDs, progress and history are never exported.
+ * @param {Object} snapshot Current catalog @param {string[]} bookIds Explicit selected identities
+ * @returns {string} UTF-8 BOM CSV with CRLF records and quoted text cells
+ */
+export function exportCatalogCSV(snapshot, bookIds) {
+  const catalog = validateCatalog(snapshot), selected = new Set(bookIds);
+  const books = catalogRows(catalog).filter(row => selected.has(row.book.id));
+  if (!selected.size || books.length !== selected.size || books.some(row => !row.holdings.length)) throw invalid(CSV.errors.selection);
+  const records = [CSV.columns];
+  for (let index = 0; index < books.length; index++) {
+    const { book, series, holdings } = books[index];
+    for (const holding of holdings) {
+      if (records.length - 1 >= CSV.maxRows) throw invalid(CSV.errors.limit);
+      const values = { title: book.title, author: book.author, series: series?.name, volume_label: book.volume_label,
+        sort_order: book.sort_order, edition: book.edition, provider: holding.provider, format: holding.format,
+        provider_book_id: holding.provider_book_id, external_url: holding.external_url, access_type: holding.access_type,
+        availability_status: holding.availability_status, book_key: CSV.bookKeyPrefix + (index + 1) };
+      records.push(CSV.columns.map(name => values[name] ?? ''));
+    }
+  }
+  /** @param {*} value Cell @returns {string} Quoted text, neutralizing leading spreadsheet formula characters. */
+  const cell = value => {
+    let text = String(value);
+    // Tab inside the quoted field follows OWASP's Excel mitigation. Import trims this prefix.
+    // Check NFKC too, since full-width formula characters occur in Japanese titles.
+    if (/^[\s]*[=+\-@]/.test(text.normalize('NFKC'))) text = CSV.spreadsheetTextPrefix + text;
+    return '"' + text.replaceAll('"', '""') + '"';
+  };
+  // Stop before accumulating many copies of a large field across holdings.
+  const chunks = ['\uFEFF'], encoder = new TextEncoder(); let bytes = encoder.encode(chunks[0]).length;
+  for (const row of records) {
+    const text = row.map(cell).join(',') + '\r\n'; bytes += encoder.encode(text).length;
+    if (bytes > CSV.maxBytes) throw invalid(CSV.errors.limit);
+    chunks.push(text);
+  }
+  return chunks.join('');
+}
 
 /** @param {string} reason CSV diagnostic @returns {Error} Translatable input failure. */
 function invalid(reason) { const error = new TypeError(reason); error.code = C.errorCodes.invalid; error.csvReason = reason; return error; }

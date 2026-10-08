@@ -95,6 +95,20 @@ export function catalogRecord(uuid, now) {
 }
 
 /**
+ * Hide unused series after a successful catalog mutation. Tombstones retain identities
+ * for future sync and references from deleted books without cluttering series choices.
+ * @param {Object} catalog Mutable candidate @param {number} now UTC clock
+ * @returns {Object} Candidate with only unused active series marked deleted
+ */
+export function pruneUnusedCatalogSeries(catalog, now = Date.now()) {
+  const used = new Set(catalog.books.filter(book => book.deleted_at == null && book.series_id).map(book => book.series_id));
+  for (const series of catalog.series) if (series.deleted_at == null && !used.has(series.id)) {
+    series.deleted_at = now; series.updated_at = now; series.revision++;
+  }
+  return catalog;
+}
+
+/**
  * Add legacy local holdings once per explicit reader ID. Titles never establish identity.
  * Cloud records linked to local IDs enrich that holding; web novels remain in their existing shelf.
  * Historical progress is intentionally left in reader storage until an explicit state migration.

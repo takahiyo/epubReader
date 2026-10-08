@@ -2,10 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CATALOG_CSV as CSV } from '../assets/constants.js';
 import { emptyCatalog } from '../assets/js/core/catalog-model.js';
-import { parseCatalogCSV, previewCatalogCSV, applyCatalogCSV } from '../assets/js/core/catalog-csv.js';
+import { parseCatalogCSV, previewCatalogCSV, applyCatalogCSV, exportCatalogCSV } from '../assets/js/core/catalog-csv.js';
 
 /** @returns {Object} Stable identities and timestamps for precise preservation assertions. */
 function deps() { let id = 0; return { now: 1000, uuid: () => 'csv-' + ++id }; }
+
+test('selected CSV exports all holdings, shared volume keys and exact import columns without reader IDs/history', () => {
+  const source = previewCatalogCSV(emptyCatalog(), 'title,provider,series,volume_label,sort_order,provider_book_id,book_key\nA,kindle,Series,上,0,A,one\nA,unext,Series,上,0,U,one\nB,kindle,Series,下,2,B,two', deps()).next;
+  source.holdings[0].legacy_book_id = 'private-reader-id';
+  const before = structuredClone(source), text = exportCatalogCSV(source, [source.books[0].id]);
+  const rows = parseCatalogCSV(text), index = name => rows[0].cells.indexOf(name);
+  assert.deepEqual(rows[0].cells, [...CSV.columns]); assert.equal(rows.length, 3);
+  assert.deepEqual(rows.slice(1).map(row => row.cells[index('provider')]), ['kindle', 'unext']);
+  assert.equal(rows[1].cells[index('book_key')], rows[2].cells[index('book_key')]);
+  assert.equal(rows[1].cells[index('sort_order')], '0'); assert.equal(text.startsWith('\uFEFF'), true); assert.equal(text.endsWith('\r\n'), true);
+  assert.equal(text.includes('private-reader-id'), false); assert.equal(text.includes('progress_percent'), false);
+  assert.equal(previewCatalogCSV(source, text).counts.duplicate, 2);
+  assert.deepEqual(source, before);
+});
+
+test('filled CSV examples quote punctuation, neutralize spreadsheet formulas and import the intended values', () => {
+  const source = previewCatalogCSV(emptyCatalog(), 'title,provider,format\nA,local,epub', deps()).next;
+  source.books[0].title = '=1+2,"quote"\nnext'; source.books[0].author = '＠author'; source.books[0].sort_order = -1;
+  const text = exportCatalogCSV(source, [source.books[0].id]);
+  assert.ok(text.includes('"\t=1+2,""quote""\nnext"')); assert.ok(text.includes('"\t＠author"')); assert.ok(text.includes('"\t-1"'));
+  const p = previewCatalogCSV(emptyCatalog(), text);
+  assert.equal(p.counts.error, 0); assert.equal(p.next.books[0].title, source.books[0].title); assert.equal(p.next.books[0].author, source.books[0].author); assert.equal(p.next.books[0].sort_order, -1);
+});
+
+test('CSV export rejects empty/stale selections and oversized output; deleted holdings are excluded', () => {
+  const source = previewCatalogCSV(emptyCatalog(), 'title,provider,book_key\nA,kindle,one\nA,unext,one', deps()).next, id = source.books[0].id;
+  assert.throws(() => exportCatalogCSV(source, [])); assert.throws(() => exportCatalogCSV(source, ['missing']));
+  source.holdings[1].deleted_at = 20; assert.equal(parseCatalogCSV(exportCatalogCSV(source, [id])).length, 2);
+  source.books[0].title = 'x'.repeat(CSV.maxBytes); assert.throws(() => exportCatalogCSV(source, [id]), error => error.csvReason === CSV.errors.limit);
+  source.books[0].deleted_at = 20; assert.throws(() => exportCatalogCSV(source, [id]), error => error.csvReason === CSV.errors.selection);
+});
 
 test('CSV parses BOM, CRLF, commas, escaped quotes and multiline physical line numbers', () => {
   const rows = parseCatalogCSV('\uFEFFtitle,provider\r\n"a, ""quote""\r\nb",kindle\r\nnext,unext\r\n');

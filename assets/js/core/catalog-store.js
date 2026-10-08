@@ -1,6 +1,6 @@
 /** Dedicated IndexedDB catalog repository. No changes to files, reader bookmarks or progress. */
 import { CATALOG_CONFIG as C } from '../../constants.js';
-import { emptyCatalog, validateCatalog, migrateLegacyCatalog } from './catalog-model.js';
+import { emptyCatalog, validateCatalog, migrateLegacyCatalog, pruneUnusedCatalogSeries } from './catalog-model.js';
 
 /** @param {IDBRequest} request IndexedDB request @returns {Promise<*>} Request result. */
 const result = request => new Promise((resolve, reject) => {
@@ -42,7 +42,8 @@ export async function openCatalog({ indexedDB = globalThis.indexedDB, databaseNa
     try {
       const records = await Promise.all(names.map(name => result(tx.objectStore(name).getAll())));
       const snapshot = { ...emptyCatalog(), ...Object.fromEntries(names.map((name, index) => [name, records[index]])) };
-      const next = transform ? validateCatalog(transform(snapshot)) : validateCatalog(snapshot);
+      // Empty series are cleaned only within successful writes, including import/migration.
+      const next = transform ? validateCatalog(pruneUnusedCatalogSeries(transform(snapshot))) : validateCatalog(snapshot);
       if (transform) {
         for (const name of names) {
           const store = tx.objectStore(name);

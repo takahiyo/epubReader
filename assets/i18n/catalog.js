@@ -1,7 +1,11 @@
 /** Catalog labels shared by the main application and injected dialog. */
 export const CATALOG_STRINGS = Object.freeze({
   ja: {
-    catalog_bulk_title: '選択した巻を整理', catalog_bulk_select: '整理対象に選ぶ', catalog_bulk_selected: '選択した巻',
+    catalog_copy_title: '選択した書籍を複写登録', catalog_copy_book: '複写する巻', catalog_copy_save: '確認した複写を新規登録',
+    catalog_copy_note: '選択した巻と全所蔵先を見本に、新しい書籍を登録します。書名・巻・並び順等を確認して変更してください。サービス内ID・URL・ファイルの紐付け・進捗・読了・KU履歴は引き継ぎません。利用状態は未確認に戻します。保存するまで登録されません。',
+    catalog_csv_export: '選択した書籍をCSV出力', catalog_csv_export_note: 'チェックした巻の全所蔵先を記入済みの見本として出力します。新しい巻を登録するときは書名・巻表示・book_key・サービス内ID・URLを確認して変更してください。CSVは追加登録用です。既存情報の更新や完全バックアップには使いません。IDがない行の再取り込みは重複する場合があります。',
+    catalog_csv_error_selection: 'CSV出力する書籍をチェックしてください。削除された書籍がある場合は目録を開き直して選び直してください。',
+    catalog_bulk_title: '選択した巻を整理', catalog_bulk_select: '書籍を選択', catalog_bulk_selected: '選択した巻',
     catalog_bulk_select_page: 'このページを選択', catalog_bulk_clear_selection: '選択解除', catalog_bulk_target: '所属シリーズ',
     catalog_bulk_keep: 'シリーズを変更しない', catalog_bulk_clear_series: 'シリーズ未設定にする', catalog_bulk_new_series: '新しいシリーズを作る',
     catalog_bulk_save: '確認した整理内容を保存',
@@ -9,7 +13,7 @@ export const CATALOG_STRINGS = Object.freeze({
     catalog_bulk_note: '選択した巻だけを変更します。巻表示・並び順は各行で確認してください。同名でも巻・版を統合せず、所蔵先・進捗・KU履歴を維持します。',
     catalog_bulk_error_selection: '整理対象は1〜500巻で選択してください。', catalog_bulk_error_order: '並び順は整数、または未設定（空欄）にしてください。',
     catalog_bulk_error_series: '所属シリーズを確認してください。同名シリーズがある場合は既存シリーズを選択してください。',
-    catalog_csv_import: 'CSV一括登録', catalog_csv_template: 'CSVひな形', catalog_csv_preview: 'CSV登録プレビュー', catalog_csv_commit: '確認した所蔵を追加',
+    catalog_csv_import: 'CSV一括登録', catalog_csv_template: '空のCSVひな形', catalog_csv_preview: 'CSV登録プレビュー', catalog_csv_commit: '確認した所蔵を追加',
     catalog_csv_note: 'UTF-8、最大1MB・5,000行。titleとprovider（local / kindle / unext）は必須。既存データの更新はしません。同じサービスID・購入借用区分はスキップします。書名だけでは統合せず、同巻の複数所蔵は同じbook_keyを指定してください（このCSV内のみ有効）。エラー行はCSVを修正して読み直してください。IDなしの再取り込みは重複する場合があります。',
     catalog_csv_count_add: '追加所蔵', catalog_csv_count_duplicate: 'スキップ', catalog_csv_count_error: 'エラー', catalog_csv_count_candidates: '同名候補',
     catalog_csv_count_books: '新規巻・版', catalog_csv_count_series: '新規シリーズ', catalog_csv_count_update: '既存更新',
@@ -43,7 +47,11 @@ export const CATALOG_STRINGS = Object.freeze({
     catalog_editor_note: 'この巻の書名・シリーズ変更は、同じ巻に登録した全所蔵先へ反映されます。Local Readerの進捗とは別の手動記録です。',
   },
   en: {
-    catalog_bulk_title: 'Organize selected volumes', catalog_bulk_select: 'Select for organization', catalog_bulk_selected: 'Selected volumes',
+    catalog_copy_title: 'Copy selected books for registration', catalog_copy_book: 'Volume to copy', catalog_copy_save: 'Register reviewed copies',
+    catalog_copy_note: 'Register new books using selected volumes and all holdings as examples. Review and change titles, volumes and order. Service IDs, URLs, file bindings, progress, completion and KU history are not copied. Availability resets to unknown. Nothing is registered until you save.',
+    catalog_csv_export: 'Export selected books to CSV', catalog_csv_export_note: 'Export every holding of checked volumes as filled examples. For a new volume, check and change the title, volume label, book_key, service ID and URL. CSV adds records; it does not update existing metadata or provide a full backup. Reimporting rows without service IDs may create duplicates.',
+    catalog_csv_error_selection: 'Check books to export. If selected records were deleted, reopen the catalog and select again.',
+    catalog_bulk_title: 'Organize selected volumes', catalog_bulk_select: 'Select book', catalog_bulk_selected: 'Selected volumes',
     catalog_bulk_select_page: 'Select this page', catalog_bulk_clear_selection: 'Clear selection', catalog_bulk_target: 'Series membership',
     catalog_bulk_keep: 'Keep current series', catalog_bulk_clear_series: 'Remove series membership', catalog_bulk_new_series: 'Create a new series',
     catalog_bulk_save: 'Save reviewed organization',
@@ -51,7 +59,7 @@ export const CATALOG_STRINGS = Object.freeze({
     catalog_bulk_note: 'Only selected volumes change. Review each volume label and order. Books and editions are never merged; holdings, progress and KU history are preserved.',
     catalog_bulk_error_selection: 'Select between 1 and 500 volumes.', catalog_bulk_error_order: 'Use an integer order, or leave it blank for unknown order.',
     catalog_bulk_error_series: 'Check the target series. Select an existing series when the same name is already registered.',
-    catalog_csv_import: 'Import CSV', catalog_csv_template: 'CSV template', catalog_csv_preview: 'CSV import preview', catalog_csv_commit: 'Add reviewed holdings',
+    catalog_csv_import: 'Import CSV', catalog_csv_template: 'Blank CSV template', catalog_csv_preview: 'CSV import preview', catalog_csv_commit: 'Add reviewed holdings',
     catalog_csv_note: 'UTF-8, up to 1MB and 5,000 rows. title and provider (local / kindle / unext) are required. Existing records are never updated. Duplicate service ID and access type are skipped. Titles never merge books. Use the same book_key for multiple holdings of a volume within this CSV only. Fix error rows and select the file again. Reimporting rows without service IDs may create duplicates.',
     catalog_csv_count_add: 'New holdings', catalog_csv_count_duplicate: 'Skipped', catalog_csv_count_error: 'Errors', catalog_csv_count_candidates: 'Same-title candidates',
     catalog_csv_count_books: 'New volumes / editions', catalog_csv_count_series: 'New series', catalog_csv_count_update: 'Existing updates',

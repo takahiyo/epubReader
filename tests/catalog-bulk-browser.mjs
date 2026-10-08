@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
 import { createPreviewServer } from '../scripts/local-preview.mjs';
-import { CATALOG_BULK as B, CATALOG_UI as U } from '../assets/constants.js';
+import { CATALOG_BULK as B, CATALOG_UI as U, CATALOG_COPY as COPY } from '../assets/constants.js';
 
 const server = createPreviewServer(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser, page;
@@ -75,9 +75,36 @@ try {
   assert.equal((await read()).books.find(row => row.id === ids[0]).volume_label, '上');
   assert.equal(await page.$eval('#' + B.labelPrefix + ids[0], element => element.value), 'stale draft');
   assert.equal(await page.$eval('#' + B.form, element => element.scrollWidth <= element.clientWidth), true);
-  await page.click('#' + B.cancel); await page.evaluate(() => { window.language = 'en'; window.catalog.localize(); });
+  await page.click('#' + B.cancel); await page.evaluate(() => window.catalog.show());
+  await input(U.search, 'Concurrent title'); await selectBook(ids[0]); await page.click('#' + COPY.launch);
+  assert.equal(await page.$eval('#' + COPY.prefix + '0-0-provider_book_id', element => element.value), '');
+  assert.equal(await page.$eval('#' + COPY.prefix + '0-0-external_url', element => element.value), '');
+  await input(COPY.prefix + '0-title', 'Copied next volume'); await page.click('#' + COPY.cancel);
+  assert.equal((await read()).books.length, 61);
+  await page.click('#' + COPY.launch); await input(COPY.prefix + '0-title', 'Copied next volume'); await input(COPY.prefix + '0-volume_label', '下');
+  await page.click('#' + COPY.save); await page.waitForSelector('#' + COPY.form, { hidden: true });
+  const copied = await read(), newBook = copied.books.find(row => row.title === 'Copied next volume'); assert.ok(newBook);
+  const copiedHoldings = copied.holdings.filter(row => row.book_id === newBook.id); assert.equal(copiedHoldings.length, 2);
+  assert.ok(copiedHoldings.every(row => row.availability_status === 'unknown' && row.legacy_book_id === null && row.provider_book_id === null));
+  assert.equal(copied.reading_events.length, before.reading_events.length); assert.equal(copied.access_periods.length, before.access_periods.length);
+  const failedCleanup = await page.evaluate(async () => {
+    const { openCatalog } = await import('/assets/js/core/catalog-store.js'); const repo = await openCatalog();
+    try { await repo.update(current => { for (const book of current.books) book.series_id = null; current.books[0].title = ''; return current; }); return false; }
+    catch { return true; } finally { repo.close(); }
+  });
+  assert.equal(failedCleanup, true); assert.equal((await read()).series.find(row => row.id === group.id).deleted_at, null);
+  // Move every member: only then should the old series disappear; a failed transaction cannot prune it.
+  await page.evaluate(async () => {
+    const { openCatalog } = await import('/assets/js/core/catalog-store.js'); const repo = await openCatalog();
+    await repo.update(current => { for (const book of current.books) { book.series_id = null; book.revision++; } return current; }); repo.close();
+    await window.catalog.show();
+  });
+  assert.equal((await read()).series.find(row => row.id === group.id).deleted_at != null, true);
+  assert.equal(await page.$eval('#' + U.series, element => [...element.options].some(option => option.textContent === 'Organized series')), false);
+  assert.equal(await page.$eval('#' + U.series, element => element.options.length), 1);
+  await page.evaluate(() => { window.language = 'en'; window.catalog.localize(); });
   assert.equal(await page.$eval('#' + B.launch, element => element.textContent), 'Organize selected volumes');
   await page.setViewport({ width: 1280, height: 900 }); assert.deepEqual(errors, []);
-  console.log('PASS: cross-page/filter selection, bounded drafts, explicit 51-volume organization, preserved KU history, cancel and concurrent-edit rejection');
+  console.log('PASS: selection/bulk drafts, copy registration with fresh holdings, preserved history, empty-series cleanup and concurrent-edit rejection');
 } catch (error) { if (page) console.error(await page.$eval('body', element => element.textContent)); throw error; }
 finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }

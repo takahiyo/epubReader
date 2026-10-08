@@ -7,8 +7,9 @@ export const HELP_CONTENT = Object.freeze({
       { title: '統合電子書庫', paragraphs: [
         '左メニュー、または読書メニューの「書籍 → 統合電子書庫」で、EPUB・画像書庫・Kindle・U-NEXTの所蔵をまとめて整理できます。シリーズを選び、巻表示と並び順を設定してください。同じ巻を別サービスでも持っている場合は「所蔵先を追加」を使います。',
         'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録はこの端末内だけに保存し、既存の読書同期とは別です。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。',
-        '「CSVひな形」をUTF-8で記入し、「CSV一括登録」でプレビューを確認して追加できます。同じサービスID・購入借用区分はスキップし、既存情報を更新しません。同巻の複数所蔵はCSV内で同じbook_keyを指定します。IDのない行は再取り込みで重複する場合があります。',
-        '既存の巻はチェックして「選択した巻を整理」からシリーズ・巻表示・並び順をまとめて設定できます。ページや検索の変更後も選択は残るため、整理画面の対象を確認して保存してください。所蔵先・読書進捗・KU履歴は維持します。'
+        '書籍をチェックして「選択した書籍をCSV出力」を使うと、シリーズ・巻・所蔵先を記入済みの見本として保存できます。新しい巻に使う場合は書名・巻表示・book_key・サービス内ID・URLを確認して変更し、「CSV一括登録」でプレビューを確認してください。空のCSVひな形も利用できます。同じサービスID・購入借用区分はスキップし、既存情報を更新しません。IDのない行は再取り込みで重複する場合があります。',
+        '既存の巻はチェックして「選択した巻を整理」からシリーズ・巻表示・並び順をまとめて設定できます。ページや検索の変更後も選択は残るため、整理画面の対象を確認して保存してください。所蔵先・読書進捗・KU履歴は維持します。',
+        '「選択した書籍を複写登録」で巻情報と全所蔵先を見本にした編集画面を開けます。サービス内ID・URL・本体の紐付け・進捗・履歴は新しい書籍へコピーしません。所属する巻が0冊になったシリーズは、保存時に一覧から削除します。'
       ] },
       { title: 'はじめ方と端末を替えるとき', paragraphs: [
         '「書籍 → 開く」でEPUB・画像書庫などを選びます。読書画面のメニューから、ライブラリ・目次・しおり・検索・設定にアクセスできます。文字サイズや縦横表示は設定から変更できます。',
@@ -52,8 +53,9 @@ export const HELP_CONTENT = Object.freeze({
       { title: 'Unified catalog', paragraphs: [
         'Open Unified catalog in the left menu, or under Books in the reading menu, to organize EPUB, image archive, Kindle and U-NEXT holdings. Choose a series and set the volume label and order. Use Add holding for another provider of the same volume.',
         'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. This catalog is stored only on this device, separately from reading sync. Save JSON creates a backup; Restore JSON replaces the entire catalog. External progress and availability are not automatically retrieved.',
-        'Fill in the CSV template as UTF-8 and use Import CSV to review and add holdings. Duplicate service IDs and access types are skipped without updating existing records. Use the same book_key for multiple holdings of a volume within the CSV. Reimporting rows without service IDs may create duplicates.',
-        'Check existing volumes and use Organize selected volumes to assign a series and edit volume labels and order together. Selections remain across pages and searches, so review the editor targets before saving. Holdings, reading progress and KU history are preserved.'
+        'Check books and use Export selected books to CSV for filled examples of series, volumes and holdings. For a new volume, check and change the title, volume label, book_key, service ID and URL, then review with Import CSV. A blank template is also available. Duplicate service IDs and access types are skipped without updating existing records. Reimporting rows without service IDs may create duplicates.',
+        'Check existing volumes and use Organize selected volumes to assign a series and edit volume labels and order together. Selections remain across pages and searches, so review the editor targets before saving. Holdings, reading progress and KU history are preserved.',
+        'Use Copy selected books for registration to review copies of volume metadata and all holdings. Service IDs, URLs, file bindings, progress and history are not copied to new books. Series with no remaining volumes are removed from lists when changes are saved.'
       ] },
       { title: 'Getting started and switching devices', paragraphs: [
         'Choose an EPUB or image archive from Books → Open. The reading menu provides Library, Contents, Bookmarks, Search and Settings. Adjust text size and reading orientation in Settings.',

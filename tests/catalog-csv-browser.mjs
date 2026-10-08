@@ -1,8 +1,11 @@
 /** CSV review and persistence through the real DOM and IndexedDB, with no external accounts. */
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import puppeteer from 'puppeteer';
 import { createPreviewServer } from '../scripts/local-preview.mjs';
 import { CATALOG_CSV as CSV, CATALOG_UI as U } from '../assets/constants.js';
+import { parseCatalogCSV } from '../assets/js/core/catalog-csv.js';
 
 const server = createPreviewServer();
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -48,6 +51,23 @@ try {
   await page.click('#' + CSV.commit); await page.waitForSelector('#' + CSV.preview, { hidden: true });
   const next = await read(); assert.equal(next.books.length, 2); assert.equal(next.holdings.length, 3); assert.equal(next.series.length, 1);
   console.log('CSV committed');
+  assert.equal(await page.$eval('#' + CSV.export, element => element.disabled), true);
+  const downloadDirectory = path.resolve('scratch', 'catalog-csv-download-' + process.pid); await fs.mkdir(downloadDirectory, { recursive: true });
+  const protocol = await page.createCDPSession(); await protocol.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
+  await page.select('#' + U.provider, 'unext');
+  const firstId = next.books.find(book => book.title === 'First').id;
+  await page.click(`article[data-book-id="${firstId}"] input[type="checkbox"]`);
+  await page.click('#' + CSV.export);
+  let download;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try { download = await fs.readFile(path.join(downloadDirectory, CSV.exportName), 'utf8'); break; }
+    catch (error) { if (error.code !== 'ENOENT') throw error; await new Promise(resolve => setTimeout(resolve, 50)); }
+  }
+  assert.ok(download, 'Selected CSV must download through the real button');
+  const exported = parseCatalogCSV(download); assert.equal(exported.length, 3);
+  assert.deepEqual(exported.slice(1).map(row => row.cells[exported[0].cells.indexOf('provider')]), ['kindle', 'unext']);
+  assert.equal((await read()).holdings.length, 3);
+  await page.select('#' + U.provider, '');
   await selectCSV(text); assert.equal(await page.$eval('#' + CSV.commit, element => element.disabled), true);
   assert.equal(await page.$eval('#' + CSV.preview, element => element.textContent.includes('スキップ: 3')), true);
   await page.evaluate(id => [...document.getElementById(id).querySelectorAll('button')].find(button => button.textContent === 'キャンセル').click(), CSV.preview);
@@ -71,6 +91,6 @@ try {
   assert.equal(await page.$('#' + CSV.preview), null);
   assert.equal((await read()).holdings.length, 3);
   assert.deepEqual(errors, []);
-  console.log('PASS: CSV errors, cancel, explicit multi-provider import, reimport skip, concurrent edit protection and bounded mobile/desktop preview');
+  console.log('PASS: selected CSV download includes all holdings across provider filters; import, cancel, duplicates, concurrent edits and bounded preview');
 } catch (error) { if (page) console.error(await page.$eval('body', element => element.textContent)); throw error; }
 finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }

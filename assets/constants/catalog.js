@@ -47,9 +47,10 @@ export const CATALOG_CSV = Object.freeze({
     'provider_book_id', 'external_url', 'access_type', 'availability_status', 'book_key']),
   required: Object.freeze(['title', 'provider']),
   statuses: Object.freeze({ add: 'add', duplicate: 'duplicate', error: 'error' }),
-  errors: Object.freeze({ syntax: 'syntax', header: 'header', limit: 'limit', values: 'values', group: 'group', series: 'series' }),
+  errors: Object.freeze({ syntax: 'syntax', header: 'header', limit: 'limit', values: 'values', group: 'group', series: 'series', selection: 'selection' }),
   input: 'catalogCSVInput', preview: 'catalogCSVPreview', commit: 'catalogCSVCommit',
   templateName: 'bookreader-catalog-template.csv', mime: 'text/csv;charset=utf-8', accept: '.csv,text/csv',
+  export: 'catalogCSVExport', exportName: 'bookreader-selected-books.csv', bookKeyPrefix: 'book_', spreadsheetTextPrefix: '\t',
   classes: Object.freeze({ preview: 'catalog-csv-preview', table: 'catalog-csv-table' }),
 });
 
@@ -63,4 +64,12 @@ export const CATALOG_BULK = Object.freeze({
   form: 'catalogBulkForm', target: 'catalogBulkTarget', name: 'catalogBulkName', save: 'catalogBulkSave', cancel: 'catalogBulkCancel',
   labelPrefix: 'catalogBulkVolume-', orderPrefix: 'catalogBulkOrder-',
   classes: Object.freeze({ selection: 'catalog-selection', editor: 'catalog-bulk-editor', row: 'catalog-bulk-row' }),
+});
+
+/** Copy registration uses new identities and explicit drafts, never reader/history cloning. */
+export const CATALOG_COPY = Object.freeze({
+  launch: 'catalogCopyLaunch', form: 'catalogCopyForm', save: 'catalogCopySave', cancel: 'catalogCopyCancel',
+  prefix: 'catalogCopy-',
+  bookFields: Object.freeze(['title', 'author', 'series_id', 'volume_label', 'sort_order', 'edition']),
+  holdingFields: Object.freeze(['provider', 'format', 'access_type', 'provider_book_id', 'external_url', 'availability_status']),
 });
