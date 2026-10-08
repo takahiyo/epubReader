@@ -5,7 +5,7 @@ export const HELP_CONTENT = Object.freeze({
     intro: '書籍を読むためのデータと、端末間で共有する読書情報を分けて扱っています。保存先と送信内容を知ったうえでお使いください。',
     sections: [
       { title: '統合電子書庫', paragraphs: [
-        '左メニューの「統合電子書庫」で、EPUB・画像書庫・Kindle・U-NEXTの所蔵をまとめて整理できます。シリーズを選び、巻表示と並び順を設定してください。同じ巻を別サービスでも持っている場合は「所蔵先を追加」を使います。',
+        '左メニュー、または読書メニューの「書籍 → 統合電子書庫」で、EPUB・画像書庫・Kindle・U-NEXTの所蔵をまとめて整理できます。シリーズを選び、巻表示と並び順を設定してください。同じ巻を別サービスでも持っている場合は「所蔵先を追加」を使います。',
         'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録はこの端末内だけに保存し、既存の読書同期とは別です。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。',
         '「CSVひな形」をUTF-8で記入し、「CSV一括登録」でプレビューを確認して追加できます。同じサービスID・購入借用区分はスキップし、既存情報を更新しません。同巻の複数所蔵はCSV内で同じbook_keyを指定します。IDのない行は再取り込みで重複する場合があります。',
         '既存の巻はチェックして「選択した巻を整理」からシリーズ・巻表示・並び順をまとめて設定できます。ページや検索の変更後も選択は残るため、整理画面の対象を確認して保存してください。所蔵先・読書進捗・KU履歴は維持します。'
@@ -50,7 +50,7 @@ export const HELP_CONTENT = Object.freeze({
     intro: 'Book files and reading information are handled separately. Learn what stays on this device and what is sent when you use sync or sharing.',
     sections: [
       { title: 'Unified catalog', paragraphs: [
-        'Open Unified catalog in the left menu to organize EPUB, image archive, Kindle and U-NEXT holdings. Choose a series and set the volume label and order. Use Add holding for another provider of the same volume.',
+        'Open Unified catalog in the left menu, or under Books in the reading menu, to organize EPUB, image archive, Kindle and U-NEXT holdings. Choose a series and set the volume label and order. Use Add holding for another provider of the same volume.',
         'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. This catalog is stored only on this device, separately from reading sync. Save JSON creates a backup; Restore JSON replaces the entire catalog. External progress and availability are not automatically retrieved.',
         'Fill in the CSV template as UTF-8 and use Import CSV to review and add holdings. Duplicate service IDs and access types are skipped without updating existing records. Use the same book_key for multiple holdings of a volume within the CSV. Reimporting rows without service IDs may create duplicates.',
         'Check existing volumes and use Organize selected volumes to assign a series and edit volume labels and order together. Selections remain across pages and searches, so review the editor targets before saving. Holdings, reading progress and KU history are preserved.'

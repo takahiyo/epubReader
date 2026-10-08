@@ -2445,6 +2445,7 @@ function applyUiLanguage(nextLanguage) {
   setFloatLabel(elements.floatPrevBook, UI_ICONS.AREA_LEFT, strings.menuPrevBook);
   setFloatLabel(elements.floatNextBook, UI_ICONS.AREA_RIGHT, strings.menuNextBook);
   setFloatLabel(elements.floatLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
+  setFloatLabel(document.getElementById(CATALOG_UI.floatLaunch), UI_ICONS.MENU_LIBRARY, t('catalog_title'));
   setFloatLabel(elements.floatSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setFloatLabel(elements.floatBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setFloatLabel(elements.floatHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
@@ -3190,6 +3191,10 @@ function setupEvents() {
     },
   });
   document.getElementById(CATALOG_UI.launch)?.addEventListener('click', () => catalogUI.show());
+  // Reading mode hides the sidebar; expose the same catalog from its visible book group.
+  document.getElementById(CATALOG_UI.floatLaunch)?.addEventListener('click', event => {
+    event.stopPropagation(); event.preventDefault(); renderers.toggleFloatOverlay(false); catalogUI.show();
+  });
 
   // メニューアクション
   if (elements.menuOpen) {

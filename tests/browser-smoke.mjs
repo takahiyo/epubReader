@@ -368,6 +368,19 @@ try {
   assert.deepEqual(errors, []);
   console.log('PASS: main application opens catalog, migrates EPUB/CBZ shelf and closes with Escape');
 
+  // The reader's floating panel is the visible entry point when the sidebar is hidden.
+  await app.evaluate(async () => {
+    const { toggleFloatOverlay } = await import('/assets/js/ui/renderers.js'); toggleFloatOverlay(true);
+    const group = document.querySelector('.float-menu-group[data-group="book"]');
+    if (!group.classList.contains('expanded')) group.querySelector('.float-menu-group-header').click();
+  });
+  await app.waitForFunction(() => Number(getComputedStyle(document.querySelector('.float-menu-group[data-group="book"] .float-menu-group-items')).opacity) === 1);
+  await app.click('#floatCatalog');
+  await app.waitForFunction(() => !document.getElementById('catalogModal').classList.contains('hidden'));
+  assert.ok(await app.$eval('#floatOverlay', element => !element.classList.contains('visible')));
+  await app.keyboard.press('Escape'); assert.deepEqual(errors, []);
+  console.log('PASS: reader menu Book → Unified catalog opens the same catalog and closes the floating panel');
+
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));

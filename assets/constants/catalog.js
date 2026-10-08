@@ -29,7 +29,7 @@ export const CATALOG_CONFIG = Object.freeze({
 
 /** UI identities shared by the application, catalog dialog and browser tests. */
 export const CATALOG_UI = Object.freeze({
-  launch: 'menuCatalog', modal: 'catalogModal', heading: 'catalogHeading',
+  launch: 'menuCatalog', floatLaunch: 'floatCatalog', modal: 'catalogModal', heading: 'catalogHeading',
   list: 'catalogList', search: 'catalogSearch', series: 'catalogSeries', provider: 'catalogProvider',
   availability: 'catalogAvailability', editor: 'catalogEditor', notice: 'catalogNotice',
   form: 'catalogForm', prefix: 'catalog-', backupName: 'bookreader-catalog.json',
