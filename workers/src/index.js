@@ -7,12 +7,16 @@
  *  POST /sync/index/push  { idToken, indexDelta, updatedAt }
  *  POST /sync/state/pull  { idToken, cloudBookId }
  *  POST /sync/state/push  { idToken, cloudBookId, state, updatedAt }
+ *  POST /sync/catalog/pull { idToken, cursor?, limit? }
+ *  POST /sync/catalog/push { idToken, mutations }
  *  POST /api/diagnostics  { fileName, errorMessage, stackTrace? }
  */
 
 import { verifyIdToken } from './auth.js';
 import { mergeCloudStates } from '../../assets/js/core/cloud-state-merge.js';
 import { sanitizeCloudMeta, sanitizeCloudState } from '../../assets/js/core/cloud-payload.js';
+import { SYNC_PATHS } from '../../assets/constants.js';
+import { handleCatalogSync } from './catalog-sync.js';
 const API_LIMITS = Object.freeze({ maxBodyBytes: 1048576, casRetries: 5 });
 
 /** Optimistic compare-and-swap prevents concurrent JSON updates from dropping another device's edits. */
@@ -194,6 +198,13 @@ export default {
       // 1. 診断ログ保存  POST /api/diagnostics
       //    ※ 認証不要（エラー発生時にトークンが取れない可能性があるため）
       // ===================================================================
+      // Catalog shares verified authentication, but never reuses the legacy reader payload schema.
+      if ([SYNC_PATHS.CATALOG_PULL, SYNC_PATHS.CATALOG_PUSH].includes(path) && method === 'POST') {
+        const { uid, error } = await authenticate(body, env, corsHeaders);
+        if (error) return error;
+        return handleCatalogSync(path, body, env, uid, corsHeaders);
+      }
+
       if (path === '/api/diagnostics' && method === 'POST') {
         const { fileName, errorMessage, stackTrace } = body;
         if (!fileName || !errorMessage) {

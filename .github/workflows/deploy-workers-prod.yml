@@ -8,6 +8,10 @@ on:
       - 'workers/**'
       - 'assets/js/core/cloud-state-merge.js'
       - 'assets/js/core/cloud-payload.js'
+      - 'assets/js/core/catalog-model.js'
+      - 'assets/js/core/catalog-sync-protocol.js'
+      - 'assets/constants/**'
+      - 'assets/constants.js'
 
 jobs:
   deploy:
@@ -22,6 +26,10 @@ jobs:
           node-version: '24'
       - name: Test before deploy
         run: node --experimental-vm-modules --test tests/*.test.mjs
+      - name: Install pinned local Worker test runtime
+        run: npm ci --prefix workers --ignore-scripts
+      - name: Verify bundled Worker with local D1
+        run: node tests/catalog-worker-local.mjs
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:

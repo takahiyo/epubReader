@@ -14,6 +14,8 @@ export const SYNC_PATHS = Object.freeze({
   STATE_PUSH: "/sync/state/push",
   INDEX_PULL: "/sync/index/pull",
   INDEX_PUSH: "/sync/index/push",
+  CATALOG_PULL: "/sync/catalog/pull",
+  CATALOG_PUSH: "/sync/catalog/push",
   API_DIAGNOSTICS: "/api/diagnostics",
 });
 
