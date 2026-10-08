@@ -52,3 +52,15 @@ export const CATALOG_CSV = Object.freeze({
   templateName: 'bookreader-catalog-template.csv', mime: 'text/csv;charset=utf-8', accept: '.csv,text/csv',
   classes: Object.freeze({ preview: 'catalog-csv-preview', table: 'catalog-csv-table' }),
 });
+
+/** Bulk editing only organizes explicit books; holding and reader identities stay untouched. */
+export const CATALOG_BULK = Object.freeze({
+  maxSelection: 500,
+  modes: Object.freeze({ keep: '__keep__', clear: '__clear__', create: '__create__', set: '__set__' }),
+  seriesOptionPrefix: 'series:',
+  errors: Object.freeze({ selection: 'selection', order: 'order', series: 'series' }),
+  count: 'catalogSelectionCount', launch: 'catalogBulkLaunch', selectPage: 'catalogSelectPage', clear: 'catalogSelectionClear',
+  form: 'catalogBulkForm', target: 'catalogBulkTarget', name: 'catalogBulkName', save: 'catalogBulkSave', cancel: 'catalogBulkCancel',
+  labelPrefix: 'catalogBulkVolume-', orderPrefix: 'catalogBulkOrder-',
+  classes: Object.freeze({ selection: 'catalog-selection', editor: 'catalog-bulk-editor', row: 'catalog-bulk-row' }),
+});

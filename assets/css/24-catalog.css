@@ -25,6 +25,13 @@
 .catalog-form input[type="checkbox"] { width: var(--control-target-size); }
 .catalog-form p { grid-column: 1 / -1; }
 .catalog-paging { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+/* Touch-sized selection labels and bounded editor rows work in both phone orientations. */
+.catalog-selection { display: inline-flex; align-items: center; gap: 8px; min-height: var(--control-target-size); cursor: pointer; }
+.catalog-selection input[type="checkbox"] { width: var(--control-target-size); padding: 0; }
+.catalog-bulk-editor { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.catalog-bulk-editor label { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 8px 0; }
+.catalog-bulk-editor input, .catalog-bulk-editor select { width: 100%; min-width: 0; }
+.catalog-bulk-row { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 12px; }
 /* Preview pages bound the DOM; only the table scrolls horizontally on small screens. */
 .catalog-csv-preview { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 12px 0; }
 .catalog-csv-table { max-width: 100%; overflow-x: auto; }

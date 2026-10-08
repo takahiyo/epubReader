@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v67",
+  "cacheName": "bookreader-v68",
   "assets": [
     "./",
     "./index.html",
@@ -90,6 +90,7 @@
     "./assets/i18n/catalog.js",
     "./assets/i18n/help.js",
     "./assets/js/core/catalog-actions.js",
+    "./assets/js/core/catalog-bulk.js",
     "./assets/js/core/catalog-csv.js",
     "./assets/js/core/catalog-model.js",
     "./assets/js/core/catalog-store.js",
@@ -103,6 +104,7 @@
     "./assets/js/core/pickers/picker-quest3.js",
     "./assets/js/core/pickers/picker-windows.js",
     "./assets/js/core/reading-log.js",
+    "./assets/js/ui/catalog-bulk-editor.js",
     "./assets/js/ui/catalog-ui.js",
     "./assets/js/ui/dialog-focus.js",
     "./assets/js/ui/help.js",

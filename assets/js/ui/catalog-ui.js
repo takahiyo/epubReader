@@ -1,8 +1,10 @@
 /** Unified catalog dialog. Reader and storage dependencies are supplied by the application. */
-import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, UI_CLASSES } from '../../constants.js';
+import { CATALOG_CONFIG as C, CATALOG_UI as U, CATALOG_CSV as CSV, CATALOG_BULK as B, UI_CLASSES } from '../../constants.js';
 import { openCatalog } from '../core/catalog-store.js';
 import { saveCatalogEntry, changeCatalogLoan, bindCatalogFile, catalogRows, normalizeCatalogSearch } from '../core/catalog-actions.js';
 import { previewCatalogCSV, applyCatalogCSV } from '../core/catalog-csv.js';
+import { organizeCatalogBooks } from '../core/catalog-bulk.js';
+import { createCatalogBulkEditor } from './catalog-bulk-editor.js';
 
 /**
  * Create one dialog without changing the reader's initialization order.
@@ -15,6 +17,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   const backdrop = document.createElement('div'); backdrop.className = UI_CLASSES.MODAL_BACKDROP; root.append(backdrop, panel); document.body.append(root);
   let repositoryPromise, snapshot, rows = [], page = 0, editing = null, busy = false, generation = 0;
   let search, seriesFilter, providerFilter, availabilityFilter, list, editor, notice, paging;
+  const selected = new Map(); let pageBooks = [], selectionCount, bulkLaunch, selectPage, clearSelection;
   const field = name => document.getElementById(U.prefix + name);
   const repo = () => repositoryPromise ||= openCatalog().catch(error => { repositoryPromise = null; throw error; });
 
@@ -25,7 +28,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   /** @param {HTMLSelectElement} select Select @param {Array} values [value,label] pairs @returns {void} Safe options. */
   function options(select, values) { select.replaceChildren(...values.map(([value, label]) => { const option = node('option', label); option.value = value; return option; })); }
   /** @param {Error} error Failure @returns {void} Visible translated diagnostic. */
-  function report(error) { notice.textContent = t(error.csvReason ? 'catalog_csv_error_' + error.csvReason : U.errors[error.code] || (error instanceof TypeError || error instanceof SyntaxError ? U.errors.invalid : U.errors.storage)); }
+  function report(error) { notice.textContent = t(error.bulkReason ? 'catalog_bulk_error_' + error.bulkReason : error.csvReason ? 'catalog_csv_error_' + error.csvReason : U.errors[error.code] || (error instanceof TypeError || error instanceof SyntaxError ? U.errors.invalid : U.errors.storage)); }
   /** @returns {void} Close without a late asynchronous open taking focus again. */
   function close() { generation++; closeModal(root); }
 
@@ -53,7 +56,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     restoreInput.onchange = async () => {
       const file = restoreInput.files?.[0]; restoreInput.value = '';
       if (!file || busy || !confirm(t('catalog_restore_confirm'))) return;
-      await run(async repository => { await repository.restoreJSON(await file.text()); editing = null; editor.replaceChildren(); });
+      await run(async repository => { await repository.restoreJSON(await file.text()); selected.clear(); editing = null; editor.replaceChildren(); });
     };
     const csvInput = node('input'); csvInput.id = CSV.input; csvInput.type = 'file'; csvInput.accept = CSV.accept; csvInput.hidden = true;
     csvInput.onchange = async () => {
@@ -82,8 +85,41 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
         requestAnimationFrame(() => URL.revokeObjectURL(url));
       }));
     list = node('div'); list.id = U.list; editor = node('div'); editor.id = U.editor; paging = node('div'); paging.className = U.classes.paging;
-    const body = node('div'); body.className = UI_CLASSES.MODAL_BODY; body.append(node('p', t('catalog_note')), tools, notice, editor, list, paging);
-    panel.replaceChildren(header, body); refresh();
+    selectionCount = node('span'); selectionCount.id = B.count; selectionCount.setAttribute('aria-live', 'polite');
+    selectPage = button('catalog_bulk_select_page', () => {
+      if (busy || !snapshot || editing?.bulk) return;
+      if (new Set([...selected.keys(), ...pageBooks.map(book => book.id)]).size > B.maxSelection) { report({ bulkReason: B.errors.selection }); return; }
+      for (const book of pageBooks) if (!selected.has(book.id)) selected.set(book.id, book.revision);
+      render();
+    }); selectPage.id = B.selectPage;
+    clearSelection = button('catalog_bulk_clear_selection', () => { if (!busy && !editing?.bulk) { selected.clear(); render(); } }); clearSelection.id = B.clear;
+    bulkLaunch = button('catalog_bulk_title', organize); bulkLaunch.id = B.launch;
+    const selectionTools = node('div'); selectionTools.className = U.classes.tools;
+    selectionTools.append(selectionCount, selectPage, clearSelection, bulkLaunch, node('p', t('catalog_bulk_selection_note')));
+    const body = node('div'); body.className = UI_CLASSES.MODAL_BODY; body.append(node('p', t('catalog_note')), tools, selectionTools, notice, editor, list, paging);
+    panel.replaceChildren(header, body); pageBooks = []; showSelection(); refresh();
+  }
+
+  /** @returns {void} Open a frozen selection; changing list filters cannot change the save targets. */
+  function organize() {
+    if (busy || !snapshot || !selected.size || editing?.bulk) return;
+    const books = rows.filter(row => selected.has(row.book.id)).map(row => ({ ...row.book, revision: selected.get(row.book.id) }));
+    editing = { bulk: true };
+    const form = createCatalogBulkEditor({ books, series: snapshot.series.filter(row => row.deleted_at == null), t, node, button, options,
+      onCancel: () => { if (!busy) { editing = null; editor.replaceChildren(); render(); } },
+      onSave: command => run(async repository => {
+        await repository.update(current => organizeCatalogBooks(current, command)); selected.clear(); editing = null; editor.replaceChildren();
+      }) });
+    editor.replaceChildren(form); render(); form.scrollIntoView({ block: 'nearest' }); document.getElementById(B.target).focus();
+  }
+
+  /** @returns {void} Keep selection count explicit, including selections outside the current page. */
+  function showSelection() {
+    if (!selectionCount) return;
+    selectionCount.textContent = `${t('catalog_bulk_selected')}: ${selected.size}`;
+    bulkLaunch.disabled = !snapshot || !selected.size || !!editing?.bulk;
+    clearSelection.disabled = !selected.size || !!editing?.bulk;
+    selectPage.disabled = !pageBooks.length || !!editing?.bulk;
   }
 
   /** @param {Object} preview Validated rows and transactional lease @returns {void} Review bounded CSV pages before any write. */
@@ -124,6 +160,8 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   function refresh() {
     if (!snapshot || !list) return;
     rows = catalogRows(snapshot);
+    const activeIds = new Set(rows.map(row => row.book.id));
+    for (const id of selected.keys()) if (!activeIds.has(id)) selected.delete(id);
     const chosen = seriesFilter.value;
     options(seriesFilter, [['', t('catalog_all')], ...snapshot.series.filter(row => row.deleted_at == null).map(row => [row.id, row.name])]);
     seriesFilter.value = chosen; render();
@@ -138,8 +176,18 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     const pages = Math.max(1, Math.ceil(filtered.length / C.pageSize)); page = Math.min(page, pages - 1);
     list.replaceChildren();
     const states = new Map(snapshot.manual_reading_states.map(state => [state.holding_id, state]));
-    for (const row of filtered.slice(page * C.pageSize, (page + 1) * C.pageSize)) {
+    const visibleRows = filtered.slice(page * C.pageSize, (page + 1) * C.pageSize); pageBooks = visibleRows.map(row => row.book);
+    for (const row of visibleRows) {
       const card = node('article'); card.className = U.classes.book; card.dataset.bookId = row.book.id;
+      const select = node('input'); select.type = 'checkbox'; select.checked = selected.has(row.book.id); select.disabled = !!editing?.bulk;
+      select.setAttribute('aria-label', `${t('catalog_bulk_select')} ${row.book.title}`);
+      const selection = node('label', t('catalog_bulk_select')); selection.className = B.classes.selection; selection.prepend(select); card.append(selection);
+      select.onchange = () => {
+        if (busy || editing?.bulk) { select.checked = selected.has(row.book.id); return; }
+        if (select.checked && selected.size >= B.maxSelection) { select.checked = false; report({ bulkReason: B.errors.selection }); return; }
+        if (select.checked) selected.set(row.book.id, row.book.revision); else selected.delete(row.book.id);
+        showSelection();
+      };
       card.append(node('h4', row.book.title), node('p', [row.series?.name, row.book.volume_label, row.book.edition, row.book.author].filter(Boolean).join(' · ')),
         button('catalog_add', () => edit(row.book)));
       for (const holding of row.holdings) {
@@ -175,12 +223,14 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
     const previous = button('catalog_previous', () => { page--; render(); }); previous.disabled = page === 0;
     const next = button('catalog_next', () => { page++; render(); }); next.disabled = page >= pages - 1;
     paging.replaceChildren(previous, node('span', `${page + 1} / ${pages} · ${filtered.length}`), next);
+    showSelection();
   }
 
   /** @param {Object|null} book Explicit book identity @param {Object|null} holding Holding to edit @returns {void} Show editor with observed revisions. */
   function edit(book = null, holding = null) {
     if (busy || !snapshot) return;
     editing = { bookId: book?.id, holdingId: holding?.id, bookRevision: book?.revision, holdingRevision: holding?.revision };
+    render();
     const state = snapshot.manual_reading_states.find(row => row.holding_id === holding?.id);
     const values = { ...book, ...holding, ...state, provider: holding?.provider || C.providers[1], access_type: holding?.access_type || C.accessTypes[0],
       availability_status: holding?.availability_status || C.availabilityStates[3], status: state?.status || C.readingStates[0] };
@@ -239,7 +289,7 @@ export function createCatalogUI({ t, getLegacy, openModal, closeModal, openLocal
   /** @returns {Promise<void>} Open immediately and migrate only after the user enters the catalog. */
   async function show() {
     if (busy) return;
-    editing = null; snapshot = null; page = 0; build(); openModal(root);
+    editing = null; selected.clear(); snapshot = null; page = 0; build(); openModal(root);
     const token = ++generation; notice.textContent = t('catalog_loading');
     try { const repository = await repo(); snapshot = await repository.migrateLegacy(getLegacy());
       if (token !== generation) return; notice.textContent = ''; refresh();
