@@ -42,6 +42,31 @@ test('ordinary POST requests bypass the asset cache', async () => {
   assert.equal(intercepted, false);
 });
 
+test('private Drive downloads and OAuth requests bypass service worker caching entirely', async () => {
+  const handlers = await worker(() => { throw new Error('Unexpected fetch'); }, {});
+  for (const request of [new Request('https://www.googleapis.com/drive/v3/files/book?alt=media'),
+    new Request('https://accounts.google.com/gsi/client'),
+    new Request('https://local.test/private', { headers: { Authorization: 'Bearer token' } })]) {
+    let intercepted = false;
+    handlers.fetch({ request, respondWith() { intercepted = true; } });
+    assert.equal(intercepted, false);
+  }
+});
+
+test('offline legal navigation serves the cached public policy without loading authentication', async () => {
+  const html = await readFile('privacy.html', 'utf8');
+  const handlers = await worker(async () => { throw new Error('offline'); }, {
+    match: async key => key === 'https://local.test/privacy.html' ? new Response(html, { headers: { 'Content-Type': 'text/html' } }) : undefined,
+  });
+  let response;
+  handlers.fetch({ request: new Request('https://local.test/privacy.html'), respondWith: value => { response = value; } });
+  const page = await response;
+  assert.equal(page.status, 200);
+  const body = await page.text();
+  assert.ok(body.includes('bookreader@flateight.jp'));
+  assert.ok(!body.includes('<script'));
+});
+
 async function requestFrom(handlers, request) {
   let response;
   handlers.fetch({ request, respondWith: value => { response = value; } });

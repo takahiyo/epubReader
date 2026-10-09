@@ -18,5 +18,7 @@ jobs:
         with:
           node-version: '24'
       - run: node --experimental-vm-modules --test tests/*.test.mjs
+      - run: node scripts/generate-legal-pages.mjs
+      - run: git diff --exit-code -- privacy.html terms.html privacy-en.html terms-en.html
       - run: node scripts/generate-sw-cache-config.mjs
       - run: git diff --exit-code -- assets/sw-cache-config.json

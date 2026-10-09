@@ -1,9 +1,14 @@
 import { APP_INFO } from "../constants.js";
 import { HELP_CONTENT } from "./help.js";
 import { CATALOG_STRINGS } from './catalog.js';
+import { DRIVE_STRINGS } from './google-drive.js';
 
 export const UI_STRINGS_JA = Object.freeze({
   ...CATALOG_STRINGS.ja,
+  ...DRIVE_STRINGS.ja,
+  legalPrivacy: 'プライバシーポリシー',
+  legalTerms: '利用規約',
+  legalNotice: 'ご利用前に利用規約とプライバシーポリシーをご確認ください。',
   // ドキュメント
   documentTitle: APP_INFO.DOCUMENT_TITLE,
   appIconAlt: "EPUBリーダー",

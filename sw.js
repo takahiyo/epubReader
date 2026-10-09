@@ -166,6 +166,9 @@ self.addEventListener('fetch', (event) => {
 
     // Only GET requests belong in the asset cache; never cache authenticated POST data.
     if (event.request.method !== 'GET') return;
+    // OAuth and private Drive content must never pass through offline asset caching.
+    if (event.request.headers?.has('Authorization') ||
+        ['accounts.google.com', 'www.googleapis.com', 'docs.google.com'].includes(url.hostname)) return;
     const cacheUrl = new URL(event.request.url);
     if (isLocal) cacheUrl.searchParams.delete('v');
     event.respondWith((async () => {

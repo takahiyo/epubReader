@@ -38,6 +38,8 @@
   <link rel="stylesheet" href="./assets/css/22-float-menu-toggle.css?v=3" />
   <link rel="stylesheet" href="./assets/css/23-reader-controls.css?v=1" />
   <link rel="stylesheet" href="./assets/css/24-catalog.css?v=1" />
+  <link rel="stylesheet" href="./assets/css/25-google-drive.css?v=1" />
+  <link rel="stylesheet" href="./assets/css/26-legal.css?v=1" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <!-- ライブラリの読み込み（モジュールより前に、同期的に） -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" crossorigin="anonymous"></script>
@@ -108,6 +110,11 @@
       <img id="emptyStateIcon" src="assets/bookreader.png" class="empty-book-icon" alt="" />
       <h2></h2>
       <p></p>
+      <button id="emptyDriveOpen" data-google-drive class="secondary-btn" type="button">Googleドライブから開く</button>
+      <nav class="legal-links" aria-label="Legal">
+        <a data-legal-link="privacy" href="./privacy.html" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
+        <a data-legal-link="terms" href="./terms.html" target="_blank" rel="noopener noreferrer">利用規約</a>
+      </nav>
       <div id="cloudEmptyState" class="cloud-empty hidden">
         <p id="cloudEmptyTitle" class="cloud-empty-title"></p>
         <p id="cloudEmptyMeta" class="cloud-empty-meta"></p>
@@ -136,6 +143,7 @@
         <span class="menu-icon"></span>
         <span></span>
       </button>
+      <button id="menuDriveOpen" data-google-drive class="menu-item" type="button">Googleドライブから開く</button>
       <button id="menuOpen" class="menu-item">
         <span class="menu-icon"></span>
         <span></span>
@@ -432,6 +440,13 @@
           <article id="settingsHelpContent" class="settings-help-content hidden" tabindex="-1" aria-label="Help"></article>
           <button id="settingsHelpClose" class="secondary-btn hidden" type="button"></button>
         </section>
+        <section class="settings-legal">
+          <nav class="legal-links" aria-label="Legal">
+            <a data-legal-link="privacy" href="./privacy.html" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
+            <a data-legal-link="terms" href="./terms.html" target="_blank" rel="noopener noreferrer">利用規約</a>
+          </nav>
+          <p data-legal-notice>ご利用前に利用規約とプライバシーポリシーをご確認ください。</p>
+        </section>
         <div class="settings-section collapsed">
           <h4 id="settingsDisplayTitle" class="settings-section-title"></h4>
           <div class="settings-section-content">
@@ -623,6 +638,7 @@
             </button>
             <div class="float-menu-group-items" id="reader-book-actions">
               <button id="floatOpen" type="button"></button>
+              <button id="floatDriveOpen" data-google-drive type="button">Googleドライブから開く</button>
               <!-- The catalog must be reachable from the reader's book group as well as the sidebar. -->
               <button id="floatCatalog" type="button"></button>
               <button id="floatHistory" type="button"></button>

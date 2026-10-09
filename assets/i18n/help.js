@@ -6,12 +6,13 @@ export const HELP_CONTENT = Object.freeze({
     sections: [
       { title: '統合電子書庫', paragraphs: [
         '左メニュー、または読書メニューの「書籍 → 統合電子書庫」で、EPUB・画像書庫・Kindle・U-NEXTの所蔵をまとめて整理できます。シリーズを選び、巻表示と並び順を設定してください。同じ巻を別サービスでも持っている場合は「所蔵先を追加」を使います。',
-        'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録はこの端末内だけに保存し、既存の読書同期とは別です。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。',
+        'KU等の借用・返却は手動記録です。返却後も進捗と読了履歴は残ります。目録は端末内に保存し、書庫の同期を明示的に有効にした場合に登録情報・借用期間・読了履歴等をクラウドへ送ります。書籍本体は同期しません。「JSON保存」でバックアップでき、「JSON復元」は目録全体を置き換えます。外部サービスの進捗や利用可否は自動取得しません。',
         '書籍をチェックして「選択した書籍をCSV出力」を使うと、シリーズ・巻・所蔵先を記入済みの見本として保存できます。新しい巻に使う場合は書名・巻表示・book_key・サービス内ID・URLを確認して変更し、「CSV一括登録」でプレビューを確認してください。空のCSVひな形も利用できます。同じサービスID・購入借用区分はスキップし、既存情報を更新しません。IDのない行は再取り込みで重複する場合があります。',
         '既存の巻はチェックして「選択した巻を整理」からシリーズ・巻表示・並び順をまとめて設定できます。ページや検索の変更後も選択は残るため、整理画面の対象を確認して保存してください。所蔵先・読書進捗・KU履歴は維持します。',
         '「選択した書籍を複写登録」で巻情報と全所蔵先を見本にした編集画面を開けます。サービス内ID・URL・本体の紐付け・進捗・履歴は新しい書籍へコピーしません。所属する巻が0冊になったシリーズは、保存時に一覧から削除します。'
       ] },
       { title: 'はじめ方と端末を替えるとき', paragraphs: [
+        '「Googleドライブから開く」で、OSへの事前ダウンロードなしにドライブ内の書籍を選択できます。管理者による連携設定と、初回のGoogleアクセス許可が必要です。EPUB・CBZ・ZIP・RAR・CBRを1冊256 MBまで読み込みます。通信中はキャンセルできます。選択した書籍本体はGoogleから端末内へ取得し、通常のライブラリへ保存します。アクセス用トークンは保存しません。',
         '「書籍 → 開く」でEPUB・画像書庫などを選びます。読書画面のメニューから、ライブラリ・目次・しおり・検索・設定にアクセスできます。文字サイズや縦横表示は設定から変更できます。',
         '別の端末で続きから読むには、同じGoogleアカウントでログインし、その端末でも同じ書籍ファイルを選んでください。同期は書籍本体を配布する機能ではありません。ファイルが異なる版・編集済みの場合、同じ作品として結びつかないことがあります。'
       ] },
@@ -30,7 +31,8 @@ export const HELP_CONTENT = Object.freeze({
       { title: 'ログインと外部通信について', paragraphs: [
         'ログインはGoogle／Firebase認証を利用し、同期サーバーで認証トークンを検証してアカウントごとの記録を扱います。標準の同期先への通信はHTTPSです。ログインはGoogleドライブ内の書籍を自動で読み出すためのものではありません。',
         '同期データは、利用者だけが復号できるエンドツーエンド暗号化ではありません。クラウド運用側からも読めないことを保証する設計ではないため、同期内容は上記の範囲に限定しています。共有端末では利用後にログアウトし、端末内に残る書籍や記録にも配慮してください。',
-        'アプリの読み込みや認証では外部サービスからライブラリ等を取得します。Web小説の検索・取得では作品サイトや取得用プロキシへ通信し、検索語や作品URLが送られる場合があります。これはローカル書籍本体の同期とは別の通信です。'
+        'アプリの読み込みや認証では外部サービスからライブラリ等を取得します。Web小説の検索・取得では作品サイトや取得用プロキシへ通信し、検索語や作品URLが送られる場合があります。これはローカル書籍本体の同期とは別の通信です。',
+        '画像書庫の一部エラーではファイル名・エラー内容・スタックトレース等を自動送信し、診断サーバーにブラウザー情報・日時とともに保存する場合があります。設定画面のプライバシーポリシーで詳しい情報の扱いと問い合わせ窓口を確認できます。'
       ] },
       { title: '読書録をObsidianなどへ保存する', paragraphs: [
         '読書メニューの「読書録」は、現在の読書状態を1ノート分のMarkdownとしてコピー、またはOSの共有機能へ渡します。新しいノートの先頭に貼り付けてください。本文は「感想・メモ」欄だけで、記録は先頭のYAMLプロパティにまとめます。既存ノートの本文途中では、プロパティとして認識されない場合があります。',
@@ -52,12 +54,13 @@ export const HELP_CONTENT = Object.freeze({
     sections: [
       { title: 'Unified catalog', paragraphs: [
         'Open Unified catalog in the left menu, or under Books in the reading menu, to organize EPUB, image archive, Kindle and U-NEXT holdings. Choose a series and set the volume label and order. Use Add holding for another provider of the same volume.',
-        'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. This catalog is stored only on this device, separately from reading sync. Save JSON creates a backup; Restore JSON replaces the entire catalog. External progress and availability are not automatically retrieved.',
+        'Subscription loans such as KU are recorded manually. Returning a loan keeps progress and completion history. Catalog records stay locally unless you explicitly enable catalog sync, which sends records, access periods and completion history to the cloud, excluding book files. Save JSON creates a backup; Restore JSON replaces the catalog. External progress and availability are not automatically retrieved.',
         'Check books and use Export selected books to CSV for filled examples of series, volumes and holdings. For a new volume, check and change the title, volume label, book_key, service ID and URL, then review with Import CSV. A blank template is also available. Duplicate service IDs and access types are skipped without updating existing records. Reimporting rows without service IDs may create duplicates.',
         'Check existing volumes and use Organize selected volumes to assign a series and edit volume labels and order together. Selections remain across pages and searches, so review the editor targets before saving. Holdings, reading progress and KU history are preserved.',
         'Use Copy selected books for registration to review copies of volume metadata and all holdings. Service IDs, URLs, file bindings, progress and history are not copied to new books. Series with no remaining volumes are removed from lists when changes are saved.'
       ] },
       { title: 'Getting started and switching devices', paragraphs: [
+        'Open from Google Drive lets you select a book without a prior OS download. Administrator configuration and initial Google consent are required. EPUB, CBZ, ZIP, RAR and CBR are supported up to 256 MB per book. Loading can be cancelled. The selected book is fetched directly from Google and saved in your local library. Access tokens are not persisted.',
         'Choose an EPUB or image archive from Books → Open. The reading menu provides Library, Contents, Bookmarks, Search and Settings. Adjust text size and reading orientation in Settings.',
         'To resume on another device, sign in with the same Google account and select the same book file on that device. Sync does not distribute book files. Different editions or edited files may not be identified as the same book.'
       ] },
@@ -76,7 +79,8 @@ export const HELP_CONTENT = Object.freeze({
       { title: 'Sign-in and external connections', paragraphs: [
         'Sign-in uses Google/Firebase authentication. The sync server verifies the authentication token and handles records per account. The default sync connection uses HTTPS. Sign-in does not automatically read books from Google Drive.',
         'Sync data is not end-to-end encrypted with a key held only by you. This design does not guarantee that the cloud operator cannot read it, which is why sync contents are limited to the information above. Sign out after using a shared device and consider the books and records remaining in its local storage.',
-        'Loading the app and authentication can request libraries from external services. Web-novel search and retrieval contact the source site or a retrieval proxy, potentially sending search terms or book URLs. These requests are separate from syncing local book files.'
+        'Loading the app and authentication can request libraries from external services. Web-novel search and retrieval contact the source site or a retrieval proxy, potentially sending search terms or book URLs. These requests are separate from syncing local book files.',
+        'Some archive errors automatically send filenames, error messages and stack traces; the diagnostics server may store these with browser information and timestamps. The Privacy Policy in Settings explains information handling and the contact for requests.'
       ] },
       { title: 'Saving a reading log in Obsidian or another editor', paragraphs: [
         'Reading Log in the reading menu copies a snapshot as one Markdown note or hands it to the operating system share sheet. Paste it at the start of a new note. Records are stored in YAML properties; the body only provides a Thoughts and notes section. Pasting into the middle of an existing note may not create properties.',

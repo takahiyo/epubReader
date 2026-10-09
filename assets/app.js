@@ -21,6 +21,8 @@ import { saveFile, loadFile, bufferToFile, deleteBook } from "./fileStore.js";
 import { elements } from "./js/ui/elements.js";
 import { beginDialogFocus, endDialogFocus } from "./js/ui/dialog-focus.js";
 import { renderHelp, setHelpOpen } from "./js/ui/help.js";
+import { createGoogleDriveUI } from './js/ui/google-drive-ui.js';
+import { localizeLegalLinks } from './js/ui/legal-links.js';
 import { initLoadingAnimation, showLoading, hideLoading } from "./js/ui/overlay-manager.js";
 import { resolveErrorCode } from "./js/ui/i18n-utils.js";
 import * as fileHandler from "./js/core/file-handler.js";
@@ -72,6 +74,7 @@ import {
 // ========================================
 
 const storage = new StorageService();
+let googleDriveUI = null;
 let catalogUI = null;
 const cloudSync = new CloudSync(storage);
 const settings = storage.getSettings();
@@ -2364,6 +2367,7 @@ function applyUiLanguage(nextLanguage) {
   requestCloudSyncIfNeeded(getProgressSnapshot());
 
   const strings = getUiStrings(nextLanguage);
+  localizeLegalLinks(nextLanguage);
   if (elements.readerControlsHeading) elements.readerControlsHeading.textContent = strings.readerControlsHeading;
   document.getElementById(DOM_IDS.ZOOM_SLIDER)?.setAttribute("aria-label", strings.readerZoomHeading);
   if (elements.readerAppearanceHeading) elements.readerAppearanceHeading.textContent = strings.readerAppearanceHeading;
@@ -2431,6 +2435,7 @@ function applyUiLanguage(nextLanguage) {
   setMenuLabel(elements.menuOpen, UI_ICONS.MENU_OPEN, strings.menuOpen);
   setMenuLabel(elements.menuLibrary, UI_ICONS.MENU_LIBRARY, strings.menuLibrary);
   catalogUI?.localize();
+  googleDriveUI?.localize();
   setMenuLabel(elements.menuSearch, UI_ICONS.MENU_SEARCH, strings.menuSearch);
   setMenuLabel(elements.menuBookmarks, UI_ICONS.MENU_BOOKMARKS, strings.menuBookmarks);
   setMenuLabel(elements.menuHistory, UI_ICONS.MENU_HISTORY, strings.menuHistory);
@@ -3176,6 +3181,13 @@ function showSettings() {
 // ========================================
 
 function setupEvents() {
+  localizeLegalLinks(uiLanguage);
+  googleDriveUI = createGoogleDriveUI({ t, getAccount: checkAuthStatus, login: startGoogleLogin,
+    openFile: handleFile, beforeOpen: async () => {
+      renderers.toggleFloatOverlay(false);
+      ui?.closeAllMenus();
+      if (document.fullscreenElement) await document.exitFullscreen();
+    } });
 
   // Catalog initialization is lazy; reader startup and existing file storage stay independent.
   catalogUI = createCatalogUI({ t, getLegacy: () => storage.data, openModal: openExclusiveMenu, closeModal,

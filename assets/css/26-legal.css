@@ -1,0 +1,29 @@
+/* Public documents have no scripts, remote fonts or authentication dependencies. */
+.legal-page { --legal-bg: #f7f9fc; --legal-card: #fff; --legal-text: #202b3d; --legal-muted: #52627a; --legal-line: #d4deea; --legal-link: #174eb5;
+  margin: 0; background: var(--legal-bg); color: var(--legal-text); font: 17px/1.85 system-ui, sans-serif; overflow-wrap: anywhere; }
+.legal-page * { box-sizing: border-box; }
+.legal-page header, .legal-page main, .legal-page footer { max-width: 860px; margin: 0 auto; padding: 24px clamp(16px, 4vw, 40px); }
+.legal-page main { background: var(--legal-card); border: 1px solid var(--legal-line); border-radius: 16px; }
+.legal-page h1 { font-size: clamp(1.7rem, 6vw, 2.3rem); line-height: 1.4; margin-top: 0; }
+.legal-page h2 { font-size: 1.2rem; line-height: 1.5; scroll-margin-top: 20px; }
+.legal-page section, .legal-page aside { margin-top: 32px; }
+.legal-page nav { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.legal-page a { color: var(--legal-link); text-underline-offset: 3px; }
+.legal-page nav a { display: inline-flex; align-items: center; min-height: 48px; }
+.legal-page a:focus-visible { outline: 3px solid var(--legal-link); outline-offset: 4px; }
+.legal-page .legal-brand { font-weight: 700; margin: 0 0 8px; }
+.legal-page .legal-updated { color: var(--legal-muted); }
+.legal-page .legal-toc { display: block; background: var(--legal-bg); padding: 16px 24px; border-radius: 12px; }
+.legal-page .legal-toc ol { margin: 0; padding-left: 24px; }
+.legal-page .legal-contact { padding-top: 16px; border-top: 1px solid var(--legal-line); }
+.legal-page .legal-skip { position: absolute; top: 0; left: 0; padding: 12px; background: var(--legal-card); transform: translateY(-120%); }
+.legal-page .legal-skip:focus { transform: translateY(0); }
+@media (prefers-color-scheme: dark) { .legal-page { --legal-bg: #111827; --legal-card: #1e293b; --legal-text: #f1f5f9; --legal-muted: #bac7d8; --legal-line: #475569; --legal-link: #adc8ff; } }
+@media (max-width: 600px) { .legal-page main { border-radius: 0; border-left: 0; border-right: 0; } }
+@media print { .legal-page { background: #fff; color: #000; } .legal-page header, .legal-page footer, .legal-page .legal-toc { display: none; } .legal-page main { max-width: none; border: 0; } }
+/* Links inside the reader use its current theme and remain touch accessible. */
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 12px; }
+.legal-links a { display: inline-flex; align-items: center; min-height: 48px; color: var(--accent, #adc8ff); text-underline-offset: 3px; }
+.settings-legal { padding: 12px 0; }
+.settings-legal .legal-links { justify-content: flex-start; margin-top: 0; }
+.settings-legal p { color: var(--muted); font-size: .9rem; }

@@ -1,9 +1,14 @@
 import { APP_INFO } from "../constants.js";
 import { HELP_CONTENT } from "./help.js";
 import { CATALOG_STRINGS } from './catalog.js';
+import { DRIVE_STRINGS } from './google-drive.js';
 
 export const UI_STRINGS_EN = Object.freeze({
   ...CATALOG_STRINGS.en,
+  ...DRIVE_STRINGS.en,
+  legalPrivacy: 'Privacy Policy',
+  legalTerms: 'Terms of Use',
+  legalNotice: 'Please review the Terms of Use and Privacy Policy before using BookReader.',
   // Document
   documentTitle: APP_INFO.DOCUMENT_TITLE,
   appIconAlt: "EPUB Reader",
