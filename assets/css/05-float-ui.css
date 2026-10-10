@@ -242,8 +242,8 @@ body.google-auth-active .modal-backdrop {
 ===================================== */
 [data-theme="light"] #floatOverlay .float-title img {
   filter: none;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 [data-theme="light"] .float-auth-status {
