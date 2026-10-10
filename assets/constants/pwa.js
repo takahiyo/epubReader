@@ -4,7 +4,7 @@ import { READER_CONTROL_ICONS } from "./ui.js";
 // PWA / Service Worker 設定
 // ============================================
 export const PWA_CONFIG = Object.freeze({
-  CACHE_NAME: "bookreader-v75",
+  CACHE_NAME: "bookreader-v76",
   THEME_COLOR: "#2c3e50",
   BACKGROUND_COLOR: "#ffffff",
 });
