@@ -330,8 +330,9 @@ body.is-dragging .image-viewer .spread-container {
 - SPLIT: GROUP
 ===================================== */
 .empty-book-icon {
-  width: 140px;
-  opacity: 0.85;
+  width: min(220px, 60vw);
+  height: auto;
+  opacity: 1;
   margin-bottom: 1.5rem;
 }
 

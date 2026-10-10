@@ -25,5 +25,7 @@
 .legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 12px; }
 .legal-links a { display: inline-flex; align-items: center; min-height: 48px; color: var(--accent, #adc8ff); text-underline-offset: 3px; }
 .settings-legal { padding: 12px 0; }
+/* On the initial empty screen the links sit at the bottom edge of the viewport. */
+.empty-state > .legal-links { position: absolute; left: 0; right: 0; bottom: max(8px, env(safe-area-inset-bottom)); margin-top: 0; padding: 0 16px; }
 .settings-legal .legal-links { justify-content: flex-start; margin-top: 0; }
 .settings-legal p { color: var(--muted); font-size: .9rem; }
