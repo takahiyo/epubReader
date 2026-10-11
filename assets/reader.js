@@ -428,6 +428,7 @@ export class ReaderController {
   }
 
   resetReaderState() {
+    this._cancelImageTouchGesture?.();
     // 古い書籍の再組版が完了しても、新しい書籍の位置やローダーを変更しない。
     this.repaginationRequestId += 1;
     this.isRepaginating = false;
@@ -2869,6 +2870,7 @@ export class ReaderController {
   }
 
   renderEpubPage(index, pagination = this.pagination) {
+    this._cancelImageTouchGesture?.();
     if (!pagination?.pages?.length || !this.viewer) return;
     const clampedIndex = Math.max(0, Math.min(index, pagination.pages.length - 1));
     const page = pagination.pages[clampedIndex];
@@ -4602,6 +4604,7 @@ export class ReaderController {
   }
 
   async applyReadingDirection(writingMode, pageDirection) {
+    this._cancelImageTouchGesture?.();
     // もし既に設定が同じなら何もしない（無限ループ防止）
     if (this.writingMode === writingMode && this.pageDirection === pageDirection) {
       console.log("[Reader] applyReadingDirection: No change detected, skipping repagination",
@@ -4710,6 +4713,7 @@ export class ReaderController {
   }
 
   async applyEpubViewMode(mode, force = false) {
+    this._cancelImageTouchGesture?.();
     const prevMode = this.epubViewMode;
     // 表示モードやDOM寸法を変更する前に、元の画面で見ていた本文を取得する。
     const needsLayout = force || prevMode !== mode || (!this.pagination && this.type === BOOK_TYPES.EPUB);
@@ -5038,6 +5042,162 @@ export class ReaderController {
     });
   }
 
+  /**
+   * シームレス挿絵のタッチを追跡する。長押し成立後は全指が離れるまで本文を固定する。
+   * @param {Element} element - 挿絵
+   * @param {Function} getSrc - 拡大画像のURL取得
+   * @returns {void}
+   */
+  bindSeamlessImageTouchHandlers(element, getSrc) {
+    element.addEventListener("touchstart", (event) => {
+      if (this.type !== BOOK_TYPES.EPUB || this.epubViewMode !== EPUB_VIEW_MODES.SCROLL || !this.longPressZoomEnabled ||
+          this.imageZoomed || this._cancelImageTouchGesture || event.touches.length !== 1) return;
+      const viewer = this.viewer;
+      const doc = element.ownerDocument;
+      if (!viewer || !this.imageViewer || !this.imageElement) return;
+      const touch = event.touches[0];
+      const identifier = touch.identifier;
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+      const scrollLeft = viewer.scrollLeft;
+      const scrollTop = viewer.scrollTop;
+      let candidate = true;
+      let zoomStarted = false;
+      let zoomEnded = false;
+      let lockedStyles = null;
+      let timer;
+
+      // 元のイベントを直接抑止する。オーバーレイへの切り替えだけでは継続中のタッチを止められない。
+      const consume = (e) => {
+        if (e.cancelable) e.preventDefault();
+        e.stopImmediatePropagation();
+      };
+      const cancelCandidate = () => {
+        candidate = false;
+        clearTimeout(timer);
+      };
+      const endTemporaryZoom = () => {
+        if (!zoomStarted || zoomEnded) return;
+        zoomEnded = true;
+        this.endZoom();
+        this.imageViewer.style.display = "none";
+        this.imageViewer.classList.add(UI_CLASSES.HIDDEN);
+        this.imageViewer.classList.remove(UI_CLASSES.DRAGGING);
+        this.isEpubTemporaryZoom = false;
+        this.isDragging = false;
+        // touchend 後の合成clickがメニューやページ移動に化けることを防ぐ。
+        this.longPressZoomJustEnded = true;
+        clearTimeout(this._longPressZoomGuardTimer);
+        this._longPressZoomGuardTimer = setTimeout(() => {
+          this.longPressZoomJustEnded = false;
+        }, LONG_PRESS_ZOOM_CONFIG.CLICK_GUARD_MS);
+      };
+      const cleanup = () => {
+        cancelCandidate();
+        endTemporaryZoom();
+        doc.removeEventListener("touchstart", onAdditionalTouch, true);
+        doc.removeEventListener("touchmove", onMove, true);
+        doc.removeEventListener("touchend", onEnd, true);
+        doc.removeEventListener("touchcancel", onEnd, true);
+        doc.removeEventListener("visibilitychange", onVisibility);
+        doc.defaultView?.removeEventListener("blur", cleanup);
+        doc.defaultView?.removeEventListener("pagehide", cleanup);
+        viewer.removeEventListener("scroll", onScroll);
+        if (lockedStyles) {
+          // smooth を解除した状態で元位置に戻してから、書籍由来のスタイルと優先度を復元する。
+          viewer.scrollLeft = scrollLeft;
+          viewer.scrollTop = scrollTop;
+          lockedStyles.forEach(([property, value, priority]) => {
+            if (value) viewer.style.setProperty(property, value, priority);
+            else viewer.style.removeProperty(property);
+          });
+        }
+        this._seamlessImageGestureActive = false;
+        this._cancelImageTouchGesture = null;
+      };
+      const onScroll = () => {
+        if (!zoomStarted) {
+          if (viewer.scrollLeft !== scrollLeft || viewer.scrollTop !== scrollTop) cancelCandidate();
+        } else {
+          // ホイールやプログラムによる位置変更も、ズーム操作中は本文へ反映しない。
+          if (viewer.scrollLeft !== scrollLeft) viewer.scrollLeft = scrollLeft;
+          if (viewer.scrollTop !== scrollTop) viewer.scrollTop = scrollTop;
+        }
+      };
+      const onAdditionalTouch = (e) => {
+        if (zoomStarted) consume(e);
+        else cancelCandidate();
+      };
+      const onMove = (e) => {
+        const current = Array.from(e.touches).find((item) => item.identifier === identifier);
+        if (!zoomStarted) {
+          // ブラウザが操作を引き取った場合も、後から長押しへ切り替えない。
+          if (!current || !e.cancelable || e.touches.length !== 1 ||
+              Math.hypot(current.clientX - startX, current.clientY - startY) > LONG_PRESS_ZOOM_CONFIG.MOVE_THRESHOLD_PX) {
+            cancelCandidate();
+          }
+          return;
+        }
+        consume(e);
+        if (zoomEnded || !current) return;
+        const container = this.imageViewer;
+        const target = this.getZoomTarget();
+        const rect = container.getBoundingClientRect();
+        if (!target || !rect.width || !rect.height) return;
+        // 長押しズームの既存の「指位置に対応する部分を表示する」移動感を維持する。
+        const px = Math.min(1, Math.max(0, (current.clientX - rect.left) / rect.width));
+        const py = Math.min(1, Math.max(0, (current.clientY - rect.top) / rect.height));
+        this.panX = (rect.width - target.offsetWidth * this.zoomScale) * px;
+        this.panY = (rect.height - target.offsetHeight * this.zoomScale) * py;
+        this.clampPan();
+        this.updateTransform();
+      };
+      const onEnd = (e) => {
+        if (zoomStarted) consume(e);
+        if (!Array.from(e.touches).some((item) => item.identifier === identifier)) {
+          cancelCandidate();
+          endTemporaryZoom();
+        }
+        // 二本目の指が残っている間は、ズーム終了後もスクロールを再開しない。
+        if (e.touches.length === 0) cleanup();
+      };
+      const onVisibility = () => {
+        if (doc.hidden) cleanup();
+      };
+      this._cancelImageTouchGesture = cleanup;
+      const captureTouch = { capture: true, passive: false };
+      doc.addEventListener("touchstart", onAdditionalTouch, captureTouch);
+      doc.addEventListener("touchmove", onMove, captureTouch);
+      doc.addEventListener("touchend", onEnd, captureTouch);
+      doc.addEventListener("touchcancel", onEnd, captureTouch);
+      doc.addEventListener("visibilitychange", onVisibility);
+      doc.defaultView?.addEventListener("blur", cleanup);
+      doc.defaultView?.addEventListener("pagehide", cleanup);
+      viewer.addEventListener("scroll", onScroll);
+      timer = setTimeout(() => {
+        if (!candidate || !element.isConnected || this.viewer !== viewer || this.imageZoomed ||
+            this.epubViewMode !== EPUB_VIEW_MODES.SCROLL || !this.longPressZoomEnabled ||
+            viewer.scrollLeft !== scrollLeft || viewer.scrollTop !== scrollTop) return;
+        const src = getSrc();
+        if (!src) return;
+        candidate = false;
+        zoomStarted = true;
+        this._seamlessImageGestureActive = true;
+        // 既存のスクロールCSSには !important があるため、同じ優先度で両軸を固定する。
+        lockedStyles = ["overflow-x", "overflow-y", "scroll-behavior"].map((property) =>
+          [property, viewer.style.getPropertyValue(property), viewer.style.getPropertyPriority(property)]);
+        viewer.style.setProperty("scroll-behavior", "auto", "important");
+        viewer.style.setProperty("overflow-x", "hidden", "important");
+        viewer.style.setProperty("overflow-y", "hidden", "important");
+        this.isEpubTemporaryZoom = true;
+        this.imageViewer.style.display = "flex";
+        this.imageViewer.classList.remove(UI_CLASSES.HIDDEN);
+        this.imageElement.src = src;
+        this.startZoom(this.longPressZoomScale, startX, startY);
+      }, LONG_PRESS_ZOOM_CONFIG.DELAY_MS);
+    }, { passive: true });
+  }
+
   bindElementZoomHandlers(element, getSrc) {
     if (!element || element.dataset.zoomBound === "true") return;
     element.dataset.zoomBound = "true";
@@ -5049,6 +5209,7 @@ export class ReaderController {
     // モバイルブラウザでの長押しコンテキストメニュー表示を防止（ズーム操作を阻害しないため）
     element.style.webkitTouchCallout = "none";
     element.addEventListener("contextmenu", (e) => e.preventDefault());
+    this.bindSeamlessImageTouchHandlers(element, getSrc);
 
     let longPressTimer = null;
     let longPressActive = false;
@@ -5063,6 +5224,8 @@ export class ReaderController {
     }
 
     const onPointerDown = (e) => {
+      // シームレスのタッチは Touch Events で追跡し、ネイティブスクロール時の pointercancel と分離する。
+      if (isEpubImage && e.pointerType === "touch" && this.epubViewMode === EPUB_VIEW_MODES.SCROLL) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (!this.longPressZoomEnabled) return;
       if (this.imageZoomed && !longPressActive) return;
@@ -5192,6 +5355,7 @@ export class ReaderController {
     };
 
     const onPointerUp = (e) => {
+      if (isEpubImage && e.pointerType === "touch" && this.epubViewMode === EPUB_VIEW_MODES.SCROLL) return;
       clearTimeout(longPressTimer);
       isPointerDown = false;
 
@@ -5240,7 +5404,8 @@ export class ReaderController {
     element.addEventListener("pointerup", onPointerUp);
     element.addEventListener("pointercancel", onPointerUp);
 
-    element.style.touchAction = "none";
+    // 通常スクロールはブラウザへ委譲する。長押し成立後は本文固定と touchmove の抑止で保護する。
+    element.style.touchAction = isEpubImage && this.epubViewMode === EPUB_VIEW_MODES.SCROLL ? "auto" : "none";
   }
 
 
@@ -5403,6 +5568,7 @@ export class ReaderController {
     const touchOpts = { passive: false };
 
     readerContainer.addEventListener('touchstart', (e) => {
+      if (this._seamlessImageGestureActive) return;
       if (this.imageZoomed) {
         // ズーム操作UIへのタッチは無視
         if (e.target && typeof e.target.closest === 'function' && e.target.closest(DOM_SELECTORS.ZOOM_ALLOWED_TARGETS)) {
@@ -5421,6 +5587,7 @@ export class ReaderController {
     }, touchOpts);
 
     readerContainer.addEventListener('touchmove', (e) => {
+      if (this._seamlessImageGestureActive) return;
       if (this.isDragging && e.touches.length === 1 && !this.isPinching) {
         e.preventDefault();
         e.stopPropagation();
@@ -5499,6 +5666,7 @@ export class ReaderController {
     const touchOpts = { passive: false };
 
     readerContainer.addEventListener('touchstart', (event) => {
+      if (this._seamlessImageGestureActive) return;
       const isTouch = event.touches && event.touches.length > 0;
       if (!isTouch && !this.isEventInReaderArea(event)) return;
 
@@ -5514,6 +5682,7 @@ export class ReaderController {
     }, touchOpts);
 
     readerContainer.addEventListener('touchmove', (event) => {
+      if (this._seamlessImageGestureActive) return;
       if (this.isPinching && event.touches.length === 2) {
         event.preventDefault();
         event.stopPropagation();
@@ -5756,6 +5925,7 @@ export class ReaderController {
   }
 
   setLongPressZoomEnabled(enabled) {
+    if (!enabled) this._cancelImageTouchGesture?.();
     this.longPressZoomEnabled = !!enabled;
   }
 

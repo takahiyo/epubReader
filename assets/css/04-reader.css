@@ -175,6 +175,8 @@ body.epub-img-original-size .reader-fullscreen-img {
 ===================================== */
 /* EPUBスクロールモード */
 .fullscreen-reader.epub-scroll-mode .viewer {
+  /* 長押しズームでスクロールを固定しても本文の折り返し幅を変えない。 */
+  scrollbar-gutter: stable;
   overflow-y: scroll !important;
   /* スクロールバー用のガターを常に確保し、レイアウトシフトを防ぐ */
   overflow-x: hidden !important;
