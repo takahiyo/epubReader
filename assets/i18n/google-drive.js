@@ -1,7 +1,7 @@
 export const DRIVE_STRINGS = Object.freeze({
   ja: {
     driveOpen: 'Googleドライブから開く', driveChoose: 'ドライブで書籍を選ぶ',
-    driveDescription: 'GoogleドライブでEPUB・CBZ・ZIP・RAR・CBRを1冊選んで読みます。OSへの事前ダウンロードは不要です。選択した書籍はこのアプリの端末内領域に保存します（1冊256 MBまで）。初回はGoogleのアクセス許可が必要です。',
+    driveDescription: 'GoogleドライブでEPUB・CBZ・ZIP・RAR・CBRを1冊選んで読みます。OSへの事前ダウンロードは不要です。選択した書籍はこのアプリの端末内領域に保存します。初回はGoogleのアクセス許可が必要です。',
     driveClose: 'キャンセル・閉じる', drivePreparing: 'Googleドライブを準備しています…',
     driveReady: 'Googleの画面で使用するアカウントを確認し、書籍を選んでください。', driveLoading: '書籍を読み込んでいます…',
     driveError_config: 'Googleドライブ連携は未設定です。管理者がDrive用のクライアントID・APIキー・プロジェクト番号を設定すると利用できます。',
@@ -12,12 +12,11 @@ export const DRIVE_STRINGS = Object.freeze({
     driveError_expired: 'Googleドライブの認証期限が切れました。もう一度書籍を選んでください。',
     driveError_missing: '書籍が見つかりません。削除・移動・アクセス権を確認して、もう一度選んでください。',
     driveError_format: 'EPUB・CBZ・ZIP・RAR・CBR形式の書籍を選んでください。フォルダーやGoogleドキュメントには対応していません。',
-    driveError_size: '直接読み込みは1冊256 MBまでです。大容量書籍への対応は今後拡張予定です。',
     driveError_network: '書籍を読み込めませんでした。通信を確認し、もう一度選んでください。',
   },
   en: {
     driveOpen: 'Open from Google Drive', driveChoose: 'Choose a book in Drive',
-    driveDescription: 'Choose one EPUB, CBZ, ZIP, RAR or CBR in Google Drive. No prior OS download is needed. The book is saved in this app’s storage on your device (up to 256 MB per book). Google permission is required on first use.',
+    driveDescription: 'Choose one EPUB, CBZ, ZIP, RAR or CBR in Google Drive. No prior OS download is needed. The book is saved in this app’s storage on your device. Google permission is required on first use.',
     driveClose: 'Cancel / Close', drivePreparing: 'Preparing Google Drive…',
     driveReady: 'Confirm your account on Google’s screen, then choose a book.', driveLoading: 'Loading book…',
     driveError_config: 'Google Drive is not configured. The administrator must set the Drive client ID, API key and project number.',
@@ -28,7 +27,6 @@ export const DRIVE_STRINGS = Object.freeze({
     driveError_expired: 'Google Drive authorization expired. Choose your book again.',
     driveError_missing: 'Book not found. Check whether it was deleted or moved and whether you have access.',
     driveError_format: 'Choose an EPUB, CBZ, ZIP, RAR or CBR. Folders and Google documents are not supported.',
-    driveError_size: 'Direct loading currently supports books up to 256 MB. Larger books are planned for a future update.',
     driveError_network: 'Could not load the book. Check your connection and choose it again.',
   },
 });

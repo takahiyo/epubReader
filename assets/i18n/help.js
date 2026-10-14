@@ -12,7 +12,7 @@ export const HELP_CONTENT = Object.freeze({
         '「選択した書籍を複写登録」で巻情報と全所蔵先を見本にした編集画面を開けます。サービス内ID・URL・本体の紐付け・進捗・履歴は新しい書籍へコピーしません。所属する巻が0冊になったシリーズは、保存時に一覧から削除します。'
       ] },
       { title: 'はじめ方と端末を替えるとき', paragraphs: [
-        '「Googleドライブから開く」で、OSへの事前ダウンロードなしにドライブ内の書籍を選択できます。管理者による連携設定と、初回のGoogleアクセス許可が必要です。EPUB・CBZ・ZIP・RAR・CBRを1冊256 MBまで読み込みます。通信中はキャンセルできます。選択した書籍本体はGoogleから端末内へ取得し、通常のライブラリへ保存します。アクセス用トークンは保存しません。',
+        '「Googleドライブから開く」で、OSへの事前ダウンロードなしにドライブ内の書籍を選択できます。管理者による連携設定と、初回のGoogleアクセス許可が必要です。EPUB・CBZ・ZIP・RAR・CBRを読み込みます。通信中はキャンセルできます。選択した書籍本体はGoogleから端末内へ取得し、通常のライブラリへ保存します。アクセス用トークンは保存しません。',
         '「書籍 → 開く」でEPUB・画像書庫などを選びます。読書画面のメニューから、ライブラリ・目次・しおり・検索・設定にアクセスできます。文字サイズや縦横表示は設定から変更できます。',
         '別の端末で続きから読むには、同じGoogleアカウントでログインし、その端末でも同じ書籍ファイルを選んでください。同期は書籍本体を配布する機能ではありません。ファイルが異なる版・編集済みの場合、同じ作品として結びつかないことがあります。'
       ] },
@@ -60,7 +60,7 @@ export const HELP_CONTENT = Object.freeze({
         'Use Copy selected books for registration to review copies of volume metadata and all holdings. Service IDs, URLs, file bindings, progress and history are not copied to new books. Series with no remaining volumes are removed from lists when changes are saved.'
       ] },
       { title: 'Getting started and switching devices', paragraphs: [
-        'Open from Google Drive lets you select a book without a prior OS download. Administrator configuration and initial Google consent are required. EPUB, CBZ, ZIP, RAR and CBR are supported up to 256 MB per book. Loading can be cancelled. The selected book is fetched directly from Google and saved in your local library. Access tokens are not persisted.',
+        'Open from Google Drive lets you select a book without a prior OS download. Administrator configuration and initial Google consent are required. EPUB, CBZ, ZIP, RAR and CBR are supported. Loading can be cancelled. The selected book is fetched directly from Google and saved in your local library. Access tokens are not persisted.',
         'Choose an EPUB or image archive from Books → Open. The reading menu provides Library, Contents, Bookmarks, Search and Settings. Adjust text size and reading orientation in Settings.',
         'To resume on another device, sign in with the same Google account and select the same book file on that device. Sync does not distribute book files. Different editions or edited files may not be identified as the same book.'
       ] },

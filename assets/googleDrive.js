@@ -2,7 +2,6 @@ import { SUPPORTED_FORMATS } from './constants/formats.js';
 import { GOOGLE_DRIVE_CONFIG } from './constants/google-drive.js';
 
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-export const DRIVE_MAX_BYTES = 256 * 1024 * 1024;
 export const driveError = code => Object.assign(new Error(code), { driveCode: code });
 export function driveConfig() {
   // These three public identifiers must belong to the SAME Google Cloud project.
@@ -110,7 +109,6 @@ export async function downloadDriveBook(selected, token, { signal, onProgress = 
   if (!isDriveBook(metadata.name) || metadata.mimeType?.startsWith('application/vnd.google-apps.')) throw driveError('format');
   if (metadata.capabilities?.canDownload === false) throw driveError('permission');
   const size = Number(metadata.size) || 0;
-  if (size > DRIVE_MAX_BYTES) throw driveError('size');
   const response = await request('?alt=media&supportsAllDrives=true');
   if (!response.body) throw driveError('network');
   const reader = response.body.getReader(), chunks = [];
@@ -121,7 +119,6 @@ export async function downloadDriveBook(selected, token, { signal, onProgress = 
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
-      if (received > DRIVE_MAX_BYTES) throw driveError('size');
       chunks.push(value); onProgress(received, size);
     }
     if (!received || (size && received !== size)) throw driveError('network');

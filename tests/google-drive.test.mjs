@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { downloadDriveBook, DRIVE_MAX_BYTES, isDriveBook, isDriveConfigured, authorizeDrive, DRIVE_SCOPE } from '../assets/googleDrive.js';
+import { downloadDriveBook, isDriveBook, isDriveConfigured, authorizeDrive, DRIVE_SCOPE } from '../assets/googleDrive.js';
 
 const selected = { id: 'book/id', name: 'Book.EPUB', url: 'https://untrusted.test/file' };
 const metadata = { name: 'Book.EPUB', size: '4', mimeType: 'application/epub+zip', capabilities: { canDownload: true } };
@@ -33,8 +33,8 @@ test('download uses fixed API URLs, bearer header and no-store; returns reader F
   }
 });
 
-test('unsupported and oversized files fail before content fetch', async () => {
-  for (const [change, code] of [ [{ size: String(DRIVE_MAX_BYTES + 1) }, 'size'],
+test('unsupported files fail before content fetch', async () => {
+  for (const [change, code] of [
     [{ name: 'book.pdf' }, 'format'], [{ capabilities: { canDownload: false } }, 'permission'],
     [{ mimeType: 'application/vnd.google-apps.shortcut' }, 'format'] ]) {
     let calls = 0;
@@ -66,17 +66,6 @@ test('cancellation stops stream processing and cancels the reader', async () => 
       pull(stream) { stream.enqueue(new Uint8Array([1])); }, cancel() { cancelled = true; },
     })),
   }), { name: 'AbortError' });
-  assert.equal(cancelled, true);
-});
-
-test('unknown or dishonest metadata cannot bypass the streaming size cap', async () => {
-  let calls = 0, cancelled = false;
-  const chunk = new Uint8Array(1024 * 1024);
-  await assert.rejects(downloadDriveBook(selected, 'token', {
-    fetchImpl: async () => ++calls === 1 ? Response.json({ ...metadata, size: '0' }) : new Response(new ReadableStream({
-      pull(stream) { stream.enqueue(chunk); }, cancel() { cancelled = true; },
-    })),
-  }), error => error.driveCode === 'size');
   assert.equal(cancelled, true);
 });
 
