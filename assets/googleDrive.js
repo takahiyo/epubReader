@@ -68,10 +68,10 @@ export function authorizeDrive(config, email, signal) {
 
 export function selectDriveBook(config, token, language, signal) {
   return new Promise((resolve, reject) => {
-    let picker, settled = false;
+    let shell, settled = false;
     const finish = (error, document) => {
       if (settled) return; settled = true;
-      signal.removeEventListener('abort', abort); picker?.dispose();
+      signal.removeEventListener('abort', abort); shell?.close(); shell?.remove();
       error ? reject(error) : resolve(document);
     };
     const abort = () => finish(new DOMException('Aborted', 'AbortError'));
@@ -80,16 +80,28 @@ export function selectDriveBook(config, token, language, signal) {
     try {
       // Do not MIME-filter: many uploaded EPUB/CBZ/CBR files are octet-stream.
       const view = new google.picker.DocsView().setIncludeFolders(true).setSelectFolderEnabled(false);
-      picker = new google.picker.PickerBuilder().addView(view)
+      view.setMode(google.picker.DocsViewMode.LIST);
+      const builder = new google.picker.PickerBuilder().addView(view)
         .setDeveloperKey(config.apiKey).setAppId(config.appId).setOAuthToken(token)
         .setOrigin(location.origin).setLocale(language === 'ja' ? 'ja' : 'en')
-        .setSize(Math.max(280, Math.min(960, innerWidth - 24)), Math.max(320, innerHeight - 40))
         .setCallback(data => {
           if (data.action === google.picker.Action.CANCEL) finish(null, null);
           if (data.action === google.picker.Action.PICKED) finish(null, data.docs?.[0]);
           if (data.action === 'error') finish(driveError('permission'));
-        }).build();
-      picker.setVisible(true);
+        });
+      // Google's stock dialog clamps height to 650px. Its documented toUri()
+      // embedding API lets the iframe track the actual available viewport.
+      shell = document.createElement('dialog'); shell.className = 'google-drive-picker';
+      shell.setAttribute('aria-label', language === 'ja' ? 'Googleドライブの書籍を選択' : 'Choose a book in Google Drive');
+      const cancel = document.createElement('button'); cancel.type = 'button';
+      cancel.textContent = language === 'ja' ? 'キャンセル・閉じる' : 'Cancel / Close';
+      cancel.onclick = () => finish(null, null);
+      shell.addEventListener('cancel', event => { event.preventDefault(); finish(null, null); });
+      shell.addEventListener('keydown', event => event.stopPropagation());
+      const content = document.createElement('div'); content.className = 'google-drive-picker-content';
+      const frame = document.createElement('iframe');
+      frame.title = shell.getAttribute('aria-label'); frame.src = builder.toUri().toString();
+      content.append(frame); shell.append(cancel, content); document.body.append(shell); shell.showModal();
     } catch { finish(driveError('sdk')); }
   });
 }

@@ -12,7 +12,13 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/') {
       res.setHeader('Content-Type', 'text/html');
       res.end(`<!doctype html><html lang="ja"><meta name="referrer" content="strict-origin">
-        <script src="/assets/drive-return.js"></script><button data-google-drive>Drive</button></html>`);
+        <link rel="stylesheet" href="/assets/css/25-google-drive.css"><script src="/assets/drive-return.js"></script><button data-google-drive>Drive</button></html>`);
+      return;
+    }
+    if (url.pathname === '/picker-fixture') {
+      res.setHeader('Content-Type', 'text/html');
+      res.end(`<html><style>html,body{height:100%;margin:0}main{height:100%;overflow-y:scroll;scrollbar-gutter:stable}button{display:block;width:100%;height:48px}</style>
+        <main>${Array.from({ length: 100 }, (_, i) => `<button onclick="parent.postMessage({fixturePick:${i}}, '*')">Book ${i}</button>`).join('')}</main></html>`);
       return;
     }
     if (url.pathname === '/oauth/drive/config') {
@@ -21,7 +27,7 @@ const server = http.createServer(async (req, res) => {
     }
     const file = path.resolve(root, '.' + url.pathname);
     if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
-    res.setHeader('Content-Type', 'text/javascript'); res.end(await fs.readFile(file));
+    res.setHeader('Content-Type', file.endsWith('.css') ? 'text/css' : 'text/javascript'); res.end(await fs.readFile(file));
   } catch { res.writeHead(404).end(); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -103,7 +109,11 @@ try {
       addView() { return this; } setDeveloperKey() { return this; } setAppId() { return this; }
       setOAuthToken() { return this; } setOrigin() { return this; } setLocale() { return this; }
       setSize() { return this; } setCallback(callback) { this.callback = callback; return this; }
-      build() { return { dispose() {}, setVisible: () => queueMicrotask(() => this.callback({ action: 'cancel' })) }; }
+      toUri() {
+        window.fixturePickerCallback = this.callback;
+        if (!window.testPickerList) setTimeout(() => this.callback({ action: 'cancel' }), 0);
+        return location.origin + '/picker-fixture';
+      }
     }
     window.google = { accounts: { oauth2: { hasGrantedAllScopes: () => true,
       initTokenClient: options => ({ requestAccessToken() {
@@ -112,8 +122,13 @@ try {
         consent.style.cssText = 'position:fixed;left:10px;top:10px;width:200px;height:60px';
         consent.onclick = () => { window.consentClicked = true; consent.remove(); options.callback({ access_token: 'test-token' }); };
         document.body.append(consent);
-      } }) } }, picker: { PickerBuilder: Builder, Action: { CANCEL: 'cancel', PICKED: 'picked' },
-        DocsView: class { setIncludeFolders() { return this; } setSelectFolderEnabled() { return this; } } } };
+    } }) } }, picker: { PickerBuilder: Builder, Action: { CANCEL: 'cancel', PICKED: 'picked' }, DocsViewMode: { LIST: 'list' },
+        DocsView: class { setIncludeFolders() { return this; } setSelectFolderEnabled() { return this; } setMode() { return this; } } } };
+    addEventListener('message', event => {
+      if (event.origin === location.origin && event.data.fixturePick !== undefined) {
+        window.fixturePickerCallback({ action: 'picked', docs: [{ id: 'book-' + event.data.fixturePick, name: 'Book.epub' }] });
+      }
+    });
     const { createGoogleDriveUI } = await import('/assets/js/ui/google-drive-ui.js');
     createGoogleDriveUI({ t: key => key, getAccount: () => ({ authenticated: true, userId: 'reader' }),
       login() {}, beforeOpen() {}, openFile() {} });
@@ -124,6 +139,41 @@ try {
   await page.click('#mockGoogleConsent');
   assert.equal(await page.evaluate(() => window.consentClicked), true);
   assert.equal(await page.$eval('dialog', element => element.open), false);
+  await page.waitForFunction(() => !document.querySelector('.google-drive-picker'));
+  await page.setViewport({ width: 1440, height: 1080 });
+  await page.evaluate(async () => {
+    window.testPickerList = true;
+    const { selectDriveBook } = await import('/assets/googleDrive.js');
+    window.pickerController = new AbortController();
+    window.pickerResult = selectDriveBook({ apiKey: 'fake', appId: '123' }, 'fake', 'ja', window.pickerController.signal);
+  });
+  const bounds = await page.$eval('.google-drive-picker', element => ({ height: element.getBoundingClientRect().height,
+    frameHeight: element.querySelector('iframe').getBoundingClientRect().height }));
+  assert.ok(bounds.height >= 1050 && bounds.frameHeight > 950, JSON.stringify(bounds));
+  await page.setViewport({ width: 900, height: 720 });
+  assert.ok(await page.$eval('.google-drive-picker', element => element.getBoundingClientRect().bottom <= innerHeight));
+  const pickerFrame = await (await page.$('.google-drive-picker iframe')).contentFrame();
+  await pickerFrame.waitForSelector('button');
+  await pickerFrame.hover('main'); await page.mouse.wheel({ deltaY: 6000 });
+  await pickerFrame.waitForFunction(() => document.querySelector('main').scrollTop > 0);
+  await pickerFrame.click('button:last-child');
+  assert.equal(await page.evaluate(async () => (await window.pickerResult).id), 'book-99');
+  assert.equal(await page.$('.google-drive-picker'), null);
+  await page.evaluate(async () => {
+    const { selectDriveBook } = await import('/assets/googleDrive.js');
+    window.pickerResult = selectDriveBook({ apiKey: 'fake', appId: '123' }, 'fake', 'ja', new AbortController().signal);
+  });
+  await page.click('.google-drive-picker > button');
+  assert.equal(await page.evaluate(() => window.pickerResult), null);
+  await page.evaluate(async () => {
+    const { selectDriveBook } = await import('/assets/googleDrive.js');
+    window.pickerController = new AbortController();
+    window.pickerResult = selectDriveBook({ apiKey: 'fake', appId: '123' }, 'fake', 'ja', window.pickerController.signal)
+      .catch(error => error.name);
+    window.pickerController.abort();
+  });
+  assert.equal(await page.evaluate(() => window.pickerResult), 'AbortError');
+  assert.equal(await page.$('.google-drive-picker'), null);
   assert.deepEqual(errors, []);
-  console.log('PASS: iPad OAuth round trip and clickable Google consent without a covering BookReader dialog');
+  console.log('PASS: iPad OAuth, visible consent, viewport-height Picker, resize and scrolling to select the last of 100 books');
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }

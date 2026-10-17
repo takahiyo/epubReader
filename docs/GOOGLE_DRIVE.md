@@ -20,6 +20,8 @@ Workerの `DRIVE_REDIRECT_URI` と実際の公開URLが一致し、secretが登�
 
 ### この改修の検証
 
+2026-10-17追記：埋め込みPickerはGoogle公式の `PickerBuilder.toUri()` 方式へ変更。標準ダイアログの高さ650px上限を避け、表示領域の上下24pxを除く高さを使用する。ウィンドウのリサイズにも追従し、短い画面では外側もスクロールできる。`drive.file` での推奨に従い一覧表示を使う。模擬ブラウザで1080px高からのリサイズ、100冊目へのスクロールと選択を検証。iPad/iPhoneのGoogle別ページ方式は継続し、そのページ内部のサイズはGoogle側で管理される。
+
 - 既存の削除・競合状態を変更しない検証用コピーで、全回帰テスト114件成功。
 - 新規の認証テスト8件でstate・期限・PKCE・CORS・コード交換・IDだけの選択からの取得を確認。
 - `tests/google-drive-redirect-browser.mjs`：iPad UA、Googleへの移動、戻った直後のURL除去、Firebase復元待ちからの再開、書籍File引き渡しをChrome上の模擬通信で確認。
