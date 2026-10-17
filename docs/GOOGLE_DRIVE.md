@@ -2,6 +2,8 @@
 
 ## 2026-10-17：iPadのCookie制限への対応（dev）
 
+iPad版VivaldiのGoogle提供ページ（drive.google.com）では、マイドライブ以外・ショートカット先でタッチスクロールできない実機報告あり。Google側のページ内部をBookReaderのCSS/JSで修正することはできないため、iPadの準備ダイアログに任意の「書籍のDriveリンク」を追加した。Driveアプリ等で対象の書籍ファイルからコピーしたリンクを指定すると、公式 `file_ids` パラメーターでその1冊だけに選択を絞り、フォルダー内のスクロールを避ける。フォルダーのリンクには対応せず、一覧をたどる標準経路も残す。権限は `drive.file` のまま。Googleページ自体の不具合を修正したものではなく、リンク指定経路の実機動作は別途確認が必要。
+
 iPad/iPhoneでは、埋め込みPickerの代わりにGoogleの認証・選択ページへ移動し、選択後にBookReaderへ戻る。Safariの「サイト越えトラッキングを防ぐ」をオンにしたまま使うことを目的とした変更。通常タブ・ホーム画面PWA双方の実機検証は必要。PC・Android・Questは従来の埋め込みPickerを維持する。
 
 使用する公式フローは `response_type=code`、`prompt=consent`、`trigger_onepick=true`、`drive.file` 単独。OAuth stateとPKCEの一時情報だけをsessionStorageに保存する（10分有効・戻った時点で削除）。コードはページ先頭でURLから除去し、アクセストークンはメモリーだけに保持する。Firebaseでログインした同一ユーザーであることを確認し、dev Workerの専用APIでコード交換する。書籍は従来どおりブラウザーからDrive APIで直接取得する。Workerへ書籍本体を送らず、トークンやコードをDB・KV・ログへ保存しない。

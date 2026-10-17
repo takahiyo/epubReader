@@ -7,6 +7,19 @@ const base64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-
 const random = () => base64url(crypto.getRandomValues(new Uint8Array(32)));
 const endpoint = config => config.tokenEndpoint || new URL('/oauth/drive', WORKERS_CONFIG.SYNC_ENDPOINT).href;
 
+export function parseDriveFileLink(value) {
+  if (!value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' || url.hostname !== 'drive.google.com' || url.username || url.password || url.port) throw Error();
+    const id = url.pathname.match(/^\/file\/d\/([\w-]+)(?:\/|$)/)?.[1] ||
+      (['/open', '/uc'].includes(url.pathname) ? url.searchParams.get('id') : null);
+    const resourceKey = url.searchParams.get('resourcekey') || undefined;
+    if (!/^[\w-]{1,256}$/.test(id || '') || (resourceKey && !/^[\w-]{1,256}$/.test(resourceKey))) throw Error();
+    return { id, ...(resourceKey ? { resourceKey } : {}) };
+  } catch { throw driveError('link'); }
+}
+
 export function usesDriveRedirect(config, platform = globalThis.navigator) {
   if (config.selectionMode) return config.selectionMode === 'redirect';
   return /iPad|iPhone|iPod/.test(platform?.userAgent || '') ||
@@ -29,9 +42,12 @@ export async function prepareDriveRedirect(config, account, signal) {
     include_granted_scopes: 'false', state: transaction.state,
     code_challenge: challenge, code_challenge_method: 'S256',
     ...(account.userEmail ? { login_hint: account.userEmail } : {}) }).toString();
-  return () => {
+  return (selection = null) => {
     if (signal.aborted) return;
-    try { sessionStorage.setItem(TRANSACTION_KEY, JSON.stringify(transaction)); }
+    if (selection) url.searchParams.set('file_ids', selection.id);
+    else url.searchParams.delete('file_ids');
+    try { sessionStorage.setItem(TRANSACTION_KEY, JSON.stringify({ ...transaction, createdAt: Date.now(),
+      ...(selection ? { requestedFileId: selection.id, resourceKey: selection.resourceKey } : {}) })); }
     catch { throw driveError('redirectStorage'); }
     location.assign(url.href);
   };
@@ -49,6 +65,7 @@ export function consumeDriveReturn(result = globalThis.bookReaderDriveReturn, st
         typeof transaction.verifier !== 'string' || !/^[\w-]{43}$/.test(transaction.verifier)) throw Error();
     if (result.error) return { error: result.error === 'access_denied' ? 'cancelled' : 'permission' };
     if (!result.code || !result.scope?.split(' ').includes(DRIVE_SCOPE) || !/^[\w-]{1,256}$/.test(result.picked_file_ids || '')) throw Error();
+    if (transaction.requestedFileId && transaction.requestedFileId !== result.picked_file_ids) throw Error();
     return { ...transaction, code: result.code, fileId: result.picked_file_ids };
   } catch { return { error: 'redirectState' }; }
 }

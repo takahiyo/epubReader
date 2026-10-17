@@ -12,6 +12,8 @@
 .google-drive-dialog progress { width: 100%; }
 .google-drive-dialog button { background: var(--control-bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
 .google-drive-dialog button:disabled { opacity: .6; cursor: default; }
+.google-drive-link input { display: block; box-sizing: border-box; width: 100%; min-height: 48px; margin: 8px 0; padding: 8px; font: inherit; }
+.google-drive-link small { display: block; line-height: 1.5; }
 
 /* Use the viewport, rather than Google's fixed-height dialog. On very short
    windows the outer content also scrolls, keeping the entire frame reachable. */

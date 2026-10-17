@@ -29,6 +29,39 @@ async function modules(entry, extra = {}) {
 const transaction = (overrides = {}) => ({ state: 'brdrive_state', verifier: 'a'.repeat(43), userId: 'user', redirectUri: URI, createdAt: 1000, ...overrides });
 const returned = overrides => ({ state: 'brdrive_state', code: 'auth-code', scope: SCOPE, picked_file_ids: 'file_123', ...overrides });
 
+test('book links accept only Drive file URLs and keep resource keys without accepting folder URLs', async () => {
+  const { api } = await modules('assets/driveRedirect.js');
+  assert.equal(api.parseDriveFileLink('  '), null);
+  assert.equal(api.parseDriveFileLink('https://drive.google.com/file/d/book_123/view?usp=sharing').id, 'book_123');
+  assert.equal(api.parseDriveFileLink('https://drive.google.com/open?id=book_123&resourcekey=key-123').resourceKey, 'key-123');
+  for (const url of ['https://drive.google.com/drive/folders/folder_123', 'https://evil.test/file/d/book/view',
+    'https://drive.google.com.evil.test/file/d/book/view', 'http://drive.google.com/file/d/book/view',
+    'https://user@drive.google.com/file/d/book/view', 'javascript:alert(1)', 'not a URL']) {
+    assert.throws(() => api.parseDriveFileLink(url), error => error.driveCode === 'link');
+  }
+});
+
+test('a linked book restricts Google selection and a different returned file is rejected', async () => {
+  const store = storage(); let target;
+  const { api } = await modules('assets/driveRedirect.js', {
+    sessionStorage: store, location: { href: URI, assign: url => { target = url; } },
+    fetch: async () => Response.json({ redirectUri: URI }),
+  });
+  const navigate = await api.prepareDriveRedirect({ clientId: 'client' }, { userId: 'user' }, new AbortController().signal);
+  navigate(api.parseDriveFileLink('https://drive.google.com/file/d/file_123/view?resourcekey=key-123'));
+  const saved = JSON.parse(store.getItem(KEY));
+  assert.equal(new URL(target).searchParams.get('file_ids'), 'file_123');
+  assert.equal(new URL(target).searchParams.get('scope'), SCOPE);
+  assert.equal(target.includes('key-123'), false);
+  const result = returned({ state: saved.state });
+  assert.equal(api.consumeDriveReturn(result, store).resourceKey, 'key-123');
+  store.setItem(KEY, JSON.stringify(saved));
+  assert.equal(api.consumeDriveReturn({ ...result, picked_file_ids: 'different_file' }, store).error, 'redirectState');
+  navigate();
+  assert.equal(new URL(target).searchParams.has('file_ids'), false);
+  assert.equal(JSON.parse(store.getItem(KEY)).requestedFileId, undefined);
+});
+
 test('redirect state is single-use, bound, expires and rejects malformed file selections', async () => {
   const { api } = await modules('assets/driveRedirect.js');
   const store = storage();

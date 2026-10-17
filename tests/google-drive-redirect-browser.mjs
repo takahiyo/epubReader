@@ -56,7 +56,7 @@ try {
       return request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ access_token: 'drive-token' }) });
     }
     if (url.origin === 'https://www.googleapis.com') return request.respond({ status: 200,
-      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS' },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, X-Goog-Drive-Resource-Keys', 'Access-Control-Allow-Methods': 'GET, OPTIONS' },
       contentType: url.searchParams.has('alt') ? 'application/epub+zip' : 'application/json',
       body: url.searchParams.has('alt') ? 'book' : JSON.stringify({ name: 'Book.epub', size: '4' }) });
     if (url.origin !== origin) return request.abort();
@@ -76,11 +76,17 @@ try {
   await initialize();
   await page.click('[data-google-drive]');
   await page.waitForFunction(() => !document.querySelector('#googleDriveConnect').disabled);
+  await page.type('#googleDriveFileLink', 'https://drive.google.com/drive/folders/folder-id');
+  await page.click('#googleDriveConnect');
+  assert.equal(oauth.length, 0);
+  assert.equal(await page.$eval('#googleDriveDialog', element => element.open), true);
+  await page.$eval('#googleDriveFileLink', element => { element.value = 'https://drive.google.com/file/d/book-id/view?resourcekey=book-key'; });
   await Promise.all([page.waitForNavigation(), page.click('#googleDriveConnect')]);
   assert.equal(oauth.length, 1);
   assert.equal(oauth[0].searchParams.get('trigger_onepick'), 'true');
   assert.equal(oauth[0].searchParams.get('response_type'), 'code');
   assert.equal(oauth[0].searchParams.get('code_challenge_method'), 'S256');
+  assert.equal(oauth[0].searchParams.get('file_ids'), 'book-id');
   assert.equal(page.url(), origin + '/'); // code removed before application initialization
   await initialize(false);
   assert.equal(exchanges.length, 0); // Firebase can restore after the UI is constructed.
@@ -175,5 +181,5 @@ try {
   assert.equal(await page.evaluate(() => window.pickerResult), 'AbortError');
   assert.equal(await page.$('.google-drive-picker'), null);
   assert.deepEqual(errors, []);
-  console.log('PASS: iPad OAuth, visible consent, viewport-height Picker, resize and scrolling to select the last of 100 books');
+  console.log('PASS: linked-book filtering, iPad OAuth, visible consent, viewport-height Picker and selecting the last of 100 books');
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }

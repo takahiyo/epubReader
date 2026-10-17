@@ -1,5 +1,5 @@
 import { driveConfig, isDriveConfigured, prepareDrive, authorizeDrive, selectDriveBook, downloadDriveBook } from '../../googleDrive.js';
-import { usesDriveRedirect, prepareDriveRedirect, consumeDriveReturn, exchangeDriveReturn } from '../../driveRedirect.js';
+import { usesDriveRedirect, prepareDriveRedirect, consumeDriveReturn, exchangeDriveReturn, parseDriveFileLink } from '../../driveRedirect.js';
 
 /** One shared, keyboard accessible entry point for browsers and installed PWAs. */
 export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen, getIdToken = async () => null }) {
@@ -8,11 +8,17 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
   dialog.setAttribute('aria-labelledby', heading.id);
   dialog.addEventListener('keydown', event => event.stopPropagation());
   const description = document.createElement('p');
+  const linkLabel = document.createElement('label'); linkLabel.className = 'google-drive-link';
+  const linkText = document.createElement('span');
+  const fileLink = document.createElement('input'); fileLink.type = 'url'; fileLink.id = 'googleDriveFileLink';
+  fileLink.maxLength = 2048; fileLink.autocomplete = 'off'; fileLink.spellcheck = false;
+  const linkHelp = document.createElement('small'); linkHelp.id = 'googleDriveLinkHelp';
+  fileLink.setAttribute('aria-describedby', linkHelp.id); linkLabel.append(linkText, fileLink, linkHelp);
   const status = document.createElement('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const progress = document.createElement('progress'); progress.hidden = true;
   const connect = document.createElement('button'); connect.type = 'button'; connect.id = 'googleDriveConnect';
   const cancel = document.createElement('button'); cancel.type = 'button';
-  dialog.append(heading, description, status, progress, connect, cancel); document.body.append(dialog);
+  dialog.append(heading, description, linkLabel, status, progress, connect, cancel); document.body.append(dialog);
   let controller, accountId, ready = false, busy = false, trigger, navigate;
   let returned = consumeDriveReturn();
   const alive = current => controller === current && !current.signal.aborted;
@@ -21,6 +27,8 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
   const localize = () => {
     document.querySelectorAll('[data-google-drive]').forEach(button => { button.textContent = t('driveOpen'); });
     heading.textContent = t('driveOpen'); description.textContent = t('driveDescription');
+    linkLabel.hidden = !usesDriveRedirect(driveConfig()) || !getAccount().authenticated; linkText.textContent = t('driveLinkLabel');
+    linkHelp.textContent = t('driveLinkHelp'); fileLink.placeholder = 'https://drive.google.com/file/d/…/view';
     cancel.textContent = t('driveClose'); progress.setAttribute('aria-label', t('driveLoading'));
     connect.textContent = t(getAccount().authenticated ? 'driveChoose' : 'googleLoginLabel');
   };
@@ -33,7 +41,7 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     if (controller) return;
     trigger = event?.currentTarget; localize();
     controller = new AbortController(); const current = controller;
-    accountId = getAccount().userId; ready = false; busy = false; navigate = null; progress.hidden = true;
+    accountId = getAccount().userId; ready = false; busy = false; navigate = null; progress.hidden = true; fileLink.value = '';
     connect.disabled = true;
     try { await beforeOpen(); } catch { close(); return; }
     if (!alive(current)) return;
@@ -67,6 +75,7 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     const result = returned; returned = null;
     if (result.error === 'cancelled') return;
     localize(); controller = new AbortController(); const current = controller;
+    linkLabel.hidden = true;
     accountId = getAccount().userId; busy = true; ready = false; connect.disabled = true;
     try {
       await beforeOpen();
@@ -75,7 +84,7 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
       if (result.error) throw { driveCode: result.error };
       if (result.userId !== accountId) throw { driveCode: 'redirectState' };
       const token = await exchangeDriveReturn(driveConfig(), result, await getIdToken(), current.signal);
-      await loadSelected({ id: result.fileId }, token, current);
+      await loadSelected({ id: result.fileId, resourceKey: result.resourceKey }, token, current);
     } catch (error) {
       if (alive(current)) {
         progress.hidden = true;
@@ -88,11 +97,12 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     if (!getAccount().authenticated) { close(); login(); return; }
     busy = true; connect.disabled = true; const current = controller;
     try {
+      const requested = navigate ? parseDriveFileLink(fileLink.value) : null;
       // Native modal dialogs sit above embedded Google consent UI. Dismiss our
       // top layer before either navigation or synchronous OAuth authorization.
       // Keep the controller alive; close() would cancel this request.
       dialog.close();
-      if (navigate) { navigate(); return; }
+      if (navigate) { navigate(requested); return; }
       // No await precedes authorization: preserve the user's popup activation.
       const token = await authorizeDrive(driveConfig(), getAccount().userEmail, current.signal);
       if (!alive(current)) return;

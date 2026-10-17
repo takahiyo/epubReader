@@ -1,6 +1,9 @@
 export const DRIVE_STRINGS = Object.freeze({
   ja: {
     driveOpen: 'Googleドライブから開く', driveChoose: 'ドライブで書籍を選ぶ',
+    driveLinkLabel: '書籍のDriveリンク（任意）',
+    driveLinkHelp: 'Googleの画面でスクロールできない場合は、Driveアプリなどで書籍ファイルの「リンクをコピー」から取得したリンクを貼り付けてください。Googleの選択画面にその1冊だけを表示します。フォルダーのリンクは使えません。',
+    driveError_link: 'Googleドライブの書籍ファイルのリンクを入力してください。フォルダーやショートカット先フォルダーのリンクは使えません。',
     driveDescription: 'GoogleドライブでEPUB・CBZ・ZIP・RAR・CBRを1冊選んで読みます。OSへの事前ダウンロードは不要です。選択した書籍はこのアプリの端末内領域に保存します。初回はGoogleのアクセス許可が必要です。',
     driveClose: 'キャンセル・閉じる', drivePreparing: 'Googleドライブを準備しています…',
     driveReady: 'Googleの画面で使用するアカウントを確認し、書籍を選んでください。', driveLoading: '書籍を読み込んでいます…',
@@ -19,6 +22,9 @@ export const DRIVE_STRINGS = Object.freeze({
   },
   en: {
     driveOpen: 'Open from Google Drive', driveChoose: 'Choose a book in Drive',
+    driveLinkLabel: 'Drive book link (optional)',
+    driveLinkHelp: 'If Google’s picker will not scroll, paste a book file link copied from Drive. Google’s picker will show only that book. Folder links are not supported.',
+    driveError_link: 'Enter a Google Drive book file link. Folder links and shortcuts to folders are not supported.',
     driveDescription: 'Choose one EPUB, CBZ, ZIP, RAR or CBR in Google Drive. No prior OS download is needed. The book is saved in this app’s storage on your device. Google permission is required on first use.',
     driveClose: 'Cancel / Close', drivePreparing: 'Preparing Google Drive…',
     driveReady: 'Confirm your account on Google’s screen, then choose a book.', driveLoading: 'Loading book…',
