@@ -8,9 +8,9 @@ iPad/iPhoneでは、埋め込みPickerの代わりにGoogleの認証・選択ペ
 
 ### devの外部設定（必須）
 
-1. Google Cloudの既存Drive用Web OAuthクライアントの「承認済みのリダイレクトURI」に **`https://takahiyo.github.io/epubReader/`** を追加する。JavaScript生成元への登録とは別の設定。末尾の `/` を含めて一致させる。
+1. Google Cloudの既存Drive用Web OAuthクライアントの「承認済みのリダイレクトURI」に **`https://dev.epubreader-7w6.pages.dev/`** を追加する。JavaScript生成元への登録とは別の設定。末尾の `/` を含めて一致させる。GitHub Pagesの公開情報は旧設定であり、現在のdevはCloudflare PagesのこのブランチURLを使う。
 2. 同じOAuthクライアントのクライアントシークレットを、GitHubリポジトリのActions secret **`DRIVE_CLIENT_SECRET`** に登録する。devのWorkerデプロイ時にWorker secretへ反映される。あるいは管理者が `workers` で `npx wrangler secret put DRIVE_CLIENT_SECRET --env dev` を実行する。秘密値をソース・ブラウザー設定・チャットへ記載しない。
-3. devへpushして「Deploy Workers to Development」とGitHub Pagesの成功を確認する。公開アプリを再読み込みし、iPadのSafari設定をオンにして認証→選択→読書開始、キャンセル、アカウント変更、PWA復帰を確認する。
+3. devへpushして「Deploy Workers to Development」とCloudflare Pagesの成功を確認する。上記devブランチURLを再読み込みし、iPadのSafari設定をオンにして認証→選択→読書開始、キャンセル、アカウント変更、PWA復帰を確認する。コミットごとの一時プレビューURLでは戻り先が一致しないため、固定のブランチURLを使う。
 
 Workerの `DRIVE_REDIRECT_URI` と実際の公開URLが一致し、secretが登録されるまでは、iPadには「設定待ち」の案内を出す。サーバーの設定確認だけではGoogle側のURI登録までは確認できず、未登録の場合はGoogleの `redirect_uri_mismatch` が表示される。
 

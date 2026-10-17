@@ -40,7 +40,7 @@ id = "0789b395bb4f418d8edf32ca965aadeb"
 [env.dev.vars]
 FIREBASE_PROJECT_ID = "bookreader-1d3a3"
 ENVIRONMENT = "development"
-DRIVE_REDIRECT_URI = "https://takahiyo.github.io/epubReader/"
+DRIVE_REDIRECT_URI = "https://dev.epubreader-7w6.pages.dev/"
 # Set DRIVE_CLIENT_SECRET with `wrangler secret put DRIVE_CLIENT_SECRET --env dev`.
 # ... (既存の内容はそのまま)
 
