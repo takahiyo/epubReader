@@ -96,7 +96,8 @@ export function selectDriveBook(config, token, language, signal) {
 
 /** Download only from the fixed Drive endpoint; never use Picker-supplied download URLs. */
 export async function downloadDriveBook(selected, token, { signal, onProgress = () => {}, fetchImpl = fetch } = {}) {
-  if (!selected?.id || !isDriveBook(selected.name)) throw driveError('format');
+  // Redirect Picker returns an ID only; validate its real filename from Drive metadata below.
+  if (!selected?.id || (selected.name !== undefined && !isDriveBook(selected.name))) throw driveError('format');
   const endpoint = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(selected.id);
   const headers = { Authorization: 'Bearer ' + token };
   if (selected.resourceKey) headers['X-Goog-Drive-Resource-Keys'] = selected.id + '/' + selected.resourceKey;

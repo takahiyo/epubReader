@@ -1,5 +1,5 @@
 {
-  "cacheName": "bookreader-v78",
+  "cacheName": "bookreader-v79",
   "assets": [
     "./",
     "./index.html",
@@ -95,6 +95,8 @@
     "./assets/css/24-catalog.css",
     "./assets/css/25-google-drive.css",
     "./assets/css/26-legal.css",
+    "./assets/drive-return.js",
+    "./assets/driveRedirect.js",
     "./assets/googleDrive.js",
     "./assets/i18n/catalog.js",
     "./assets/i18n/google-drive.js",

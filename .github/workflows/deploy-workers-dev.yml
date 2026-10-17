@@ -36,3 +36,15 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: workers
           command: deploy --env dev
+      - name: Configure Drive OAuth secret when supplied
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DRIVE_CLIENT_SECRET: ${{ secrets.DRIVE_CLIENT_SECRET }}
+        working-directory: workers
+        shell: bash
+        run: |
+          if [ -n "$DRIVE_CLIENT_SECRET" ]; then
+            printf '%s' "$DRIVE_CLIENT_SECRET" | npx --no-install wrangler secret put DRIVE_CLIENT_SECRET --env dev
+          else
+            echo 'Drive OAuth secret was not supplied; existing Worker secret is preserved.'
+          fi

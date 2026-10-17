@@ -1,7 +1,8 @@
 import { driveConfig, isDriveConfigured, prepareDrive, authorizeDrive, selectDriveBook, downloadDriveBook } from '../../googleDrive.js';
+import { usesDriveRedirect, prepareDriveRedirect, consumeDriveReturn, exchangeDriveReturn } from '../../driveRedirect.js';
 
 /** One shared, keyboard accessible entry point for browsers and installed PWAs. */
-export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen }) {
+export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen, getIdToken = async () => null }) {
   const dialog = document.createElement('dialog'); dialog.id = 'googleDriveDialog'; dialog.className = 'google-drive-dialog';
   const heading = document.createElement('h2'); heading.id = 'googleDriveHeading';
   dialog.setAttribute('aria-labelledby', heading.id);
@@ -12,7 +13,8 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
   const connect = document.createElement('button'); connect.type = 'button'; connect.id = 'googleDriveConnect';
   const cancel = document.createElement('button'); cancel.type = 'button';
   dialog.append(heading, description, status, progress, connect, cancel); document.body.append(dialog);
-  let controller, accountId, ready = false, busy = false, trigger;
+  let controller, accountId, ready = false, busy = false, trigger, navigate;
+  let returned = consumeDriveReturn();
   const alive = current => controller === current && !current.signal.aborted;
   function close() { controller?.abort(); controller = null; dialog.close(); trigger?.focus(); }
   cancel.onclick = close; dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
@@ -22,13 +24,16 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     cancel.textContent = t('driveClose'); progress.setAttribute('aria-label', t('driveLoading'));
     connect.textContent = t(getAccount().authenticated ? 'driveChoose' : 'googleLoginLabel');
   };
-  window.addEventListener('auth:status', () => { if (controller && accountId !== getAccount().userId) close(); localize(); });
+  window.addEventListener('auth:status', () => {
+    if (controller && accountId !== getAccount().userId) close();
+    localize(); resumeReturn();
+  });
   async function show(event) {
     event?.stopPropagation();
     if (controller) return;
     trigger = event?.currentTarget; localize();
     controller = new AbortController(); const current = controller;
-    accountId = getAccount().userId; ready = false; busy = false; progress.hidden = true;
+    accountId = getAccount().userId; ready = false; busy = false; navigate = null; progress.hidden = true;
     connect.disabled = true;
     try { await beforeOpen(); } catch { close(); return; }
     if (!alive(current)) return;
@@ -36,15 +41,54 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     if (!navigator.onLine) { status.textContent = t('driveError_offline'); return; }
     if (!isDriveConfigured(driveConfig())) { status.textContent = t('driveError_config'); return; }
     try {
-      await prepareDrive(); if (!alive(current)) return;
+      if (usesDriveRedirect(driveConfig()) && getAccount().authenticated) {
+        navigate = await prepareDriveRedirect(driveConfig(), getAccount(), current.signal);
+      } else if (!usesDriveRedirect(driveConfig())) await prepareDrive();
+      if (!alive(current)) return;
       ready = true; connect.disabled = false; status.textContent = t('driveReady');
-    } catch { if (alive(current)) status.textContent = t('driveError_sdk'); }
+    } catch (error) { if (alive(current)) status.textContent = t('driveError_' + (error.driveCode || 'network')); }
+  }
+  async function loadSelected(selected, token, current) {
+    if (!alive(current)) return;
+    if (!selected) { close(); return; }
+    if (!dialog.open) dialog.showModal();
+    status.textContent = t('driveLoading'); progress.hidden = false; progress.removeAttribute('value');
+    const file = await downloadDriveBook(selected, token, { signal: current.signal,
+      onProgress: (bytes, total) => {
+        if (!alive(current)) return;
+        status.textContent = t('driveLoading') + ' ' + (bytes / 1048576).toFixed(1) + ' MB';
+        if (total) { progress.max = total; progress.value = bytes; }
+      } });
+    if (!alive(current) || getAccount().userId !== accountId) return;
+    close(); await openFile(file);
+  }
+  async function resumeReturn() {
+    if (!returned || controller || (!returned.error && !getAccount().authenticated)) return;
+    const result = returned; returned = null;
+    if (result.error === 'cancelled') return;
+    localize(); controller = new AbortController(); const current = controller;
+    accountId = getAccount().userId; busy = true; ready = false; connect.disabled = true;
+    try {
+      await beforeOpen();
+      if (!alive(current)) return;
+      dialog.showModal(); status.textContent = t('driveLoading');
+      if (result.error) throw { driveCode: result.error };
+      if (result.userId !== accountId) throw { driveCode: 'redirectState' };
+      const token = await exchangeDriveReturn(driveConfig(), result, await getIdToken(), current.signal);
+      await loadSelected({ id: result.fileId }, token, current);
+    } catch (error) {
+      if (alive(current)) {
+        progress.hidden = true;
+        status.textContent = t('driveError_' + (error.driveCode || 'network'));
+      }
+    } finally { if (alive(current)) busy = false; }
   }
   connect.onclick = async () => {
     if (!ready || busy) return;
     if (!getAccount().authenticated) { close(); login(); return; }
     busy = true; connect.disabled = true; const current = controller;
     try {
+      if (navigate) { navigate(); return; }
       // No await precedes authorization: preserve the user's popup activation.
       const token = await authorizeDrive(driveConfig(), getAccount().userEmail, current.signal);
       if (!alive(current)) return;
@@ -52,16 +96,7 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
       dialog.close();
       const selected = await selectDriveBook(driveConfig(), token, document.documentElement.lang, current.signal);
       if (!alive(current)) return;
-      if (!selected) { close(); return; }
-      dialog.showModal(); status.textContent = t('driveLoading'); progress.hidden = false; progress.removeAttribute('value');
-      const file = await downloadDriveBook(selected, token, { signal: current.signal,
-        onProgress: (bytes, total) => {
-          if (!alive(current)) return;
-          status.textContent = t('driveLoading') + ' ' + (bytes / 1048576).toFixed(1) + ' MB';
-          if (total) { progress.max = total; progress.value = bytes; }
-        } });
-      if (!alive(current) || getAccount().userId !== accountId) return;
-      close(); await openFile(file);
+      await loadSelected(selected, token, current);
     } catch (error) {
       if (!alive(current)) return;
       if (error.driveCode === 'cancelled') { close(); return; }
@@ -71,5 +106,5 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     } finally { if (alive(current)) { busy = false; connect.disabled = false; } }
   };
   document.querySelectorAll('[data-google-drive]').forEach(button => button.addEventListener('click', show));
-  localize(); return { localize };
+  localize(); resumeReturn(); return { localize };
 }

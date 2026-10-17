@@ -10,6 +10,7 @@ import { CloudSync } from "./cloudSync.js";
 import { UIController, ProgressBarHandler } from "./ui.js";
 import {
   checkAuthStatus,
+  getIdTokenInfo,
   initGoogleLogin,
   logout,
   startGoogleLogin,
@@ -3183,6 +3184,7 @@ function showSettings() {
 function setupEvents() {
   localizeLegalLinks(uiLanguage);
   googleDriveUI = createGoogleDriveUI({ t, getAccount: checkAuthStatus, login: startGoogleLogin,
+    getIdToken: async () => (await getIdTokenInfo())?.idToken,
     openFile: handleFile, beforeOpen: async () => {
       renderers.toggleFloatOverlay(false);
       ui?.closeAllMenus();

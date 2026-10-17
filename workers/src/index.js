@@ -17,6 +17,7 @@ import { mergeCloudStates } from '../../assets/js/core/cloud-state-merge.js';
 import { sanitizeCloudMeta, sanitizeCloudState } from '../../assets/js/core/cloud-payload.js';
 import { SYNC_PATHS } from '../../assets/constants.js';
 import { handleCatalogSync } from './catalog-sync.js';
+import { handleDriveOAuth } from './drive-oauth.js';
 const API_LIMITS = Object.freeze({ maxBodyBytes: 1048576, casRetries: 5 });
 
 /** Optimistic compare-and-swap prevents concurrent JSON updates from dropping another device's edits. */
@@ -80,6 +81,8 @@ export default {
     // ルートパスの場合は ?path= クエリパラメータを使用（クライアント側の実装に対応）
     const path = url.pathname === '/' ? url.searchParams.get('path') : url.pathname;
     const method = request.method;
+
+    if (url.pathname.startsWith('/oauth/drive/')) return handleDriveOAuth(request, env);
 
     // CORS プリフライトへの対応
     const corsHeaders = {
