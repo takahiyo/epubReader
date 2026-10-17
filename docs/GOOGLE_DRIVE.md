@@ -1,35 +1,5 @@
 # Googleドライブ直接読み込み：計画・設定・検証
 
-## 2026-10-17：iPadのCookie制限への対応（dev）
-
-iPad版VivaldiのGoogle提供ページ（drive.google.com）では、マイドライブ以外・ショートカット先でタッチスクロールできない実機報告あり。Google側のページ内部をBookReaderのCSS/JSで修正することはできないため、iPadの準備ダイアログに任意の「書籍のDriveリンク」を追加した。Driveアプリ等で対象の書籍ファイルからコピーしたリンクを指定すると、公式 `file_ids` パラメーターでその1冊だけに選択を絞り、フォルダー内のスクロールを避ける。フォルダーのリンクには対応せず、一覧をたどる標準経路も残す。権限は `drive.file` のまま。Googleページ自体の不具合を修正したものではなく、リンク指定経路の実機動作は別途確認が必要。
-
-iPad/iPhoneでは、埋め込みPickerの代わりにGoogleの認証・選択ページへ移動し、選択後にBookReaderへ戻る。Safariの「サイト越えトラッキングを防ぐ」をオンにしたまま使うことを目的とした変更。通常タブ・ホーム画面PWA双方の実機検証は必要。PC・Android・Questは従来の埋め込みPickerを維持する。
-
-使用する公式フローは `response_type=code`、`prompt=consent`、`trigger_onepick=true`、`drive.file` 単独。OAuth stateとPKCEの一時情報だけをsessionStorageに保存する（10分有効・戻った時点で削除）。コードはページ先頭でURLから除去し、アクセストークンはメモリーだけに保持する。Firebaseでログインした同一ユーザーであることを確認し、dev Workerの専用APIでコード交換する。書籍は従来どおりブラウザーからDrive APIで直接取得する。Workerへ書籍本体を送らず、トークンやコードをDB・KV・ログへ保存しない。
-
-### devの外部設定（必須）
-
-1. Google Cloudの既存Drive用Web OAuthクライアントの「承認済みのリダイレクトURI」に **`https://dev.epubreader-7w6.pages.dev/`** を追加する。JavaScript生成元への登録とは別の設定。末尾の `/` を含めて一致させる。GitHub Pagesの公開情報は旧設定であり、現在のdevはCloudflare PagesのこのブランチURLを使う。
-2. 同じOAuthクライアントのクライアントシークレットを、GitHubリポジトリのActions secret **`DRIVE_CLIENT_SECRET`** に登録する。devのWorkerデプロイ時にWorker secretへ反映される。あるいは管理者が `workers` で `npx wrangler secret put DRIVE_CLIENT_SECRET --env dev` を実行する。秘密値をソース・ブラウザー設定・チャットへ記載しない。
-3. devへpushして「Deploy Workers to Development」とCloudflare Pagesの成功を確認する。上記devブランチURLを再読み込みし、iPadのSafari設定をオンにして認証→選択→読書開始、キャンセル、アカウント変更、PWA復帰を確認する。コミットごとの一時プレビューURLでは戻り先が一致しないため、固定のブランチURLを使う。
-
-Workerの `DRIVE_REDIRECT_URI` と実際の公開URLが一致し、secretが登録されるまでは、iPadには「設定待ち」の案内を出す。サーバーの設定確認だけではGoogle側のURI登録までは確認できず、未登録の場合はGoogleの `redirect_uri_mismatch` が表示される。
-
-`/oauth/drive/config` と `/oauth/drive/token` は登録した戻り先の生成元に限定したCORSと `no-store` を使う。token APIはFirebase IDトークンを要求し、固定のGoogleトークンエンドポイント・OAuthクライアント・戻り先だけを使う。
-
-[Google公式：別画面での認証とPicker](https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker)
-
-### この改修の検証
-
-2026-10-17追記：埋め込みPickerはGoogle公式の `PickerBuilder.toUri()` 方式へ変更。標準ダイアログの高さ650px上限を避け、表示領域の上下24pxを除く高さを使用する。ウィンドウのリサイズにも追従し、短い画面では外側もスクロールできる。`drive.file` での推奨に従い一覧表示を使う。模擬ブラウザで1080px高からのリサイズ、100冊目へのスクロールと選択を検証。iPad/iPhoneのGoogle別ページ方式は継続し、そのページ内部のサイズはGoogle側で管理される。
-
-- 既存の削除・競合状態を変更しない検証用コピーで、全回帰テスト114件成功。
-- 新規の認証テスト8件でstate・期限・PKCE・CORS・コード交換・IDだけの選択からの取得を確認。
-- `tests/google-drive-redirect-browser.mjs`：iPad UA、Googleへの移動、戻った直後のURL除去、Firebase復元待ちからの再開、書籍File引き渡しをChrome上の模擬通信で確認。
-- 既存のWorkerバンドルとworkerd・ローカルD1の検証成功。法的ページとSWキャッシュ設定の再生成内容も一致。
-- 実際のGoogle OAuthおよびiPad Safari/PWAは、上記外部設定後に利用者が確認する。
-
 2026-10-09 / dev
 
 ## 方針

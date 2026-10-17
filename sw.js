@@ -168,7 +168,6 @@ self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
     // OAuth and private Drive content must never pass through offline asset caching.
     if (event.request.headers?.has('Authorization') ||
-        url.pathname.startsWith('/oauth/drive/') || url.searchParams.get('state')?.startsWith('brdrive_') ||
         ['accounts.google.com', 'www.googleapis.com', 'docs.google.com'].includes(url.hostname)) return;
     const cacheUrl = new URL(event.request.url);
     if (isLocal) cacheUrl.searchParams.delete('v');
