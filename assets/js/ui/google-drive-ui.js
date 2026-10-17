@@ -88,12 +88,14 @@ export function createGoogleDriveUI({ t, getAccount, login, openFile, beforeOpen
     if (!getAccount().authenticated) { close(); login(); return; }
     busy = true; connect.disabled = true; const current = controller;
     try {
+      // Native modal dialogs sit above embedded Google consent UI. Dismiss our
+      // top layer before either navigation or synchronous OAuth authorization.
+      // Keep the controller alive; close() would cancel this request.
+      dialog.close();
       if (navigate) { navigate(); return; }
       // No await precedes authorization: preserve the user's popup activation.
       const token = await authorizeDrive(driveConfig(), getAccount().userEmail, current.signal);
       if (!alive(current)) return;
-      // Native dialog top layer would otherwise obscure Google's iframe picker.
-      dialog.close();
       const selected = await selectDriveBook(driveConfig(), token, document.documentElement.lang, current.signal);
       if (!alive(current)) return;
       await loadSelected(selected, token, current);

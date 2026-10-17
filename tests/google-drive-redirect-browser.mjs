@@ -94,6 +94,36 @@ try {
   assert.match(exchanges[0].body.verifier, /^[\w-]{43}$/);
   assert.equal(await page.evaluate(() => sessionStorage.getItem('bookreader.drive.redirect')), null);
   assert.equal(await page.evaluate(() => !!window.google || !!window.gapi), false);
+  // Desktop/undetected-device fallback: consent must receive clicks before OAuth completes.
+  await page.goto(origin);
+  await page.evaluate(async () => {
+    window.APP_CONFIG = { googleDrive: { selectionMode: 'embedded' } };
+    window.gapi = { load: (_, options) => options.callback() };
+    class Builder {
+      addView() { return this; } setDeveloperKey() { return this; } setAppId() { return this; }
+      setOAuthToken() { return this; } setOrigin() { return this; } setLocale() { return this; }
+      setSize() { return this; } setCallback(callback) { this.callback = callback; return this; }
+      build() { return { dispose() {}, setVisible: () => queueMicrotask(() => this.callback({ action: 'cancel' })) }; }
+    }
+    window.google = { accounts: { oauth2: { hasGrantedAllScopes: () => true,
+      initTokenClient: options => ({ requestAccessToken() {
+        const consent = document.createElement('button'); consent.id = 'mockGoogleConsent';
+        consent.textContent = 'アクセスを許可';
+        consent.style.cssText = 'position:fixed;left:10px;top:10px;width:200px;height:60px';
+        consent.onclick = () => { window.consentClicked = true; consent.remove(); options.callback({ access_token: 'test-token' }); };
+        document.body.append(consent);
+      } }) } }, picker: { PickerBuilder: Builder, Action: { CANCEL: 'cancel', PICKED: 'picked' },
+        DocsView: class { setIncludeFolders() { return this; } setSelectFolderEnabled() { return this; } } } };
+    const { createGoogleDriveUI } = await import('/assets/js/ui/google-drive-ui.js');
+    createGoogleDriveUI({ t: key => key, getAccount: () => ({ authenticated: true, userId: 'reader' }),
+      login() {}, beforeOpen() {}, openFile() {} });
+  });
+  await page.click('[data-google-drive]');
+  await page.waitForFunction(() => !document.querySelector('#googleDriveConnect').disabled);
+  await page.click('#googleDriveConnect');
+  await page.click('#mockGoogleConsent');
+  assert.equal(await page.evaluate(() => window.consentClicked), true);
+  assert.equal(await page.$eval('dialog', element => element.open), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: iPad top-level OAuth, PKCE, URL cleanup, authenticated code exchange and ID-only file handoff');
+  console.log('PASS: iPad OAuth round trip and clickable Google consent without a covering BookReader dialog');
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
